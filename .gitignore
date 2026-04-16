@@ -15,3 +15,11 @@ build/
 .ai_context_library/
 .context_metrics/
 CONTEXT_SAVINGS.md
+.ai_context_global_metrics/
+boot/
+store/
+indexes/
+migration/
+logs/
+delta/last_packets/
+compaction_report.json

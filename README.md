@@ -84,3 +84,25 @@ PYTHONPATH=src python3 -m aictx workspace list
 ## Extraction status
 
 See `docs/EXTRACTION_ROADMAP.md`.
+
+## Migrated subsystems
+
+Current repo-local CLI surface also exposes the migrated runtime subsystems:
+
+- `aictx boot`
+- `aictx query`
+- `aictx packet`
+- `aictx route`
+- `aictx migrate`
+- `aictx detect-stale`
+- `aictx compact`
+- `aictx ensure-gitignore`
+- `aictx new-note`
+- `aictx touch`
+- `aictx failure`
+- `aictx task-memory`
+- `aictx memory-graph`
+- `aictx library`
+- `aictx global`
+
+The repository also includes compatibility wrappers under `scripts/` and `bin/`.

@@ -4,6 +4,7 @@ import argparse
 import shutil
 from pathlib import Path
 
+from . import core_runtime, global_metrics
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
 from .state import (
     CONFIG_PATH,
@@ -181,6 +182,25 @@ def cmd_extract_legacy(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_global(args: argparse.Namespace) -> int:
+    payload: dict[str, object] = {}
+    if args.refresh:
+        payload["refresh"] = global_metrics.refresh_global_metrics()
+    if args.health_check:
+        payload["health_check"] = global_metrics.run_health_check()
+    if args.json:
+        import json
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        import json
+        print(json.dumps({
+            "global_metrics_dir": global_metrics.rel(global_metrics.GLOBAL_DIR),
+            "refreshed": bool(args.refresh),
+            "health_checked": bool(args.health_check),
+        }, indent=2, ensure_ascii=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aictx", description="Portable multi-LLM context engine CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -211,6 +231,113 @@ def build_parser() -> argparse.ArgumentParser:
     extract = sub.add_parser("extract-legacy", help="Copy starter templates from an existing ai_context_engine repo")
     extract.add_argument("--source", required=True, help="Path to an existing ai_context_engine repo")
     extract.set_defaults(func=cmd_extract_legacy)
+
+    boot = sub.add_parser("boot", help="Boot AI Context Engine")
+    boot.add_argument("--repo", default=".", help="Repository path for session boot context.")
+    boot.set_defaults(func=core_runtime.cli_boot)
+
+    query = sub.add_parser("query", help="Query structured memory")
+    query.add_argument("--prefs", action="store_true", help="Query preferences.")
+    query.add_argument("--architecture", action="store_true", help="Query architecture decisions.")
+    query.add_argument("--symptom", action="store_true", help="Query symptom index.")
+    query.add_argument("query", nargs="*", help="Keyword query.")
+    query.set_defaults(func=core_runtime.cli_query)
+
+    packet = sub.add_parser("packet", help="Build a task packet")
+    packet.add_argument("--task", required=True, help="Task description.")
+    packet.add_argument("--project", help="Optional project override.")
+    packet.add_argument("--task-type", help="Optional explicit task type override.")
+    packet.set_defaults(func=core_runtime.cli_packet)
+
+    route = sub.add_parser("route", help="Suggest model level for a task")
+    route.add_argument("--task", required=True, help="Task description.")
+    route.set_defaults(func=core_runtime.cli_route)
+
+    migrate = sub.add_parser("migrate", help="Rebuild structured artifacts from notes")
+    migrate.set_defaults(func=core_runtime.cli_migrate)
+
+    stale = sub.add_parser("detect-stale", help="Detect stale, duplicate, or missing records")
+    stale.set_defaults(func=core_runtime.cli_stale)
+
+    compact = sub.add_parser("compact", help="Run conservative compaction analysis")
+    compact.add_argument("--apply", action="store_true", help="Reserved for future non-dry-run compaction.")
+    compact.set_defaults(func=core_runtime.cli_compact)
+
+    gitignore = sub.add_parser("ensure-gitignore", help="Ensure ignore rules for local memory artifacts")
+    gitignore.add_argument("--repo", required=True, help="Repository root to update.")
+    gitignore.set_defaults(func=core_runtime.cli_gitignore)
+
+    touch = sub.add_parser("touch", help="Refresh last_verified for records")
+    touch.add_argument("items", nargs="+", help="Record ids or note paths.")
+    touch.set_defaults(func=core_runtime.cli_touch)
+
+    new_note = sub.add_parser("new-note", help="Create a new structured markdown note")
+    new_note.add_argument("--path", required=True, help="Note path relative to repo root.")
+    new_note.add_argument("--title", required=True, help="Markdown H1 title.")
+    new_note.add_argument("--tags", nargs="*", default=[], help="Optional tag list.")
+    new_note.add_argument("--task-type", help="Optional task type for derived task-memory routing.")
+    new_note.set_defaults(func=core_runtime.cli_new_note)
+
+    failure = sub.add_parser("failure", help="Record or reinforce a failure-memory pattern")
+    failure.add_argument("--failure-id", required=True, help="Stable failure identifier.")
+    failure.add_argument("--category", default="unknown", help="Failure category.")
+    failure.add_argument("--title", required=True, help="Short failure title.")
+    failure.add_argument("--symptoms", nargs="*", default=[], help="Observed symptoms.")
+    failure.add_argument("--root-cause", default="", help="Likely root cause.")
+    failure.add_argument("--solution", default="", help="Known resolution.")
+    failure.add_argument("--files", nargs="*", default=[], help="Files or areas involved.")
+    failure.add_argument("--commands", nargs="*", default=[], help="Related commands.")
+    failure.add_argument("--confidence", type=float, default=0.75, help="Reuse confidence.")
+    failure.add_argument("--notes", default="", help="Optional manual notes.")
+    failure.set_defaults(func=core_runtime.cli_failure)
+
+    task_memory = sub.add_parser("task-memory", help="Record or reinforce task-specific memory")
+    task_memory.add_argument("--task-type", required=True, help="Task type bucket.")
+    task_memory.add_argument("--title", required=True, help="Short reusable pattern title.")
+    task_memory.add_argument("--summary", required=True, help="Compact reusable lesson.")
+    task_memory.add_argument("--signals", action="append", help="Optional routing or trigger signals.")
+    task_memory.add_argument("--common-locations", action="append", help="Optional repeated locations.")
+    task_memory.add_argument("--patterns", action="append", help="Optional task patterns or tags.")
+    task_memory.add_argument("--constraints", action="append", help="Optional durable constraints.")
+    task_memory.add_argument("--frequent-mistakes", action="append", help="Optional mistakes to avoid.")
+    task_memory.add_argument("--preferred-validation", action="append", help="Optional validation guidance.")
+    task_memory.add_argument("--related-files", action="append", help="Optional related files.")
+    task_memory.add_argument("--confidence", type=float, default=0.75, help="Confidence score between 0 and 1.")
+    task_memory.set_defaults(func=core_runtime.cli_task_memory)
+
+    graph = sub.add_parser("memory-graph", help="Refresh or query the memory graph")
+    graph.add_argument("--refresh", action="store_true", help="Rebuild the memory graph from current artifacts.")
+    graph.add_argument("--query", help="Node id or label query.")
+    graph.add_argument("--depth", type=int, default=1, help="Expansion depth for queries.")
+    graph.set_defaults(func=core_runtime.cli_memory_graph)
+
+    library = sub.add_parser("library", help="Manage knowledge library")
+    library_sub = library.add_subparsers(dest="library_command")
+    learn = library_sub.add_parser("learn", help="Bootstrap a knowledge mod.")
+    learn.add_argument("mod_id", help="Mod identifier.")
+    learn.add_argument("--alias", dest="aliases", action="append", default=[], help="Optional alias.")
+    process = library_sub.add_parser("process", help="Process inbox documents for a mod.")
+    process.add_argument("mod_id", help="Mod identifier.")
+    add_source = library_sub.add_parser("add-source", help="Register a remote URL source for a mod.")
+    add_source.add_argument("mod_id", help="Mod identifier.")
+    add_source.add_argument("--url", required=True, help="Remote source URL.")
+    add_source.add_argument("--type", dest="declared_type", default="auto", help="Declared source type: auto|html|pdf|md|txt.")
+    add_source.add_argument("--tag", dest="tags", action="append", default=[], help="Optional source tag.")
+    fetch = library_sub.add_parser("fetch-sources", help="Fetch registered remote URL sources for a mod.")
+    fetch.add_argument("mod_id", help="Mod identifier.")
+    fetch.add_argument("--source-id", help="Optional source id to fetch.")
+    fetch.add_argument("--force", action="store_true", help="Force a new fetch even when checksum is unchanged.")
+    retrieve = library_sub.add_parser("retrieve", help="Retrieve a minimal knowledge pack for a task.")
+    retrieve.add_argument("--task", required=True, help="Task description.")
+    library_sub.add_parser("status", help="Show library and telemetry status.")
+    library.set_defaults(func=core_runtime.cli_library)
+
+    global_cmd = sub.add_parser("global", help="Refresh global metrics or run health checks")
+    global_cmd.add_argument("--refresh", action="store_true", help="Refresh projects index and global savings artifacts.")
+    global_cmd.add_argument("--health-check", action="store_true", help="Run global health checks.")
+    global_cmd.add_argument("--json", action="store_true", help="Print full JSON output.")
+    global_cmd.set_defaults(func=cmd_global)
+
     return parser
 
 

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "topics": {
+    "install": ["projects/aictx/distribution.md"],
+    "bootstrap": ["projects/aictx/distribution.md"],
+    "workspace": ["projects/aictx/distribution.md"]
+  }
+}

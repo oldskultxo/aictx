@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "symptoms": {
+    "missing bootstrap": ["projects/aictx/distribution.md"],
+    "workspace drift": ["projects/aictx/distribution.md"]
+  }
+}

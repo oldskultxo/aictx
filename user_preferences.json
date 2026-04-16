@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "updated_at": "2026-04-16",
+  "profile": {
+    "preferred_language": "es"
+  },
+  "response": {
+    "verbosity": "concise",
+    "explanation_depth": "minimal",
+    "output_density": "compact",
+    "response_structure": "final_only"
+  },
+  "interaction": {
+    "workflow_interaction_style": "silent_by_default",
+    "intermediate_feedback": "none",
+    "reasoning_process_visibility": "none",
+    "file_change_progress_visibility": "none",
+    "collaboration_style": "autonomous"
+  },
+  "communication": {
+    "layer": "enabled",
+    "mode": "caveman_full",
+    "intermediate_updates": "suppressed",
+    "final_style": "plain_direct_final_only"
+  },
+  "coding": {
+    "run_tests": "auto",
+    "run_build": "if_required",
+    "update_docs": "auto"
+  },
+  "workflow": {
+    "result_delivery_mode": "final_only",
+    "default_response_style": "concise",
+    "memory_system": "ai_context_standard"
+  },
+  "quality_gates": {
+    "run_tests": "auto",
+    "run_build": "if_required",
+    "update_docs": "auto"
+  }
+}
