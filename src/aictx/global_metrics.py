@@ -81,6 +81,48 @@ class ProjectEntry:
     source: str
 
 
+ENGINE_DIRNAME = ".ai_context_engine"
+ENGINE_MEMORY_DIR = Path(ENGINE_DIRNAME) / "memory"
+ENGINE_COST_DIR = Path(ENGINE_DIRNAME) / "cost"
+ENGINE_TASK_MEMORY_DIR = Path(ENGINE_DIRNAME) / "task_memory"
+ENGINE_FAILURE_MEMORY_DIR = Path(ENGINE_DIRNAME) / "failure_memory"
+ENGINE_MEMORY_GRAPH_DIR = Path(ENGINE_DIRNAME) / "memory_graph"
+ENGINE_LIBRARY_DIR = Path(ENGINE_DIRNAME) / "library"
+ENGINE_METRICS_DIR = Path(ENGINE_DIRNAME) / "metrics"
+
+
+def repo_engine_dir(repo: Path) -> Path:
+    return repo / ENGINE_DIRNAME
+
+
+def repo_memory_dir(repo: Path) -> Path:
+    return repo / ENGINE_MEMORY_DIR
+
+
+def repo_cost_dir(repo: Path) -> Path:
+    return repo / ENGINE_COST_DIR
+
+
+def repo_task_memory_dir(repo: Path) -> Path:
+    return repo / ENGINE_TASK_MEMORY_DIR
+
+
+def repo_failure_memory_dir(repo: Path) -> Path:
+    return repo / ENGINE_FAILURE_MEMORY_DIR
+
+
+def repo_memory_graph_dir(repo: Path) -> Path:
+    return repo / ENGINE_MEMORY_GRAPH_DIR
+
+
+def repo_library_dir(repo: Path) -> Path:
+    return repo / ENGINE_LIBRARY_DIR
+
+
+def repo_metrics_dir(repo: Path) -> Path:
+    return repo / ENGINE_METRICS_DIR
+
+
 def detect_repo_dirs(root: Path) -> list[Path]:
     repos: list[Path] = []
     for child in sorted(root.iterdir()):
@@ -91,8 +133,7 @@ def detect_repo_dirs(root: Path) -> list[Path]:
         markers = [
             child / "AGENTS.md",
             child / ".git",
-            child / ".ai_context_memory",
-            child / ".context_metrics",
+            child / ENGINE_DIRNAME,
         ]
         if any(marker.exists() for marker in markers):
             repos.append(child)
@@ -100,7 +141,7 @@ def detect_repo_dirs(root: Path) -> list[Path]:
 
 
 def infer_iteration(repo: Path) -> str:
-    engine_state = read_json(repo / ".ai_context_engine" / "state.json", {})
+    engine_state = read_json(repo_engine_dir(repo) / "state.json", {})
     explicit_iteration = str(engine_state.get("installed_iteration", "") or "").strip()
     if explicit_iteration:
         return explicit_iteration
@@ -127,13 +168,13 @@ def infer_iteration(repo: Path) -> str:
         if (repo / ".ai_context_task_memory" / "task_memory_status.json").exists():
             return "6"
         return "5" if (repo / ".ai_context_cost" / "packet_budget_status.json").exists() else "4"
-    has_memory = (repo / ".ai_context_memory").exists()
-    has_metrics = (repo / ".context_metrics").exists()
-    has_cost = (repo / ".ai_context_memory" / "packet_budget_status.json").exists()
-    has_task_memory = (repo / ".ai_context_memory" / "task_memory_summary.json").exists()
-    has_failure_memory = (repo / ".ai_context_memory" / "failure_memory_summary.json").exists()
-    has_memory_graph = (repo / ".ai_context_memory" / "memory_graph_summary.json").exists()
-    task_memory_summary = read_json(repo / ".ai_context_memory" / "task_memory_summary.json", {}) if has_task_memory else {}
+    has_memory = repo_memory_dir(repo).exists()
+    has_metrics = repo_metrics_dir(repo).exists()
+    has_cost = (repo_memory_dir(repo) / "packet_budget_status.json").exists()
+    has_task_memory = (repo_memory_dir(repo) / "task_memory_summary.json").exists()
+    has_failure_memory = (repo_memory_dir(repo) / "failure_memory_summary.json").exists()
+    has_memory_graph = (repo_memory_dir(repo) / "memory_graph_summary.json").exists()
+    task_memory_summary = read_json(repo_memory_dir(repo) / "task_memory_summary.json", {}) if has_task_memory else {}
     agents_text = (repo / "AGENTS.md").read_text(encoding="utf-8", errors="ignore") if (repo / "AGENTS.md").exists() else ""
     if has_memory_graph:
         return "9"
@@ -159,8 +200,8 @@ def infer_iteration(repo: Path) -> str:
 def discover_projects() -> list[ProjectEntry]:
     entries: list[ProjectEntry] = []
     for repo in detect_repo_dirs(PROJECTS_ROOT):
-        has_memory = repo / ".ai_context_memory"
-        has_metrics = repo / ".context_metrics"
+        has_memory = repo_memory_dir(repo)
+        has_metrics = repo_metrics_dir(repo)
         agents = repo / "AGENTS.md"
         if not (has_memory.exists() or has_metrics.exists() or agents.exists()):
             continue
@@ -192,13 +233,13 @@ def load_context_savings_markdown(repo: Path) -> dict[str, Any]:
 
 
 def load_project_telemetry(repo: Path) -> ProjectTelemetry:
-    weekly = repo / ".context_metrics" / "weekly_summary.json"
-    cost_status_path = (repo / ".ai_context_cost" / "packet_budget_status.json") if repo.name == CANONICAL_SCOPE else (repo / ".ai_context_memory" / "packet_budget_status.json")
-    task_status_path = (repo / ".ai_context_task_memory" / "task_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo / ".ai_context_memory" / "task_memory_summary.json")
-    failure_status_path = (repo / ".ai_context_failure_memory" / "failure_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo / ".ai_context_memory" / "failure_memory_summary.json")
-    memory_graph_status_path = (repo / ".ai_context_memory_graph" / "graph_status.json") if repo.name == CANONICAL_SCOPE else (repo / ".ai_context_memory" / "memory_graph_summary.json")
-    library_registry_path = repo / ".ai_context_library" / "registry.json"
-    retrieval_status_path = repo / ".ai_context_library" / "retrieval_status.json"
+    weekly = repo_metrics_dir(repo) / "weekly_summary.json"
+    cost_status_path = (repo / ".ai_context_cost" / "packet_budget_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "packet_budget_status.json")
+    task_status_path = (repo / ".ai_context_task_memory" / "task_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "task_memory_summary.json")
+    failure_status_path = (repo / ".ai_context_failure_memory" / "failure_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "failure_memory_summary.json")
+    memory_graph_status_path = (repo / ".ai_context_memory_graph" / "graph_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "memory_graph_summary.json")
+    library_registry_path = repo_library_dir(repo) / "registry.json"
+    retrieval_status_path = repo_library_dir(repo) / "retrieval_status.json"
     cost_status = read_json(cost_status_path, {}) if cost_status_path.exists() else {}
     task_status = read_json(task_status_path, {}) if task_status_path.exists() else {}
     failure_status = read_json(failure_status_path, {}) if failure_status_path.exists() else {}
@@ -546,29 +587,29 @@ def run_health_check() -> dict[str, Any]:
 
     for row in projects_index.get("projects", []):
         repo = Path(row["repo_path"])
-        compat = repo / ".ai_context_memory"
+        compat = repo_memory_dir(repo)
         agents = repo / "AGENTS.md"
-        weekly = repo / ".context_metrics" / "weekly_summary.json"
+        weekly = repo_metrics_dir(repo) / "weekly_summary.json"
         repo_issues: list[dict[str, str]] = []
         if not compat.exists():
             if row.get("installed_iteration") not in {"1", "unknown"}:
-                repo_issues.append(issue("warning", row["name"], "memory_availability", "Missing .ai_context_memory compatibility layer"))
+                repo_issues.append(issue("warning", row["name"], "memory_availability", "Missing .ai_context_engine/memory bootstrap layer"))
         else:
             derived = compat / "derived_boot_summary.json"
             if not derived.exists():
-                repo_issues.append(issue("needs_attention", row["name"], "bootstrap", "Missing .ai_context_memory/derived_boot_summary.json"))
+                repo_issues.append(issue("needs_attention", row["name"], "bootstrap", "Missing .ai_context_engine/memory/derived_boot_summary.json"))
             if row.get("installed_iteration") in OPTIMIZER_ITERATIONS and not (compat / "packet_budget_status.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "cost_optimizer", "Missing .ai_context_memory/packet_budget_status.json"))
+                repo_issues.append(issue("needs_attention", row["name"], "cost_optimizer", "Missing .ai_context_engine/memory/packet_budget_status.json"))
             if row.get("installed_iteration") in TASK_MEMORY_ITERATIONS and not (compat / "task_memory_summary.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "task_memory", "Missing .ai_context_memory/task_memory_summary.json"))
+                repo_issues.append(issue("needs_attention", row["name"], "task_memory", "Missing .ai_context_engine/memory/task_memory_summary.json"))
             if row.get("installed_iteration") in FAILURE_MEMORY_ITERATIONS and not (compat / "failure_memory_summary.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing .ai_context_memory/failure_memory_summary.json"))
+                repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing .ai_context_engine/memory/failure_memory_summary.json"))
             if row.get("installed_iteration") in MEMORY_GRAPH_ITERATIONS and not (compat / "memory_graph_summary.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing .ai_context_memory/memory_graph_summary.json"))
+                repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing .ai_context_engine/memory/memory_graph_summary.json"))
         if not agents.exists():
             repo_issues.append(issue("warning", row["name"], "bootstrap", "Missing AGENTS.md instructions"))
         if row.get("telemetry_dir") != "unknown" and not weekly.exists():
-            repo_issues.append(issue("warning", row["name"], "telemetry_activity", "Missing .context_metrics/weekly_summary.json"))
+            repo_issues.append(issue("warning", row["name"], "telemetry_activity", "Missing .ai_context_engine/metrics/weekly_summary.json"))
         checks.append({
             "scope": row["name"],
             "check": "project_health",

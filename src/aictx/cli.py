@@ -19,6 +19,7 @@ from .state import (
     ENGINE_HOME,
     GLOBAL_METRICS_DIR,
     PROJECTS_REGISTRY_PATH,
+    REPO_MEMORY_DIR,
     default_global_config,
     ensure_global_home,
     load_active_workspace,
@@ -27,6 +28,14 @@ from .state import (
     write_json,
     workspace_path,
 )
+
+
+COMMUNICATION_MODE_OPTIONS = [
+    ("disabled", "disabled"),
+    ("caveman_lite", "caveman_lite"),
+    ("caveman_full", "caveman_full"),
+    ("caveman_ultra", "caveman_ultra"),
+]
 
 
 def ask_yes_no(prompt: str, default: bool = True) -> bool:
@@ -41,6 +50,39 @@ def ask_text(prompt: str, default: str = "") -> str:
     shown = f" [{default}]" if default else ""
     raw = input(f"{prompt}{shown}: ").strip()
     return raw or default
+
+
+def ask_choice(prompt: str, options: list[tuple[str, str]], default: str) -> str:
+    labels = {value: label for value, label in options}
+    if default not in labels:
+        raise ValueError(f"Unknown default option: {default}")
+    print(prompt)
+    for index, (value, label) in enumerate(options, start=1):
+        default_suffix = " (default)" if value == default else ""
+        print(f"{index}. {label}{default_suffix}")
+    while True:
+        raw = input("Select option number: ").strip()
+        if not raw:
+            return default
+        if raw.isdigit():
+            choice = int(raw)
+            if 1 <= choice <= len(options):
+                return options[choice - 1][0]
+        print("Invalid selection. Enter the option number.")
+
+
+def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
+    prefs_path = repo / REPO_MEMORY_DIR / "user_preferences.json"
+    prefs = read_json(prefs_path, {})
+    communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
+    if selected_mode == "disabled":
+        communication["layer"] = "disabled"
+        communication["mode"] = "caveman_full"
+    else:
+        communication["layer"] = "enabled"
+        communication["mode"] = selected_mode
+    prefs["communication"] = communication
+    write_json(prefs_path, prefs)
 
 
 def cmd_install(args: argparse.Namespace) -> int:
@@ -109,6 +151,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     update_gitignore = not args.no_gitignore
     register_repo = not args.no_register
+    selected_communication_mode = "disabled"
 
     if not args.yes:
         print("AI Context Engine repo initialization")
@@ -123,6 +166,11 @@ def cmd_init(args: argparse.Namespace) -> int:
         print()
         update_gitignore = ask_yes_no("Write .gitignore entries if missing?", update_gitignore)
         register_repo = ask_yes_no("Register this repo in the active workspace?", register_repo)
+        selected_communication_mode = ask_choice(
+            "Select default communication mode for this repo:",
+            COMMUNICATION_MODE_OPTIONS,
+            default="disabled",
+        )
         proceed = ask_yes_no("Initialize full starter scaffold now?", True)
         if not proceed:
             print("Cancelled.")
@@ -130,6 +178,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     ensure_global_home()
     created = init_repo_scaffold(repo, update_gitignore=update_gitignore)
+    persist_repo_communication_mode(repo, selected_communication_mode)
     install_global_agent_runtime(write_json)
     local_runtime_path = copy_local_agent_runtime(repo)
     upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())

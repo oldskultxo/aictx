@@ -20,15 +20,16 @@ def render_agent_runtime(engine_home: Path | None = None) -> str:
 Use this runtime guide after repository initialization with `aictx init`.
 
 ## Startup / bootstrap
-- Read `.ai_context_memory/derived_boot_summary.json` first when present.
-- Apply `.ai_context_memory/user_preferences.json` as defaults unless the current prompt overrides them.
+- Read `.ai_context_engine/memory/derived_boot_summary.json` first when present.
+- Apply `.ai_context_engine/memory/user_preferences.json` as defaults unless the current prompt overrides them.
+- Repo-local preferences may keep communication mode disabled by default; explicit user requests still override.
 - Use the engine as the first low-cost memory layer before deeper repo analysis.
 - Do not hand-edit generated `.ai_context_*` artifacts.
 
 ## Retrieval order
-1. `.ai_context_memory/derived_boot_summary.json`
-2. `.ai_context_memory/user_preferences.json`
-3. `.ai_context_memory/project_bootstrap.json`
+1. `.ai_context_engine/memory/derived_boot_summary.json`
+2. `.ai_context_engine/memory/user_preferences.json`
+3. `.ai_context_engine/memory/project_bootstrap.json`
 4. smallest relevant note or structured hit
 5. code/runtime/tests when memory is missing, stale, or insufficient
 
@@ -36,6 +37,13 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Use packet-building behavior for non-trivial tasks that need compact context.
 - Packet assembly may use retrieval, task memory, failure memory, memory graph, and budget optimization.
 - Routing/model suggestion is available when the task complexity needs it.
+
+## Communication mode
+- `communication.layer` controls whether the caveman communication layer is active by default: `enabled` or `disabled`.
+- `communication.mode` supports `caveman_lite`, `caveman_full`, and `caveman_ultra`.
+- Precedence order: explicit current-user instruction > `.ai_context_engine/memory/user_preferences.json` > runtime defaults.
+- If `communication.layer=disabled`, use normal style unless the user explicitly asks for caveman mode in the current session.
+- Persisted changes to communication mode must come from runtime/preferences updates, not ad-hoc agent assumptions.
 
 ## Learning write-back after non-trivial tasks
 - Persist validated learnings after non-trivial tasks.
@@ -60,7 +68,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Savings reports / telemetry / health
 - Repo-local sources of truth:
-  - `.context_metrics/weekly_summary.json`
+  - `.ai_context_engine/metrics/weekly_summary.json`
   - `CONTEXT_SAVINGS.md` when present
 - Global cross-project sources of truth:
   - `{global_metrics_dir / 'projects_index.json'}`
@@ -97,12 +105,13 @@ def render_repo_agents_block() -> str:
 This repository is initialized for `aictx`.
 
 Agent rules:
-- Read `.ai_context_memory/derived_boot_summary.json` first when present.
+- Read `.ai_context_engine/memory/derived_boot_summary.json` first when present.
 - Use `aictx` as the first low-cost memory layer before deeper repo analysis.
-- Apply `.ai_context_memory/user_preferences.json` as defaults unless the current prompt overrides them.
+- Apply `.ai_context_engine/memory/user_preferences.json` as defaults unless the current prompt overrides them.
+- Communication mode may be disabled by repo-local preferences; explicit user requests still override for the current session.
 - Persist validated learnings after non-trivial tasks.
 - If the user asks the agent to learn docs, reusable knowledge, or external references, activate the knowledge/library workflow.
-- If the user asks for savings reports or health, use repo-local `.context_metrics/` and global engine telemetry artifacts as the source of truth.
+- If the user asks for savings reports or health, use repo-local `.ai_context_engine/metrics/` and global engine telemetry artifacts as the source of truth.
 - Missing telemetry must be reported as `unknown`, never as zero or as an invented estimate.
 - Do not hand-edit generated `.ai_context_*` artifacts.
 
@@ -131,7 +140,8 @@ def upsert_marked_block(path: Path, block: str) -> None:
     if AGENTS_START in existing and AGENTS_END in existing:
         start = existing.index(AGENTS_START)
         end = existing.index(AGENTS_END) + len(AGENTS_END)
-        updated = existing[:start].rstrip() + "\n\n" + block.strip() + "\n"
+        head = existing[:start].rstrip()
+        updated = block.strip() + "\n" if not head else head + "\n\n" + block.strip() + "\n"
         tail = existing[end:].lstrip()
         if tail:
             updated += "\n" + tail

@@ -16,7 +16,7 @@
     "collaboration_style": "autonomous"
   },
   "communication": {
-    "layer": "enabled",
+    "layer": "disabled",
     "mode": "caveman_full",
     "intermediate_updates": "suppressed",
     "final_style": "plain_direct_final_only",

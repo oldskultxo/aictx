@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from .state import REPO_DIRS, TASK_TYPES, write_json
+from .state import (
+    REPO_COST_DIR,
+    REPO_DIRS,
+    REPO_FAILURE_MEMORY_DIR,
+    REPO_LIBRARY_DIR,
+    REPO_MEMORY_DIR,
+    REPO_MEMORY_GRAPH_DIR,
+    REPO_METRICS_DIR,
+    REPO_STATE_PATH,
+    REPO_TASK_MEMORY_DIR,
+    TASK_TYPES,
+    write_json,
+)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -35,9 +48,9 @@ def bootstrap_payload(repo: Path, repo_name: str) -> dict:
         ],
         "bootstrap_required": True,
         "bootstrap_sequence": [
-            "load .ai_context_memory/derived_boot_summary.json",
-            "load .ai_context_memory/user_preferences.json",
-            "load .ai_context_memory/project_bootstrap.json",
+            "load .ai_context_engine/memory/derived_boot_summary.json",
+            "load .ai_context_engine/memory/user_preferences.json",
+            "load .ai_context_engine/memory/project_bootstrap.json",
             "load smallest relevant local note",
             "apply preferences as runtime defaults",
         ],
@@ -49,19 +62,67 @@ def bootstrap_payload(repo: Path, repo_name: str) -> dict:
     }
 
 
+def canonical_repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def merge_tree(source: Path, target: Path) -> None:
+    if not source.exists():
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    for child in list(source.iterdir()):
+        destination = target / child.name
+        if child.is_dir():
+            merge_tree(child, destination)
+            if child.exists():
+                child.rmdir()
+        else:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if not destination.exists():
+                shutil.move(str(child), str(destination))
+            else:
+                child.unlink()
+
+
+def migrate_legacy_repo_layout(repo: Path) -> list[str]:
+    if repo.resolve() == canonical_repo_root():
+        return []
+    migrated: list[str] = []
+    mapping = {
+        ".ai_context_memory": REPO_MEMORY_DIR,
+        ".ai_context_cost": REPO_COST_DIR,
+        ".ai_context_task_memory": REPO_TASK_MEMORY_DIR,
+        ".ai_context_failure_memory": REPO_FAILURE_MEMORY_DIR,
+        ".ai_context_memory_graph": REPO_MEMORY_GRAPH_DIR,
+        ".ai_context_library": REPO_LIBRARY_DIR,
+        ".context_metrics": REPO_METRICS_DIR,
+    }
+    for legacy_name, canonical_rel in mapping.items():
+        source = repo / legacy_name
+        if not source.exists():
+            continue
+        target = repo / canonical_rel
+        merge_tree(source, target)
+        if source.exists():
+            source.rmdir()
+        migrated.append(f"{source} -> {target}")
+    return migrated
+
+
 def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
-    created: list[str] = []
+    created = migrate_legacy_repo_layout(repo)
     repo_name = repo.name
     for rel in REPO_DIRS:
         path = repo / rel
         path.mkdir(parents=True, exist_ok=True)
-        created.append(str(path))
+        if str(path) not in created:
+            created.append(str(path))
 
     for task_type in TASK_TYPES:
-        (repo / ".ai_context_task_memory" / task_type).mkdir(parents=True, exist_ok=True)
+        (repo / REPO_TASK_MEMORY_DIR / task_type).mkdir(parents=True, exist_ok=True)
 
     write_json(
-        repo / ".ai_context_engine" / "state.json",
+        repo / REPO_STATE_PATH,
         {
             "engine_id": "ai_context_engine",
             "engine_name": "ai_context_engine",
@@ -73,9 +134,9 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         },
     )
 
-    compat = repo / ".ai_context_memory"
+    compat = repo / REPO_MEMORY_DIR
     (compat / "README.md").write_text(
-        "# .ai_context_memory\n\nGenerated local bootstrap layer for AI agents.\n",
+        "# .ai_context_engine/memory\n\nGenerated local bootstrap layer for AI agents.\n",
         encoding="utf-8",
     )
     write_json(
@@ -114,39 +175,39 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     for name in ["architecture_learnings.jsonl", "technical_patterns.jsonl", "workflow_learnings.jsonl"]:
         (compat / name).write_text("", encoding="utf-8")
 
-    write_json(repo / ".ai_context_cost" / "packet_budget_status.json", {"version": 1, "status": "not_initialized"})
-    (repo / ".ai_context_cost" / "latest_optimization_report.md").write_text(
+    write_json(repo / REPO_COST_DIR / "packet_budget_status.json", {"version": 1, "status": "not_initialized"})
+    (repo / REPO_COST_DIR / "latest_optimization_report.md").write_text(
         "# latest optimization report\n\nstatus: not_initialized\n",
         encoding="utf-8",
     )
-    (repo / ".ai_context_cost" / "optimizer_config.yaml").write_text(
+    (repo / REPO_COST_DIR / "optimizer_config.yaml").write_text(
         "budget_target_tokens: 3000\nsoft_limit_tokens: 2600\nhard_limit_tokens: 3200\n",
         encoding="utf-8",
     )
 
-    write_json(repo / ".ai_context_task_memory" / "task_memory_status.json", {"version": 1, "records_by_task_type": {t: 0 for t in TASK_TYPES}})
-    write_json(repo / ".ai_context_task_memory" / "task_taxonomy.json", {"version": 1, "task_types": TASK_TYPES})
-    (repo / ".ai_context_task_memory" / "task_resolution_rules.md").write_text("# task resolution rules\n\nStarter scaffold.\n", encoding="utf-8")
+    write_json(repo / REPO_TASK_MEMORY_DIR / "task_memory_status.json", {"version": 1, "records_by_task_type": {t: 0 for t in TASK_TYPES}})
+    write_json(repo / REPO_TASK_MEMORY_DIR / "task_taxonomy.json", {"version": 1, "task_types": TASK_TYPES})
+    (repo / REPO_TASK_MEMORY_DIR / "task_resolution_rules.md").write_text("# task resolution rules\n\nStarter scaffold.\n", encoding="utf-8")
 
-    write_json(repo / ".ai_context_failure_memory" / "index.json", {"version": 1, "failures": []})
-    write_json(repo / ".ai_context_failure_memory" / "failure_memory_status.json", {"version": 1, "records_total": 0})
-    (repo / ".ai_context_failure_memory" / "summaries").mkdir(parents=True, exist_ok=True)
-    (repo / ".ai_context_failure_memory" / "summaries" / "common_patterns.md").write_text("# common failure patterns\n\nNone yet.\n", encoding="utf-8")
-    (repo / ".ai_context_failure_memory" / "failures").mkdir(parents=True, exist_ok=True)
+    write_json(repo / REPO_FAILURE_MEMORY_DIR / "index.json", {"version": 1, "failures": []})
+    write_json(repo / REPO_FAILURE_MEMORY_DIR / "failure_memory_status.json", {"version": 1, "records_total": 0})
+    (repo / REPO_FAILURE_MEMORY_DIR / "summaries").mkdir(parents=True, exist_ok=True)
+    (repo / REPO_FAILURE_MEMORY_DIR / "summaries" / "common_patterns.md").write_text("# common failure patterns\n\nNone yet.\n", encoding="utf-8")
+    (repo / REPO_FAILURE_MEMORY_DIR / "failures").mkdir(parents=True, exist_ok=True)
 
-    write_json(repo / ".ai_context_memory_graph" / "graph_status.json", {"version": 1, "nodes_total": 0, "edges_total": 0})
+    write_json(repo / REPO_MEMORY_GRAPH_DIR / "graph_status.json", {"version": 1, "nodes_total": 0, "edges_total": 0})
     for sub in ["nodes", "edges", "indexes", "snapshots"]:
-        (repo / ".ai_context_memory_graph" / sub).mkdir(parents=True, exist_ok=True)
-    (repo / ".ai_context_memory_graph" / "snapshots" / "latest_graph_snapshot.json").write_text("{}\n", encoding="utf-8")
+        (repo / REPO_MEMORY_GRAPH_DIR / sub).mkdir(parents=True, exist_ok=True)
+    (repo / REPO_MEMORY_GRAPH_DIR / "snapshots" / "latest_graph_snapshot.json").write_text("{}\n", encoding="utf-8")
 
-    write_json(repo / ".ai_context_library" / "registry.json", {"version": 1, "mods": {}})
-    write_json(repo / ".ai_context_library" / "retrieval_status.json", {"version": 1, "retrieval_events": 0})
-    (repo / ".ai_context_library" / "REFERENCES_TEMPLATE.md").write_text("# references template\n\n- title:\n- source:\n- tags:\n", encoding="utf-8")
-    (repo / ".ai_context_library" / "mods").mkdir(parents=True, exist_ok=True)
+    write_json(repo / REPO_LIBRARY_DIR / "registry.json", {"version": 1, "mods": {}})
+    write_json(repo / REPO_LIBRARY_DIR / "retrieval_status.json", {"version": 1, "retrieval_events": 0})
+    (repo / REPO_LIBRARY_DIR / "REFERENCES_TEMPLATE.md").write_text("# references template\n\n- title:\n- source:\n- tags:\n", encoding="utf-8")
+    (repo / REPO_LIBRARY_DIR / "mods").mkdir(parents=True, exist_ok=True)
 
-    write_json(repo / ".context_metrics" / "weekly_summary.json", {"version": 1, "confidence": "unknown", "tasks_sampled": 0})
-    write_json(repo / ".context_metrics" / "baseline_estimates.json", {"version": 1, "status": "not_initialized"})
-    (repo / ".context_metrics" / "task_logs.jsonl").write_text("", encoding="utf-8")
+    write_json(repo / REPO_METRICS_DIR / "weekly_summary.json", {"version": 1, "confidence": "unknown", "tasks_sampled": 0})
+    write_json(repo / REPO_METRICS_DIR / "baseline_estimates.json", {"version": 1, "status": "not_initialized"})
+    (repo / REPO_METRICS_DIR / "task_logs.jsonl").write_text("", encoding="utf-8")
 
     if update_gitignore:
         ensure_gitignore(repo)
@@ -158,13 +219,6 @@ def ensure_gitignore(repo: Path) -> None:
     desired = [
         ".DS_Store",
         ".ai_context_engine/",
-        ".ai_context_memory/",
-        ".ai_context_cost/",
-        ".ai_context_task_memory/",
-        ".ai_context_failure_memory/",
-        ".ai_context_memory_graph/",
-        ".ai_context_library/",
-        ".context_metrics/",
         "CONTEXT_SAVINGS.md",
     ]
     existing = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
