@@ -5,6 +5,14 @@ import shutil
 from pathlib import Path
 
 from . import core_runtime, global_metrics
+from .agent_runtime import (
+    copy_local_agent_runtime,
+    install_global_agent_runtime,
+    render_repo_agents_block,
+    render_workspace_agents_block,
+    resolve_workspace_root,
+    upsert_marked_block,
+)
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
 from .state import (
     CONFIG_PATH,
@@ -80,6 +88,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         if root not in ws["roots"]:
             ws["roots"].append(root)
     write_json(workspace_path(workspace_id), ws)
+    runtime_paths = install_global_agent_runtime(write_json)
 
     print("Created:")
     print(f"- {ENGINE_HOME}")
@@ -87,6 +96,8 @@ def cmd_install(args: argparse.Namespace) -> int:
     print(f"- {PROJECTS_REGISTRY_PATH}")
     print(f"- {GLOBAL_METRICS_DIR}")
     print(f"- {workspace_path(workspace_id)}")
+    for path in runtime_paths:
+        print(f"- {path}")
     if workspace_root:
         print("Registered workspace root:")
         print(f"- {str(Path(workspace_root).expanduser().resolve())}")
@@ -119,6 +130,9 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     ensure_global_home()
     created = init_repo_scaffold(repo, update_gitignore=update_gitignore)
+    install_global_agent_runtime(write_json)
+    local_runtime_path = copy_local_agent_runtime(repo)
+    upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
     ws = load_active_workspace()
     repo_str = str(repo)
     if register_repo and repo_str not in ws.repos:
@@ -128,9 +142,18 @@ def cmd_init(args: argparse.Namespace) -> int:
     if register_repo and repo_str not in [row.get("repo_path") for row in registry.get("projects", [])]:
         registry["projects"].append({"name": repo.name, "repo_path": repo_str, "workspace": ws.workspace_id})
         write_json(PROJECTS_REGISTRY_PATH, registry)
+    workspace_root = resolve_workspace_root(repo, ws.roots)
+    workspace_agents_path = None
+    if workspace_root:
+        workspace_agents_path = workspace_root / "AGENTS.md"
+        upsert_marked_block(workspace_agents_path, render_workspace_agents_block())
     print("Created:")
     for item in created:
         print(f"- {item}")
+    print(f"- {local_runtime_path}")
+    print(f"- {repo / 'AGENTS.md'}")
+    if workspace_agents_path and workspace_agents_path != repo / 'AGENTS.md':
+        print(f"- {workspace_agents_path}")
     if register_repo:
         print("Registered repo in workspace:")
         print(f"- {ws.workspace_id} -> {repo_str}")
