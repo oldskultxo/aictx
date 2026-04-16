@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 from .state import REPO_DIRS, TASK_TYPES, write_json
 
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def load_template_json(name: str) -> dict:
+    return json.loads((TEMPLATES_DIR / name).read_text(encoding="utf-8"))
 
 
 def bootstrap_payload(repo: Path, repo_name: str) -> dict:
@@ -53,49 +60,52 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     for task_type in TASK_TYPES:
         (repo / ".ai_context_task_memory" / task_type).mkdir(parents=True, exist_ok=True)
 
-    write_json(repo / ".ai_context_engine" / "state.json", {
-        "engine_id": "ai_context_engine",
-        "engine_name": "ai_context_engine",
-        "adapter_id": "generic",
-        "adapter_family": "multi_llm",
-        "provider_capabilities": ["chat_completion", "tool_use", "structured_output", "long_context"],
-        "installed_at": now_iso(),
-        "repo_root": str(repo),
-    })
+    write_json(
+        repo / ".ai_context_engine" / "state.json",
+        {
+            "engine_id": "ai_context_engine",
+            "engine_name": "ai_context_engine",
+            "adapter_id": "generic",
+            "adapter_family": "multi_llm",
+            "provider_capabilities": ["chat_completion", "tool_use", "structured_output", "long_context"],
+            "installed_at": now_iso(),
+            "repo_root": str(repo),
+        },
+    )
 
     compat = repo / ".ai_context_memory"
     (compat / "README.md").write_text(
         "# .ai_context_memory\n\nGenerated local bootstrap layer for AI agents.\n",
         encoding="utf-8",
     )
-    write_json(compat / "manifest.json", {
-        "version": 1,
-        "project": repo_name,
-        "artifacts": {
-            "derived_boot_summary": "derived_boot_summary.json",
-            "user_preferences": "user_preferences.json",
-            "project_bootstrap": "project_bootstrap.json",
-            "context_packet_schema": "context_packet_schema.json",
+    write_json(
+        compat / "manifest.json",
+        {
+            "version": 1,
+            "project": repo_name,
+            "artifacts": {
+                "derived_boot_summary": "derived_boot_summary.json",
+                "user_preferences": "user_preferences.json",
+                "project_bootstrap": "project_bootstrap.json",
+                "context_packet_schema": "context_packet_schema.json",
+                "model_routing": "model_routing.json",
+            },
         },
-    })
+    )
     write_json(compat / "derived_boot_summary.json", bootstrap_payload(repo, repo_name))
-    write_json(compat / "project_bootstrap.json", {
-        "version": 1,
-        "project": repo_name,
-        "repo_root": str(repo),
-        "engine_name": "ai_context_engine",
-        "lookup_order": ["repo", "workspace", "global"],
-    })
-    write_json(compat / "user_preferences.json", {
-        "version": 1,
-        "preferred_language": "en",
-        "response": {"verbosity": "concise", "response_structure": "final_only"},
-        "workflow": {"memory_system": "ai_context_standard"},
-    })
-    write_json(compat / "context_packet_schema.json", {
-        "version": 1,
-        "required": ["task_id", "task_summary", "task_type", "relevant_memory"],
-    })
+    write_json(
+        compat / "project_bootstrap.json",
+        {
+            "version": 1,
+            "project": repo_name,
+            "repo_root": str(repo),
+            "engine_name": "ai_context_engine",
+            "lookup_order": ["repo", "workspace", "global"],
+        },
+    )
+    write_json(compat / "user_preferences.json", load_template_json("user_preferences.json"))
+    write_json(compat / "context_packet_schema.json", load_template_json("context_packet_schema.json"))
+    write_json(compat / "model_routing.json", load_template_json("model_routing.json"))
     write_json(compat / "compaction_report.json", {"version": 1, "status": "not_initialized"})
     write_json(compat / "packet_budget_status.json", {"version": 1, "status": "not_initialized"})
     write_json(compat / "task_memory_summary.json", {"version": 1, "status": "not_initialized"})
@@ -105,8 +115,14 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         (compat / name).write_text("", encoding="utf-8")
 
     write_json(repo / ".ai_context_cost" / "packet_budget_status.json", {"version": 1, "status": "not_initialized"})
-    (repo / ".ai_context_cost" / "latest_optimization_report.md").write_text("# latest optimization report\n\nstatus: not_initialized\n", encoding="utf-8")
-    (repo / ".ai_context_cost" / "optimizer_config.yaml").write_text("budget_target_tokens: 3000\nsoft_limit_tokens: 2600\nhard_limit_tokens: 3200\n", encoding="utf-8")
+    (repo / ".ai_context_cost" / "latest_optimization_report.md").write_text(
+        "# latest optimization report\n\nstatus: not_initialized\n",
+        encoding="utf-8",
+    )
+    (repo / ".ai_context_cost" / "optimizer_config.yaml").write_text(
+        "budget_target_tokens: 3000\nsoft_limit_tokens: 2600\nhard_limit_tokens: 3200\n",
+        encoding="utf-8",
+    )
 
     write_json(repo / ".ai_context_task_memory" / "task_memory_status.json", {"version": 1, "records_by_task_type": {t: 0 for t in TASK_TYPES}})
     write_json(repo / ".ai_context_task_memory" / "task_taxonomy.json", {"version": 1, "task_types": TASK_TYPES})
@@ -140,6 +156,7 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
 def ensure_gitignore(repo: Path) -> None:
     path = repo / ".gitignore"
     desired = [
+        ".DS_Store",
         ".ai_context_engine/",
         ".ai_context_memory/",
         ".ai_context_cost/",

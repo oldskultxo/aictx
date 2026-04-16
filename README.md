@@ -2,41 +2,85 @@
 
 Portable multi-LLM context engine bootstrapper and local runtime.
 
-## Goal
+## What it is
 
-`aictx` installs and initializes a stable `.ai_context_*` contract inside a repository so LLM agents can use contextual memory from the first minute after installation.
+`aictx` is the distributable layer for installing a stable `.ai_context_*` contract into repositories so Codex, Claude, and other LLM agents can use local contextual memory from the moment the repo is initialized.
 
-## Initial scope
+## Current scope
 
 - global install config under `~/.ai_context_engine/`
-- repo init scaffold under `.ai_context_*`
+- repo initialization scaffold under `.ai_context_*`
 - workspace registry for cross-project discovery
-- deterministic scripting/runtime ownership for filesystem artifacts
-- no LLM-dependent filesystem creation
+- interactive and non-interactive CLI flows
+- bundled starter templates for packet schema, defaults, and model routing
+- first extraction lane from `ai_context_engine` into `aictx`
 
-## Planned commands
+## Design rules
 
-- `aictx install`
-- `aictx init`
-- `aictx boot`
-- `aictx health`
-- `aictx workspace add-root`
-- `aictx workspace list`
-- `aictx refresh-global`
+- filesystem artifacts are created by scripting/runtime, never by the LLM
+- repo-local structure is eager: directories and starter files exist immediately after `aictx init`
+- cross-project discovery is registry/workspace-based, not hardcoded to a machine path
+- repo-local memory and global engine state are separated
 
-## Current status
+## Commands
 
-This repository contains the first distributable scaffold and a working CLI for:
+### Install globally
 
-- global install
-- repo init
-- workspace root registration
-- workspace listing
+```bash
+aictx install
+```
+
+Non-interactive:
+
+```bash
+aictx install --yes --workspace-root ~/projects
+```
+
+What it creates:
+
+- `~/.ai_context_engine/config.json`
+- `~/.ai_context_engine/projects_registry.json`
+- `~/.ai_context_engine/workspaces/default.json`
+- `~/.ai_context_engine/.ai_context_global_metrics/`
+
+### Initialize a repository
+
+```bash
+aictx init
+```
+
+Non-interactive:
+
+```bash
+aictx init --repo . --yes
+```
+
+What it creates:
+
+- `.ai_context_engine/`
+- `.ai_context_memory/`
+- `.ai_context_cost/`
+- `.ai_context_task_memory/`
+- `.ai_context_failure_memory/`
+- `.ai_context_memory_graph/`
+- `.ai_context_library/`
+- `.context_metrics/`
+
+### Workspace operations
+
+```bash
+aictx workspace add-root ~/projects
+aictx workspace list
+```
 
 ## Development
 
 ```bash
-python3 -m aictx --help
-python3 -m aictx install --yes --workspace-root ~/projects
-python3 -m aictx init --repo . --yes
+PYTHONPATH=src python3 -m aictx install --yes --workspace-root ~/projects
+PYTHONPATH=src python3 -m aictx init --repo . --yes
+PYTHONPATH=src python3 -m aictx workspace list
 ```
+
+## Extraction status
+
+See `docs/EXTRACTION_ROADMAP.md`.

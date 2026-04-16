@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "profile": "default",
+  "adapter_defaults": {
+    "adapter_id": "generic",
+    "adapter_family": "multi_llm",
+    "provider_capabilities": [
+      "chat_completion",
+      "tool_use",
+      "structured_output",
+      "long_context"
+    ]
+  },
+  "levels": {
+    "light": {
+      "max_files": 2,
+      "keywords": [
+        "rename",
+        "label",
+        "copy",
+        "text",
+        "format"
+      ]
+    },
+    "medium": {
+      "max_files": 8,
+      "keywords": [
+        "add",
+        "implement",
+        "fix",
+        "debug",
+        "test",
+        "refactor"
+      ]
+    },
+    "heavy": {
+      "min_files": 9,
+      "keywords": [
+        "architecture",
+        "migration",
+        "redesign",
+        "cross-system",
+        "protocol"
+      ]
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "updated_at": "2026-03-07",
+  "preferred_language": "es",
+  "response": {
+    "verbosity": "concise",
+    "explanation_depth": "minimal",
+    "output_density": "compact",
+    "response_structure": "final_only"
+  },
+  "interaction": {
+    "workflow_interaction_style": "silent_by_default",
+    "intermediate_feedback": "none",
+    "reasoning_process_visibility": "none",
+    "file_change_progress_visibility": "none",
+    "collaboration_style": "autonomous"
+  },
+  "communication": {
+    "layer": "enabled",
+    "mode": "caveman_full",
+    "intermediate_updates": "suppressed",
+    "final_style": "plain_direct_final_only",
+    "user_override_wins": true,
+    "long_form_on_request": true,
+    "step_by_step_on_request": true,
+    "applies_to": [
+      "implementation_summaries",
+      "debugging_reports",
+      "patch_explanations",
+      "execution_loop_diagnostics",
+      "final_execution_results"
+    ],
+    "does_not_apply_to": [
+      "source_code_comments",
+      "repository_documentation",
+      "marketing_copy",
+      "narrative_content",
+      "normal_style_user_requested_prose"
+    ],
+    "preferred_patterns": [
+      "found -> cause -> fix",
+      "done -> files -> tests",
+      "blocked -> reason -> need",
+      "next -> verify -> continue",
+      "changed A, updated B, left C"
+    ]
+  },
+  "coding": {
+    "build_command": "make build",
+    "run_tests": "auto",
+    "run_build": "if_required",
+    "update_docs": "auto",
+    "autonomy_mode": "yolo",
+    "coding_conventions": {
+      "comments": "brief_why_only",
+      "preserve_unrelated_changes": true
+    }
+  },
+  "workflow": {
+    "intermediate_feedback": "none",
+    "reasoning_process_visibility": "none",
+    "result_delivery_mode": "final_only",
+    "file_change_progress_visibility": "none",
+    "default_response_style": "concise",
+    "build_command": "make build",
+    "autonomy_mode": "yolo",
+    "memory_system": "ai_context_standard"
+  },
+  "quality_gates": {
+    "run_tests": "auto",
+    "run_build": "if_required",
+    "update_docs": "auto"
+  }
+}
