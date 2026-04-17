@@ -8,6 +8,15 @@ The intended human workflow is still:
 2. init a repo
 3. use your agent normally
 
+## Product posture (important)
+
+`aictx` should be read as:
+
+- **primary**: repo-native runtime contract + execution discipline
+- **secondary**: heuristic packet/memory/failure/graph acceleration
+
+So the current value is strongest in reproducible runtime behavior and structured reuse, not in “deep intelligence” claims.
+
 ## Install
 
 Public install:
@@ -83,6 +92,28 @@ aictx execution prepare --repo . --request "task" --agent-id demo --execution-id
 
 Use this when validating that repo-local preferences and repo-local state are still aligned.
 
+## Heuristic context behavior
+
+`aictx packet` and `execution prepare` use deterministic/heuristic routing and ranking:
+
+- task typing with confidence/evidence/ambiguity
+- bounded graph expansion
+- budgeted packet groups with selection reports
+
+Use this for compact, explainable context assembly, not as a guarantee of superior understanding on every repo/task.
+
+Quick check:
+
+```bash
+aictx packet --task "debug failing integration"
+```
+
+Look at:
+
+- `task_type_resolution`
+- `selection_report`
+- `packet_strategy`
+
 ## Development workflow
 
 ```bash
@@ -112,3 +143,23 @@ python3 -m venv /tmp/aictx-release-venv
 - `not_initialized`
 
 That status is separate from communication defaults and helps distinguish missing runtime setup from normal operation.
+
+## Day-2 value evidence (second run)
+
+Run two similar executions and inspect telemetry:
+
+```bash
+aictx execution prepare --repo . --request "review middleware behavior" --agent-id demo --execution-id demo-1 > /tmp/prepared-1.json
+aictx execution finalize --prepared /tmp/prepared-1.json --success --validated-learning --result-summary "first pass"
+
+aictx execution prepare --repo . --request "review middleware behavior" --agent-id demo --execution-id demo-2 > /tmp/prepared-2.json
+aictx execution finalize --prepared /tmp/prepared-2.json --success --result-summary "second pass"
+```
+
+Then inspect:
+
+- `.ai_context_engine/metrics/weekly_summary.json`
+- `value_evidence`
+- `repeated_context_request`
+- `task_memory_reused`
+- `failure_memory_reused`
