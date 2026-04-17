@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .runtime_contract import runtime_consistency_report
+
 BASE = Path(__file__).resolve().parents[2]
 PROJECTS_ROOT = BASE.parent
 CANONICAL_SCOPE = BASE.name
@@ -607,6 +609,7 @@ def run_health_check() -> dict[str, Any]:
                 repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing .ai_context_engine/memory/failure_memory_summary.json"))
             if row.get("installed_iteration") in MEMORY_GRAPH_ITERATIONS and not (compat / "memory_graph_summary.json").exists():
                 repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing .ai_context_engine/memory/memory_graph_summary.json"))
+        consistency = runtime_consistency_report(repo)
         if not state_path.exists():
             repo_issues.append(issue("warning", row["name"], "runtime_state", "Missing .ai_context_engine/state.json"))
         else:
@@ -623,6 +626,10 @@ def run_health_check() -> dict[str, Any]:
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Claude native repo file CLAUDE.md"))
             if not (repo / ".claude" / "settings.json").exists():
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Claude native project hooks .claude/settings.json"))
+        if consistency.get("status") == "warning":
+            repo_issues.append(issue("warning", row["name"], "runtime_consistency", "Repo runtime state disagrees with effective communication policy"))
+        elif consistency.get("status") == "not_initialized" and row.get("installed_iteration") not in {"unknown", "1"}:
+            repo_issues.append(issue("warning", row["name"], "runtime_consistency", "Repo runtime consistency could not be verified because initialization is incomplete"))
         if not agents.exists():
             repo_issues.append(issue("warning", row["name"], "bootstrap", "Missing AGENTS.md instructions"))
         if row.get("telemetry_dir") != "unknown" and not weekly.exists():
@@ -632,6 +639,7 @@ def run_health_check() -> dict[str, Any]:
             "check": "project_health",
             "status": merge_state(repo_issues),
             "issues": repo_issues,
+            "consistency": consistency,
         })
         issues.extend(repo_issues)
 

@@ -71,3 +71,12 @@ make test
 make smoke
 make package-check
 ```
+
+## Repo bootstrap status
+
+`aictx boot --repo <path>` now reports repo bootstrap status explicitly:
+
+- `initialized`
+- `not_initialized`
+
+That status is separate from communication defaults and helps distinguish missing runtime setup from normal operation.

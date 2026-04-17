@@ -709,3 +709,42 @@ def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
     assert finalize_proc.returncode == 0, finalize_proc.stderr
     finalized_payload = json.loads(finalize_proc.stdout)
     assert finalized_payload["execution_id"] == "cli-smoke-1"
+
+
+def test_boot_reports_not_initialized_for_plain_repo(tmp_path: Path):
+    repo = tmp_path / "plain-repo"
+    repo.mkdir()
+
+    boot = core_runtime.bootstrap(str(repo))
+
+    assert boot["repo_bootstrap"]["exists"] is False
+    assert boot["repo_bootstrap"]["status"] == "not_initialized"
+    assert boot["consistency_checks"]["status"] == "not_initialized"
+    assert boot["communication_sources"]["layer"] in {"global_defaults", "hardcoded_fallback"}
+
+
+def test_global_health_check_reports_runtime_consistency_warning(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+
+    state_path = repo / ".ai_context_engine" / "state.json"
+    state = read_json(state_path, {})
+    state["communication_layer"] = "enabled"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    monkeypatch.setattr("aictx.global_metrics.PROJECTS_INDEX_PATH", tmp_path / "projects_index.json")
+    monkeypatch.setattr("aictx.global_metrics.CONTEXT_SAVINGS_PATH", tmp_path / "context.json")
+    monkeypatch.setattr("aictx.global_metrics.TELEMETRY_SOURCES_PATH", tmp_path / "telemetry_sources.json")
+    monkeypatch.setattr("aictx.global_metrics.HEALTH_REPORT_PATH", tmp_path / "health.json")
+
+    (tmp_path / "projects_index.json").write_text(json.dumps({"projects": [{"name": repo.name, "repo_path": str(repo), "installed_iteration": "16", "telemetry_dir": "unknown"}]}), encoding="utf-8")
+    (tmp_path / "context.json").write_text(json.dumps({"project_breakdown": [{"name": repo.name}], "projects_with_telemetry": 0, "projects_with_memory": 1}), encoding="utf-8")
+    (tmp_path / "telemetry_sources.json").write_text(json.dumps({"sources": [{"project": repo.name}]}), encoding="utf-8")
+
+    import aictx.global_metrics as global_metrics
+    health = global_metrics.run_health_check()
+
+    project_check = next(item for item in health["checks"] if item["scope"] == repo.name and item["check"] == "project_health")
+    assert project_check["consistency"]["status"] == "warning"
+    assert any(issue["check"] == "runtime_consistency" for issue in project_check["issues"])

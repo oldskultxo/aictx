@@ -54,3 +54,7 @@ Missing data is reported as `not_initialized` or `unknown` instead of being sile
 ## Code structure
 
 The runtime is still evolving, but product-hardening logic is now being split out of the monolith into focused modules such as `runtime_contract.py` so communication policy and consistency checks are owned in one place.
+
+## Global health checks
+
+Global health checks now include runtime-consistency reporting per project so state drift is visible during cross-project validation.

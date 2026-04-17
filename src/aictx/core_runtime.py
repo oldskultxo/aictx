@@ -4345,6 +4345,8 @@ def bootstrap(repo_path: str | None = None) -> dict[str, Any]:
     repo_memory_dir = repo / ".ai_context_engine" / "memory" if repo else None
     repo_state_path = repo / ".ai_context_engine" / "state.json" if repo else None
     resolved_preferences = resolve_effective_preferences(repo, global_defaults_path=ROOT_PREFS_PATH)
+    consistency = runtime_consistency_report(repo, global_defaults_path=ROOT_PREFS_PATH)
+    repo_exists = bool(repo_memory_dir and repo_memory_dir.exists())
     return {
         "boot_summary": read_json(BOOT_SUMMARY_PATH, {}),
         "user_defaults": read_json(BOOT_DEFAULTS_PATH, {}),
@@ -4358,9 +4360,10 @@ def bootstrap(repo_path: str | None = None) -> dict[str, Any]:
         "task_taxonomy": read_json(TASK_MEMORY_TAXONOMY_PATH, {}),
         "failure_memory": read_json(FAILURE_MEMORY_STATUS_PATH, {}),
         "memory_graph": read_json(MEMORY_GRAPH_STATUS_PATH, {}),
-        "consistency_checks": runtime_consistency_report(repo, global_defaults_path=ROOT_PREFS_PATH),
+        "consistency_checks": consistency,
         "repo_bootstrap": {
-            "exists": bool(repo_memory_dir and repo_memory_dir.exists()),
+            "exists": repo_exists,
+            "status": "initialized" if repo_exists else "not_initialized",
             "path": repo_memory_dir.as_posix() if repo_memory_dir else "",
             "derived_boot_summary": read_json(repo_memory_dir / "derived_boot_summary.json", {}) if repo_memory_dir and repo_memory_dir.exists() else {},
             "project_bootstrap": read_json(repo_memory_dir / "project_bootstrap.json", {}) if repo_memory_dir and repo_memory_dir.exists() else {},

@@ -125,4 +125,5 @@ You can also call the installed script directly:
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
 - [5-minute demo](docs/DEMO.md)
 - [Current limitations](docs/LIMITATIONS.md)
+- [Phase 2 notes](docs/PHASE2_NOTES.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)
