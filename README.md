@@ -1,8 +1,75 @@
 # aictx
 
-**Install once. Initialize a repo. Give coding agents a real runtime contract.**
+Most coding agents forget important repo context between sessions.
 
-`aictx` turns a normal repository into a repository with a **runtime contract for coding agents**.
+`aictx` turns a normal repository into one with a **runtime contract for coding agents** so repeated work is reduced and behavior is more consistent.
+
+---
+
+If you use Codex or Claude Code, this is common:
+
+- you explain the same thing over and over
+- past decisions are not reused consistently
+- context gets expensive fast
+- many tasks feel like starting from zero
+
+`aictx` addresses that by making the repository itself agent-aware.
+
+Not by adding more prompt templates.  
+Not by replacing your agent.  
+By giving the repo a persistent runtime layer for execution and reuse.
+
+---
+
+After `aictx install` + `aictx init`, your repo gets:
+
+- a runtime contract for agent execution
+- structured repo-local memory reuse across tasks
+- more consistent run-to-run behavior
+- automatic prepare/finalize middleware with telemetry + learning write-back
+
+You keep using your agent normally.  
+`aictx` adds structure and reuse; results still vary by runner behavior and task ambiguity.
+
+---
+
+This is not:
+
+- a prompt template
+- an agent framework
+- a wrapper that replaces Codex or Claude
+
+This is:
+
+- a repo-level runtime for coding agents
+
+---
+
+## Quick start
+
+```bash
+pip install aictx
+aictx install
+cd your-repo
+aictx init
+```
+
+Then use your coding agent as usual.
+
+---
+
+## Status
+
+`aictx` is currently in **beta (0.x)**.
+
+It is designed to be:
+
+- minimal on the surface
+- structured internally
+- explicit about limitations
+
+It does not try to replace your agent.  
+It helps your agent operate with a repo-native runtime contract.
 
 ## Product surface
 
