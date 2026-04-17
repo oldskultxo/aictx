@@ -10,6 +10,28 @@ The intended human workflow is still:
 
 ## Install
 
+Public install:
+
+```bash
+pip install aictx
+```
+
+Then:
+
+```bash
+aictx install
+```
+
+Editable/development install:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -e . pytest build
+```
+
+## Global runtime setup
+
 ```bash
 aictx install
 ```
@@ -70,6 +92,16 @@ python3 -m venv .venv
 make test
 make smoke
 make package-check
+```
+
+## Public-package validation
+
+For release validation, also verify a clean wheel install:
+
+```bash
+python3 -m venv /tmp/aictx-release-venv
+/tmp/aictx-release-venv/bin/pip install dist/aictx-0.3.0-py3-none-any.whl
+/tmp/aictx-release-venv/bin/aictx --help
 ```
 
 ## Repo bootstrap status

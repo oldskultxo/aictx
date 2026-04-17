@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import date
 from typing import Any
 
-from .runtime_io import clamp, days_since, iso_date_or_today, read_jsonl, slugify, write_jsonl
+from .runtime_io import append_if_missing, clamp, days_since, iso_date_or_today, read_jsonl, slugify, write_jsonl
 
 
 def preference_records() -> list[dict[str, Any]]:

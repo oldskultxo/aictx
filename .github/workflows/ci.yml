@@ -33,3 +33,13 @@ jobs:
           aictx execution finalize --prepared "$TMP_REPO/prepared.json" --success --result-summary "ci smoke" >/dev/null
       - name: Package build
         run: python -m build
+      - name: Validate clean wheel install
+        run: |
+          WHEEL_PATH="$(ls dist/aictx-*.whl | head -n 1)"
+          python -m venv /tmp/aictx-wheel-venv
+          /tmp/aictx-wheel-venv/bin/python -m pip install --upgrade pip
+          /tmp/aictx-wheel-venv/bin/python -m pip install "$WHEEL_PATH"
+          /tmp/aictx-wheel-venv/bin/aictx --help >/dev/null
+          TMP_REPO="$(mktemp -d)"
+          /tmp/aictx-wheel-venv/bin/aictx init --repo "$TMP_REPO" --yes --no-register
+          /tmp/aictx-wheel-venv/bin/aictx boot --repo "$TMP_REPO" >/dev/null

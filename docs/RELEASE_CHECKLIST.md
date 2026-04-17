@@ -1,9 +1,17 @@
 # Release checklist
 
+## Release identity
+
+- [ ] target version is set (`0.3.0` for this public beta release)
+- [ ] release remains intentionally `0.x`
+- [ ] tag format is `vX.Y.Z`
+- [ ] changelog entry is ready before tagging
+
 ## Product trust
 
 - [ ] README, USAGE, and TECHNICAL_OVERVIEW describe the same product surface
 - [ ] README includes honest limitations and demo links
+- [ ] README and USAGE show the public `pip install aictx` flow
 - [ ] `LICENSE` exists
 - [ ] `CHANGELOG.md` is updated
 - [ ] version stays in `0.x` unless compatibility policy changes
@@ -22,6 +30,11 @@
 - [ ] `make test`
 - [ ] `make smoke`
 - [ ] `make package-check`
+- [ ] `python -m build`
+- [ ] install clean wheel in a fresh venv
+- [ ] `aictx --help` works from the clean wheel install
+- [ ] `aictx init --repo <tmp> --yes --no-register` works from the clean wheel install
+- [ ] `aictx boot --repo <tmp>` works from the clean wheel install
 
 ## CI
 
@@ -29,3 +42,11 @@
 - [ ] editable install is exercised in CI
 - [ ] smoke flow passes in CI
 - [ ] package build passes in CI
+- [ ] clean-wheel install validation passes in CI
+
+## Publish
+
+- [ ] push tag `vX.Y.Z`
+- [ ] GitHub Release is created from the tag
+- [ ] PyPI publish workflow succeeds
+- [ ] `pip install aictx==X.Y.Z` works in a fresh venv

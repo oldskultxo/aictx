@@ -27,7 +27,7 @@ After `install + init`, `aictx` can provide:
 
 ## Honest limits
 
-This is still a **0.x** product.
+This is still a **0.x beta** product.
 
 - final behavior depends on each runner honoring its instruction and hook system
 - telemetry quality is best-effort unless confidence is explicitly high
@@ -35,6 +35,19 @@ This is still a **0.x** product.
 - some deeper capabilities are still being extracted from the canonical engine
 
 See [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+
+## Install from PyPI
+
+```bash
+pip install aictx
+```
+
+Then:
+
+```bash
+aictx install
+aictx init --repo .
+```
 
 ## Install once
 
@@ -102,6 +115,14 @@ Precedence is:
 
 `explicit user instruction > repo prefs > global defaults > hardcoded fallback`
 
+## Public beta posture
+
+`aictx` is now distributed publicly as a **beta 0.x** package.
+
+- installation is supported through PyPI and GitHub releases
+- the core user flow is `pip install aictx` -> `aictx install` -> `aictx init`
+- compatibility is still best-effort, not a long-term 1.0 stability promise
+
 ## Development quickstart
 
 ```bash
@@ -118,6 +139,8 @@ You can also call the installed script directly:
 ```bash
 .venv/bin/aictx --help
 ```
+
+Public release validation also checks clean wheel installation, not just editable installs.
 
 ## Read next
 

@@ -14,6 +14,12 @@
   - middleware prepare/finalize
   - health and global metrics
 
+The package is now distributed publicly as a **0.3.0 beta**:
+
+- PyPI is the normal install channel
+- GitHub Releases track tagged artifacts
+- runtime compatibility is still best-effort rather than a 1.0 stability contract
+
 ## Preference precedence
 
 Runtime communication policy uses one precedence model everywhere:

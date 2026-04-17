@@ -21,3 +21,5 @@
 - some runtime capabilities are still being extracted from the canonical engine
 - global metrics remain best-effort and should be read as directional unless confidence is high
 - `0.x` means compatibility is best-effort, not a long-term stability promise
+- public PyPI distribution does not change that promise: this is a public beta, not a stability guarantee
+- upgrades for already-initialized repos are intended to be safe, but release notes should still be read before broad rollout
