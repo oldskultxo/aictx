@@ -14,7 +14,7 @@
   - middleware prepare/finalize
   - health and global metrics
 
-The package is now distributed publicly as a **0.3.x beta**:
+The package is now distributed publicly as a **0.4.x beta**:
 
 - PyPI is the normal install channel
 - GitHub Releases track tagged artifacts

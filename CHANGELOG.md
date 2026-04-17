@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - 2026-04-18
+
+- repositioned product messaging to emphasize `runtime contract + execution discipline` as primary value
+- expanded docs to make the heuristic nature of routing/ranking/graph behavior explicit
+- improved deterministic retrieval ranking with structured score breakdowns
+- strengthened task routing and task-type resolution with confidence/evidence/ambiguity signals
+- upgraded packet assembly with budgeted intent groups, dedupe, and richer selection reporting
+- added day-2/repeated-task value evidence in middleware telemetry (`task_fingerprint`, reuse indicators, repeat-task success proxy)
+- updated runner integration handling for structured `repo_scope` entries
+- expanded smoke coverage for new telemetry and heuristic packet behavior
+
 ## 0.3.1 - 2026-04-18
 
 - fixed a Python 3.11 syntax error in `core_runtime.py` that broke test collection in CI
