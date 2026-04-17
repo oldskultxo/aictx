@@ -331,31 +331,24 @@ def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
 
 
-def write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+def write_text(path: Path, content: str) -> None:
+    from .runtime_io import write_text as _impl
+    return _impl(path, content)
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    from .runtime_io import now_iso as _impl
+    return _impl()
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows = []
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        rows.append(json.loads(line))
-    return rows
+    from .runtime_io import read_jsonl as _impl
+    return _impl(path)
 
 
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    text = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows)
-    path.write_text(text + ("\n" if text else ""))
+    from .runtime_io import write_jsonl as _impl
+    return _impl(path, rows)
 
 
 def repo_root_for_project(project: str) -> Path | None:
@@ -376,10 +369,9 @@ def ensure_repo_compat_readme(compat_dir: Path) -> None:
     )
 
 
-def slugify(value: str) -> str:
-    value = value.strip().lower()
-    value = re.sub(r"[^a-z0-9]+", "_", value)
-    return value.strip("_") or "record"
+def slugify(text: str) -> str:
+    from .runtime_io import slugify as _impl
+    return _impl(text)
 
 
 def current_engine_iteration() -> int:
@@ -396,28 +388,23 @@ def default_adapter_contract() -> dict[str, Any]:
 
 
 def relative_posix(path: Path, root: Path) -> str:
-    try:
-        return path.relative_to(root).as_posix()
-    except ValueError:
-        return path.as_posix()
+    from .runtime_io import relative_posix as _impl
+    return _impl(path, root)
 
 
 def file_mtime(path: Path) -> float:
-    return round(path.stat().st_mtime, 6)
+    from .runtime_io import file_mtime as _impl
+    return _impl(path)
 
 
 def mtime_changed(previous: Any, current: float) -> bool:
-    if previous is None:
-        return True
-    return abs(float(previous) - current) > MTIME_TOLERANCE_SECONDS
+    from .runtime_io import mtime_changed as _impl
+    return _impl(previous, current)
 
 
 def file_md5(path: Path) -> str:
-    digest = hashlib.md5()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    from .runtime_io import file_md5 as _impl
+    return _impl(path)
 
 
 def load_mod_manifest(root: Path) -> dict[str, Any]:
@@ -951,85 +938,33 @@ def note_to_record(note: NoteInfo) -> dict[str, Any]:
 
 
 def preference_records() -> list[dict[str, Any]]:
-    prefs = read_json(ROOT_PREFS_PATH, {})
-    updated_at = prefs.get("updated_at", date.today().isoformat())
-    rows = []
-
-    def walk(node: Any, prefix: str = "") -> None:
-        if isinstance(node, dict):
-            for key, value in node.items():
-                if key == "history":
-                    continue
-                next_prefix = f"{prefix}.{key}" if prefix else key
-                walk(value, next_prefix)
-            return
-        rows.append(
-            {
-                "id": f"pref.{slugify(prefix)}",
-                "type": "user_preference",
-                "scope": "global",
-                "project": None,
-                "tags": [part for part in prefix.split(".") if part],
-                "key": prefix,
-                "value": node,
-                "priority": "high",
-                "confidence": "high",
-                "last_verified": updated_at,
-                "source": "user_preferences.json",
-                "override_rule": "explicit_user_instruction_wins",
-                "relevance_score": 0.95,
-                "last_used_at": updated_at,
-                "times_used": 0,
-                "success_rate": 1.0,
-                "context_cost": 1,
-                "source_type": "preference",
-                "staleness_score": 0.05,
-            }
-        )
-
-    walk(prefs)
-    return rows
+    from .runtime_memory import preference_records as _impl
+    return _impl()
 
 
 def load_records() -> list[dict[str, Any]]:
-    rows = read_jsonl(STORE_GLOBAL_RECORDS_PATH)
-    rows.extend(read_jsonl(STORE_USER_PREFERENCES_PATH))
-    if PROJECT_RECORDS_DIR.exists():
-        for path in sorted(PROJECT_RECORDS_DIR.glob("*.jsonl")):
-            rows.extend(read_jsonl(path))
-    return rows
+    from .runtime_memory import load_records as _impl
+    return _impl()
 
 
 def iso_date_or_today(value: Any) -> str:
-    text = str(value or "").strip()
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
-        return text
-    return date.today().isoformat()
+    from .runtime_io import iso_date_or_today as _impl
+    return _impl(value)
 
 
 def clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))
+    from .runtime_io import clamp as _impl
+    return _impl(value, low, high)
 
 
 def normalize_record(record: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(record)
-    normalized["relevance_score"] = float(record.get("relevance_score", 0.6))
-    normalized["last_used_at"] = iso_date_or_today(record.get("last_used_at") or record.get("last_verified"))
-    normalized["times_used"] = int(record.get("times_used", 0))
-    normalized["success_rate"] = float(record.get("success_rate", 0.75))
-    normalized["context_cost"] = int(record.get("context_cost", max(1, min(12, len(str(record.get("summary", "")).split()) // 8 or 1))))
-    normalized["source_type"] = str(record.get("source_type", "legacy"))
-    normalized["staleness_score"] = float(record.get("staleness_score", 0.2))
-    normalized["task_type"] = normalize_task_type(record.get("task_type"))
-    normalized["files_involved"] = list(record.get("files_involved", [record.get("path")] if record.get("path") else []))
-    return normalized
+    from .runtime_memory import normalize_record as _impl
+    return _impl(record)
 
 
 def days_since(value: Any) -> int:
-    text = iso_date_or_today(value)
-    year, month, day = (int(part) for part in text.split("-"))
-    current = date.today()
-    return max(0, (current - date(year, month, day)).days)
+    from .runtime_io import days_since as _impl
+    return _impl(value)
 
 
 def deterministic_score(task: str, row: dict[str, Any]) -> float:
@@ -1086,225 +1021,8 @@ def infer_project_name(task: str, matches: list[dict[str, Any]], explicit_projec
 
 
 def rebuild_memory_store() -> dict[str, Any]:
-    ensure_dirs()
-    ensure_cost_artifacts()
-    ensure_task_memory_artifacts()
-    ensure_failure_memory_artifacts()
-    ensure_memory_graph_artifacts()
-    note_infos = [classify_note(path) for path in note_paths()]
-    project_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    global_rows: list[dict[str, Any]] = []
-    import_map: list[dict[str, str]] = []
-
-    for note in note_infos:
-        record = note_to_record(note)
-        import_map.append({"source": note.rel_path, "target_record_id": record["id"]})
-        if note.project:
-            project_rows[note.project].append(record)
-        else:
-            global_rows.append(record)
-
-    write_jsonl(STORE_GLOBAL_RECORDS_PATH, global_rows)
-    for project, rows in project_rows.items():
-        write_jsonl(PROJECT_RECORDS_DIR / f"{project}.jsonl", rows)
-
-    user_rows = preference_records()
-    write_jsonl(STORE_USER_PREFERENCES_PATH, user_rows)
-
-    index = read_json(ROOT_INDEX_PATH, {})
-    project_registry = {
-        "version": 1,
-        "lookup_order": index.get("lookup_order", []),
-        "projects": index.get("projects", {}),
-        "generated_at": date.today().isoformat(),
-    }
-    write_json(BOOT_PROJECTS_PATH, project_registry)
-
-    defaults_payload = read_json(ROOT_PREFS_PATH, {})
-    normalized_defaults = {
-        "version": 1,
-        "updated_at": defaults_payload.get("updated_at", date.today().isoformat()),
-        "preferred_language": defaults_payload.get("profile", {}).get("preferred_language", "es"),
-        "response": defaults_payload.get("response", {}),
-        "interaction": defaults_payload.get("interaction", {}),
-        "communication": communication_policy_from_defaults(defaults_payload),
-        "coding": defaults_payload.get("coding", {}),
-        "workflow": defaults_payload.get("workflow", {}),
-        "quality_gates": defaults_payload.get("quality_gates", {}),
-    }
-    write_json(BOOT_DEFAULTS_PATH, normalized_defaults)
-
-    model_routing = default_model_routing()
-    write_json(BOOT_MODEL_ROUTING_PATH, model_routing)
-    communication_policy = communication_policy_from_defaults(defaults_payload)
-    adapter_contract = default_adapter_contract()
-    boot_summary_payload = {
-        "version": 1,
-        "engine_name": "ai_context_engine",
-        **adapter_contract,
-        "default_behavior": {
-            "memory_first": True,
-            "fallback_to_standard_repo_analysis": True,
-            "explicit_user_override_wins": True,
-            "bootstrap_required_every_session": True,
-        },
-        "preferred_output_patterns": [
-            communication_policy.get("mode", "caveman_full"),
-            communication_policy.get("final_style", "plain_direct_final_only"),
-            defaults_payload.get("response", {}).get("verbosity", defaults_payload.get("workflow", {}).get("default_response_style", "concise")),
-            defaults_payload.get("profile", {}).get("preferred_language", "es"),
-        ],
-        "communication_policy": communication_policy,
-        "communication_contract": {
-            "default_mode": communication_policy.get("mode", "caveman_full"),
-            "layer": communication_policy.get("layer", "enabled"),
-            "intermediate_output": communication_policy.get("intermediate_updates", "suppressed"),
-            "final_output": communication_policy.get("final_style", "plain_direct_final_only"),
-            "plain_direct": True,
-            "single_final_answer_default": True,
-            "explicit_user_override_wins": True,
-        },
-        "preference_precedence": [
-            "explicit_user_instruction",
-            "persisted_user_preferences",
-            "assistant_default",
-        ],
-        "active_projects": sorted(project_rows.keys()),
-        "model_routing_profile": model_routing.get("profile", "default"),
-        "provider_capabilities": list(adapter_contract["provider_capabilities"]),
-        "last_maintenance": date.today().isoformat(),
-    }
-    write_json(BOOT_SUMMARY_PATH, boot_summary_payload)
-
-    all_rows = [normalize_record(row) for row in (global_rows + user_rows + [row for rows in project_rows.values() for row in rows])]
-    write_jsonl(STORE_GLOBAL_RECORDS_PATH, [normalize_record(row) for row in global_rows])
-    for project, rows in project_rows.items():
-        write_jsonl(PROJECT_RECORDS_DIR / f"{project}.jsonl", [normalize_record(row) for row in rows])
-    write_jsonl(STORE_USER_PREFERENCES_PATH, [normalize_record(row) for row in user_rows])
-    normalized_all_rows = [normalize_record(row) for row in all_rows]
-    write_indexes(normalized_all_rows)
-    task_memory_counts = build_task_memory_artifacts(normalized_all_rows)
-    failure_memory_status = build_failure_memory_artifacts(normalized_all_rows)
-    memory_graph_status = build_memory_graph_artifacts(normalized_all_rows)
-    ensure_context_metrics_artifacts()
-    ensure_library_artifacts()
-    write_json(
-        DELTA_SCHEMA_PATH,
-        {
-            "version": 7,
-            "required": [
-                "task_summary",
-                "task_id",
-                "task_type",
-                "task_type_resolution",
-                "repo_scope",
-                "user_preferences",
-                "constraints",
-                "architecture_rules",
-                "relevant_memory",
-                "known_patterns",
-                "fallback_mode",
-                "task_memory",
-                "failure_memory",
-                "memory_graph",
-                "telemetry_granularity",
-                "knowledge_retrieval",
-                "context_budget",
-                "optimization_report",
-            ],
-            "compatibility_fields": [
-                "project",
-                "architecture_decisions",
-                "relevant_paths",
-                "relevant_patterns",
-                "validation_recipes",
-                "model_suggestion",
-                "packet_budget_status",
-                "task_memory_summary",
-                "failure_memory_summary",
-                "relevant_failures",
-                "memory_graph_summary",
-                "relevant_graph_context",
-                "knowledge_artifacts",
-            ],
-        },
-    )
-    write_json(MIGRATION_IMPORT_MAP_PATH, {"version": 1, "imports": import_map})
-    write_migration_report(import_map)
-    append_if_missing(
-        LOGS_MAINTENANCE_PATH,
-        f"- {date.today().isoformat()} | rebuilt store/indexes/boot artifacts from current ai_context_engine notes and preferences.\n",
-    )
-    write_json(
-        ROOT_COMPACTION_REPORT_PATH,
-        {
-            "generated_at": date.today().isoformat(),
-            "dry_run": True,
-            "stores_scanned": 2 + len(project_rows),
-            "duplicates_detected": 0,
-            "near_duplicates_detected": 0,
-            "stale_records_detected": 0,
-            "verbose_records_detected": 0,
-            "fragmented_groups_detected": 0,
-            "actions": [],
-        },
-    )
-    write_json(
-        COST_STATUS_PATH,
-        {
-            **read_json(COST_STATUS_PATH, {}),
-            "version": 1,
-            "generated_at": date.today().isoformat(),
-        },
-    )
-    write_json(
-        TASK_MEMORY_STATUS_PATH,
-        {
-            **read_json(TASK_MEMORY_STATUS_PATH, {}),
-            "version": 2,
-            "installed_iteration": 8,
-            "task_taxonomy_version": 2,
-            "generated_at": date.today().isoformat(),
-            "records_by_task_type": task_memory_counts,
-        },
-    )
-    write_json(
-        FAILURE_MEMORY_STATUS_PATH,
-        {
-            **read_json(FAILURE_MEMORY_STATUS_PATH, {}),
-            **failure_memory_status,
-            "version": 1,
-            "generated_at": date.today().isoformat(),
-        },
-    )
-    write_json(
-        MEMORY_GRAPH_STATUS_PATH,
-        {
-            **read_json(MEMORY_GRAPH_STATUS_PATH, {}),
-            **memory_graph_status,
-            "version": 1,
-            "installed_iteration": 9,
-            "generated_at": date.today().isoformat(),
-        },
-    )
-    refresh_engine_state()
-    sync_repo_compat_layers(
-        project_rows=project_rows,
-        global_rows=global_rows,
-        defaults_payload=defaults_payload,
-        project_registry=project_registry,
-        boot_summary_payload=boot_summary_payload,
-        model_routing=model_routing,
-    )
-    return {
-        "notes": len(note_infos),
-        "records": len(normalized_all_rows),
-        "projects": sorted(project_rows.keys()),
-        "task_memory_records": task_memory_counts,
-        "failure_memory_records": int(failure_memory_status.get("records_total", 0) or 0),
-        "memory_graph_nodes": int(memory_graph_status.get("nodes_total", 0) or 0),
-        "memory_graph_edges": int(memory_graph_status.get("edges_total", 0) or 0),
-    }
+    from .runtime_memory import rebuild_memory_store as _impl
+    return _impl()
 
 
 def write_indexes(rows: list[dict[str, Any]]) -> None:
@@ -1589,60 +1307,18 @@ def rank_records(
     task_type: str | None = None,
     project: str | None = None,
 ) -> list[dict[str, Any]]:
-    rows = [normalize_record(row) for row in load_records()] + manual_task_memory_records()
-    ranked = []
-    for row in rows:
-        if record_type and row.get("type") != record_type:
-            continue
-        if task_type and normalize_task_type(row.get("task_type")) != normalize_task_type(task_type):
-            continue
-        if project and row.get("project") not in {None, project}:
-            continue
-        score = deterministic_score(query, row)
-        if score > 0:
-            ranked.append((score, row))
-    ranked.sort(key=lambda item: (-item[0], item[1].get("context_cost", 99), item[1].get("id", "")))
-    return [{"score": score, **row} for score, row in ranked[:12]]
+    from .runtime_memory import rank_records as _impl
+    return _impl(query, record_type=record_type, task_type=task_type, project=project)
 
 
 def summarize_query(query: str, mode: str = "all") -> dict[str, Any]:
-    if mode == "prefs":
-        return {"query": query, "preferences": rank_records(query or "workflow", "user_preference")}
-    if mode == "architecture":
-        return {"query": query, "matches": rank_records(query, "architecture_decision")}
-    if mode == "symptom":
-        symptom_map = read_json(INDEX_BY_SYMPTOM_PATH, {})
-        ranked = []
-        for symptom, paths in symptom_map.items():
-            score = score_match(query, symptom)
-            if score > 0:
-                ranked.append({"symptom": symptom, "score": score, "paths": paths})
-        ranked.sort(key=lambda item: (-item["score"], item["symptom"]))
-        return {"query": query, "symptoms": ranked[:12]}
-    return {"query": query, "matches": rank_records(query)}
+    from .runtime_memory import summarize_query as _impl
+    return _impl(query, mode=mode)
 
 
 def route_task(task: str) -> dict[str, Any]:
-    task_l = task.lower()
-    files_hint = 1
-    if any(word in task_l for word in ["cross-system", "migration", "architecture", "redesign", "protocol"]):
-        level = "heavy"
-        files_hint = 10
-    elif any(word in task_l for word in ["add", "implement", "fix", "debug", "test", "refactor"]):
-        level = "medium"
-        files_hint = 4
-    else:
-        level = "light"
-        files_hint = 1
-    return {
-        "task": task,
-        "model_suggestion": level,
-        "signals": {
-            "estimated_files": files_hint,
-            "ambiguity": "medium" if level != "light" else "low",
-            "cross_system": level == "heavy",
-        },
-    }
+    from .runtime_tasks import route_task as _impl
+    return _impl(task)
 
 
 def resolve_task_type(
@@ -1652,362 +1328,23 @@ def resolve_task_type(
     packet_metadata: dict[str, Any] | None = None,
     touched_files: list[str] | None = None,
 ) -> dict[str, Any]:
-    task_signals = infer_task_signals(task, touched_files=touched_files)
-    normalized_explicit = normalize_task_type(explicit_task_type)
-    if explicit_task_type and normalized_explicit in TASK_TYPES:
-        return {
-            "task_type": normalized_explicit,
-            "source": "explicit_task_type",
-            "fallback": normalized_explicit == "unknown",
-            "confidence": 0.95,
-            "signals": [f"explicit:{normalized_explicit}"],
-        }
-    metadata_task_type = normalize_task_type((packet_metadata or {}).get("task_type"))
-    if packet_metadata and packet_metadata.get("task_type") and metadata_task_type in TASK_TYPES:
-        return {
-            "task_type": metadata_task_type,
-            "source": "packet_metadata",
-            "fallback": metadata_task_type == "unknown",
-            "confidence": 0.9,
-            "signals": [f"metadata:{metadata_task_type}"],
-        }
-    inferred = classify_task_type_from_text(
-        "\n".join([task, " ".join(touched_files or [])]),
-        tags=[],
-        record_type=None,
-    )
-    if inferred != "unknown":
-        return {
-            "task_type": inferred,
-            "source": "heuristic_inference",
-            "fallback": False,
-            "confidence": task_type_confidence(task, inferred, touched_files=touched_files),
-            "signals": task_signals,
-        }
-    return {
-        "task_type": "unknown",
-        "source": "unknown_fallback",
-        "fallback": True,
-        "confidence": 0.35,
-        "signals": task_signals,
-    }
+    from .runtime_tasks import resolve_task_type as _impl
+    return _impl(task, explicit_task_type=explicit_task_type, packet_metadata=packet_metadata, touched_files=touched_files)
 
 
 def packet_for_task(task: str, project: str | None = None, task_type: str | None = None) -> dict[str, Any]:
-    ensure_cost_artifacts()
-    ensure_task_memory_artifacts()
-    ensure_failure_memory_artifacts()
-    ensure_memory_graph_artifacts()
-    ensure_context_metrics_artifacts()
-    ensure_library_artifacts()
-    refresh_engine_state()
-    initial_matches = rank_records(task)
-    project_name = infer_project_name(task, initial_matches, explicit_project=project)
-    touched_files = [str(row.get("path")) for row in initial_matches[:6] if row.get("path")]
-    resolved_task = resolve_task_type(task, explicit_task_type=task_type, touched_files=touched_files)
-    task_specific_matches = []
-    queried_task_categories = [resolved_task["task_type"]]
-    if resolved_task["task_type"] != "unknown":
-        task_specific_matches = [
-            row
-            for row in rank_records(task, task_type=resolved_task["task_type"], project=project_name)
-            if row.get("type") != "user_preference"
-        ]
-    fallback_task_matches = [
-        row
-        for row in rank_records(task, task_type="unknown", project=project_name)
-        if row.get("type") != "user_preference"
-    ]
-    if "unknown" not in queried_task_categories:
-        queried_task_categories.append("unknown")
-    general_matches = [
-        row
-        for row in rank_records(task, project=project_name)
-        if row.get("type") != "user_preference"
-    ]
-    merged_memory: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-    for row in task_specific_matches + fallback_task_matches + general_matches:
-        row_id = str(row.get("id", ""))
-        if row_id in seen_ids:
-            continue
-        seen_ids.add(row_id)
-        merged_memory.append(row)
-    memory_matches = merged_memory
-    if not memory_matches and project_name:
-        memory_matches = [
-            row
-            for row in rank_records(project_name, task_type=resolved_task["task_type"], project=project_name)
-            if row.get("type") != "user_preference" and row.get("project") == project_name
-        ]
-    if not memory_matches:
-        memory_matches = [row for row in initial_matches if row.get("type") != "user_preference"]
-    prefs = summarize_query(task, mode="prefs").get("preferences", [])[:5]
-    architecture = [row for row in memory_matches if row.get("type") == "architecture_decision"][:5]
-    constraints = [row for row in memory_matches if row.get("type") == "constraint"][:5]
-    patterns = [row for row in memory_matches if row.get("type") in {"debugging_pattern", "failure_mode", "task_pattern"}][:5]
-    validation = [row for row in memory_matches if row.get("type") == "validation_recipe"][:5]
-    relevant_paths = []
-    for row in memory_matches[:8]:
-        path = row.get("path")
-        if path and path not in relevant_paths:
-            relevant_paths.append(path)
-    route = route_task(task)
-    relevant_failures = rank_failure_records(task) if should_consult_failure_memory(task, resolved_task["task_type"]) else []
-    knowledge_pack = retrieve_knowledge(task)
-    graph_seed_ids = [graph_node_id("task_type", resolved_task["task_type"])]
-    graph_seed_ids.extend(graph_node_id(graph_node_type_for_record(row), str(row.get("id", ""))) for row in memory_matches[:4] if row.get("id"))
-    graph_seed_ids.extend(graph_node_id("failure_pattern", str(row.get("id", ""))) for row in relevant_failures[:2] if row.get("id"))
-    if project_name:
-        graph_seed_ids.append(graph_node_id("repository_area", project_name))
-    expansion_depth = 2 if resolved_task["task_type"] in {"architecture", "bug_fixing"} and (memory_matches or relevant_failures) else 1
-    graph_expansion = graph_expand(
-        sorted(set(graph_seed_ids)),
-        depth=expansion_depth,
-        node_budget=10,
-        edge_budget=14,
-        task_type=resolved_task["task_type"],
-        repository_area=project_name,
-    )
-    graph_connected_ids = set(graph_expansion.get("connected_record_ids", []))
-    graph_context = []
-    for node in graph_expansion.get("nodes", []):
-        if node.get("type") == "task_type":
-            continue
-        graph_context.append(
-            {
-                "id": node.get("id"),
-                "title": node.get("label"),
-                "summary": f"{node.get('type')} from {node.get('source')}",
-                "score": round(float(node.get("confidence", 0.5)), 2),
-                "context_cost": 2,
-                "source_type": "memory_graph",
-            }
-        )
-    if graph_connected_ids:
-        connected_rows = {
-            row.get("id"): row
-            for row in ([normalize_record(row) for row in load_records()] + manual_task_memory_records())
-            if row.get("id") in graph_connected_ids
-        }
-        for record_id in sorted(graph_connected_ids):
-            row = connected_rows.get(record_id)
-            if not row or any(existing.get("id") == record_id for existing in memory_matches):
-                continue
-            memory_matches.append({**row, "score": round(float(row.get("relevance_score", 0.65)) * 0.9, 4)})
-    relevant_memory = []
-    known_patterns = []
-    for row in memory_matches[:5]:
-        relevant_memory.append(
-            {
-                "id": row.get("id"),
-                "title": row.get("title"),
-                "summary": row.get("summary"),
-                "score": row.get("score"),
-                "source_type": row.get("source_type", "legacy"),
-                "context_cost": row.get("context_cost", 5),
-            }
-        )
-        for tag in row.get("tags", []):
-            if tag not in known_patterns:
-                known_patterns.append(tag)
-    task_id = f"{date.today().isoformat()}_{slugify(task)[:40]}"
-    packet = {
-        "task_id": task_id,
-        "task": task,
-        "task_summary": task,
-        "task_type": resolved_task["task_type"],
-        "task_type_resolution": resolved_task,
-        "project": project_name,
-        "repo_scope": relevant_paths,
-        "user_preferences": prefs,
-        "constraints": constraints,
-        "architecture_rules": architecture,
-        "architecture_decisions": architecture,
-        "relevant_memory": relevant_memory,
-        "relevant_paths": relevant_paths,
-        "known_patterns": known_patterns,
-        "relevant_patterns": patterns,
-        "validation_recipes": validation,
-        "relevant_failures": relevant_failures,
-        "relevant_graph_context": graph_context[:5],
-        "knowledge_artifacts": knowledge_pack.get("artifacts", []),
-        "knowledge_retrieval": knowledge_pack,
-        "model_suggestion": route["model_suggestion"],
-        "fallback_mode": "normal_repo_analysis",
-        "task_memory": {
-            "resolved_task_type": resolved_task["task_type"],
-            "task_type_source": resolved_task["source"],
-            "task_type_confidence": resolved_task.get("confidence", 0.35),
-            "task_type_signals": resolved_task.get("signals", []),
-            "task_specific_memory_used": bool(task_specific_matches),
-            "task_specific_records_retrieved": len(task_specific_matches[:5]),
-            "unknown_records_retrieved": len(fallback_task_matches[:5]),
-            "general_records_retrieved": len(general_matches[:5]),
-            "queried_categories": queried_task_categories,
-            "category_summary_paths": [
-                (TASK_MEMORY_DIR / category / "summary.json").as_posix()
-                for category in queried_task_categories
-                if (TASK_MEMORY_DIR / category / "summary.json").exists()
-            ],
-            "fallback_to_general": resolved_task["task_type"] == "unknown" or not task_specific_matches,
-            "task_memory_written": False,
-            "learning_channel": "scripts/task_memory.py",
-        },
-        "failure_memory": {
-            "failure_memory_used": bool(relevant_failures),
-            "records_retrieved": len(relevant_failures),
-            "index_path": FAILURE_MEMORY_INDEX_PATH.as_posix(),
-            "summary_path": FAILURE_MEMORY_SUMMARY_PATH.as_posix(),
-        },
-        "memory_graph": {
-            "graph_used": bool(graph_context),
-            "seed_count": len(sorted(set(graph_seed_ids))),
-            "expansion_depth_used": graph_expansion.get("depth_used", 0),
-            "graph_hits": len(graph_expansion.get("nodes", [])),
-            "connected_record_hits": len(graph_connected_ids),
-            "nodes_total": int(read_json(MEMORY_GRAPH_STATUS_PATH, {}).get("nodes_total", 0) or 0),
-            "edges_total": int(read_json(MEMORY_GRAPH_STATUS_PATH, {}).get("edges_total", 0) or 0),
-            "status_path": MEMORY_GRAPH_STATUS_PATH.as_posix(),
-            "snapshot_path": MEMORY_GRAPH_SNAPSHOT_PATH.as_posix(),
-        },
-        "telemetry_granularity": {
-            "supported": True,
-            "task_id": task_id,
-            "level": "task",
-            "phase_count": 4,
-            "phases": [
-                {
-                    "phase_name": "memory_retrieval",
-                    "estimated_tokens": estimate_tokens(relevant_memory) + estimate_tokens(knowledge_pack.get("artifacts", [])),
-                    "notes": "memory, failures, graph seeds, and knowledge artifacts",
-                },
-                {
-                    "phase_name": "graph_expansion",
-                    "estimated_tokens": estimate_tokens(graph_context),
-                    "notes": "bounded memory-graph expansion",
-                },
-                {
-                    "phase_name": "packet_optimization",
-                    "estimated_tokens": estimate_tokens({"constraints": constraints, "architecture": architecture, "patterns": patterns}),
-                    "notes": "budget-aware packet optimization",
-                },
-                {
-                    "phase_name": "packet_persistence",
-                    "estimated_tokens": estimate_tokens({"packet": task_id, "writes": 5}),
-                    "notes": "packet and status persistence",
-                },
-            ],
-        },
-    }
-    optimized = optimize_packet(packet)
-    final_packet = optimized["packet"]
-    packet_name = f"{date.today().isoformat()}_{slugify(task)[:60]}.json"
-    packet_path = LAST_PACKETS_DIR / packet_name
-    write_json(packet_path, final_packet)
-    write_text(COST_LATEST_REPORT_PATH, render_optimization_report(optimized["report"]))
-    update_cost_status(optimized["report"], packet_path)
-    update_task_memory_status(final_packet, packet_path)
-    update_failure_memory_status(final_packet, packet_path)
-    update_memory_graph_status(final_packet, packet_path)
-    weekly_summary = record_granular_telemetry(final_packet, packet_path, optimized["report"])
-    sync_repo_cost_status(project_name)
-    sync_repo_task_memory_status(project_name)
-    sync_repo_failure_memory_status(project_name)
-    sync_repo_memory_graph_status(project_name)
-    final_packet.setdefault("telemetry_granularity", {})
-    final_packet["telemetry_granularity"]["weekly_summary_path"] = CONTEXT_WEEKLY_SUMMARY_PATH.as_posix()
-    final_packet["telemetry_granularity"]["phase_events_sampled"] = int(weekly_summary.get("phase_events_sampled", 0) or 0)
-    return final_packet
+    from .runtime_tasks import packet_for_task as _impl
+    return _impl(task, project=project, task_type=task_type)
 
 
 def detect_stale_records() -> dict[str, Any]:
-    rows = [normalize_record(row) for row in load_records()]
-    stale = []
-    duplicate_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
-    missing_paths = []
-    today = date.today().isoformat()
-    for row in rows:
-        verified = str(row.get("last_verified", ""))
-        if verified and verified < "2026-01-01":
-            stale.append({"id": row["id"], "last_verified": verified})
-        duplicate_groups[(str(row.get("type")), str(row.get("title", row.get("key", ""))))].append(row["id"])
-        rel_path = row.get("path")
-        if rel_path and not (BASE / rel_path).exists():
-            missing_paths.append({"id": row["id"], "path": rel_path})
-    duplicates = [
-        {"type": group[0], "title": group[1], "record_ids": ids}
-        for group, ids in duplicate_groups.items()
-        if len(ids) > 1
-    ]
-    report = {
-        "generated_at": today,
-        "stale": stale,
-        "duplicates": duplicates,
-        "missing_paths": missing_paths,
-    }
-    write_json(BASE / "staleness_report.json", report)
-    return report
+    from .runtime_tasks import detect_stale_records as _impl
+    return _impl()
 
 
 def compact_records(apply: bool = False) -> dict[str, Any]:
-    rows = [normalize_record(row) for row in load_records()]
-    stale = []
-    duplicates = []
-    verbose = []
-    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
-    for row in rows:
-        if row.get("type") == "user_preference":
-            signature = f"pref:{row.get('key', row.get('id', ''))}"
-        elif row.get("path"):
-            signature = f"path:{row.get('path')}"
-        elif row.get("title") or row.get("summary"):
-            signature_text = f"{row.get('title', '')} {row.get('summary', '')}"
-            signature = f"text:{slugify(signature_text)}"
-        else:
-            signature = f"id:{row.get('id', '')}"
-        key = (str(row.get("type", "")), signature)
-        grouped[key].append(row)
-        if len(str(row.get("summary", ""))) > 320:
-            verbose.append(row["id"])
-        if days_since(row.get("last_used_at")) > 180 and float(row.get("relevance_score", 0.6)) < 0.5:
-            stale.append(row["id"])
-    for key, group in grouped.items():
-        if len(group) > 1:
-            duplicates.append(
-                {
-                    "type": key[0],
-                    "signature": key[1],
-                    "record_ids": [row["id"] for row in group],
-                    "kept_id": sorted(group, key=lambda row: (-float(row.get("success_rate", 0.75)), row["context_cost"], row["id"]))[0]["id"],
-                }
-            )
-    report = {
-        "generated_at": date.today().isoformat(),
-        "dry_run": not apply,
-        "stores_scanned": len(list(PROJECT_RECORDS_DIR.glob("*.jsonl"))) + 2,
-        "duplicates_detected": len(duplicates),
-        "near_duplicates_detected": 0,
-        "stale_records_detected": len(stale),
-        "verbose_records_detected": len(verbose),
-        "fragmented_groups_detected": 0,
-        "actions": [
-            *[
-                {"type": "duplicate", "record_ids": item["record_ids"], "kept_id": item["kept_id"], "recommendation": "merge_or_prune"}
-                for item in duplicates
-            ],
-            *[
-                {"type": "stale_low_value", "record_id": record_id, "recommendation": "review"}
-                for record_id in stale
-            ],
-            *[
-                {"type": "verbose", "record_id": record_id, "recommendation": "tighten_summary"}
-                for record_id in verbose
-            ],
-        ],
-    }
-    write_json(ROOT_COMPACTION_REPORT_PATH, report)
-    return report
+    from .runtime_tasks import compact_records as _impl
+    return _impl(apply=apply)
 
 
 def append_if_missing(path: Path, line: str) -> None:
@@ -3020,66 +2357,8 @@ def bootstrap_mod(
     title: str | None = None,
     create_reference_stub: bool = False,
 ) -> dict[str, Any]:
-    ensure_library_artifacts()
-    normalized = slugify(mod_id)
-    root = mod_root(normalized)
-    for name in [
-        "inbox",
-        "sources",
-        "processed",
-        "notes",
-        "summaries",
-        "indices",
-        "manifests",
-        "remote_sources",
-        "remote_sources/raw",
-        "remote_sources/snapshots",
-        "remote_sources/extracted",
-    ]:
-        (root / name).mkdir(parents=True, exist_ok=True)
-    ensure_remote_manifest(root)
-    manifest = load_mod_manifest(root)
-    created_at = manifest.get("created_at") or now_iso()
-    existing_aliases = set(manifest.get("aliases", []))
-    manifest.update(
-        {
-            "id": normalized,
-            "title": title or manifest.get("title") or normalized.replace("_", " ").title(),
-            "aliases": sorted({normalized, *(slugify(alias) for alias in (aliases or [])), *existing_aliases}),
-            "created_at": created_at,
-            "status": "ready",
-            "last_processed": manifest.get("last_processed"),
-            "inbox_count": int(manifest.get("inbox_count", 0) or 0),
-            "referenced_count": int(manifest.get("referenced_count", 0) or 0),
-            "remote_sources_count": int(manifest.get("remote_sources_count", 0) or 0),
-        }
-    )
-    save_mod_manifest(root, manifest)
-    if create_reference_stub:
-        references_path = root / "inbox" / "references.md"
-        if not references_path.exists():
-            write_text(references_path, references_stub_text(normalized))
-    registry = library_registry()
-    registry.setdefault("mods", {})[normalized] = {
-        "title": manifest["title"],
-        "aliases": manifest["aliases"],
-        "manifest_path": (root / "mod.json").as_posix(),
-        "library_root": root.as_posix(),
-        "updated_at": manifest["updated_at"],
-    }
-    registry["generated_at"] = date.today().isoformat()
-    write_json(LIBRARY_REGISTRY_PATH, registry)
-    status = read_json(LIBRARY_RETRIEVAL_STATUS_PATH, {})
-    status.update(
-        {
-            "installed_iteration": current_engine_iteration(),
-            "mods_total": len(registry.get("mods", {})),
-            "supports_reference_ingestion": True,
-            "supports_remote_ingestion": True,
-        }
-    )
-    write_json(LIBRARY_RETRIEVAL_STATUS_PATH, status)
-    return manifest
+    from .runtime_knowledge import bootstrap_mod as _impl
+    return _impl(mod_id, aliases=aliases, title=title, create_reference_stub=create_reference_stub)
 
 
 def extract_text_from_html(raw_html: str) -> tuple[str, str]:
@@ -3598,260 +2877,18 @@ def fetch_remote_payload_bytes(url: str) -> tuple[bytes, int, dict[str, str]]:
 
 
 def register_remote_source(mod_id: str, url: str, declared_type: str = "auto", tags: list[str] | None = None) -> dict[str, Any]:
-    normalized = slugify(mod_id)
-    root = mod_root(normalized)
-    if not (root / "mod.json").exists():
-        raise ValueError(f"Mod `{normalized}` does not exist. Run `ctx-library learn {normalized}` first.")
-    if declared_type not in REMOTE_DECLARED_TYPES:
-        raise ValueError(f"Unsupported source type `{declared_type}`.")
-    parsed = urllib_parse.urlsplit(url.strip())
-    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("URL must use http or https and include a host.")
-    manifest = load_remote_sources_manifest(root)
-    canonical_url = canonicalize_url(url)
-    if any(row.get("canonical_url") == canonical_url for row in manifest.get("sources", [])):
-        raise ValueError(f"Source already registered for `{canonical_url}`.")
-    source_id = build_source_id(canonical_url, manifest.get("sources", []))
-    row = {
-        "id": source_id,
-        "url": url.strip(),
-        "canonical_url": canonical_url,
-        "declared_type": declared_type,
-        "detected_type": None,
-        "tags": sorted(set(tags or [])),
-        "status": "pending",
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-        "last_fetched_at": None,
-        "last_successful_snapshot_id": None,
-        "last_error": None,
-    }
-    manifest.setdefault("sources", []).append(row)
-    save_remote_sources_manifest(root, manifest)
-    mod_manifest = load_mod_manifest(root)
-    mod_manifest["remote_sources_count"] = len(manifest.get("sources", []))
-    save_mod_manifest(root, mod_manifest)
-    return {"mod_id": normalized, "source": row, "manifest_path": remote_manifest_path(root).as_posix(), "events": [f"registered:{source_id}"]}
+    from .runtime_knowledge import register_remote_source as _impl
+    return _impl(mod_id, url, declared_type=declared_type, tags=tags)
 
 
 def fetch_remote_sources(mod_id: str, source_id: str | None = None, force: bool = False) -> dict[str, Any]:
-    normalized = slugify(mod_id)
-    root = mod_root(normalized)
-    if not (root / "mod.json").exists():
-        raise ValueError(f"Mod `{normalized}` does not exist. Run `ctx-library learn {normalized}` first.")
-    manifest = load_remote_sources_manifest(root)
-    sources = manifest.get("sources", [])
-    selected = [row for row in sources if source_id in {None, row.get("id")}]
-    if source_id and not selected:
-        raise ValueError(f"Unknown source id `{source_id}` for mod `{normalized}`.")
-    events: list[str] = []
-    results: list[dict[str, Any]] = []
-    success_count = 0
-    for row in selected:
-        try:
-            raw_bytes, status_code, response_headers = fetch_remote_payload_bytes(row["url"])
-            content_type_header = response_headers.get("Content-Type", "")
-            etag = response_headers.get("ETag")
-            last_modified = response_headers.get("Last-Modified")
-            if int(status_code) < 200 or int(status_code) >= 300:
-                raise RuntimeError(f"HTTP status {status_code}")
-            detected_type = detect_remote_type(row["canonical_url"], row.get("declared_type", "auto"), content_type_header, raw_bytes)
-            if detected_type not in REMOTE_TYPE_EXTENSIONS:
-                raise RuntimeError(f"Unsupported detected type `{detected_type}`")
-            checksum = hashlib.sha256(raw_bytes).hexdigest()
-            if not force and checksum == row.get("last_checksum_sha256"):
-                row["status"] = "fetched"
-                row["updated_at"] = now_iso()
-                row["last_error"] = None
-                events.append(f"skipped_unchanged:{row['id']}")
-                results.append({"source_id": row["id"], "status": "skipped", "reason": "unchanged"})
-                continue
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            snapshot_id = f"{row['id']}_{timestamp}"
-            raw_extension = REMOTE_TYPE_EXTENSIONS[detected_type]
-            raw_path = root / "remote_sources" / "raw" / f"{snapshot_id}{raw_extension}"
-            raw_path.write_bytes(raw_bytes)
-            extracted_text, extracted_title, extraction_notes = extract_remote_payload(raw_path, detected_type)
-            cleaned_text = normalize_knowledge_text(extracted_text)
-            if not cleaned_text:
-                raise RuntimeError("Extraction produced empty content")
-            title = extracted_title or title_from_text(cleaned_text, row["id"].replace("_", " ").title())
-            extracted_path = root / "remote_sources" / "extracted" / f"{snapshot_id}.md"
-            write_text(extracted_path, cleaned_text + "\n")
-            inbox_path = root / "inbox" / f"remote_{row['id']}.md"
-            canonical_doc = (
-                "---\n"
-                "source_kind: remote_url\n"
-                f"source_id: {row['id']}\n"
-                f"snapshot_id: {snapshot_id}\n"
-                f"source_url: {row['url']}\n"
-                f"canonical_url: {row['canonical_url']}\n"
-                f"detected_type: {detected_type}\n"
-                f"fetched_at: {now_iso()}\n"
-                f"title: {title}\n"
-                f"{remote_frontmatter(row.get('tags', []))}\n"
-                "---\n\n"
-                f"# {title}\n\n"
-                f"{cleaned_text}\n"
-            )
-            write_text(inbox_path, canonical_doc)
-            snapshot = {
-                "snapshot_id": snapshot_id,
-                "source_id": row["id"],
-                "url": row["url"],
-                "canonical_url": row["canonical_url"],
-                "fetched_at": now_iso(),
-                "declared_type": row.get("declared_type", "auto"),
-                "detected_type": detected_type,
-                "content_type_header": content_type_header,
-                "http_status": status_code,
-                "checksum_sha256": checksum,
-                "raw_path": relative_posix(raw_path, root),
-                "extracted_path": relative_posix(extracted_path, root),
-                "inbox_path": relative_posix(inbox_path, root),
-                "title": title,
-                "etag": etag,
-                "last_modified": last_modified,
-                "word_count": len(cleaned_text.split()),
-                "extraction_notes": extraction_notes,
-            }
-            write_json(root / "remote_sources" / "snapshots" / f"{snapshot_id}.json", snapshot)
-            row.update(
-                {
-                    "status": "fetched",
-                    "detected_type": detected_type,
-                    "updated_at": now_iso(),
-                    "last_fetched_at": snapshot["fetched_at"],
-                    "last_successful_snapshot_id": snapshot_id,
-                    "last_checksum_sha256": checksum,
-                    "last_error": None,
-                }
-            )
-            success_count += 1
-            events.extend(
-                [
-                    f"fetched:{row['id']}",
-                    f"snapshot_created:{snapshot_id}",
-                    f"extracted:{relative_posix(extracted_path, root)}",
-                    f"inbox_emitted:{relative_posix(inbox_path, root)}",
-                ]
-            )
-            results.append({"source_id": row["id"], "status": "fetched", "snapshot_id": snapshot_id, "inbox_path": inbox_path.as_posix()})
-        except (urllib_error.URLError, RuntimeError, OSError, ValueError) as exc:
-            row["status"] = "failed"
-            row["updated_at"] = now_iso()
-            row["last_error"] = str(exc)
-            events.append(f"failed:{row['id']}")
-            results.append({"source_id": row["id"], "status": "failed", "error": str(exc)})
-    save_remote_sources_manifest(root, manifest)
-    mod_manifest = load_mod_manifest(root)
-    mod_manifest["remote_sources_count"] = len(manifest.get("sources", []))
-    save_mod_manifest(root, mod_manifest)
-    all_failed = bool(selected) and success_count == 0 and all(result.get("status") == "failed" for result in results)
-    return {
-        "mod_id": normalized,
-        "selected_sources": [row.get("id") for row in selected],
-        "results": results,
-        "events": events,
-        "exit_code": 1 if all_failed else 0,
-    }
+    from .runtime_knowledge import fetch_remote_sources as _impl
+    return _impl(mod_id, source_id=source_id, force=force)
 
 
 def process_mod_documents(mod_id: str) -> dict[str, Any]:
-    manifest = bootstrap_mod(mod_id)
-    root = mod_root(mod_id)
-    state = load_mod_state(root)
-    warnings: list[str] = []
-    pending: list[dict[str, Any]] = []
-    seen_sources: list[str] = []
-
-    for source_path in sorted((root / "inbox").glob("*")):
-        if not should_process_inbox_file(source_path):
-            continue
-        source_key = source_path.name
-        seen_sources.append(source_key)
-        current_hash = file_md5(source_path)
-        current_mtime = file_mtime(source_path)
-        previous = state["processed_docs"].get(source_key, {})
-        if previous.get("hash") != current_hash or mtime_changed(previous.get("mtime"), current_mtime):
-            invalidate_source_artifacts(root, previous)
-            pending.append(
-                {
-                    "kind": "inbox",
-                    "path": source_path,
-                    "key": source_key,
-                    "title": source_path.stem,
-                    "hash": current_hash,
-                    "mtime": current_mtime,
-                    "previous": previous,
-                }
-            )
-
-    references = parse_references_file(root / "inbox" / "references.md")
-    for reference in references:
-        reference_path = reference["path"]
-        reference_key = reference_path.as_posix()
-        if reference_path.suffix.lower() not in SUPPORTED_REFERENCED_EXTENSIONS:
-            warnings.append(f"unsupported_reference:{reference_key}")
-            continue
-        previous = state["referenced_files"].get(reference_key, {})
-        if not reference_path.exists():
-            warnings.append(f"missing_reference:{reference_key}")
-            continue
-        current_mtime = file_mtime(reference_path)
-        if mtime_changed(previous.get("mtime"), current_mtime) or previous.get("label") != reference.get("label"):
-            invalidate_source_artifacts(root, previous)
-            pending.append(
-                {
-                    "kind": "reference",
-                    "path": reference_path,
-                    "key": reference_key,
-                    "title": reference.get("label") or reference_path.stem,
-                    "label": reference.get("label"),
-                    "mtime": current_mtime,
-                    "previous": previous,
-                }
-            )
-
-    for item in pending:
-        processed = process_knowledge_source(
-            root,
-            source_path=item["path"],
-            source_kind=item["kind"],
-            source_key=item["key"],
-            title=item["title"],
-            label=item.get("label"),
-            previous=item.get("previous"),
-        )
-        processed["mtime"] = item["mtime"]
-        if item["kind"] == "inbox":
-            processed["hash"] = item["hash"]
-            state["processed_docs"][item["key"]] = processed
-        else:
-            state["referenced_files"][item["key"]] = processed
-
-    index_files = rebuild_mod_indices(root, state)
-    for bucket_name in ["processed_docs", "referenced_files"]:
-        for entry in state.get(bucket_name, {}).values():
-            entry["index_files"] = sorted({path for paths in index_files.values() for path in paths})
-    state["last_processed"] = now_iso()
-    save_mod_state(root, state)
-    manifest = bootstrap_mod(mod_id, aliases=manifest.get("aliases", []), title=manifest.get("title"))
-    manifest["last_processed"] = state["last_processed"]
-    manifest["inbox_count"] = len(seen_sources)
-    manifest["referenced_count"] = len(references)
-    manifest["remote_sources_count"] = len(load_remote_sources_manifest(root).get("sources", []))
-    save_mod_manifest(root, manifest)
-    return {
-        "mod_id": slugify(mod_id),
-        "sources_seen": seen_sources,
-        "pending_count": len(pending),
-        "notes_generated": sum(len(entry.get("note_files", [])) for entry in state["processed_docs"].values()) + sum(len(entry.get("note_files", [])) for entry in state["referenced_files"].values()),
-        "summaries_generated": sum(len(entry.get("summary_files", [])) for entry in state["processed_docs"].values()) + sum(len(entry.get("summary_files", [])) for entry in state["referenced_files"].values()),
-        "referenced_count": len(references),
-        "warnings": warnings,
-        "status": "processed" if state["processed_docs"] or state["referenced_files"] else "ready_empty",
-    }
+    from .runtime_knowledge import process_mod_documents as _impl
+    return _impl(mod_id)
 
 
 def infer_candidate_mods(task: str) -> list[str]:
@@ -3881,50 +2918,8 @@ def infer_candidate_mods(task: str) -> list[str]:
 
 
 def retrieve_knowledge(task: str) -> dict[str, Any]:
-    ensure_library_artifacts()
-    candidate_mods = infer_candidate_mods(task)
-    topics = topic_keywords(task, limit=6)
-    selected_artifacts: list[str] = []
-    artifact_rows: list[dict[str, Any]] = []
-    for mod_id in candidate_mods[:3]:
-        root = mod_root(mod_id)
-        topic_index = read_json(root / "indices" / "topic_index.json", {})
-        keyword_index = read_json(root / "indices" / "keyword_index.json", {})
-        for topic in topics:
-            for path in topic_index.get(topic, [])[:2] + keyword_index.get(topic, [])[:1]:
-                if path in selected_artifacts:
-                    continue
-                selected_artifacts.append(path)
-                text = Path(path).read_text(encoding="utf-8", errors="ignore") if Path(path).exists() else ""
-                artifact_rows.append(
-                    {
-                        "path": path,
-                        "summary": truncate_words(text.replace("\n", " "), 28),
-                        "estimated_tokens": estimate_tokens(text),
-                    }
-                )
-        if selected_artifacts:
-            break
-    status = read_json(LIBRARY_RETRIEVAL_STATUS_PATH, {})
-    status.update(
-        {
-            "generated_at": date.today().isoformat(),
-            "installed_iteration": current_engine_iteration(),
-            "mods_total": len(library_registry().get("mods", {})),
-            "retrieval_events": int(status.get("retrieval_events", 0) or 0) + 1,
-            "last_selected_artifacts": selected_artifacts[:6],
-            "supports_reference_ingestion": True,
-            "supports_remote_ingestion": True,
-        }
-    )
-    write_json(LIBRARY_RETRIEVAL_STATUS_PATH, status)
-    return {
-        "mods": candidate_mods[:3],
-        "topics": topics,
-        "selected_artifacts": selected_artifacts[:6],
-        "artifacts": artifact_rows[:6],
-        "strategy": "topic_first_minimal_pack" if selected_artifacts else "empty_fallback",
-    }
+    from .runtime_knowledge import retrieve_knowledge as _impl
+    return _impl(task)
 
 
 def ensure_engine_state() -> None:
@@ -4008,10 +3003,8 @@ def refresh_engine_state() -> dict[str, Any]:
 
 
 def truncate_words(text: str, max_words: int) -> str:
-    words = text.split()
-    if len(words) <= max_words:
-        return text.strip()
-    return " ".join(words[:max_words]).strip() + " ..."
+    from .runtime_io import truncate_words as _impl
+    return _impl(text, max_words)
 
 
 def packet_item_text(item: Any) -> str:
@@ -4580,28 +3573,7 @@ def cli_memory_graph(args: argparse.Namespace) -> int:
 
 
 def cli_library(args: argparse.Namespace) -> int:
-    command = getattr(args, "command", "status")
-    try:
-        if command == "learn":
-            payload = bootstrap_mod(args.mod_id, aliases=getattr(args, "aliases", []) or [], create_reference_stub=True)
-        elif command == "process":
-            payload = process_mod_documents(args.mod_id)
-        elif command == "add-source":
-            payload = register_remote_source(args.mod_id, args.url, getattr(args, "declared_type", "auto"), getattr(args, "tags", []) or [])
-        elif command == "fetch-sources":
-            payload = fetch_remote_sources(args.mod_id, getattr(args, "source_id", None), bool(getattr(args, "force", False)))
-        elif command == "retrieve":
-            payload = retrieve_knowledge(args.task)
-        else:
-            payload = {
-                "state": refresh_engine_state(),
-                "registry": library_registry(),
-                "telemetry": read_json(CONTEXT_WEEKLY_SUMMARY_PATH, {}),
-                "retrieval_status": read_json(LIBRARY_RETRIEVAL_STATUS_PATH, {}),
-            }
-    except ValueError as exc:
-        payload = {"error": str(exc), "command": command}
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
-        return 1
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
-    return int(payload.get("exit_code", 0) or 0)
+    from .runtime_knowledge import cli_library as _impl
+    return _impl(args)
+
+

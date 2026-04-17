@@ -12,6 +12,10 @@ import pytest
 from aictx.adapters import install_global_adapters
 import aictx.cli as cli
 import aictx.core_runtime as core_runtime
+import aictx.runtime_io as runtime_io
+import aictx.runtime_memory as runtime_memory
+import aictx.runtime_tasks as runtime_tasks
+import aictx.runtime_knowledge as runtime_knowledge
 from aictx.agent_runtime import (
     AGENTS_END,
     AGENTS_START,
@@ -748,3 +752,41 @@ def test_global_health_check_reports_runtime_consistency_warning(tmp_path: Path,
     project_check = next(item for item in health["checks"] if item["scope"] == repo.name and item["check"] == "project_health")
     assert project_check["consistency"]["status"] == "warning"
     assert any(issue["check"] == "runtime_consistency" for issue in project_check["issues"])
+
+
+def test_core_runtime_keeps_compatibility_exports_after_refactor():
+    assert core_runtime.rank_records is not None
+    assert core_runtime.packet_for_task is not None
+    assert core_runtime.retrieve_knowledge is not None
+    assert callable(core_runtime.rank_records)
+    assert callable(core_runtime.packet_for_task)
+    assert callable(core_runtime.retrieve_knowledge)
+
+
+def test_runtime_io_helpers_are_available():
+    assert runtime_io.slugify("Hello World") == "hello_world"
+    assert runtime_io.truncate_words("one two three four", 2) == "one two ..."
+
+
+def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    matches = runtime_memory.rank_records("workflow")
+    assert isinstance(matches, list)
+
+    resolved = runtime_tasks.resolve_task_type("debug failing integration")
+    assert resolved["task_type"] in {"bug_fixing", "unknown"}
+
+    packet = runtime_tasks.packet_for_task("debug failing integration")
+    assert packet["task_summary"] == "debug failing integration"
+    assert "communication_policy" not in packet
+
+
+def test_runtime_knowledge_module_bootstrap_mod(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_runtime, "LIBRARY_DIR", tmp_path / ".ai_context_engine" / "library")
+    monkeypatch.setattr(core_runtime, "LIBRARY_REGISTRY_PATH", tmp_path / ".ai_context_engine" / "library" / "registry.json")
+    monkeypatch.setattr(core_runtime, "LIBRARY_RETRIEVAL_STATUS_PATH", tmp_path / ".ai_context_engine" / "library" / "retrieval_status.json")
+    manifest = runtime_knowledge.bootstrap_mod("ux", create_reference_stub=True)
+    assert manifest["id"] == "ux"
+    assert (tmp_path / ".ai_context_engine" / "library" / "mods" / "ux" / "inbox" / "references.md").exists()

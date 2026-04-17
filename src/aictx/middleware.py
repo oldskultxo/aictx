@@ -10,6 +10,8 @@ from typing import Any
 from .adapters import resolve_adapter_profile
 from . import core_runtime
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
+from .runtime_memory import rank_records
+from .runtime_tasks import packet_for_task, resolve_task_type
 from .state import (
     REPO_FAILURE_MEMORY_DIR,
     REPO_MEMORY_DIR,
@@ -166,13 +168,13 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     execution = classify_execution(envelope)
     resolved_preferences = resolve_effective_preferences(repo_root, global_defaults_path=core_runtime.ROOT_PREFS_PATH)
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
-    task_resolution = core_runtime.resolve_task_type(
+    task_resolution = resolve_task_type(
         envelope["user_request"],
         explicit_task_type=envelope.get("declared_task_type"),
     )
     retrieval_matches = [
         row
-        for row in core_runtime.rank_records(envelope["user_request"], project=repo_root.name)[:5]
+        for row in rank_records(envelope["user_request"], project=repo_root.name)[:5]
         if row.get("type") != "user_preference"
     ]
     retrieval_summary = {
@@ -187,7 +189,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         execution["execution_mode"],
         envelope.get("declared_task_type"),
     ):
-        packet = core_runtime.packet_for_task(
+        packet = packet_for_task(
             envelope["user_request"],
             project=repo_root.name,
             task_type=envelope.get("declared_task_type"),
