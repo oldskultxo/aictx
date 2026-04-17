@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
 set -e
-PYTHONPATH="$PWD/src" python3 -m aictx failure "$@"
+if command -v aictx >/dev/null 2>&1; then
+  exec aictx failure "$@"
+fi
+PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$PWD/src" exec python3 -m aictx failure "$@"

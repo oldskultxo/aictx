@@ -23,6 +23,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Read `.ai_context_engine/memory/derived_boot_summary.json` first when present.
 - Apply `.ai_context_engine/memory/user_preferences.json` as defaults unless the current prompt overrides them.
 - Repo-local preferences may keep communication mode disabled by default; explicit user requests still override.
+- `aictx` acts as always-on execution middleware for agent runs in initialized repos: run a base prehook before execution and a base posthook after execution.
 - Use the engine as the first low-cost memory layer before deeper repo analysis.
 - Do not hand-edit generated `.ai_context_*` artifacts.
 
@@ -37,6 +38,14 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Use packet-building behavior for non-trivial tasks that need compact context.
 - Packet assembly may use retrieval, task memory, failure memory, memory graph, and budget optimization.
 - Routing/model suggestion is available when the task complexity needs it.
+
+## Execution middleware
+- Enter the engine for every agent execution in initialized repos, even when no skill is active.
+- Base prehook: bootstrap + prefs + task classification + minimal retrieval + packet decision.
+- Skill-aware enrichment is additive: when explicit skill metadata exists, preserve it and add skill context without changing the always-on entry path.
+- Base posthook: telemetry + validated learning write-back + failure/task-memory updates when relevant.
+- Heuristic skill detection is low-confidence fallback only; do not treat it as authoritative metadata.
+- Repo-local adapter manifests live under `.ai_context_engine/adapters/` and are auto-installed for generic, Codex, and Claude runners.
 
 ## Communication mode
 - `communication.layer` controls whether the caveman communication layer is active by default: `enabled` or `disabled`.
@@ -108,6 +117,7 @@ Agent rules:
 - Read `.ai_context_engine/memory/derived_boot_summary.json` first when present.
 - Use `aictx` as the first low-cost memory layer before deeper repo analysis.
 - Apply `.ai_context_engine/memory/user_preferences.json` as defaults unless the current prompt overrides them.
+- Enter the engine middleware for every execution in initialized repos, not only when a skill is active.
 - Communication mode may be disabled by repo-local preferences; explicit user requests still override for the current session.
 - Persist validated learnings after non-trivial tasks.
 - If the user asks the agent to learn docs, reusable knowledge, or external references, activate the knowledge/library workflow.

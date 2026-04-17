@@ -19,6 +19,13 @@ from typing import Any
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
+from .runtime_contract import (
+    communication_policy_from_defaults,
+    normalize_communication_layer,
+    normalize_communication_mode,
+    resolve_effective_preferences,
+    runtime_consistency_report,
+)
 
 BASE = Path(__file__).resolve().parents[2]
 BOOT_DIR = BASE / "boot"
@@ -30,13 +37,13 @@ DELTA_DIR = BASE / "delta"
 LAST_PACKETS_DIR = DELTA_DIR / "last_packets"
 MIGRATION_DIR = BASE / "migration"
 LOGS_DIR = BASE / "logs"
-COST_DIR = BASE / ".ai_context_cost"
-TASK_MEMORY_DIR = BASE / ".ai_context_task_memory"
-FAILURE_MEMORY_DIR = BASE / ".ai_context_failure_memory"
-MEMORY_GRAPH_DIR = BASE / ".ai_context_memory_graph"
-CONTEXT_METRICS_DIR = BASE / ".context_metrics"
 ENGINE_STATE_DIR = BASE / ".ai_context_engine"
-LIBRARY_DIR = BASE / ".ai_context_library"
+COST_DIR = ENGINE_STATE_DIR / "cost"
+TASK_MEMORY_DIR = ENGINE_STATE_DIR / "task_memory"
+FAILURE_MEMORY_DIR = ENGINE_STATE_DIR / "failure_memory"
+MEMORY_GRAPH_DIR = ENGINE_STATE_DIR / "memory_graph"
+CONTEXT_METRICS_DIR = ENGINE_STATE_DIR / "metrics"
+LIBRARY_DIR = ENGINE_STATE_DIR / "library"
 
 ROOT_INDEX_PATH = BASE / "index.json"
 ROOT_PREFS_PATH = BASE / "user_preferences.json"
@@ -65,7 +72,7 @@ MIGRATION_REPORT_PATH = MIGRATION_DIR / "legacy_memory_migration_report.md"
 MIGRATION_IMPORT_MAP_PATH = MIGRATION_DIR / "legacy_memory_import_map.json"
 LOGS_CHANGE_JOURNAL_PATH = LOGS_DIR / "change_journal.md"
 LOGS_MAINTENANCE_PATH = LOGS_DIR / "maintenance_log.md"
-REPO_COMPAT_DIRNAME = ".ai_context_memory"
+REPO_COMPAT_DIRNAME = ".ai_context_engine/memory"
 ROOT_COMPACTION_REPORT_PATH = BASE / "compaction_report.json"
 COST_CONFIG_PATH = COST_DIR / "optimizer_config.yaml"
 COST_RULES_PATH = COST_DIR / "cost_estimation_rules.md"
@@ -361,11 +368,11 @@ def repo_root_for_project(project: str) -> Path | None:
 def ensure_repo_compat_readme(compat_dir: Path) -> None:
     readme = compat_dir / "README.md"
     readme.write_text(
-        "# .ai_context_memory\n\n"
-        "Compatibility bootstrap layer for AI agent sessions in this repository.\n\n"
-        "- Canonical source: `ai_context_engine` (current repo path: `/Users/santisantamaria/Documents/projects/ai_context_engine`)\n"
+        "# .ai_context_engine/memory\n\n"
+        "Repo-local bootstrap layer for AI agent sessions in this repository.\n\n"
+        "- Canonical source: `.ai_context_engine/`\n"
         "- Purpose: fast local bootstrap and predictable artifact paths (`derived_boot_summary.json`, `user_preferences.json`, `project_bootstrap.json`).\n"
-        "- Do not hand-edit generated JSON/JSONL here; rebuild from the canonical engine instead.\n"
+        "- Do not hand-edit generated JSON/JSONL here; rebuild from the runtime instead.\n"
     )
 
 
@@ -385,62 +392,6 @@ def default_adapter_contract() -> dict[str, Any]:
         "adapter_id": DEFAULT_ADAPTER_ID,
         "adapter_family": DEFAULT_ADAPTER_FAMILY,
         "provider_capabilities": list(DEFAULT_PROVIDER_CAPABILITIES),
-    }
-
-
-VALID_COMMUNICATION_MODES = {"caveman_lite", "caveman_full", "caveman_ultra"}
-VALID_COMMUNICATION_LAYERS = {"enabled", "disabled"}
-
-
-def normalize_communication_mode(value: Any, default: str = "caveman_full") -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in VALID_COMMUNICATION_MODES:
-        return normalized
-    return default
-
-
-def normalize_communication_layer(value: Any, default: str = "enabled") -> str:
-    normalized = str(value or "").strip().lower()
-    if normalized in VALID_COMMUNICATION_LAYERS:
-        return normalized
-    return default
-
-
-def communication_policy_from_defaults(defaults_payload: dict[str, Any]) -> dict[str, Any]:
-    communication = defaults_payload.get("communication", {}) if isinstance(defaults_payload.get("communication"), dict) else {}
-    layer = normalize_communication_layer(communication.get("layer"), "enabled")
-    mode = normalize_communication_mode(communication.get("mode"), "caveman_full")
-    intermediate_updates = str(communication.get("intermediate_updates", "suppressed")).strip().lower() or "suppressed"
-    final_style = str(communication.get("final_style", "plain_direct_final_only")).strip() or "plain_direct_final_only"
-    return {
-        "layer": layer,
-        "mode": mode,
-        "intermediate_updates": intermediate_updates,
-        "final_style": final_style,
-        "user_override_wins": True,
-        "long_form_on_request": True,
-        "step_by_step_on_request": True,
-        "applies_to": [
-            "implementation_summaries",
-            "debugging_reports",
-            "patch_explanations",
-            "execution_loop_diagnostics",
-            "final_execution_results",
-        ],
-        "does_not_apply_to": [
-            "source_code_comments",
-            "repository_documentation",
-            "marketing_copy",
-            "narrative_content",
-            "normal_style_user_requested_prose",
-        ],
-        "preferred_patterns": [
-            "found -> cause -> fix",
-            "done -> files -> tests",
-            "blocked -> reason -> need",
-            "next -> verify -> continue",
-            "changed A, updated B, left C",
-        ],
     }
 
 
@@ -2222,7 +2173,7 @@ def ensure_task_memory_artifacts() -> None:
         "# task resolution rules\n\n"
         "- Resolution order: explicit task type -> packet/runtime metadata -> heuristic task inference -> `unknown`.\n"
         "- Stable canonical task types: `bug_fixing`, `refactoring`, `testing`, `performance`, `architecture`, `feature_work`, `unknown`.\n"
-        "- Existing markdown notes remain canonical; `.ai_context_task_memory/` is derived from them.\n"
+        "- Existing markdown notes remain canonical; `.ai_context_engine/task_memory/` is derived from them.\n"
         "- Retrieval prefers the resolved task bucket first, then `unknown`, then deterministic fallback matches only when needed.\n"
         "- Ambiguous notes stay in `unknown` rather than being force-migrated.\n"
     )
@@ -3033,7 +2984,7 @@ def ensure_library_artifacts() -> None:
     if not readme.exists():
         write_text(
             readme,
-            "# .ai_context_library\n\n"
+            "# .ai_context_engine/library\n\n"
             "Local knowledge library for ai_context_engine.\n\n"
             "- `mods/` contains domain workspaces.\n"
             "- `inbox/` is the raw drop zone.\n"
@@ -4033,14 +3984,14 @@ def refresh_engine_state() -> dict[str, Any]:
             },
             "last_upgrade_at": now_iso(),
             "shared_layers": {
-                "memory_dir": ".ai_context_memory",
-                "telemetry_dir": ".context_metrics",
+                "memory_dir": ".ai_context_engine/memory",
+                "telemetry_dir": ".ai_context_engine/metrics",
                 "global_metrics_dir": ".ai_context_global_metrics",
-                "cost_dir": ".ai_context_cost",
-                "task_memory_dir": ".ai_context_task_memory",
-                "failure_memory_dir": ".ai_context_failure_memory",
-                "memory_graph_dir": ".ai_context_memory_graph",
-                "library_dir": ".ai_context_library",
+                "cost_dir": ".ai_context_engine/cost",
+                "task_memory_dir": ".ai_context_engine/task_memory",
+                "failure_memory_dir": ".ai_context_engine/failure_memory",
+                "memory_graph_dir": ".ai_context_engine/memory_graph",
+                "library_dir": ".ai_context_engine/library",
             },
             "supports": {
                 "granular_telemetry": True,
@@ -4391,10 +4342,15 @@ def bootstrap(repo_path: str | None = None) -> dict[str, Any]:
         rebuild_memory_store()
     repo = Path(repo_path).resolve() if repo_path else None
     repo_name = repo.name if repo else "unknown"
-    repo_compat_dir = repo / REPO_COMPAT_DIRNAME if repo else None
+    repo_memory_dir = repo / ".ai_context_engine" / "memory" if repo else None
+    repo_state_path = repo / ".ai_context_engine" / "state.json" if repo else None
+    resolved_preferences = resolve_effective_preferences(repo, global_defaults_path=ROOT_PREFS_PATH)
     return {
         "boot_summary": read_json(BOOT_SUMMARY_PATH, {}),
         "user_defaults": read_json(BOOT_DEFAULTS_PATH, {}),
+        "effective_preferences": resolved_preferences.get("effective_preferences", {}),
+        "communication_policy": resolved_preferences.get("effective_preferences", {}).get("communication", {}),
+        "communication_sources": resolved_preferences.get("sources", {}).get("communication", {}),
         "project_registry": read_json(BOOT_PROJECTS_PATH, {}),
         "model_routing": read_json(BOOT_MODEL_ROUTING_PATH, {}),
         "cost_optimizer": read_json(COST_STATUS_PATH, {}),
@@ -4402,11 +4358,14 @@ def bootstrap(repo_path: str | None = None) -> dict[str, Any]:
         "task_taxonomy": read_json(TASK_MEMORY_TAXONOMY_PATH, {}),
         "failure_memory": read_json(FAILURE_MEMORY_STATUS_PATH, {}),
         "memory_graph": read_json(MEMORY_GRAPH_STATUS_PATH, {}),
-        "repo_compat": {
-            "exists": bool(repo_compat_dir and repo_compat_dir.exists()),
-            "path": repo_compat_dir.as_posix() if repo_compat_dir else "",
-            "derived_boot_summary": read_json(repo_compat_dir / "derived_boot_summary.json", {}) if repo_compat_dir and repo_compat_dir.exists() else {},
-            "project_bootstrap": read_json(repo_compat_dir / "project_bootstrap.json", {}) if repo_compat_dir and repo_compat_dir.exists() else {},
+        "consistency_checks": runtime_consistency_report(repo, global_defaults_path=ROOT_PREFS_PATH),
+        "repo_bootstrap": {
+            "exists": bool(repo_memory_dir and repo_memory_dir.exists()),
+            "path": repo_memory_dir.as_posix() if repo_memory_dir else "",
+            "derived_boot_summary": read_json(repo_memory_dir / "derived_boot_summary.json", {}) if repo_memory_dir and repo_memory_dir.exists() else {},
+            "project_bootstrap": read_json(repo_memory_dir / "project_bootstrap.json", {}) if repo_memory_dir and repo_memory_dir.exists() else {},
+            "user_preferences": read_json(repo_memory_dir / "user_preferences.json", {}) if repo_memory_dir and repo_memory_dir.exists() else {},
+            "state": read_json(repo_state_path, {}) if repo_state_path and repo_state_path.exists() else {},
         },
         "session": {
             "repo_name": repo_name,
@@ -4420,15 +4379,8 @@ def ensure_gitignore(target_repo: str) -> dict[str, Any]:
     gitignore = repo / ".gitignore"
     desired = [
         ".ai_context_engine/",
-        ".ai_context_memory/",
-        ".context_metrics/",
         ".ai_context_global_metrics/",
-        ".ai_context_cost/",
         ".ai_context_planner/",
-        ".ai_context_task_memory/",
-        ".ai_context_failure_memory/",
-        ".ai_context_memory_graph/",
-        ".ai_context_library/",
         "CONTEXT_SAVINGS.md",
     ]
     try:

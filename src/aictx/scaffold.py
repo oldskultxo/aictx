@@ -5,6 +5,7 @@ import shutil
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from .adapters import install_repo_adapters
 from .state import (
     REPO_COST_DIR,
     REPO_DIRS,
@@ -211,6 +212,9 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
 
     if update_gitignore:
         ensure_gitignore(repo)
+    for path in install_repo_adapters(repo):
+        if str(path) not in created:
+            created.append(str(path))
     return created
 
 

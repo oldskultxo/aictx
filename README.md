@@ -1,30 +1,42 @@
 # aictx
 
-Portable multi-LLM context engine bootstrapper and local runtime.
+**Install once. Initialize a repo. Give coding agents a real runtime contract.**
 
-## What it is
+`aictx` turns a normal repository into a repository that is prepared for coding agents.
 
-`aictx` is the distributable layer for installing a stable `.ai_context_*` contract into repositories so Codex, Claude, and other LLM agents can use local contextual memory from the moment the repo is initialized.
+## Product surface
 
-## Current scope
+The sellable user flow stays intentionally small:
 
-- global install config under `~/.ai_context_engine/`
-- repo initialization scaffold under `.ai_context_*`
-- workspace registry for cross-project discovery
-- interactive and non-interactive CLI flows
-- bundled starter templates for packet schema, defaults, and model routing
-- first extraction lane from `ai_context_engine` into `aictx`
+1. `aictx install`
+2. `aictx init`
+3. use Codex, Claude Code, or your normal automation
 
-## Design rules
+Everything else exists to support that runtime, not to expand the primary UX.
 
-- filesystem artifacts are created by scripting/runtime, never by the LLM
-- repo-local structure is eager: directories and starter files exist immediately after `aictx init`
-- cross-project discovery is registry/workspace-based, not hardcoded to a machine path
-- repo-local memory and global engine state are separated
+## What it really does today
 
-## Commands
+After `install + init`, `aictx` can provide:
 
-### Install globally
+- repo-local bootstrap memory under `.ai_context_engine/`
+- packet-oriented context for non-trivial work
+- task memory, failure memory, and memory graph scaffolds
+- repo-native instruction integration for Codex and Claude Code
+- wrapped middleware for generic automation via `aictx internal run-execution`
+- local/global telemetry and health artifacts
+
+## Honest limits
+
+This is still a **0.x** product.
+
+- final behavior depends on each runner honoring its instruction and hook system
+- telemetry quality is best-effort unless confidence is explicitly high
+- advanced/internal commands are supported, but not the main thing being sold
+- some deeper capabilities are still being extracted from the canonical engine
+
+See [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+
+## Install once
 
 ```bash
 aictx install
@@ -36,14 +48,15 @@ Non-interactive:
 aictx install --yes --workspace-root ~/projects
 ```
 
-What it creates:
+This creates the global runtime under `~/.ai_context_engine/` and provisions:
 
-- `~/.ai_context_engine/config.json`
-- `~/.ai_context_engine/projects_registry.json`
-- `~/.ai_context_engine/workspaces/default.json`
-- `~/.ai_context_engine/.ai_context_global_metrics/`
+- global configuration
+- workspace registry
+- adapters and wrappers
+- global telemetry storage
+- global Codex instructions
 
-### Initialize a repository
+## Initialize a repo
 
 ```bash
 aictx init
@@ -55,54 +68,61 @@ Non-interactive:
 aictx init --repo . --yes
 ```
 
-What it creates:
+`init` creates:
 
-- `.ai_context_engine/`
-- `.ai_context_memory/`
-- `.ai_context_cost/`
-- `.ai_context_task_memory/`
-- `.ai_context_failure_memory/`
-- `.ai_context_memory_graph/`
-- `.ai_context_library/`
-- `.context_metrics/`
+- `.ai_context_engine/memory/`
+- `.ai_context_engine/cost/`
+- `.ai_context_engine/task_memory/`
+- `.ai_context_engine/failure_memory/`
+- `.ai_context_engine/memory_graph/`
+- `.ai_context_engine/library/`
+- `.ai_context_engine/metrics/`
+- `.ai_context_engine/adapters/`
+- `.ai_context_engine/state.json`
+- `.ai_context_engine/agent_runtime.md`
 
-### Workspace operations
+And native repo integration files:
+
+- `AGENTS.md`
+- `AGENTS.override.md`
+- `CLAUDE.md`
+- `.claude/settings.json`
+- `.claude/hooks/...`
+- `.gitignore`
+
+## Runtime consistency
+
+`aictx boot --repo <path>` and `aictx execution prepare ...` now expose:
+
+- effective communication policy
+- communication source precedence
+- runtime consistency checks between repo preferences and repo state
+
+Precedence is:
+
+`explicit user instruction > repo prefs > global defaults > hardcoded fallback`
+
+## Development quickstart
 
 ```bash
-aictx workspace add-root ~/projects
-aictx workspace list
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -e . pytest build
+make test
+make smoke
+make package-check
 ```
 
-## Development
+You can also call the installed script directly:
 
 ```bash
-PYTHONPATH=src python3 -m aictx install --yes --workspace-root ~/projects
-PYTHONPATH=src python3 -m aictx init --repo . --yes
-PYTHONPATH=src python3 -m aictx workspace list
+.venv/bin/aictx --help
 ```
 
-## Extraction status
+## Read next
 
-See `docs/EXTRACTION_ROADMAP.md`.
-
-## Migrated subsystems
-
-Current repo-local CLI surface also exposes the migrated runtime subsystems:
-
-- `aictx boot`
-- `aictx query`
-- `aictx packet`
-- `aictx route`
-- `aictx migrate`
-- `aictx detect-stale`
-- `aictx compact`
-- `aictx ensure-gitignore`
-- `aictx new-note`
-- `aictx touch`
-- `aictx failure`
-- `aictx task-memory`
-- `aictx memory-graph`
-- `aictx library`
-- `aictx global`
-
-The repository also includes compatibility wrappers under `scripts/` and `bin/`.
+- [Usage guide](docs/USAGE.md)
+- [Technical overview](docs/TECHNICAL_OVERVIEW.md)
+- [5-minute demo](docs/DEMO.md)
+- [Current limitations](docs/LIMITATIONS.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)

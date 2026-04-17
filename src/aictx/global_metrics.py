@@ -146,28 +146,28 @@ def infer_iteration(repo: Path) -> str:
     if explicit_iteration:
         return explicit_iteration
     if repo.name == CANONICAL_SCOPE:
-        if (repo / ".ai_context_library" / "retrieval_status.json").exists():
-            retrieval_status = read_json(repo / ".ai_context_library" / "retrieval_status.json", {})
+        if (repo_library_dir(repo) / "retrieval_status.json").exists():
+            retrieval_status = read_json(repo_library_dir(repo) / "retrieval_status.json", {})
             if retrieval_status.get("supports_remote_ingestion"):
                 return "15"
             if retrieval_status.get("supports_reference_ingestion"):
                 return "14"
             return str(retrieval_status.get("installed_iteration", "13") or "13")
-        if (repo / ".ai_context_library" / "registry.json").exists():
-            return "12" if any((repo / ".ai_context_library" / "mods").glob("*/indices/*.json")) else "11"
-        if (repo / ".context_metrics" / "weekly_summary.json").exists():
-            weekly = read_json(repo / ".context_metrics" / "weekly_summary.json", {})
+        if (repo_library_dir(repo) / "registry.json").exists():
+            return "12" if any((repo_library_dir(repo) / "mods").glob("*/indices/*.json")) else "11"
+        if (repo_metrics_dir(repo) / "weekly_summary.json").exists():
+            weekly = read_json(repo_metrics_dir(repo) / "weekly_summary.json", {})
             if weekly.get("phase_events_sampled") is not None or weekly.get("telemetry_granularity") == "task_plus_phase":
                 return "10"
-        if (repo / ".ai_context_memory_graph" / "graph_status.json").exists():
+        if (repo_memory_graph_dir(repo) / "graph_status.json").exists():
             return "9"
-        if (repo / ".ai_context_task_memory" / "task_taxonomy.json").exists():
+        if (repo_task_memory_dir(repo) / "task_taxonomy.json").exists():
             return "8"
-        if (repo / ".ai_context_failure_memory" / "failure_memory_status.json").exists():
+        if (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists():
             return "7"
-        if (repo / ".ai_context_task_memory" / "task_memory_status.json").exists():
+        if (repo_task_memory_dir(repo) / "task_memory_status.json").exists():
             return "6"
-        return "5" if (repo / ".ai_context_cost" / "packet_budget_status.json").exists() else "4"
+        return "5" if (repo_cost_dir(repo) / "packet_budget_status.json").exists() else "4"
     has_memory = repo_memory_dir(repo).exists()
     has_metrics = repo_metrics_dir(repo).exists()
     has_cost = (repo_memory_dir(repo) / "packet_budget_status.json").exists()
@@ -234,10 +234,10 @@ def load_context_savings_markdown(repo: Path) -> dict[str, Any]:
 
 def load_project_telemetry(repo: Path) -> ProjectTelemetry:
     weekly = repo_metrics_dir(repo) / "weekly_summary.json"
-    cost_status_path = (repo / ".ai_context_cost" / "packet_budget_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "packet_budget_status.json")
-    task_status_path = (repo / ".ai_context_task_memory" / "task_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "task_memory_summary.json")
-    failure_status_path = (repo / ".ai_context_failure_memory" / "failure_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "failure_memory_summary.json")
-    memory_graph_status_path = (repo / ".ai_context_memory_graph" / "graph_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "memory_graph_summary.json")
+    cost_status_path = (repo_cost_dir(repo) / "packet_budget_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "packet_budget_status.json")
+    task_status_path = (repo_task_memory_dir(repo) / "task_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "task_memory_summary.json")
+    failure_status_path = (repo_failure_memory_dir(repo) / "failure_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "failure_memory_summary.json")
+    memory_graph_status_path = (repo_memory_graph_dir(repo) / "graph_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "memory_graph_summary.json")
     library_registry_path = repo_library_dir(repo) / "registry.json"
     retrieval_status_path = repo_library_dir(repo) / "retrieval_status.json"
     cost_status = read_json(cost_status_path, {}) if cost_status_path.exists() else {}
@@ -534,32 +534,32 @@ def run_health_check() -> dict[str, Any]:
             BASE / "scripts" / "compact.py",
         ],
         "cost_optimizer": [
-            BASE / ".ai_context_cost" / "optimizer_config.yaml",
-            BASE / ".ai_context_cost" / "packet_budget_status.json",
-            BASE / ".ai_context_cost" / "latest_optimization_report.md",
+            repo_cost_dir(BASE) / "optimizer_config.yaml",
+            repo_cost_dir(BASE) / "packet_budget_status.json",
+            repo_cost_dir(BASE) / "latest_optimization_report.md",
         ],
         "task_memory": [
-            BASE / ".ai_context_task_memory" / "task_memory_status.json",
-            BASE / ".ai_context_task_memory" / "task_taxonomy.json",
-            BASE / ".ai_context_task_memory" / "task_resolution_rules.md",
-            BASE / ".ai_context_task_memory" / "unknown" / "records.jsonl",
+            repo_task_memory_dir(BASE) / "task_memory_status.json",
+            repo_task_memory_dir(BASE) / "task_taxonomy.json",
+            repo_task_memory_dir(BASE) / "task_resolution_rules.md",
+            repo_task_memory_dir(BASE) / "unknown" / "records.jsonl",
         ],
         "failure_memory": [
-            BASE / ".ai_context_failure_memory" / "index.json",
-            BASE / ".ai_context_failure_memory" / "failure_memory_status.json",
-            BASE / ".ai_context_failure_memory" / "summaries" / "common_patterns.md",
+            repo_failure_memory_dir(BASE) / "index.json",
+            repo_failure_memory_dir(BASE) / "failure_memory_status.json",
+            repo_failure_memory_dir(BASE) / "summaries" / "common_patterns.md",
         ],
         "memory_graph": [
-            BASE / ".ai_context_memory_graph" / "graph_status.json",
-            BASE / ".ai_context_memory_graph" / "nodes" / "nodes.jsonl",
-            BASE / ".ai_context_memory_graph" / "edges" / "edges.jsonl",
-            BASE / ".ai_context_memory_graph" / "snapshots" / "latest_graph_snapshot.json",
+            repo_memory_graph_dir(BASE) / "graph_status.json",
+            repo_memory_graph_dir(BASE) / "nodes" / "nodes.jsonl",
+            repo_memory_graph_dir(BASE) / "edges" / "edges.jsonl",
+            repo_memory_graph_dir(BASE) / "snapshots" / "latest_graph_snapshot.json",
         ],
         "knowledge_library": [
             BASE / ".ai_context_engine" / "state.json",
-            BASE / ".context_metrics" / "weekly_summary.json",
-            BASE / ".ai_context_library" / "registry.json",
-            BASE / ".ai_context_library" / "retrieval_status.json",
+            repo_metrics_dir(BASE) / "weekly_summary.json",
+            repo_library_dir(BASE) / "registry.json",
+            repo_library_dir(BASE) / "retrieval_status.json",
         ],
     }
     for check_name, paths in canonical_checks.items():
@@ -590,6 +590,7 @@ def run_health_check() -> dict[str, Any]:
         compat = repo_memory_dir(repo)
         agents = repo / "AGENTS.md"
         weekly = repo_metrics_dir(repo) / "weekly_summary.json"
+        state_path = repo_engine_dir(repo) / "state.json"
         repo_issues: list[dict[str, str]] = []
         if not compat.exists():
             if row.get("installed_iteration") not in {"1", "unknown"}:
@@ -606,6 +607,22 @@ def run_health_check() -> dict[str, Any]:
                 repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing .ai_context_engine/memory/failure_memory_summary.json"))
             if row.get("installed_iteration") in MEMORY_GRAPH_ITERATIONS and not (compat / "memory_graph_summary.json").exists():
                 repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing .ai_context_engine/memory/memory_graph_summary.json"))
+        if not state_path.exists():
+            repo_issues.append(issue("warning", row["name"], "runtime_state", "Missing .ai_context_engine/state.json"))
+        else:
+            state = read_json(state_path, {})
+            if not bool(state.get("adapter_runtime_enabled")):
+                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Adapter runtime is not marked as enabled"))
+            if str(state.get("runner_integration_status", "") or "") not in {"wrapper_ready", "hook_ready", "active", "native_ready"}:
+                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Runner integration status is not ready"))
+            if not str(state.get("auto_execution_entrypoint", "") or "").strip():
+                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing auto execution entrypoint in runtime state"))
+            if not (repo / "AGENTS.override.md").exists():
+                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Codex native repo file AGENTS.override.md"))
+            if not (repo / "CLAUDE.md").exists():
+                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Claude native repo file CLAUDE.md"))
+            if not (repo / ".claude" / "settings.json").exists():
+                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Claude native project hooks .claude/settings.json"))
         if not agents.exists():
             repo_issues.append(issue("warning", row["name"], "bootstrap", "Missing AGENTS.md instructions"))
         if row.get("telemetry_dir") != "unknown" and not weekly.exists():

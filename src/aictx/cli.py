@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from . import core_runtime, global_metrics
+from .adapters import install_global_adapters
 from .agent_runtime import (
     copy_local_agent_runtime,
     install_global_agent_runtime,
@@ -13,13 +14,19 @@ from .agent_runtime import (
     resolve_workspace_root,
     upsert_marked_block,
 )
+from .middleware import cli_finalize_execution, cli_prepare_execution
+from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
+from .runtime_launcher import cli_run_execution
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
     GLOBAL_METRICS_DIR,
     PROJECTS_REGISTRY_PATH,
+    REPO_COST_DIR,
     REPO_MEMORY_DIR,
+    REPO_METRICS_DIR,
+    REPO_STATE_PATH,
     default_global_config,
     ensure_global_home,
     load_active_workspace,
@@ -36,6 +43,13 @@ COMMUNICATION_MODE_OPTIONS = [
     ("caveman_full", "caveman_full"),
     ("caveman_ultra", "caveman_ultra"),
 ]
+
+
+class ProductArgumentParser(argparse.ArgumentParser):
+    def format_help(self) -> str:
+        text = super().format_help()
+        filtered = [line for line in text.splitlines() if "==SUPPRESS==" not in line]
+        return "\n".join(filtered).rstrip() + "\n"
 
 
 def ask_yes_no(prompt: str, default: bool = True) -> bool:
@@ -85,6 +99,118 @@ def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
     write_json(prefs_path, prefs)
 
 
+def prepare_repo_runtime(repo: Path) -> list[str]:
+    prefs = read_json(repo / REPO_MEMORY_DIR / "user_preferences.json", {})
+    communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
+    layer = "enabled" if str(communication.get("layer", "")).strip() == "enabled" else "disabled"
+    mode = str(communication.get("mode", "caveman_full") or "caveman_full").strip() or "caveman_full"
+    state_path = repo / REPO_STATE_PATH
+    state = read_json(state_path, {})
+    state.update(
+        {
+            "version": 1,
+            "engine_id": "ai_context_engine",
+            "engine_name": "ai_context_engine",
+            "agent_adapter": str(state.get("agent_adapter") or "generic"),
+            "adapter_id": str(state.get("adapter_id") or "generic"),
+            "adapter_family": str(state.get("adapter_family") or "multi_llm"),
+            "provider_capabilities": list(
+                state.get("provider_capabilities") or ["chat_completion", "tool_use", "structured_output", "long_context"]
+            ),
+            "installed_iteration": core_runtime.current_engine_iteration(),
+            "install_mode": "repo_init",
+            "engine_role": "initialized_repo_runtime",
+            "adapter_runtime_enabled": True,
+            "middleware_entry_mode": "auto_launcher",
+            "runner_integration_status": "native_ready",
+            "auto_execution_entrypoint": "aictx internal run-execution",
+            "runner_native_integrations": {
+                "codex": {
+                    "status": "native_hardened",
+                    "mechanism": "AGENTS.override.md + ~/.codex/config.toml fallback docs",
+                    "project_file": "AGENTS.override.md",
+                    "global_files": [
+                        "~/.codex/AGENTS.override.md",
+                        "~/.codex/config.toml",
+                    ],
+                },
+                "claude": {
+                    "status": "native_hardened",
+                    "mechanism": "CLAUDE.md + .claude/settings.json hooks + PreToolUse enforcement",
+                    "project_files": [
+                        "CLAUDE.md",
+                        ".claude/settings.json",
+                        ".claude/hooks/aictx_pre_tool_use.py",
+                    ],
+                },
+                "generic": {
+                    "status": "wrapper_ready",
+                    "mechanism": "aictx internal run-execution",
+                },
+            },
+            "communication_layer": layer,
+            "communication_mode": mode,
+            "communication_contract": {
+                "intermediate_updates": str(communication.get("intermediate_updates") or "suppressed"),
+                "final_style": str(communication.get("final_style") or "plain_direct_final_only"),
+                "single_final_answer_default": True,
+                "explicit_user_override_wins": True,
+                "no_intermediate_output_by_default": True,
+            },
+            "shared_layers": {
+                "memory_dir": ".ai_context_engine/memory",
+                "telemetry_dir": ".ai_context_engine/metrics",
+                "cost_dir": ".ai_context_engine/cost",
+                "task_memory_dir": ".ai_context_engine/task_memory",
+                "failure_memory_dir": ".ai_context_engine/failure_memory",
+                "memory_graph_dir": ".ai_context_engine/memory_graph",
+                "library_dir": ".ai_context_engine/library",
+                "adapters_dir": ".ai_context_engine/adapters",
+            },
+            "supports": {
+                "always_on_middleware": True,
+                "packet_construction": True,
+                "task_memory": True,
+                "failure_memory": True,
+                "memory_graph": True,
+                "knowledge_mods": True,
+                "knowledge_pipeline": True,
+                "knowledge_retrieval": True,
+                "global_metrics": True,
+                "auto_execution_launcher": True,
+            },
+        }
+    )
+    write_json(state_path, state)
+    created = [str(state_path)]
+
+    metrics_status_path = repo / REPO_METRICS_DIR / "agent_execution_status.json"
+    if not metrics_status_path.exists():
+        write_json(
+            metrics_status_path,
+            {
+                "version": 1,
+                "last_execution_id": "",
+                "last_execution_mode": "not_initialized",
+                "last_agent_id": "",
+                "last_result_summary": "",
+            },
+        )
+        created.append(str(metrics_status_path))
+
+    execution_log_path = repo / REPO_METRICS_DIR / "agent_execution_log.jsonl"
+    if not execution_log_path.exists():
+        execution_log_path.write_text("", encoding="utf-8")
+        created.append(str(execution_log_path))
+
+    optimization_history_path = repo / REPO_COST_DIR / "optimization_history.jsonl"
+    if not optimization_history_path.exists():
+        optimization_history_path.write_text("", encoding="utf-8")
+        created.append(str(optimization_history_path))
+
+    return created
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     workspace_id = args.workspace_id or "default"
     workspace_root = args.workspace_root
@@ -92,13 +218,13 @@ def cmd_install(args: argparse.Namespace) -> int:
     cross_project_mode = args.cross_project_mode or "workspace"
 
     if not args.yes:
-        print("AI Context Engine installer")
+        print("aictx install")
         print()
         print("This will:")
-        print("- create your global engine home")
+        print("- create the global AICTX runtime home")
         print("- configure workspace discovery")
-        print("- enable cross-project memory and metrics")
-        print("- prepare the engine for repo initialization")
+        print("- install runner integration artifacts")
+        print("- prepare repos to work after a single `aictx init`")
         print()
         workspace_id = ask_text("Default workspace name", workspace_id)
         if not workspace_root and ask_yes_no("Add a workspace root now?", True):
@@ -131,6 +257,8 @@ def cmd_install(args: argparse.Namespace) -> int:
             ws["roots"].append(root)
     write_json(workspace_path(workspace_id), ws)
     runtime_paths = install_global_agent_runtime(write_json)
+    adapter_paths = install_global_adapters()
+    native_runner_paths = install_codex_native_integration()
 
     print("Created:")
     print(f"- {ENGINE_HOME}")
@@ -140,10 +268,14 @@ def cmd_install(args: argparse.Namespace) -> int:
     print(f"- {workspace_path(workspace_id)}")
     for path in runtime_paths:
         print(f"- {path}")
+    for path in adapter_paths:
+        print(f"- {path}")
+    for path in native_runner_paths:
+        print(f"- {path}")
     if workspace_root:
         print("Registered workspace root:")
         print(f"- {str(Path(workspace_root).expanduser().resolve())}")
-    print("Installation complete.")
+    print("Install complete. Next: run `aictx init` inside a repository.")
     return 0
 
 
@@ -154,13 +286,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     selected_communication_mode = "disabled"
 
     if not args.yes:
-        print("AI Context Engine repo initialization")
+        print("aictx init")
         print()
         print(f"Repository:\n- {repo}")
         print()
         print("This will:")
-        print("- create local .ai_context_* runtime directories")
-        print("- generate repo bootstrap artifacts")
+        print("- create the local AICTX runtime")
+        print("- provision Codex and Claude native repo integration files")
+        print("- make the repo ready for automatic bootstrap/packet usage")
         print("- register this repo in the active workspace")
         print("- add safe .gitignore entries")
         print()
@@ -181,6 +314,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     persist_repo_communication_mode(repo, selected_communication_mode)
     install_global_agent_runtime(write_json)
     local_runtime_path = copy_local_agent_runtime(repo)
+    prepared = prepare_repo_runtime(repo)
+    runner_integrations = install_repo_runner_integrations(repo)
     upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
     ws = load_active_workspace()
     repo_str = str(repo)
@@ -200,13 +335,18 @@ def cmd_init(args: argparse.Namespace) -> int:
     for item in created:
         print(f"- {item}")
     print(f"- {local_runtime_path}")
+    for item in prepared:
+        if item not in created and item != str(local_runtime_path):
+            print(f"- {item}")
+    for item in runner_integrations:
+        print(f"- {item}")
     print(f"- {repo / 'AGENTS.md'}")
     if workspace_agents_path and workspace_agents_path != repo / 'AGENTS.md':
         print(f"- {workspace_agents_path}")
     if register_repo:
         print("Registered repo in workspace:")
         print(f"- {ws.workspace_id} -> {repo_str}")
-    print("Initialization complete.")
+    print("Init complete. Use your coding agent normally in this repo.")
     return 0
 
 
@@ -274,8 +414,13 @@ def cmd_global(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="aictx", description="Portable multi-LLM context engine CLI")
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser = ProductArgumentParser(
+        prog="aictx",
+        description="Install once. Init each repo. Advanced runtime commands stay available for agents without extra user setup.",
+        epilog="Quickstart:\n  aictx install\n  aictx init",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -292,7 +437,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--no-register", action="store_true", help="Do not register repo in active workspace")
     init.set_defaults(func=cmd_init)
 
-    workspace = sub.add_parser("workspace", help="Workspace operations")
+    workspace = sub.add_parser("workspace", help=argparse.SUPPRESS)
     workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)
     add_root = workspace_sub.add_parser("add-root", help="Register a workspace root")
     add_root.add_argument("path")
@@ -300,57 +445,57 @@ def build_parser() -> argparse.ArgumentParser:
     list_cmd = workspace_sub.add_parser("list", help="List workspace roots and repos")
     list_cmd.set_defaults(func=cmd_workspace_list)
 
-    extract = sub.add_parser("extract-legacy", help="Copy starter templates from an existing ai_context_engine repo")
+    extract = sub.add_parser("extract-legacy", help=argparse.SUPPRESS)
     extract.add_argument("--source", required=True, help="Path to an existing ai_context_engine repo")
     extract.set_defaults(func=cmd_extract_legacy)
 
-    boot = sub.add_parser("boot", help="Boot AI Context Engine")
+    boot = sub.add_parser("boot", help=argparse.SUPPRESS)
     boot.add_argument("--repo", default=".", help="Repository path for session boot context.")
     boot.set_defaults(func=core_runtime.cli_boot)
 
-    query = sub.add_parser("query", help="Query structured memory")
+    query = sub.add_parser("query", help=argparse.SUPPRESS)
     query.add_argument("--prefs", action="store_true", help="Query preferences.")
     query.add_argument("--architecture", action="store_true", help="Query architecture decisions.")
     query.add_argument("--symptom", action="store_true", help="Query symptom index.")
     query.add_argument("query", nargs="*", help="Keyword query.")
     query.set_defaults(func=core_runtime.cli_query)
 
-    packet = sub.add_parser("packet", help="Build a task packet")
+    packet = sub.add_parser("packet", help=argparse.SUPPRESS)
     packet.add_argument("--task", required=True, help="Task description.")
     packet.add_argument("--project", help="Optional project override.")
     packet.add_argument("--task-type", help="Optional explicit task type override.")
     packet.set_defaults(func=core_runtime.cli_packet)
 
-    route = sub.add_parser("route", help="Suggest model level for a task")
+    route = sub.add_parser("route", help=argparse.SUPPRESS)
     route.add_argument("--task", required=True, help="Task description.")
     route.set_defaults(func=core_runtime.cli_route)
 
-    migrate = sub.add_parser("migrate", help="Rebuild structured artifacts from notes")
+    migrate = sub.add_parser("migrate", help=argparse.SUPPRESS)
     migrate.set_defaults(func=core_runtime.cli_migrate)
 
-    stale = sub.add_parser("detect-stale", help="Detect stale, duplicate, or missing records")
+    stale = sub.add_parser("detect-stale", help=argparse.SUPPRESS)
     stale.set_defaults(func=core_runtime.cli_stale)
 
-    compact = sub.add_parser("compact", help="Run conservative compaction analysis")
+    compact = sub.add_parser("compact", help=argparse.SUPPRESS)
     compact.add_argument("--apply", action="store_true", help="Reserved for future non-dry-run compaction.")
     compact.set_defaults(func=core_runtime.cli_compact)
 
-    gitignore = sub.add_parser("ensure-gitignore", help="Ensure ignore rules for local memory artifacts")
+    gitignore = sub.add_parser("ensure-gitignore", help=argparse.SUPPRESS)
     gitignore.add_argument("--repo", required=True, help="Repository root to update.")
     gitignore.set_defaults(func=core_runtime.cli_gitignore)
 
-    touch = sub.add_parser("touch", help="Refresh last_verified for records")
+    touch = sub.add_parser("touch", help=argparse.SUPPRESS)
     touch.add_argument("items", nargs="+", help="Record ids or note paths.")
     touch.set_defaults(func=core_runtime.cli_touch)
 
-    new_note = sub.add_parser("new-note", help="Create a new structured markdown note")
+    new_note = sub.add_parser("new-note", help=argparse.SUPPRESS)
     new_note.add_argument("--path", required=True, help="Note path relative to repo root.")
     new_note.add_argument("--title", required=True, help="Markdown H1 title.")
     new_note.add_argument("--tags", nargs="*", default=[], help="Optional tag list.")
     new_note.add_argument("--task-type", help="Optional task type for derived task-memory routing.")
     new_note.set_defaults(func=core_runtime.cli_new_note)
 
-    failure = sub.add_parser("failure", help="Record or reinforce a failure-memory pattern")
+    failure = sub.add_parser("failure", help=argparse.SUPPRESS)
     failure.add_argument("--failure-id", required=True, help="Stable failure identifier.")
     failure.add_argument("--category", default="unknown", help="Failure category.")
     failure.add_argument("--title", required=True, help="Short failure title.")
@@ -363,7 +508,7 @@ def build_parser() -> argparse.ArgumentParser:
     failure.add_argument("--notes", default="", help="Optional manual notes.")
     failure.set_defaults(func=core_runtime.cli_failure)
 
-    task_memory = sub.add_parser("task-memory", help="Record or reinforce task-specific memory")
+    task_memory = sub.add_parser("task-memory", help=argparse.SUPPRESS)
     task_memory.add_argument("--task-type", required=True, help="Task type bucket.")
     task_memory.add_argument("--title", required=True, help="Short reusable pattern title.")
     task_memory.add_argument("--summary", required=True, help="Compact reusable lesson.")
@@ -377,13 +522,13 @@ def build_parser() -> argparse.ArgumentParser:
     task_memory.add_argument("--confidence", type=float, default=0.75, help="Confidence score between 0 and 1.")
     task_memory.set_defaults(func=core_runtime.cli_task_memory)
 
-    graph = sub.add_parser("memory-graph", help="Refresh or query the memory graph")
+    graph = sub.add_parser("memory-graph", help=argparse.SUPPRESS)
     graph.add_argument("--refresh", action="store_true", help="Rebuild the memory graph from current artifacts.")
     graph.add_argument("--query", help="Node id or label query.")
     graph.add_argument("--depth", type=int, default=1, help="Expansion depth for queries.")
     graph.set_defaults(func=core_runtime.cli_memory_graph)
 
-    library = sub.add_parser("library", help="Manage knowledge library")
+    library = sub.add_parser("library", help=argparse.SUPPRESS)
     library_sub = library.add_subparsers(dest="library_command")
     learn = library_sub.add_parser("learn", help="Bootstrap a knowledge mod.")
     learn.add_argument("mod_id", help="Mod identifier.")
@@ -404,11 +549,56 @@ def build_parser() -> argparse.ArgumentParser:
     library_sub.add_parser("status", help="Show library and telemetry status.")
     library.set_defaults(func=core_runtime.cli_library)
 
-    global_cmd = sub.add_parser("global", help="Refresh global metrics or run health checks")
+    global_cmd = sub.add_parser("global", help=argparse.SUPPRESS)
     global_cmd.add_argument("--refresh", action="store_true", help="Refresh projects index and global savings artifacts.")
     global_cmd.add_argument("--health-check", action="store_true", help="Run global health checks.")
     global_cmd.add_argument("--json", action="store_true", help="Print full JSON output.")
     global_cmd.set_defaults(func=cmd_global)
+
+    execution = sub.add_parser("execution", help=argparse.SUPPRESS)
+    execution_sub = execution.add_subparsers(dest="execution_command", required=True)
+
+    prepare = execution_sub.add_parser("prepare", help="Run the middleware prehook and emit an execution context")
+    prepare.add_argument("--repo", default=".", help="Repository root.")
+    prepare.add_argument("--request", required=True, help="User request or task description.")
+    prepare.add_argument("--agent-id", required=True, help="Agent identifier.")
+    prepare.add_argument("--adapter-id", help="Optional adapter identifier.")
+    prepare.add_argument("--execution-id", required=True, help="Stable execution id.")
+    prepare.add_argument("--timestamp", help="Optional ISO timestamp override.")
+    prepare.add_argument("--task-type", help="Optional declared task type.")
+    prepare.add_argument("--execution-mode", choices=["plain", "skill"], help="Optional explicit execution mode.")
+    prepare.add_argument("--skill-id", default="", help="Optional skill identifier.")
+    prepare.add_argument("--skill-name", default="", help="Optional skill name.")
+    prepare.add_argument("--skill-path", default="", help="Optional skill path.")
+    prepare.add_argument("--skill-source", default="", help="Optional skill source.")
+    prepare.set_defaults(func=cli_prepare_execution)
+
+    finalize = execution_sub.add_parser("finalize", help="Run the middleware posthook from a prepared execution JSON")
+    finalize.add_argument("--prepared", required=True, help="Path to prepared execution JSON.")
+    finalize.add_argument("--success", action="store_true", help="Mark execution as successful.")
+    finalize.add_argument("--result-summary", default="", help="Execution result summary.")
+    finalize.add_argument("--validated-learning", action="store_true", help="Persist validated learning when successful.")
+    finalize.set_defaults(func=cli_finalize_execution)
+
+    internal = sub.add_parser("internal", help=argparse.SUPPRESS)
+    internal_sub = internal.add_subparsers(dest="internal_command", required=True)
+
+    run_execution = internal_sub.add_parser("run-execution", help=argparse.SUPPRESS)
+    run_execution.add_argument("--repo", default=".", help="Repository root.")
+    run_execution.add_argument("--request", required=True, help="User request or task description.")
+    run_execution.add_argument("--agent-id", required=True, help="Agent identifier.")
+    run_execution.add_argument("--adapter-id", help="Optional adapter identifier.")
+    run_execution.add_argument("--execution-id", default="auto", help="Stable execution id or 'auto'.")
+    run_execution.add_argument("--task-type", help="Optional declared task type.")
+    run_execution.add_argument("--execution-mode", choices=["plain", "skill"], default="plain", help="Optional explicit execution mode.")
+    run_execution.add_argument("--skill-id", default="", help="Optional skill identifier.")
+    run_execution.add_argument("--skill-name", default="", help="Optional skill name.")
+    run_execution.add_argument("--skill-path", default="", help="Optional skill path.")
+    run_execution.add_argument("--skill-source", default="", help="Optional skill source.")
+    run_execution.add_argument("--validated-learning", action="store_true", help="Persist validated learning when the wrapped command succeeds.")
+    run_execution.add_argument("--json", action="store_true", help="Print full JSON outcome instead of only command output.")
+    run_execution.add_argument("command", nargs=argparse.REMAINDER, help="Wrapped command after --.")
+    run_execution.set_defaults(func=cli_run_execution)
 
     return parser
 

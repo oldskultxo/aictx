@@ -4,12 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aictx"
-version = "0.1.0"
+version = "0.2.0"
 description = "Portable multi-LLM context engine bootstrapper"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
   { name = "Santi Santamaria" }
+]
+license = "MIT"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Development Status :: 4 - Beta"
 ]
 dependencies = []
 
@@ -24,3 +30,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "aictx" = ["templates/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

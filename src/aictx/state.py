@@ -12,7 +12,7 @@ WORKSPACES_DIR = ENGINE_HOME / "workspaces"
 GLOBAL_METRICS_DIR = ENGINE_HOME / ".ai_context_global_metrics"
 
 REPO_ENGINE_DIR = ".ai_context_engine"
-REPO_COMPAT_DIR = ".ai_context_memory"
+REPO_COMPAT_DIR = ".ai_context_engine/memory"
 REPO_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "memory"
 REPO_COST_DIR = Path(REPO_ENGINE_DIR) / "cost"
 REPO_TASK_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "task_memory"
@@ -20,6 +20,7 @@ REPO_FAILURE_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "failure_memory"
 REPO_MEMORY_GRAPH_DIR = Path(REPO_ENGINE_DIR) / "memory_graph"
 REPO_LIBRARY_DIR = Path(REPO_ENGINE_DIR) / "library"
 REPO_METRICS_DIR = Path(REPO_ENGINE_DIR) / "metrics"
+REPO_ADAPTERS_DIR = Path(REPO_ENGINE_DIR) / "adapters"
 REPO_STATE_PATH = Path(REPO_ENGINE_DIR) / "state.json"
 LEGACY_REPO_DIRS = [
     ".ai_context_memory",
@@ -40,6 +41,7 @@ REPO_DIRS = [
     REPO_MEMORY_GRAPH_DIR.as_posix(),
     REPO_LIBRARY_DIR.as_posix(),
     REPO_METRICS_DIR.as_posix(),
+    REPO_ADAPTERS_DIR.as_posix(),
 ]
 
 TASK_TYPES = [
