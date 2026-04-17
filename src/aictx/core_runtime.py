@@ -2,23 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import html
 import json
-import mimetypes
 import re
-import shutil
-import subprocess
-import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
-from urllib import error as urllib_error
-from urllib import parse as urllib_parse
-from urllib import request as urllib_request
 from .runtime_contract import (
     communication_policy_from_defaults,
     normalize_communication_layer,
@@ -143,81 +133,6 @@ REMOTE_DECLARED_TYPES = {"auto", "html", "pdf", "md", "txt"}
 REMOTE_TYPE_EXTENSIONS = {"html": ".html", "pdf": ".pdf", "md": ".md", "txt": ".txt"}
 
 
-class HTMLTextExtractor(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.parts: list[str] = []
-        self.title_parts: list[str] = []
-        self.in_title = False
-        self.in_pre = False
-        self.skip_depth = 0
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        tag = tag.lower()
-        if tag in {"script", "style", "nav", "footer", "header", "noscript", "svg"}:
-            self.skip_depth += 1
-            return
-        if self.skip_depth:
-            return
-        if tag in {"title"}:
-            self.in_title = True
-        if tag in {"pre", "code"}:
-            self.in_pre = True
-            self.parts.append("\n```text\n")
-        elif tag in {"br"}:
-            self.parts.append("\n")
-        elif tag in {"p", "div", "section", "article", "main", "tr"}:
-            self.parts.append("\n\n")
-        elif tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
-            level = min(int(tag[1]), 6)
-            self.parts.append(f"\n\n{'#' * level} ")
-        elif tag == "li":
-            self.parts.append("\n- ")
-
-    def handle_endtag(self, tag: str) -> None:
-        tag = tag.lower()
-        if tag in {"script", "style", "nav", "footer", "header", "noscript", "svg"}:
-            self.skip_depth = max(0, self.skip_depth - 1)
-            return
-        if self.skip_depth:
-            return
-        if tag == "title":
-            self.in_title = False
-        if tag in {"pre", "code"}:
-            self.parts.append("\n```\n")
-            self.in_pre = False
-        elif tag in {"p", "div", "section", "article", "main", "table"}:
-            self.parts.append("\n\n")
-
-    def handle_data(self, data: str) -> None:
-        if self.skip_depth:
-            return
-        value = html.unescape(data)
-        if not value.strip():
-            if self.in_pre:
-                self.parts.append(value)
-            return
-        if self.in_title:
-            self.title_parts.append(re.sub(r"\s+", " ", value).strip())
-        if self.in_pre:
-            self.parts.append(value)
-        else:
-            self.parts.append(re.sub(r"\s+", " ", value).strip() + " ")
-
-    def result(self) -> tuple[str, str]:
-        text = "".join(self.parts)
-        text = re.sub(r"\n{3,}", "\n\n", text)
-        lines = [line.rstrip() for line in text.splitlines()]
-        compact_lines = []
-        previous_blank = False
-        for line in lines:
-            blank = not line.strip()
-            if blank and previous_blank:
-                continue
-            compact_lines.append(line)
-            previous_blank = blank
-        title = re.sub(r"\s+", " ", " ".join(self.title_parts)).strip()
-        return "\n".join(compact_lines).strip(), title
 
 COMPAT_ARCHITECTURE_TYPES = {"architecture_decision"}
 COMPAT_WORKFLOW_TYPES = {"workflow_rule"}
@@ -1259,137 +1174,36 @@ def append_if_missing(path: Path, line: str) -> None:
     return _impl(path, line)
 
 
-DEFAULT_COST_CONFIG = {
-    "version": 1,
-    "budget_target_tokens": 3000,
-    "soft_limit_tokens": 2600,
-    "hard_limit_tokens": 3200,
-    "summary_max_words": 20,
-    "mandatory_summary_max_words": 28,
-    "max_items_per_section": {
-        "user_preferences": 5,
-        "constraints": 5,
-        "architecture_rules": 5,
-        "relevant_memory": 5,
-        "relevant_patterns": 5,
-        "validation_recipes": 5,
-        "relevant_failures": 3,
-        "relevant_graph_context": 4,
-        "repo_scope": 8,
-        "known_patterns": 10,
-    },
-}
 
 
 def yaml_scalar(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if value is None:
-        return "null"
-    return str(value)
+    from .runtime_cost import yaml_scalar as _impl
+    return _impl(value)
+
 
 
 def render_simple_yaml(payload: dict[str, Any], indent: int = 0) -> str:
-    lines: list[str] = []
-    prefix = " " * indent
-    for key, value in payload.items():
-        if isinstance(value, dict):
-            lines.append(f"{prefix}{key}:")
-            lines.append(render_simple_yaml(value, indent + 2).rstrip())
-        else:
-            lines.append(f"{prefix}{key}: {yaml_scalar(value)}")
-    return "\n".join(lines) + "\n"
+    from .runtime_cost import render_simple_yaml as _impl
+    return _impl(payload, indent)
+
 
 
 def parse_simple_yaml(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    root: dict[str, Any] = {}
-    stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
-    for raw_line in path.read_text().splitlines():
-        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
-            continue
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        stripped = raw_line.strip()
-        if ":" not in stripped:
-            continue
-        key, raw_value = stripped.split(":", 1)
-        key = key.strip()
-        value = raw_value.strip()
-        while stack and indent <= stack[-1][0]:
-            stack.pop()
-        current = stack[-1][1]
-        if value == "":
-            child: dict[str, Any] = {}
-            current[key] = child
-            stack.append((indent, child))
-            continue
-        if value in {"true", "false"}:
-            parsed: Any = value == "true"
-        else:
-            try:
-                parsed = int(value)
-            except ValueError:
-                try:
-                    parsed = float(value)
-                except ValueError:
-                    parsed = value
-        current[key] = parsed
-    return root
+    from .runtime_cost import parse_simple_yaml as _impl
+    return _impl(path)
+
 
 
 def cost_config() -> dict[str, Any]:
-    ensure_cost_artifacts()
-    payload = parse_simple_yaml(COST_CONFIG_PATH)
-    merged = dict(DEFAULT_COST_CONFIG)
-    for key, value in payload.items():
-        if key == "max_items_per_section" and isinstance(value, dict):
-            merged[key] = {**DEFAULT_COST_CONFIG[key], **value}
-        else:
-            merged[key] = value
-    return merged
+    from .runtime_cost import cost_config as _impl
+    return _impl()
+
 
 
 def ensure_cost_artifacts() -> None:
-    ensure_dirs()
-    if not COST_CONFIG_PATH.exists():
-        write_text(COST_CONFIG_PATH, render_simple_yaml(DEFAULT_COST_CONFIG))
-    if not COST_RULES_PATH.exists():
-        write_text(
-            COST_RULES_PATH,
-            "# cost estimation rules\n\n"
-            "- Estimation heuristic: `estimated_tokens ~= ceil(characters / 4) + structural_overhead`.\n"
-            "- Lists add a small overhead per entry to stay stable across runs.\n"
-            "- Duplicate entries are detected by `id`, `title`, or normalized summary text and collapsed deterministically.\n"
-            "- Mandatory sections are preserved first: `user_preferences`, `constraints`, `architecture_rules`.\n"
-            "- Optional sections are ranked by value-per-cost using existing deterministic scores plus section priority.\n"
-            "- Compression keeps `id`, `title`, and a shortened summary before omission is considered.\n"
-            "- Optimization status values: `within_budget`, `optimized`, `over_budget_after_optimization`.\n"
-        )
-    if not COST_STATUS_PATH.exists():
-        write_json(
-            COST_STATUS_PATH,
-            {
-                "version": 1,
-                "generated_at": date.today().isoformat(),
-                "optimization_events": 0,
-                "over_budget_events": 0,
-                "average_estimated_reduction_tokens": 0,
-                "average_kept_ratio": 1.0,
-                "last_status": "not_run",
-                "last_task": "",
-                "last_packet_path": "",
-            },
-        )
-    if not COST_LATEST_REPORT_PATH.exists():
-        write_text(
-            COST_LATEST_REPORT_PATH,
-            "# latest optimization report\n\n"
-            "- Status: not_run\n"
-            "- The optimizer has not processed a task packet yet.\n",
-        )
-    if not COST_HISTORY_PATH.exists():
-        write_text(COST_HISTORY_PATH, "")
+    from .runtime_cost import ensure_cost_artifacts as _impl
+    return _impl()
+
 
 
 def ensure_task_memory_artifacts() -> None:
@@ -1547,136 +1361,33 @@ def update_task_memory_status(packet: dict[str, Any], packet_path: Path) -> None
 
 
 def ensure_failure_memory_artifacts() -> None:
-    ensure_dirs()
-    if not FAILURE_MEMORY_STATUS_PATH.exists():
-        write_json(
-            FAILURE_MEMORY_STATUS_PATH,
-            {
-                "version": 1,
-                "generated_at": date.today().isoformat(),
-                "records_total": 0,
-                "manual_records": 0,
-                "derived_records": 0,
-                "retrieval_events": 0,
-                "write_events": 0,
-                "last_packet_path": "",
-                "last_recorded_failure_id": "",
-            },
-        )
-    if not FAILURE_MEMORY_INDEX_PATH.exists():
-        write_json(FAILURE_MEMORY_INDEX_PATH, {"version": 1, "generated_at": date.today().isoformat(), "records": []})
-    if not FAILURE_MEMORY_SUMMARY_PATH.exists():
-        write_text(
-            FAILURE_MEMORY_SUMMARY_PATH,
-            "# common failure patterns\n\n"
-            "- No failure patterns recorded yet.\n",
-        )
+    from .runtime_failure import ensure_failure_memory_artifacts as _impl
+    return _impl()
+
 
 
 def extract_related_commands(text: str) -> list[str]:
-    return sorted({match.strip() for match in re.findall(r"`([^`]+)`", text) if match.strip()})[:6]
+    from .runtime_failure import extract_related_commands as _impl
+    return _impl(text)
+
 
 
 def derive_failure_records(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    derived = []
-    for row in rows:
-        if row.get("type") not in {"failure_mode", "debugging_pattern", "validation_recipe"}:
-            continue
-        combined_text = "\n".join(
-            [
-                str(row.get("title", "")),
-                str(row.get("summary", "")),
-                " ".join(section.get("text", "") for section in row.get("sections", [])),
-            ]
-        )
-        failure_id = f"derived_{slugify(str(row.get('id', 'failure')))}"
-        derived.append(
-            {
-                "id": failure_id,
-                "category": classify_failure_category(combined_text),
-                "title": str(row.get("title", "Known failure pattern")),
-                "symptoms": [str(row.get("summary", ""))][:1] + [section.get("text", "") for section in row.get("sections", [])[:2] if section.get("text")],
-                "root_cause": str(row.get("summary", "")),
-                "solution": next((section.get("text", "") for section in row.get("sections", []) if "validation" in str(section.get("section", "")).lower() or "check" in str(section.get("section", "")).lower()), "Inspect the referenced note and apply the documented fix path."),
-                "files_involved": list(row.get("files_involved", [])),
-                "related_commands": extract_related_commands(combined_text),
-                "reusability": "high" if float(row.get("relevance_score", 0.6)) >= 0.7 else "medium",
-                "confidence": round(min(0.95, max(0.45, float(row.get("relevance_score", 0.6)))), 2),
-                "first_seen_at": str(row.get("last_verified", date.today().isoformat())),
-                "last_seen_at": date.today().isoformat(),
-                "occurrences": max(1, sum(1 for section in row.get("sections", []) if section.get("text"))),
-                "status": "resolved",
-                "notes": f"Derived from {row.get('path', '')}",
-                "source": "derived_from_record",
-                "source_record_id": row.get("id"),
-            }
-        )
-    return derived
+    from .runtime_failure import derive_failure_records as _impl
+    return _impl(rows)
+
 
 
 def manual_failure_records() -> list[dict[str, Any]]:
-    ensure_failure_memory_artifacts()
-    rows = []
-    for path in sorted(FAILURE_MEMORY_RECORDS_DIR.glob("*.json")):
-        payload = read_json(path, {})
-        if payload.get("source") == "derived_from_record":
-            continue
-        if payload:
-            rows.append(payload)
-    return rows
+    from .runtime_failure import manual_failure_records as _impl
+    return _impl()
+
 
 
 def build_failure_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    ensure_failure_memory_artifacts()
-    manual_rows = manual_failure_records()
-    derived_rows = derive_failure_records(rows)
-    derived_ids = {row["id"] for row in derived_rows}
-    for path in sorted(FAILURE_MEMORY_RECORDS_DIR.glob("derived_*.json")):
-        if path.stem not in derived_ids:
-            path.unlink()
-    for row in derived_rows:
-        write_json(FAILURE_MEMORY_RECORDS_DIR / f"{row['id']}.json", row)
-    combined = sorted(manual_rows + derived_rows, key=lambda row: (-int(row.get("occurrences", 1)), -float(row.get("confidence", 0.5)), str(row.get("id", ""))))
-    write_json(
-        FAILURE_MEMORY_INDEX_PATH,
-        {
-            "version": 1,
-            "generated_at": date.today().isoformat(),
-            "records": [
-                {
-                    "id": row["id"],
-                    "category": row.get("category", "unknown"),
-                    "title": row.get("title", ""),
-                    "confidence": row.get("confidence", 0.5),
-                    "occurrences": row.get("occurrences", 1),
-                    "status": row.get("status", "resolved"),
-                    "source": row.get("source", "manual"),
-                }
-                for row in combined
-            ],
-        },
-    )
-    summary_lines = [
-        "# common failure patterns",
-        "",
-    ]
-    if not combined:
-        summary_lines.append("- No failure patterns recorded yet.")
-    else:
-        for row in combined[:12]:
-            summary_lines.append(f"- `{row['category']}` | `{row['id']}` | occ {row.get('occurrences', 1)} | {row.get('title', '')}")
-    write_text(FAILURE_MEMORY_SUMMARY_PATH, "\n".join(summary_lines) + "\n")
-    previous = read_json(FAILURE_MEMORY_STATUS_PATH, {})
-    status = {
-        **previous,
-        "version": 1,
-        "generated_at": date.today().isoformat(),
-        "records_total": len(combined),
-        "manual_records": len(manual_rows),
-        "derived_records": len(derived_rows),
-    }
-    write_json(FAILURE_MEMORY_STATUS_PATH, status)
-    return status
+    from .runtime_failure import build_failure_memory_artifacts as _impl
+    return _impl(rows)
+
 
 
 def record_failure(
@@ -1692,397 +1403,117 @@ def record_failure(
     confidence: float = 0.75,
     notes: str = "",
 ) -> dict[str, Any]:
-    ensure_failure_memory_artifacts()
-    path = FAILURE_MEMORY_RECORDS_DIR / f"{slugify(failure_id)}.json"
-    existing = read_json(path, {}) if path.exists() else {}
-    today = date.today().isoformat()
-    record = {
-        "id": slugify(failure_id),
-        "category": category if category in FAILURE_CATEGORIES else "unknown",
-        "title": title or existing.get("title", "Known failure"),
-        "symptoms": symptoms or existing.get("symptoms", []),
-        "root_cause": root_cause or existing.get("root_cause", ""),
-        "solution": solution or existing.get("solution", ""),
-        "files_involved": files_involved or existing.get("files_involved", []),
-        "related_commands": related_commands or existing.get("related_commands", []),
-        "reusability": existing.get("reusability", "high"),
-        "confidence": round(float(confidence or existing.get("confidence", 0.75)), 2),
-        "first_seen_at": existing.get("first_seen_at", today),
-        "last_seen_at": today,
-        "occurrences": int(existing.get("occurrences", 0) or 0) + 1,
-        "status": "resolved",
-        "notes": notes or existing.get("notes", ""),
-        "source": "manual",
-    }
-    write_json(path, record)
-    status = build_failure_memory_artifacts([normalize_record(row) for row in load_records()])
-    build_memory_graph_artifacts([normalize_record(row) for row in load_records()])
-    status["write_events"] = int(status.get("write_events", 0) or 0) + 1
-    status["last_recorded_failure_id"] = record["id"]
-    write_json(FAILURE_MEMORY_STATUS_PATH, status)
-    return record
+    from .runtime_failure import record_failure as _impl
+    return _impl(failure_id=failure_id, category=category, title=title, symptoms=symptoms, root_cause=root_cause, solution=solution, files_involved=files_involved, related_commands=related_commands, confidence=confidence, notes=notes)
+
 
 
 def should_consult_failure_memory(task: str, task_type: str) -> bool:
-    task_l = task.lower()
-    if task_type in {"bug_fixing", "testing", "performance"}:
-        return True
-    return any(keyword in task_l for keyword in ["fail", "error", "regression", "broken", "flaky", "trap", "cannot", "build", "test"])
+    from .runtime_failure import should_consult_failure_memory as _impl
+    return _impl(task, task_type)
+
 
 
 def rank_failure_records(task: str) -> list[dict[str, Any]]:
-    ensure_failure_memory_artifacts()
-    index_rows = read_json(FAILURE_MEMORY_INDEX_PATH, {}).get("records", [])
-    ranked = []
-    for item in index_rows:
-        full = read_json(FAILURE_MEMORY_RECORDS_DIR / f"{item['id']}.json", {})
-        haystack = " ".join(
-            [
-                full.get("title", ""),
-                full.get("category", ""),
-                " ".join(full.get("symptoms", [])),
-                full.get("root_cause", ""),
-                full.get("solution", ""),
-                " ".join(full.get("files_involved", [])),
-                " ".join(full.get("related_commands", [])),
-            ]
-        )
-        lexical = score_match(task, haystack) / 100
-        confidence = float(full.get("confidence", 0.5))
-        occurrences = min(int(full.get("occurrences", 1)), 5) / 5
-        total = round(lexical * 0.6 + confidence * 0.25 + occurrences * 0.15, 4)
-        if total >= 0.18:
-            ranked.append((total, full))
-    ranked.sort(key=lambda item: (-item[0], -int(item[1].get("occurrences", 1)), item[1].get("id", "")))
-    return [{"score": score, **row} for score, row in ranked[:3]]
+    from .runtime_failure import rank_failure_records as _impl
+    return _impl(task)
+
 
 
 def update_failure_memory_status(packet: dict[str, Any], packet_path: Path) -> None:
-    status = read_json(FAILURE_MEMORY_STATUS_PATH, {})
-    updated = {
-        **status,
-        "version": 1,
-        "generated_at": date.today().isoformat(),
-        "retrieval_events": int(status.get("retrieval_events", 0) or 0) + (1 if packet.get("failure_memory", {}).get("failure_memory_used") else 0),
-        "last_packet_path": packet_path.as_posix(),
-    }
-    write_json(FAILURE_MEMORY_STATUS_PATH, updated)
+    from .runtime_failure import update_failure_memory_status as _impl
+    return _impl(packet, packet_path)
+
 
 
 def graph_node_id(node_type: str, raw_id: str) -> str:
-    return f"{node_type}:{slugify(raw_id)}"
+    from .runtime_graph import graph_node_id as _impl
+    return _impl(node_type, raw_id)
+
 
 
 def edge_identity(from_id: str, to_id: str, relation: str) -> str:
-    return f"{from_id}|{relation}|{to_id}"
+    from .runtime_graph import edge_identity as _impl
+    return _impl(from_id, to_id, relation)
+
 
 
 def infer_repository_area(row: dict[str, Any]) -> str | None:
-    if row.get("project") and row.get("subproject"):
-        return f"{row['project']}/{row['subproject']}"
-    if row.get("project"):
-        return str(row["project"])
-    path = str(row.get("path", ""))
-    if path.startswith("projects/"):
-        parts = path.split("/")
-        if len(parts) >= 3:
-            return f"{parts[1]}/{parts[2]}"
-    return None
+    from .runtime_graph import infer_repository_area as _impl
+    return _impl(row)
+
 
 
 def graph_node_type_for_record(row: dict[str, Any]) -> str:
-    if row.get("type") == "architecture_decision":
-        return "architecture_decision"
-    return "memory_entry"
+    from .runtime_graph import graph_node_type_for_record as _impl
+    return _impl(row)
+
 
 
 def graph_label_index_key(label: str) -> str:
-    return slugify(label).replace("_", " ")
+    from .runtime_graph import graph_label_index_key as _impl
+    return _impl(label)
+
 
 
 def ensure_memory_graph_artifacts() -> None:
-    ensure_dirs()
-    if not MEMORY_GRAPH_STATUS_PATH.exists():
-        write_json(
-            MEMORY_GRAPH_STATUS_PATH,
-            {
-                "version": 1,
-                "installed_iteration": 9,
-                "generated_at": date.today().isoformat(),
-                "nodes_total": 0,
-                "edges_total": 0,
-                "expansion_events": 0,
-                "last_seed_count": 0,
-                "last_expansion_depth": 0,
-                "last_packet_path": "",
-                "last_graph_hit_count": 0,
-            },
-        )
-    for path in [MEMORY_GRAPH_NODES_PATH, MEMORY_GRAPH_EDGES_PATH]:
-        if not path.exists():
-            write_jsonl(path, [])
-    for path in [MEMORY_GRAPH_LABEL_INDEX_PATH, MEMORY_GRAPH_TYPE_INDEX_PATH, MEMORY_GRAPH_RELATION_INDEX_PATH]:
-        if not path.exists():
-            write_json(path, {})
-    if not MEMORY_GRAPH_SNAPSHOT_PATH.exists():
-        write_json(
-            MEMORY_GRAPH_SNAPSHOT_PATH,
-            {
-                "version": 1,
-                "generated_at": date.today().isoformat(),
-                "nodes_sample": [],
-                "edges_sample": [],
-            },
-        )
+    from .runtime_graph import ensure_memory_graph_artifacts as _impl
+    return _impl()
+
 
 
 def graph_add_node(nodes: dict[str, dict[str, Any]], *, node_id: str, node_type: str, label: str, source: str, confidence: float = 0.7, tags: list[str] | None = None, metadata: dict[str, Any] | None = None) -> None:
-    if node_type not in GRAPH_NODE_TYPES:
-        node_type = "concept"
-    current = nodes.get(node_id)
-    payload = {
-        "id": node_id,
-        "type": node_type,
-        "label": label,
-        "source": source,
-        "last_updated_at": date.today().isoformat(),
-        "confidence": round(confidence, 2),
-        "tags": sorted({tag for tag in (tags or []) if tag}),
-        "metadata": metadata or {},
-    }
-    if current:
-        payload["confidence"] = round(max(float(current.get("confidence", 0.5)), payload["confidence"]), 2)
-        payload["tags"] = sorted(set(current.get("tags", [])) | set(payload["tags"]))
-        payload["metadata"] = {**current.get("metadata", {}), **payload["metadata"]}
-    nodes[node_id] = payload
+    from .runtime_graph import graph_add_node as _impl
+    return _impl(nodes, node_id=node_id, node_type=node_type, label=label, source=source, confidence=confidence, tags=tags, metadata=metadata)
+
 
 
 def graph_add_edge(edges: dict[str, dict[str, Any]], *, from_id: str, to_id: str, relation: str, source: str, confidence: float = 0.65) -> None:
-    if relation not in GRAPH_RELATIONS:
-        relation = "relates_to"
-    identity = edge_identity(from_id, to_id, relation)
-    current = edges.get(identity)
-    payload = {
-        "id": identity,
-        "from": from_id,
-        "to": to_id,
-        "relation": relation,
-        "source": source,
-        "confidence": round(confidence, 2),
-        "timestamp": date.today().isoformat(),
-    }
-    if current:
-        payload["confidence"] = round(max(float(current.get("confidence", 0.5)), payload["confidence"]), 2)
-    edges[identity] = payload
+    from .runtime_graph import graph_add_edge as _impl
+    return _impl(edges, from_id=from_id, to_id=to_id, relation=relation, source=source, confidence=confidence)
+
 
 
 def build_memory_graph_artifacts(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    ensure_memory_graph_artifacts()
-    nodes: dict[str, dict[str, Any]] = {}
-    edges: dict[str, dict[str, Any]] = {}
-    normalized_rows = [normalize_record(row) for row in rows] + manual_task_memory_records()
-    for task_type in TASK_TYPES:
-        task_node_id = graph_node_id("task_type", task_type)
-        graph_add_node(nodes, node_id=task_node_id, node_type="task_type", label=task_type, source="task_taxonomy", confidence=0.95, tags=[task_type])
-    for row in normalized_rows:
-        node_type = graph_node_type_for_record(row)
-        record_node_id = graph_node_id(node_type, str(row.get("id", "")))
-        graph_add_node(
-            nodes,
-            node_id=record_node_id,
-            node_type=node_type,
-            label=str(row.get("title") or row.get("id") or "memory entry"),
-            source=str(row.get("source", "record")),
-            confidence=float(row.get("relevance_score", 0.65)),
-            tags=list(row.get("tags", [])),
-            metadata={
-                "record_id": row.get("id"),
-                "record_type": row.get("type"),
-                "path": row.get("path"),
-                "task_type": row.get("task_type"),
-            },
-        )
-        task_type = normalize_task_type(row.get("task_type"))
-        graph_add_edge(edges, from_id=record_node_id, to_id=graph_node_id("task_type", task_type), relation="belongs_to_task_type", source="record_task_type", confidence=0.9)
-        repo_area = infer_repository_area(row)
-        if repo_area:
-            area_node_id = graph_node_id("repository_area", repo_area)
-            graph_add_node(nodes, node_id=area_node_id, node_type="repository_area", label=repo_area, source="path_heuristic", confidence=0.78, tags=[repo_area])
-            graph_add_edge(edges, from_id=record_node_id, to_id=area_node_id, relation="associated_with", source="record_area", confidence=0.78)
-        for path in row.get("files_involved", [])[:6]:
-            file_node_id = graph_node_id("file", path)
-            graph_add_node(nodes, node_id=file_node_id, node_type="file", label=path, source="files_involved", confidence=0.85, tags=[task_type] if task_type else [])
-            graph_add_edge(edges, from_id=record_node_id, to_id=file_node_id, relation="referenced_by", source="record_file", confidence=0.85)
-            module_label = str(Path(path).parent.as_posix() or ".")
-            module_node_id = graph_node_id("module", module_label)
-            graph_add_node(nodes, node_id=module_node_id, node_type="module", label=module_label, source="path_parent", confidence=0.72, tags=[repo_area] if repo_area else [])
-            graph_add_edge(edges, from_id=file_node_id, to_id=module_node_id, relation="located_in", source="path_parent", confidence=0.72)
-        for tag in row.get("tags", [])[:6]:
-            concept_node_id = graph_node_id("concept", tag)
-            graph_add_node(nodes, node_id=concept_node_id, node_type="concept", label=tag, source="record_tag", confidence=0.68, tags=[tag])
-            graph_add_edge(edges, from_id=record_node_id, to_id=concept_node_id, relation="associated_with", source="record_tag", confidence=0.68)
-    for failure in read_json(FAILURE_MEMORY_INDEX_PATH, {}).get("records", []):
-        full = read_json(FAILURE_MEMORY_RECORDS_DIR / f"{failure['id']}.json", {})
-        if not full:
-            continue
-        failure_node_id = graph_node_id("failure_pattern", str(full.get("id", "")))
-        solution_node_id = graph_node_id("solution", str(full.get("id", "")))
-        graph_add_node(nodes, node_id=failure_node_id, node_type="failure_pattern", label=str(full.get("title", full.get("id", "failure"))), source="failure_memory", confidence=float(full.get("confidence", 0.75)), tags=[str(full.get("category", "unknown"))])
-        graph_add_node(nodes, node_id=solution_node_id, node_type="solution", label=f"solution:{full.get('title', full.get('id', 'failure'))}", source="failure_memory", confidence=float(full.get("confidence", 0.75)), tags=["solution"])
-        graph_add_edge(edges, from_id=failure_node_id, to_id=solution_node_id, relation="fixed_by", source="failure_solution", confidence=float(full.get("confidence", 0.75)))
-        category_node_id = graph_node_id("concept", str(full.get("category", "unknown")))
-        graph_add_node(nodes, node_id=category_node_id, node_type="concept", label=str(full.get("category", "unknown")), source="failure_category", confidence=0.7, tags=["failure"])
-        graph_add_edge(edges, from_id=failure_node_id, to_id=category_node_id, relation="associated_with", source="failure_category", confidence=0.7)
-        for path in full.get("files_involved", [])[:6]:
-            file_node_id = graph_node_id("file", path)
-            graph_add_node(nodes, node_id=file_node_id, node_type="file", label=path, source="failure_memory", confidence=0.72, tags=["failure"])
-            graph_add_edge(edges, from_id=failure_node_id, to_id=file_node_id, relation="affects", source="failure_file", confidence=0.74)
-        source_record_id = full.get("source_record_id")
-        if source_record_id:
-            candidate_memory_nodes = [graph_node_id("memory_entry", str(source_record_id)), graph_node_id("architecture_decision", str(source_record_id))]
-            for candidate in candidate_memory_nodes:
-                if candidate in nodes:
-                    graph_add_edge(edges, from_id=failure_node_id, to_id=candidate, relation="derived_from", source="failure_source_record", confidence=0.86)
-                    break
-    node_rows = sorted(nodes.values(), key=lambda row: (row["type"], row["label"], row["id"]))
-    edge_rows = sorted(edges.values(), key=lambda row: (row["relation"], row["from"], row["to"]))
-    write_jsonl(MEMORY_GRAPH_NODES_PATH, node_rows)
-    write_jsonl(MEMORY_GRAPH_EDGES_PATH, edge_rows)
-    label_index: dict[str, list[str]] = defaultdict(list)
-    type_index: dict[str, list[str]] = defaultdict(list)
-    relation_index: dict[str, list[str]] = defaultdict(list)
-    for node in node_rows:
-        label_index[graph_label_index_key(str(node.get("label", "")))].append(node["id"])
-        type_index[str(node.get("type", "concept"))].append(node["id"])
-    for edge in edge_rows:
-        relation_index[str(edge.get("relation", "relates_to"))].append(edge["id"])
-    write_json(MEMORY_GRAPH_LABEL_INDEX_PATH, dict(sorted(label_index.items())))
-    write_json(MEMORY_GRAPH_TYPE_INDEX_PATH, dict(sorted(type_index.items())))
-    write_json(MEMORY_GRAPH_RELATION_INDEX_PATH, dict(sorted(relation_index.items())))
-    previous = read_json(MEMORY_GRAPH_STATUS_PATH, {})
-    status = {
-        **previous,
-        "version": 1,
-        "installed_iteration": 9,
-        "generated_at": date.today().isoformat(),
-        "nodes_total": len(node_rows),
-        "edges_total": len(edge_rows),
-        "node_types": {node_type: len(type_index.get(node_type, [])) for node_type in sorted(GRAPH_NODE_TYPES)},
-        "relation_types": {relation: len(relation_index.get(relation, [])) for relation in sorted(GRAPH_RELATIONS)},
-    }
-    write_json(MEMORY_GRAPH_STATUS_PATH, status)
-    write_json(
-        MEMORY_GRAPH_SNAPSHOT_PATH,
-        {
-            "version": 1,
-            "generated_at": date.today().isoformat(),
-            "nodes_sample": node_rows[:12],
-            "edges_sample": edge_rows[:12],
-        },
-    )
-    return status
+    from .runtime_graph import build_memory_graph_artifacts as _impl
+    return _impl(rows)
+
 
 
 def graph_nodes() -> dict[str, dict[str, Any]]:
-    ensure_memory_graph_artifacts()
-    return {row["id"]: row for row in read_jsonl(MEMORY_GRAPH_NODES_PATH) if row.get("id")}
+    from .runtime_graph import graph_nodes as _impl
+    return _impl()
+
 
 
 def graph_edges() -> list[dict[str, Any]]:
-    ensure_memory_graph_artifacts()
-    return read_jsonl(MEMORY_GRAPH_EDGES_PATH)
+    from .runtime_graph import graph_edges as _impl
+    return _impl()
+
 
 
 def graph_find_nodes(query: str) -> list[dict[str, Any]]:
-    nodes = graph_nodes()
-    q = query.strip().lower()
-    if not q:
-        return []
-    ranked = []
-    for node in nodes.values():
-        haystack = " ".join([str(node.get("label", "")), str(node.get("id", "")), " ".join(node.get("tags", []))])
-        score = score_match(q, haystack)
-        if score > 0:
-            ranked.append((score + int(float(node.get("confidence", 0.5)) * 10), node))
-    ranked.sort(key=lambda item: (-item[0], item[1]["id"]))
-    return [node for _, node in ranked[:10]]
+    from .runtime_graph import graph_find_nodes as _impl
+    return _impl(query)
+
 
 
 def graph_neighbors(node_id: str, relation: str | None = None) -> list[dict[str, Any]]:
-    nodes = graph_nodes()
-    results = []
-    for edge in graph_edges():
-        if edge.get("from") != node_id:
-            continue
-        if relation and edge.get("relation") != relation:
-            continue
-        neighbor = nodes.get(str(edge.get("to")))
-        if not neighbor:
-            continue
-        results.append({"edge": edge, "node": neighbor})
-    results.sort(key=lambda item: (-float(item["edge"].get("confidence", 0.5)), item["node"]["id"]))
-    return results
+    from .runtime_graph import graph_neighbors as _impl
+    return _impl(node_id, relation)
+
 
 
 def graph_expand(seed_ids: list[str], *, depth: int = 1, node_budget: int = 8, edge_budget: int = 12, task_type: str | None = None, repository_area: str | None = None) -> dict[str, Any]:
-    nodes = graph_nodes()
-    if not nodes:
-        return {"nodes": [], "edges": [], "connected_record_ids": [], "depth_used": 0}
-    frontier = [seed_id for seed_id in seed_ids if seed_id in nodes]
-    visited_nodes: set[str] = set(frontier)
-    visited_edges: list[dict[str, Any]] = []
-    collected_nodes: list[dict[str, Any]] = [nodes[seed_id] for seed_id in frontier]
-    current_depth = 0
-    while frontier and current_depth < max(0, depth) and len(collected_nodes) < node_budget and len(visited_edges) < edge_budget:
-        next_frontier: list[str] = []
-        for current in frontier:
-            for item in graph_neighbors(current):
-                neighbor = item["node"]
-                edge = item["edge"]
-                if repository_area and neighbor.get("type") == "repository_area" and repository_area not in str(neighbor.get("label", "")):
-                    continue
-                if task_type and neighbor.get("type") == "task_type" and normalize_task_type(neighbor.get("label")) != normalize_task_type(task_type):
-                    continue
-                if neighbor["id"] not in visited_nodes:
-                    visited_nodes.add(neighbor["id"])
-                    collected_nodes.append(neighbor)
-                    next_frontier.append(neighbor["id"])
-                if len(visited_edges) < edge_budget:
-                    visited_edges.append(edge)
-                if len(collected_nodes) >= node_budget or len(visited_edges) >= edge_budget:
-                    break
-            if len(collected_nodes) >= node_budget or len(visited_edges) >= edge_budget:
-                break
-        frontier = next_frontier
-        current_depth += 1
-    connected_record_ids = []
-    for node in collected_nodes:
-        record_id = str(node.get("metadata", {}).get("record_id", "")).strip()
-        if record_id:
-            connected_record_ids.append(record_id)
-    return {
-        "nodes": collected_nodes[:node_budget],
-        "edges": visited_edges[:edge_budget],
-        "connected_record_ids": sorted(set(connected_record_ids)),
-        "depth_used": current_depth,
-    }
+    from .runtime_graph import graph_expand as _impl
+    return _impl(seed_ids, depth=depth, node_budget=node_budget, edge_budget=edge_budget, task_type=task_type, repository_area=repository_area)
+
 
 
 def update_memory_graph_status(packet: dict[str, Any], packet_path: Path) -> None:
-    status = read_json(MEMORY_GRAPH_STATUS_PATH, {})
-    graph_meta = packet.get("memory_graph", {})
-    updated = {
-        **status,
-        "version": 1,
-        "installed_iteration": 9,
-        "generated_at": date.today().isoformat(),
-        "expansion_events": int(status.get("expansion_events", 0) or 0) + (1 if graph_meta.get("graph_used") else 0),
-        "last_seed_count": int(graph_meta.get("seed_count", 0) or 0),
-        "last_expansion_depth": int(graph_meta.get("expansion_depth_used", 0) or 0),
-        "last_graph_hit_count": int(graph_meta.get("graph_hits", 0) or 0),
-        "last_packet_path": packet_path.as_posix(),
-    }
-    write_json(MEMORY_GRAPH_STATUS_PATH, updated)
+    from .runtime_graph import update_memory_graph_status as _impl
+    return _impl(packet, packet_path)
+
 
 
 def ensure_context_metrics_artifacts() -> None:
@@ -2486,315 +1917,83 @@ def truncate_words(text: str, max_words: int) -> str:
 
 
 def packet_item_text(item: Any) -> str:
-    if isinstance(item, str):
-        return item
-    if isinstance(item, dict):
-        parts = []
-        for key in ["id", "key", "title", "summary", "path"]:
-            value = item.get(key)
-            if value:
-                parts.append(str(value))
-        if "value" in item:
-            parts.append(json.dumps(item.get("value"), ensure_ascii=False, sort_keys=True))
-        return " | ".join(parts)
-    return json.dumps(item, ensure_ascii=False, sort_keys=True)
+    from .runtime_cost import packet_item_text as _impl
+    return _impl(item)
+
 
 
 def estimate_tokens_from_text(text: str, structural_overhead: int = 0) -> int:
-    compact = re.sub(r"\s+", " ", text).strip()
-    if not compact:
-        return max(1, structural_overhead)
-    return max(1, (len(compact) + 3) // 4 + structural_overhead)
+    from .runtime_cost import estimate_tokens_from_text as _impl
+    return _impl(text, structural_overhead)
+
 
 
 def estimate_packet_tokens(packet: dict[str, Any]) -> dict[str, Any]:
-    sections: dict[str, int] = {}
-    for key, value in packet.items():
-        if key in {"context_budget", "optimization_report"}:
-            continue
-        if isinstance(value, list):
-            section_tokens = 2
-            for item in value:
-                section_tokens += estimate_tokens_from_text(packet_item_text(item), structural_overhead=4)
-        elif isinstance(value, dict):
-            section_tokens = estimate_tokens_from_text(json.dumps(value, ensure_ascii=False, sort_keys=True), structural_overhead=6)
-        else:
-            section_tokens = estimate_tokens_from_text(str(value), structural_overhead=2)
-        sections[key] = section_tokens
-    total = sum(sections.values())
-    return {"estimated_total_tokens": total, "sections": sections}
+    from .runtime_cost import estimate_packet_tokens as _impl
+    return _impl(packet)
 
 
-SECTION_RULES = {
-    "user_preferences": {"mandatory": True, "priority": 4.0},
-    "constraints": {"mandatory": True, "priority": 3.8},
-    "architecture_rules": {"mandatory": True, "priority": 3.6},
-    "architecture_decisions": {"mandatory": False, "priority": 2.8, "mirror_of": "architecture_rules"},
-    "relevant_memory": {"mandatory": False, "priority": 3.2},
-    "relevant_patterns": {"mandatory": False, "priority": 2.4},
-    "validation_recipes": {"mandatory": False, "priority": 2.3},
-    "relevant_failures": {"mandatory": False, "priority": 3.0},
-    "relevant_graph_context": {"mandatory": False, "priority": 2.9},
-    "knowledge_artifacts": {"mandatory": False, "priority": 2.7},
-    "repo_scope": {"mandatory": False, "priority": 1.4},
-    "relevant_paths": {"mandatory": False, "priority": 1.4, "mirror_of": "repo_scope"},
-    "known_patterns": {"mandatory": False, "priority": 1.1},
-}
+
 
 
 def item_identity(item: Any) -> str:
-    if isinstance(item, dict):
-        for key in ["id", "key", "title", "path"]:
-            value = item.get(key)
-            if value:
-                return str(value)
-        if item.get("summary"):
-            return slugify(str(item["summary"]))
-    return slugify(str(item))
+    from .runtime_cost import item_identity as _impl
+    return _impl(item)
+
 
 
 def item_value(item: Any, section_name: str) -> float:
-    if isinstance(item, dict):
-        base = float(item.get("score", item.get("relevance_score", 0.55)) or 0.55)
-        success = float(item.get("success_rate", 0.75) or 0.75)
-        cost_penalty = float(item.get("context_cost", 4) or 4) / 20
-    else:
-        base = 0.45
-        success = 0.7
-        cost_penalty = 0.05
-    priority = SECTION_RULES.get(section_name, {}).get("priority", 1.0)
-    return round(base * 0.65 + success * 0.15 + priority * 0.2 - cost_penalty, 4)
+    from .runtime_cost import item_value as _impl
+    return _impl(item, section_name)
+
 
 
 def item_cost(item: Any) -> int:
-    if isinstance(item, dict) and item.get("context_cost") is not None:
-        return max(1, int(item.get("context_cost", 1)))
-    return estimate_tokens_from_text(packet_item_text(item), structural_overhead=2)
+    from .runtime_cost import item_cost as _impl
+    return _impl(item)
+
 
 
 def compress_item(item: Any, max_words: int) -> Any:
-    if isinstance(item, str):
-        return truncate_words(item, max_words)
-    if not isinstance(item, dict):
-        return item
-    compressed = dict(item)
-    if compressed.get("summary"):
-        compressed["summary"] = truncate_words(str(compressed["summary"]), max_words)
-    if compressed.get("title"):
-        compressed["title"] = truncate_words(str(compressed["title"]), min(max_words, 8))
-    original_cost = item_cost(item)
-    compressed["context_cost"] = max(1, min(original_cost, estimate_tokens_from_text(packet_item_text(compressed), structural_overhead=1)))
-    compressed["compression"] = "summary_truncated"
-    return compressed
+    from .runtime_cost import compress_item as _impl
+    return _impl(item, max_words)
+
 
 
 def dedupe_items(items: list[Any]) -> tuple[list[Any], list[dict[str, Any]]]:
-    seen: dict[str, Any] = {}
-    dropped: list[dict[str, Any]] = []
-    for item in items:
-        identity = item_identity(item)
-        if identity in seen:
-            dropped.append({"identity": identity, "reason": "duplicate"})
-            continue
-        seen[identity] = item
-    ordered = sorted(seen.values(), key=lambda item: (item_cost(item), item_identity(item)))
-    return ordered, dropped
+    from .runtime_cost import dedupe_items as _impl
+    return _impl(items)
+
 
 
 def optimize_list_section(section_name: str, items: list[Any], config: dict[str, Any], available_tokens: int) -> tuple[list[Any], list[dict[str, Any]], int]:
-    if not items:
-        return [], [], available_tokens
-    rules = SECTION_RULES.get(section_name, {"mandatory": False, "priority": 1.0})
-    mandatory = bool(rules.get("mandatory"))
-    max_items = int(config.get("max_items_per_section", {}).get(section_name, len(items)) or len(items))
-    deduped, dedupe_events = dedupe_items(items)
-    events: list[dict[str, Any]] = [
-        {"section": section_name, "action": "omitted", "entry": event["identity"], "reason": event["reason"]}
-        for event in dedupe_events
-    ]
-    ranked = sorted(
-        deduped,
-        key=lambda item: (
-            -((item_value(item, section_name) + (0.3 if mandatory else 0.0)) / max(item_cost(item), 1)),
-            -item_value(item, section_name),
-            item_cost(item),
-            item_identity(item),
-        ),
-    )
-    selected: list[Any] = []
-    used = 0
-    limit_words = int(config.get("mandatory_summary_max_words" if mandatory else "summary_max_words", 20))
-    for index, item in enumerate(ranked):
-        if len(selected) >= max_items:
-            events.append({"section": section_name, "action": "omitted", "entry": item_identity(item), "reason": "section_item_cap"})
-            continue
-        current_item = item
-        current_cost = item_cost(current_item)
-        needs_fit = used + current_cost > available_tokens
-        if needs_fit:
-            compressed = compress_item(item, limit_words)
-            compressed_cost = item_cost(compressed)
-            if compressed_cost < current_cost and used + compressed_cost <= available_tokens:
-                current_item = compressed
-                current_cost = compressed_cost
-                events.append({"section": section_name, "action": "compressed", "entry": item_identity(item), "reason": "fit_budget"})
-            elif not mandatory and index > 0:
-                events.append({"section": section_name, "action": "omitted", "entry": item_identity(item), "reason": "low_value_for_budget"})
-                continue
-            elif mandatory and compressed_cost < current_cost:
-                current_item = compressed
-                current_cost = compressed_cost
-                events.append({"section": section_name, "action": "compressed", "entry": item_identity(item), "reason": "mandatory_section_trim"})
-        selected.append(current_item)
-        used += current_cost
-        if not any(event.get("entry") == item_identity(item) and event.get("action") in {"compressed", "omitted"} for event in events):
-            events.append({"section": section_name, "action": "preserved", "entry": item_identity(current_item), "reason": "selected"})
-    return selected, events, max(0, available_tokens - used)
+    from .runtime_cost import optimize_list_section as _impl
+    return _impl(section_name, items, config, available_tokens)
+
 
 
 def sync_packet_mirrors(packet: dict[str, Any]) -> None:
-    packet["architecture_decisions"] = list(packet.get("architecture_rules", []))
-    packet["relevant_paths"] = list(packet.get("repo_scope", []))
+    from .runtime_cost import sync_packet_mirrors as _impl
+    return _impl(packet)
+
 
 
 def update_cost_status(report: dict[str, Any], packet_path: Path) -> None:
-    status = read_json(COST_STATUS_PATH, {})
-    events = int(status.get("optimization_events", 0))
-    new_events = events + 1
-    reduction = int(report.get("estimated_tokens_before", 0)) - int(report.get("estimated_tokens_after", 0))
-    kept = int(report.get("kept_entries", 0))
-    total = max(int(report.get("candidate_entries", 0)), 1)
-    previous_avg_reduction = float(status.get("average_estimated_reduction_tokens", 0) or 0)
-    previous_avg_kept = float(status.get("average_kept_ratio", 1.0) or 1.0)
-    updated = {
-        "version": 1,
-        "generated_at": date.today().isoformat(),
-        "optimization_events": new_events,
-        "over_budget_events": int(status.get("over_budget_events", 0)) + (1 if report.get("status") != "within_budget" else 0),
-        "average_estimated_reduction_tokens": round(((previous_avg_reduction * events) + reduction) / new_events, 2),
-        "average_kept_ratio": round(((previous_avg_kept * events) + (kept / total)) / new_events, 4),
-        "last_status": report.get("status"),
-        "last_task": report.get("task"),
-        "last_packet_path": packet_path.as_posix(),
-        "last_budget": report.get("budget"),
-        "last_estimated_tokens_before": report.get("estimated_tokens_before"),
-        "last_estimated_tokens_after": report.get("estimated_tokens_after"),
-    }
-    write_json(COST_STATUS_PATH, updated)
-    history_row = {
-        "generated_at": date.today().isoformat(),
-        "task": report.get("task"),
-        "status": report.get("status"),
-        "estimated_tokens_before": report.get("estimated_tokens_before"),
-        "estimated_tokens_after": report.get("estimated_tokens_after"),
-        "kept_entries": kept,
-        "candidate_entries": total,
-    }
-    history = read_jsonl(COST_HISTORY_PATH)
-    history.append(history_row)
-    write_jsonl(COST_HISTORY_PATH, history[-50:])
+    from .runtime_cost import update_cost_status as _impl
+    return _impl(report, packet_path)
+
 
 
 def render_optimization_report(report: dict[str, Any]) -> str:
-    lines = [
-        "# latest optimization report",
-        "",
-        f"- Task: {report.get('task', '')}",
-        f"- Status: {report.get('status', 'unknown')}",
-        f"- Budget: target {report['budget']['budget_target_tokens']} / soft {report['budget']['soft_limit_tokens']} / hard {report['budget']['hard_limit_tokens']}",
-        f"- Estimated tokens: {report.get('estimated_tokens_before', 0)} -> {report.get('estimated_tokens_after', 0)}",
-        f"- Candidate entries: {report.get('candidate_entries', 0)}",
-        f"- Kept entries: {report.get('kept_entries', 0)}",
-        "",
-        "## Actions",
-        "",
-    ]
-    actions = report.get("actions", [])
-    if not actions:
-        lines.append("- No optimization actions were required.")
-    else:
-        for action in actions:
-            lines.append(f"- `{action['section']}` | {action['action']} | `{action['entry']}` | {action['reason']}")
-    lines.extend(
-        [
-            "",
-            "## Rationale",
-            "",
-            f"- {report.get('rationale', 'No rationale captured.')}",
-        ]
-    )
-    return "\n".join(lines) + "\n"
+    from .runtime_cost import render_optimization_report as _impl
+    return _impl(report)
+
 
 
 def optimize_packet(packet: dict[str, Any]) -> dict[str, Any]:
-    ensure_cost_artifacts()
-    config = cost_config()
-    before = estimate_packet_tokens(packet)
-    optimized = dict(packet)
-    actions: list[dict[str, Any]] = []
-    candidate_entries = 0
-    kept_entries = 0
-    available_tokens = int(config.get("budget_target_tokens", 3000))
-    for fixed_key in ["task", "task_id", "task_summary", "task_type", "project", "model_suggestion", "fallback_mode", "knowledge_retrieval", "telemetry_granularity"]:
-        available_tokens = max(0, available_tokens - before["sections"].get(fixed_key, 0))
-    for section_name in [
-        "user_preferences",
-        "constraints",
-        "architecture_rules",
-        "relevant_memory",
-        "relevant_patterns",
-        "validation_recipes",
-        "relevant_failures",
-        "relevant_graph_context",
-        "knowledge_artifacts",
-        "repo_scope",
-        "known_patterns",
-    ]:
-        items = list(optimized.get(section_name, []))
-        candidate_entries += len(items)
-        selected, section_actions, available_tokens = optimize_list_section(section_name, items, config, available_tokens)
-        optimized[section_name] = selected
-        actions.extend(section_actions)
-        kept_entries += len(selected)
-    sync_packet_mirrors(optimized)
-    if before["estimated_total_tokens"] <= int(config.get("soft_limit_tokens", 2600)):
-        status = "within_budget"
-        rationale = "Estimated packet cost stayed below the soft limit, so only deterministic deduplication and per-section caps were applied."
-    else:
-        after_estimate = estimate_packet_tokens(optimized)
-        status = "optimized" if after_estimate["estimated_total_tokens"] <= int(config.get("hard_limit_tokens", 3200)) else "over_budget_after_optimization"
-        rationale = (
-            "The optimizer preserved mandatory sections first, then ranked optional entries by value-per-cost, compressing verbose summaries before omitting low-value items."
-        )
-    after = estimate_packet_tokens(optimized)
-    budget = {
-        "budget_target_tokens": int(config.get("budget_target_tokens", 3000)),
-        "soft_limit_tokens": int(config.get("soft_limit_tokens", 2600)),
-        "hard_limit_tokens": int(config.get("hard_limit_tokens", 3200)),
-        "estimated_tokens_before": before["estimated_total_tokens"],
-        "estimated_tokens_after": after["estimated_total_tokens"],
-        "status": status,
-    }
-    report = {
-        "task": packet.get("task", ""),
-        "status": status,
-        "budget": budget,
-        "estimated_tokens_before": before["estimated_total_tokens"],
-        "estimated_tokens_after": after["estimated_total_tokens"],
-        "candidate_entries": candidate_entries,
-        "kept_entries": kept_entries,
-        "actions": actions,
-        "rationale": rationale,
-    }
-    optimized["context_budget"] = budget
-    optimized["optimization_report"] = {
-        "status": status,
-        "actions_count": len(actions),
-        "kept_entries": kept_entries,
-        "candidate_entries": candidate_entries,
-        "report_path": COST_LATEST_REPORT_PATH.as_posix(),
-    }
-    return {"packet": optimized, "report": report}
+    from .runtime_cost import optimize_packet as _impl
+    return _impl(packet)
+
 
 
 def bootstrap(repo_path: str | None = None) -> dict[str, Any]:

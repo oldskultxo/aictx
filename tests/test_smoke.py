@@ -16,6 +16,9 @@ import aictx.runtime_io as runtime_io
 import aictx.runtime_memory as runtime_memory
 import aictx.runtime_tasks as runtime_tasks
 import aictx.runtime_knowledge as runtime_knowledge
+import aictx.runtime_cost as runtime_cost
+import aictx.runtime_failure as runtime_failure
+import aictx.runtime_graph as runtime_graph
 from aictx.agent_runtime import (
     AGENTS_END,
     AGENTS_START,
@@ -790,6 +793,101 @@ def test_runtime_knowledge_module_bootstrap_mod(tmp_path: Path, monkeypatch):
     manifest = runtime_knowledge.bootstrap_mod("ux", create_reference_stub=True)
     assert manifest["id"] == "ux"
     assert (tmp_path / ".ai_context_engine" / "library" / "mods" / "ux" / "inbox" / "references.md").exists()
+
+
+def test_runtime_cost_module_optimizer_roundtrip(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_runtime, "BASE", tmp_path)
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
+    monkeypatch.setattr(core_runtime, "COST_DIR", tmp_path / ".ai_context_engine" / "cost")
+    monkeypatch.setattr(core_runtime, "COST_CONFIG_PATH", tmp_path / ".ai_context_engine" / "cost" / "optimizer_config.yaml")
+    monkeypatch.setattr(core_runtime, "COST_RULES_PATH", tmp_path / ".ai_context_engine" / "cost" / "cost_estimation_rules.md")
+    monkeypatch.setattr(core_runtime, "COST_STATUS_PATH", tmp_path / ".ai_context_engine" / "cost" / "packet_budget_status.json")
+    monkeypatch.setattr(core_runtime, "COST_HISTORY_PATH", tmp_path / ".ai_context_engine" / "cost" / "optimization_history.jsonl")
+    monkeypatch.setattr(core_runtime, "COST_LATEST_REPORT_PATH", tmp_path / ".ai_context_engine" / "cost" / "latest_optimization_report.md")
+
+    payload = {
+        "task": "debug failing integration",
+        "task_summary": "debug failing integration",
+        "task_type": "bug_fixing",
+        "user_preferences": [{"id": "p1", "summary": "keep concise"}],
+        "constraints": [{"id": "c1", "summary": "do not break cli"}],
+        "architecture_rules": [{"id": "a1", "summary": "respect adapter contract"}],
+        "relevant_memory": [{"id": "m1", "summary": "past fix", "context_cost": 120}],
+        "repo_scope": [{"path": "src/aictx/core_runtime.py"}],
+        "known_patterns": [],
+    }
+    optimized = runtime_cost.optimize_packet(payload)
+    assert optimized["packet"]["optimization_report"]["status"] in {"within_budget", "optimized", "over_budget_after_optimization"}
+
+
+def test_runtime_failure_module_record_and_rank(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_runtime, "BASE", tmp_path)
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_DIR", tmp_path / ".ai_context_engine" / "failure_memory")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_RECORDS_DIR", tmp_path / ".ai_context_engine" / "failure_memory" / "failures")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_INDEX_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "index.json")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_STATUS_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "failure_memory_status.json")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_SUMMARY_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "summaries" / "common_patterns.md")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".ai_context_engine" / "task_memory")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_DIR", tmp_path / ".ai_context_engine" / "memory_graph")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_NODES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "nodes" / "nodes.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_EDGES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "edges" / "edges.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_STATUS_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "graph_status.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_LABEL_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_label.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_TYPE_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_type.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_RELATION_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_relation.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_SNAPSHOT_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "snapshots" / "latest_graph_snapshot.json")
+
+    rec = runtime_failure.record_failure(
+        failure_id="build-regression",
+        category="build_failure",
+        title="Build regression",
+        symptoms=["Module not found"],
+        root_cause="missing dependency",
+        solution="restore dependency",
+        files_involved=["src/aictx/core_runtime.py"],
+        related_commands=["pytest -q"],
+    )
+    assert rec["id"] == "build_regression"
+    ranked = runtime_failure.rank_failure_records("module not found build")
+    assert isinstance(ranked, list)
+
+
+def test_runtime_graph_module_expand_after_refresh(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_runtime, "BASE", tmp_path)
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".ai_context_engine" / "task_memory")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_DIR", tmp_path / ".ai_context_engine" / "failure_memory")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_INDEX_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "index.json")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_RECORDS_DIR", tmp_path / ".ai_context_engine" / "failure_memory" / "failures")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_DIR", tmp_path / ".ai_context_engine" / "memory_graph")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_NODES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "nodes" / "nodes.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_EDGES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "edges" / "edges.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_STATUS_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "graph_status.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_LABEL_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_label.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_TYPE_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_type.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_RELATION_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_relation.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_SNAPSHOT_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "snapshots" / "latest_graph_snapshot.json")
+
+    runtime_graph.build_memory_graph_artifacts([
+        {
+            "id": "r1",
+            "type": "project_fact",
+            "title": "Keep CLI stable",
+            "summary": "Do not break subcommands",
+            "path": "src/aictx/cli.py",
+            "task_type": "refactoring",
+            "tags": ["cli", "stability"],
+            "files_involved": ["src/aictx/cli.py"],
+            "source": "test",
+            "project": "aictx",
+        }
+    ])
+    matches = runtime_graph.graph_find_nodes("cli stability")
+    assert isinstance(matches, list)
+    if matches:
+        expanded = runtime_graph.graph_expand([matches[0]["id"]], depth=1)
+        assert "nodes" in expanded
 
 
 def test_python_module_entrypoint_smoke(tmp_path: Path):
