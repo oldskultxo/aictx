@@ -1,29 +1,37 @@
 PYTHON ?= python3
 VENV ?= .venv
 VENV_PYTHON := $(VENV)/bin/python
-VENV_PIP := $(VENV)/bin/pip
-VENV_AICTX := $(VENV)/bin/aictx
+VENV_PIP := $(VENV_PYTHON) -m pip
+AICTX_MODULE := $(VENV_PYTHON) -m aictx
+VENV_READY := $(VENV)/.aictx-ready
 
-.PHONY: venv test smoke package-check ci
+.PHONY: venv test smoke package-check ci clean-smoke
 
-venv:
-	$(PYTHON) -m venv $(VENV)
-	$(VENV_PYTHON) -m pip install --upgrade pip
-	$(VENV_PIP) install -e . pytest build
+$(VENV_PYTHON):
+	@if [ ! -x "$(VENV_PYTHON)" ]; then $(PYTHON) -m venv $(VENV); fi
 
-test: venv
+$(VENV_READY): $(VENV_PYTHON) pyproject.toml
+	$(VENV_PIP) install --upgrade pip
+	$(VENV_PIP) install --ignore-installed -e . pytest build
+	@touch $(VENV_READY)
+
+venv: $(VENV_READY)
+
+test: $(VENV_READY)
 	$(VENV_PYTHON) -m pytest -q
 
-smoke: venv
+clean-smoke:
 	rm -rf .tmp/smoke-repo
 	mkdir -p .tmp/smoke-repo
-	$(VENV_AICTX) init --repo .tmp/smoke-repo --yes --no-register
-	$(VENV_AICTX) boot --repo .tmp/smoke-repo >/dev/null
-	$(VENV_AICTX) packet --task "debug failing integration" >/dev/null
-	$(VENV_AICTX) execution prepare --repo .tmp/smoke-repo --request "review middleware behavior" --agent-id smoke-agent --execution-id smoke-prepare > .tmp/smoke-repo/prepared.json
-	$(VENV_AICTX) execution finalize --prepared .tmp/smoke-repo/prepared.json --success --validated-learning --result-summary "Smoke flow completed." >/dev/null
 
-package-check: venv
+smoke: $(VENV_READY) clean-smoke
+	$(AICTX_MODULE) init --repo .tmp/smoke-repo --yes --no-register
+	$(AICTX_MODULE) boot --repo .tmp/smoke-repo >/dev/null
+	$(AICTX_MODULE) packet --task "debug failing integration" >/dev/null
+	$(AICTX_MODULE) execution prepare --repo .tmp/smoke-repo --request "review middleware behavior" --agent-id smoke-agent --execution-id smoke-prepare > .tmp/smoke-repo/prepared.json
+	$(AICTX_MODULE) execution finalize --prepared .tmp/smoke-repo/prepared.json --success --validated-learning --result-summary "Smoke flow completed." >/dev/null
+
+package-check: $(VENV_READY)
 	$(VENV_PYTHON) -m build
 
 ci: test smoke package-check

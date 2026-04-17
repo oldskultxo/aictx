@@ -92,3 +92,10 @@ def truncate_words(text: str, max_words: int) -> str:
     if len(words) <= max_words:
         return text.strip()
     return ' '.join(words[:max_words]).strip() + ' ...'
+
+
+def append_if_missing(path: Path, line: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    current = path.read_text(encoding='utf-8') if path.exists() else ''
+    if line not in current:
+        path.write_text(current + line, encoding='utf-8')

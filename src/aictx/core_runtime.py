@@ -408,73 +408,48 @@ def file_md5(path: Path) -> str:
 
 
 def load_mod_manifest(root: Path) -> dict[str, Any]:
-    return read_json(root / "mod.json", {})
+    from .runtime_knowledge import load_mod_manifest as _impl
+    return _impl(root)
 
 
 def save_mod_manifest(root: Path, manifest: dict[str, Any]) -> None:
-    manifest["manifest_path"] = (root / "mod.json").as_posix()
-    manifest["library_root"] = root.as_posix()
-    manifest["updated_at"] = now_iso()
-    write_json(root / "mod.json", manifest)
+    from .runtime_knowledge import save_mod_manifest as _impl
+    return _impl(root, manifest)
 
 
 def default_mod_state() -> dict[str, Any]:
-    return {"version": 2, "last_processed": None, "processed_docs": {}, "referenced_files": {}}
+    from .runtime_knowledge import default_mod_state as _impl
+    return _impl()
 
 
 def load_mod_state(root: Path) -> dict[str, Any]:
-    state = read_json(root / "manifests" / "state.json", default_mod_state())
-    state.setdefault("version", 2)
-    state.setdefault("last_processed", None)
-    state.setdefault("processed_docs", {})
-    state.setdefault("referenced_files", {})
-    return state
+    from .runtime_knowledge import load_mod_state as _impl
+    return _impl(root)
 
 
 def save_mod_state(root: Path, state: dict[str, Any]) -> None:
-    state["version"] = 2
-    write_json(root / "manifests" / "state.json", state)
+    from .runtime_knowledge import save_mod_state as _impl
+    return _impl(root, state)
 
 
 def references_template_text() -> str:
-    return (
-        "# References Template\n\n"
-        "List one file path per line to ingest knowledge from files that live outside the mod inbox.\n\n"
-        "- Lines starting with `#` are comments.\n"
-        "- A comment immediately before a path is stored as the label for that file.\n"
-        "- Relative paths are resolved from the engine root.\n"
-        "- Supported referenced formats: `.md`, `.txt`, `.html`, `.htm`, `.pdf`, `.sql`, `.xml`, `.json`, `.yaml`, `.yml`, `.py`, `.csv`.\n\n"
-        "Example:\n\n"
-        "```md\n"
-        "# API schema\n"
-        "docs/api/openapi.yaml\n\n"
-        "# SQL views\n"
-        "/absolute/path/to/reporting_view.sql\n"
-        "```\n"
-    )
+    from .runtime_knowledge import references_template_text as _impl
+    return _impl()
 
 
 def references_stub_text(mod_id: str) -> str:
-    return (
-        f"# Knowledge References — {slugify(mod_id)}\n\n"
-        "# Add one absolute or repo-relative path per line.\n"
-        "# See ../../REFERENCES_TEMPLATE.md for the full format.\n"
-        "# Example:\n"
-        "# /absolute/path/to/file.sql\n"
-        "# docs/architecture/api.yaml\n"
-    )
+    from .runtime_knowledge import references_stub_text as _impl
+    return _impl(mod_id)
 
 
 def ensure_references_template() -> None:
-    template_path = LIBRARY_DIR / "REFERENCES_TEMPLATE.md"
-    if not template_path.exists():
-        write_text(template_path, references_template_text())
+    from .runtime_knowledge import ensure_references_template as _impl
+    return _impl()
 
 
 def ensure_remote_manifest(root: Path) -> None:
-    manifest_path = root / "remote_sources" / "manifest.json"
-    if not manifest_path.exists():
-        write_json(manifest_path, {"version": 1, "sources": []})
+    from .runtime_knowledge import ensure_remote_manifest as _impl
+    return _impl(root)
 
 
 def should_process_inbox_file(path: Path) -> bool:
@@ -489,21 +464,8 @@ def resolve_reference_path(raw_path: str) -> Path:
 
 
 def parse_references_file(path: Path) -> list[dict[str, Any]]:
-    references: list[dict[str, Any]] = []
-    if not path.exists():
-        return references
-    current_label: str | None = None
-    for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw_line.strip()
-        if not line:
-            current_label = None
-            continue
-        if line.startswith("#"):
-            current_label = line.lstrip("#").strip() or None
-            continue
-        resolved = resolve_reference_path(line)
-        references.append({"path": resolved, "raw_path": line, "label": current_label})
-    return references
+    from .runtime_knowledge import parse_references_file as _impl
+    return _impl(path)
 
 
 def sanitize_source_name(value: str, fallback: str = "source") -> str:
@@ -529,53 +491,8 @@ def invalidate_source_artifacts(root: Path, previous: dict[str, Any]) -> None:
 
 
 def rebuild_mod_indices(root: Path, state: dict[str, Any]) -> dict[str, list[str]]:
-    topic_index: dict[str, list[str]] = defaultdict(list)
-    keyword_index: dict[str, list[str]] = defaultdict(list)
-    notes: list[str] = []
-    summaries: list[str] = []
-    for bucket_name in ["processed_docs", "referenced_files"]:
-        for entry in state.get(bucket_name, {}).values():
-            if entry.get("status") != "processed":
-                continue
-            for path in entry.get("note_files", []):
-                notes.append(path)
-            for path in entry.get("summary_files", []):
-                summaries.append(path)
-            for keyword in entry.get("keywords", [])[:8]:
-                for path in entry.get("note_files", [])[:1]:
-                    if path not in topic_index[keyword]:
-                        topic_index[keyword].append(path)
-                for path in entry.get("summary_files", [])[:1]:
-                    if path not in keyword_index[keyword]:
-                        keyword_index[keyword].append(path)
-            for section in entry.get("sections", []):
-                for keyword in section.get("keywords", [])[:10]:
-                    note_path = section.get("note_path")
-                    summary_path = section.get("summary_path")
-                    if note_path and note_path not in topic_index[keyword]:
-                        topic_index[keyword].append(note_path)
-                    if summary_path and summary_path not in keyword_index[keyword]:
-                        keyword_index[keyword].append(summary_path)
-    topic_path = root / "indices" / "topic_index.json"
-    keyword_path = root / "indices" / "keyword_index.json"
-    retrieval_path = root / "indices" / "retrieval_map.json"
-    write_json(topic_path, dict(sorted(topic_index.items())))
-    write_json(keyword_path, dict(sorted(keyword_index.items())))
-    write_json(
-        retrieval_path,
-        {
-            "version": 1,
-            "mod_id": root.name,
-            "notes": notes,
-            "summaries": summaries,
-            "generated_at": now_iso(),
-        },
-    )
-    return {
-        "topic_index": [relative_posix(topic_path, root)],
-        "keyword_index": [relative_posix(keyword_path, root)],
-        "retrieval_map": [relative_posix(retrieval_path, root)],
-    }
+    from .runtime_knowledge import rebuild_mod_indices as _impl
+    return _impl(root, state)
 
 
 def remote_manifest_path(root: Path) -> Path:
@@ -1348,10 +1265,8 @@ def compact_records(apply: bool = False) -> dict[str, Any]:
 
 
 def append_if_missing(path: Path, line: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    current = path.read_text() if path.exists() else ""
-    if line not in current:
-        path.write_text(current + line)
+    from .runtime_io import append_if_missing as _impl
+    return _impl(path, line)
 
 
 DEFAULT_COST_CONFIG = {
@@ -2311,8 +2226,8 @@ def record_granular_telemetry(packet: dict[str, Any], packet_path: Path, optimiz
 
 
 def library_registry() -> dict[str, Any]:
-    ensure_library_artifacts()
-    return read_json(LIBRARY_REGISTRY_PATH, {"version": 1, "generated_at": date.today().isoformat(), "mods": {}})
+    from .runtime_knowledge import library_registry as _impl
+    return _impl()
 
 
 def ensure_library_artifacts() -> None:
@@ -2362,281 +2277,53 @@ def bootstrap_mod(
 
 
 def extract_text_from_html(raw_html: str) -> tuple[str, str]:
-    parser = HTMLTextExtractor()
-    parser.feed(raw_html)
-    text, title = parser.result()
-    parser.close()
-    return text, title
+    from .runtime_knowledge import extract_text_from_html as _impl
+    return _impl(raw_html)
 
 
 def extract_text_for_knowledge(path: Path) -> str:
-    suffix = path.suffix.lower()
-    if suffix in {".md", ".txt", ".json", ".yaml", ".yml", ".rst", ".sql", ".xml", ".py", ".csv"}:
-        return path.read_text(encoding="utf-8", errors="ignore").strip()
-    if suffix in {".html", ".htm"}:
-        text, _ = extract_text_from_html(path.read_text(encoding="utf-8", errors="ignore"))
-        return text
-    if suffix == ".pdf":
-        if shutil.which("pdftotext"):
-            result = subprocess.run(
-                ["pdftotext", "-layout", "-nopgbrk", "-q", path.as_posix(), "-"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="ignore",
-            )
-            text = result.stdout.strip()
-            if text and not text.lstrip().startswith("%PDF-"):
-                return text
-        for module_name in ["pypdf", "PyPDF2"]:
-            try:
-                module = __import__(module_name, fromlist=["PdfReader"])
-                reader = module.PdfReader(path.as_posix())
-                pages = []
-                for index, page in enumerate(reader.pages):
-                    if index >= 120:
-                        break
-                    page_text = (page.extract_text() or "").strip()
-                    if page_text:
-                        pages.append(page_text)
-                    if sum(len(chunk) for chunk in pages) >= 80000:
-                        break
-                text = "\n\n".join(pages).strip()
-                if text:
-                    return text
-            except Exception:
-                continue
-    return ""
+    from .runtime_knowledge import extract_text_for_knowledge as _impl
+    return _impl(path)
 
 
 def clean_extracted_knowledge_text(text: str) -> str:
-    if not text.strip():
-        return ""
-    raw_lines = [line.replace("\x00", "").strip() for line in text.splitlines()]
-    normalized_counts: dict[str, int] = defaultdict(int)
-    for line in raw_lines:
-        normalized = re.sub(r"\s+", " ", line).strip().lower()
-        if normalized:
-            normalized_counts[normalized] += 1
-
-    cleaned_lines: list[str] = []
-    index = 0
-    while index < len(raw_lines):
-        line = re.sub(r"\s+", " ", raw_lines[index]).strip()
-        next_line = re.sub(r"\s+", " ", raw_lines[index + 1]).strip() if index + 1 < len(raw_lines) else ""
-        if line.endswith("-") and next_line and next_line[:1].islower():
-            line = f"{line[:-1]}{next_line}"
-            index += 1
-        normalized = line.lower()
-        if not line:
-            cleaned_lines.append("")
-            index += 1
-            continue
-        if re.match(r"^\d+_\d+ .* page [ivxlcdm0-9]+$", normalized):
-            index += 1
-            continue
-        if re.match(r"^page [ivxlcdm0-9]+$", normalized):
-            index += 1
-            continue
-        if re.match(r"^\d+( \d+)+$", normalized):
-            index += 1
-            continue
-        if len(line) <= 80 and normalized_counts.get(normalized, 0) >= 3:
-            index += 1
-            continue
-        if any(
-            normalized.startswith(prefix)
-            for prefix in [
-                "copyright",
-                "published by",
-                "library of congress cataloging",
-                "trademarks:",
-                "for general information on our other products",
-                "limit of liability/disclaimer",
-                "requests to the publisher",
-                "wiley also publishes",
-            ]
-        ):
-            index += 1
-            continue
-        cleaned_lines.append(line)
-        index += 1
-
-    paragraphs: list[str] = []
-    current: list[str] = []
-    for line in cleaned_lines:
-        if not line:
-            if current:
-                paragraphs.append(" ".join(current).strip())
-                current = []
-            continue
-        current.append(line)
-    if current:
-        paragraphs.append(" ".join(current).strip())
-
-    compact_paragraphs = []
-    seen: set[str] = set()
-    for paragraph in paragraphs:
-        paragraph = re.sub(r"\s+", " ", paragraph).strip()
-        if len(paragraph) < 40:
-            continue
-        signature = paragraph.lower()
-        if signature in seen:
-            continue
-        seen.add(signature)
-        compact_paragraphs.append(paragraph)
-    return "\n\n".join(compact_paragraphs).strip()
+    from .runtime_knowledge import clean_extracted_knowledge_text as _impl
+    return _impl(text)
 
 
 def normalize_knowledge_text(text: str) -> str:
-    cleaned = clean_extracted_knowledge_text(text)
-    if cleaned:
-        return cleaned
-    fallback = text.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n").strip()
-    fallback = re.sub(r"[ \t]+\n", "\n", fallback)
-    fallback = re.sub(r"\n{3,}", "\n\n", fallback)
-    return fallback.strip()
+    from .runtime_knowledge import normalize_knowledge_text as _impl
+    return _impl(text)
 
 
 def summarize_knowledge_text(text: str) -> str:
-    cleaned = normalize_knowledge_text(text)
-    if not cleaned:
-        return ""
-    paragraphs = [paragraph.strip() for paragraph in cleaned.split("\n\n") if paragraph.strip()]
-    scored: list[tuple[int, str]] = []
-    for paragraph in paragraphs:
-        haystack = paragraph.lower()
-        if any(
-            marker in haystack
-            for marker in [
-                "copyright",
-                "isbn",
-                "wiley publishing",
-                "library of congress",
-                "trademarks",
-                "permissions",
-                "fax",
-                "executive editor",
-                "production editor",
-                "credits",
-            ]
-        ):
-            continue
-        score = 0
-        for keyword in ["goal", "design", "user", "interaction", "product", "behavior", "persona", "workflow", "research", "interface"]:
-            if keyword in haystack:
-                score += 2
-        if "chapter 1" in haystack or "goal-directed design" in haystack:
-            score += 4
-        if len(paragraph) >= 120:
-            score += 1
-        scored.append((score, paragraph))
-    scored.sort(key=lambda item: (-item[0], -len(item[1])))
-    preferred = [paragraph for score, paragraph in scored if score > 0][:3]
-    if preferred:
-        return truncate_words(" ".join(preferred), 60)
-    return truncate_words(cleaned, 60)
+    from .runtime_knowledge import summarize_knowledge_text as _impl
+    return _impl(text)
 
 
 def detect_main_content_start(text: str) -> str:
-    for marker in [
-        "What This Book Is and What It Is Not",
-        "Chapter 1 Goal-Directed Design",
-        "Chapter 1",
-    ]:
-        index = text.find(marker)
-        if index != -1:
-            return text[index:]
-    return text
+    from .runtime_knowledge import detect_main_content_start as _impl
+    return _impl(text)
 
 
 def chapter_title_from_chunk(chunk: str, fallback_index: int) -> str:
-    chunk = re.sub(r"\s+", " ", chunk).strip()
-    match = re.match(r"^Chapter\s+(\d+)\s+(.+)$", chunk)
-    if match:
-        number = match.group(1)
-        tail = re.sub(r"\s+", " ", match.group(2)).strip(" -:")
-        title_words = []
-        for word in tail.split():
-            if len(title_words) >= 10:
-                break
-            if re.fullmatch(r"\d{1,3}", word):
-                break
-            title_words.append(word)
-        title = " ".join(title_words).strip(" -:")
-        return f"Chapter {number} — {title}" if title else f"Chapter {number}"
-    if chunk.startswith("What This Book Is and What It Is Not"):
-        return "Introduction — What This Book Is and What It Is Not"
-    words = chunk.split()
-    return f"Section {fallback_index} — {' '.join(words[:8])}".strip()
+    from .runtime_knowledge import chapter_title_from_chunk as _impl
+    return _impl(chunk, fallback_index)
 
 
 def section_title_from_keywords(text: str, fallback_index: int) -> str:
-    keywords = topic_keywords(text, limit=4)
-    if keywords:
-        return f"Section {fallback_index} — {' / '.join(keywords)}"
-    words = text.split()
-    return f"Section {fallback_index} — {' '.join(words[:8])}".strip()
+    from .runtime_knowledge import section_title_from_keywords as _impl
+    return _impl(text, fallback_index)
 
 
 def split_knowledge_sections(text: str) -> list[dict[str, Any]]:
-    cleaned = normalize_knowledge_text(text)
-    if not cleaned:
-        return []
-    main_text = detect_main_content_start(cleaned)
-    parts = re.split(r"(?=Chapter\s+\d+\s)", main_text)
-    sections: list[dict[str, Any]] = []
-    preface = parts[0].strip() if parts else ""
-    section_index = 1
-    if preface and len(preface) > 400:
-        title = chapter_title_from_chunk(preface, section_index)
-        sections.append({"title": title, "slug": slugify(title)[:80], "text": preface})
-        section_index += 1
-    for chunk in parts[1:] if len(parts) > 1 else ([] if preface else parts):
-        chunk = chunk.strip()
-        if len(chunk) < 300:
-            continue
-        title = chapter_title_from_chunk(chunk, section_index)
-        sections.append({"title": title, "slug": slugify(title)[:80], "text": chunk})
-        section_index += 1
-    chapter_numbers = []
-    for section in sections:
-        match = re.match(r"^Chapter\s+(\d+)", section["title"])
-        if match:
-            chapter_numbers.append(int(match.group(1)))
-    chapter_split_is_valid = len(chapter_numbers) >= 5 and chapter_numbers[:3] == [1, 2, 3]
-    if not sections or not chapter_split_is_valid:
-        sections = []
-        section_index = 1
-        paragraphs = [paragraph.strip() for paragraph in main_text.split("\n\n") if paragraph.strip()]
-        buffer: list[str] = []
-        target_size = 4500
-        for paragraph in paragraphs:
-            buffer.append(paragraph)
-            if len(" ".join(buffer)) >= target_size:
-                text_chunk = "\n\n".join(buffer)
-                title = section_title_from_keywords(text_chunk, section_index)
-                sections.append({"title": title, "slug": slugify(title)[:80], "text": text_chunk})
-                section_index += 1
-                buffer = []
-        if buffer:
-            text_chunk = "\n\n".join(buffer)
-            title = section_title_from_keywords(text_chunk, section_index)
-            sections.append({"title": title, "slug": slugify(title)[:80], "text": text_chunk})
-    return sections[:18]
+    from .runtime_knowledge import split_knowledge_sections as _impl
+    return _impl(text)
 
 
 def topic_keywords(text: str, *, limit: int = 12) -> list[str]:
-    text = normalize_knowledge_text(text)
-    words = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{3,}", text.lower())
-    stop = {"this", "that", "with", "from", "have", "into", "your", "about", "para", "cuando", "where", "which", "using", "there", "their", "will", "should", "after", "page", "pages", "chapter", "copyright", "published"}
-    counts: dict[str, int] = defaultdict(int)
-    for word in words:
-        if word in stop:
-            continue
-        counts[word] += 1
-    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    return [word for word, _ in ranked[:limit]]
+    from .runtime_knowledge import topic_keywords as _impl
+    return _impl(text, limit=limit)
 
 
 def stable_source_name(source_path: Path, source_kind: str, source_key: str, previous: dict[str, Any] | None = None) -> str:
@@ -2657,223 +2344,48 @@ def process_knowledge_source(
     label: str | None = None,
     previous: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    text = extract_text_for_knowledge(source_path)
-    cleaned_text = normalize_knowledge_text(text)
-    source_name = stable_source_name(source_path, source_kind, source_key, previous)
-    if source_kind == "inbox":
-        copied_source = root / "sources" / source_path.name
-        copied_source.write_bytes(source_path.read_bytes())
-    status = "processed" if cleaned_text else "unsupported"
-    sections = split_knowledge_sections(cleaned_text) if cleaned_text else []
-    excerpt = truncate_words(cleaned_text, 120) if cleaned_text else f"Unsupported source type: {source_path.suffix or 'unknown'}"
-    summary_text = summarize_knowledge_text(cleaned_text) if cleaned_text else "No extractable text was generated for this source."
-    note_path = root / "notes" / f"{source_name}.md"
-    summary_path = root / "summaries" / f"{source_name}.md"
-    manifest_path = root / "manifests" / f"{source_name}.json"
-    processed_path = root / "processed" / f"{source_name}.txt"
-    write_text(note_path, f"# {title}\n\n{excerpt}\n")
-    write_text(summary_path, f"# {title} summary\n\n- {summary_text}\n")
-    write_text(processed_path, cleaned_text + ("\n" if cleaned_text else ""))
-    keywords = topic_keywords(cleaned_text)
-    note_files = [relative_posix(note_path, root)]
-    summary_files = [relative_posix(summary_path, root)]
-    section_entries: list[dict[str, Any]] = []
-    for section in sections:
-        section_note_path = root / "notes" / f"{source_name}__{section['slug']}.md"
-        section_summary_path = root / "summaries" / f"{source_name}__{section['slug']}.md"
-        section_excerpt = truncate_words(section["text"], 160)
-        section_summary = summarize_knowledge_text(section["text"])
-        write_text(section_note_path, f"# {section['title']}\n\n{section_excerpt}\n")
-        write_text(section_summary_path, f"# {section['title']} summary\n\n- {section_summary}\n")
-        section_keywords = topic_keywords(section["text"], limit=10)
-        section_entries.append(
-            {
-                "title": section["title"],
-                "slug": section["slug"],
-                "note_path": relative_posix(section_note_path, root),
-                "summary_path": relative_posix(section_summary_path, root),
-                "keywords": section_keywords,
-            }
-        )
-        note_files.append(relative_posix(section_note_path, root))
-        summary_files.append(relative_posix(section_summary_path, root))
-    write_json(
-        manifest_path,
-        {
-            "source": source_key,
-            "source_kind": source_kind,
-            "title": title,
-            "label": label,
-            "status": status,
-            "processed_path": relative_posix(processed_path, root),
-            "note_path": relative_posix(note_path, root),
-            "summary_path": relative_posix(summary_path, root),
-            "keywords": keywords,
-            "sections": section_entries,
-            "updated_at": now_iso(),
-        },
-    )
-    return {
-        "status": status,
-        "processed_at": now_iso(),
-        "source_name": source_name,
-        "title": title,
-        "label": label,
-        "keywords": keywords,
-        "sections": section_entries,
-        "note_files": note_files,
-        "summary_files": summary_files,
-        "index_files": [],
-        "processed_path": relative_posix(processed_path, root),
-        "manifest_path": relative_posix(manifest_path, root),
-    }
+    from .runtime_knowledge import process_knowledge_source as _impl
+    return _impl(root, source_path=source_path, source_kind=source_kind, source_key=source_key, title=title, label=label, previous=previous)
 
 
 def canonicalize_url(raw_url: str) -> str:
-    parsed = urllib_parse.urlsplit(raw_url.strip())
-    scheme = (parsed.scheme or "https").lower()
-    host = (parsed.hostname or "").lower()
-    port = parsed.port
-    netloc = host
-    if port and not ((scheme == "http" and port == 80) or (scheme == "https" and port == 443)):
-        netloc = f"{host}:{port}"
-    path = parsed.path or "/"
-    if path != "/" and path.endswith("/"):
-        path = path.rstrip("/")
-    query_pairs = urllib_parse.parse_qsl(parsed.query, keep_blank_values=True)
-    kept_query = [(key, value) for key, value in query_pairs if key.lower() not in {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"}]
-    query = urllib_parse.urlencode(kept_query, doseq=True)
-    return urllib_parse.urlunsplit((scheme, netloc, path, query, ""))
+    from .runtime_knowledge import canonicalize_url as _impl
+    return _impl(raw_url)
 
 
 def build_source_id(url: str, existing_sources: list[dict[str, Any]]) -> str:
-    parsed = urllib_parse.urlsplit(url)
-    base = slugify("_".join(part for part in [parsed.hostname or "", parsed.path.strip("/").replace("/", "_")] if part))
-    base = base[:80] or "remote_source"
-    existing_ids = {row.get("id") for row in existing_sources}
-    if base not in existing_ids:
-        return base
-    suffix = hashlib.md5(url.encode("utf-8")).hexdigest()[:8]
-    return f"{base[:71]}_{suffix}"
+    from .runtime_knowledge import build_source_id as _impl
+    return _impl(url, existing_sources)
 
 
 def detect_remote_type(url: str, declared_type: str, content_type_header: str, raw_bytes: bytes) -> str:
-    if declared_type != "auto":
-        return declared_type
-    header = (content_type_header or "").lower()
-    if "pdf" in header or raw_bytes.startswith(b"%PDF-"):
-        return "pdf"
-    if "html" in header:
-        return "html"
-    if "markdown" in header:
-        return "md"
-    if header.startswith("text/plain"):
-        return "txt"
-    suffix = Path(urllib_parse.urlsplit(url).path).suffix.lower()
-    if suffix in {".html", ".htm"}:
-        return "html"
-    if suffix == ".pdf":
-        return "pdf"
-    if suffix in {".md", ".markdown"}:
-        return "md"
-    if suffix == ".txt":
-        return "txt"
-    sample = raw_bytes[:2048].decode("utf-8", errors="ignore").lower()
-    if "<html" in sample or "<body" in sample:
-        return "html"
-    return "txt"
+    from .runtime_knowledge import detect_remote_type as _impl
+    return _impl(url, declared_type, content_type_header, raw_bytes)
 
 
 def title_from_text(text: str, fallback: str) -> str:
-    for line in text.splitlines():
-        candidate = line.strip().lstrip("#").strip()
-        if len(candidate) >= 4:
-            return candidate[:160]
-    return fallback
+    from .runtime_knowledge import title_from_text as _impl
+    return _impl(text, fallback)
 
 
 def extract_remote_payload(raw_path: Path, detected_type: str) -> tuple[str, str, list[str]]:
-    notes: list[str] = []
-    if detected_type == "html":
-        html_text = raw_path.read_text(encoding="utf-8", errors="ignore")
-        extracted, title = extract_text_from_html(html_text)
-        if title:
-            notes.append("Preserved HTML title")
-        notes.append("Removed obvious HTML boilerplate")
-        return extracted, title, notes
-    if detected_type == "pdf":
-        extracted = extract_text_for_knowledge(raw_path)
-        notes.append("Used PDF text extraction")
-        return extracted, "", notes
-    extracted = raw_path.read_text(encoding="utf-8", errors="ignore")
-    notes.append("Preserved text content with normalized UTF-8 decoding")
-    return extracted, "", notes
+    from .runtime_knowledge import extract_remote_payload as _impl
+    return _impl(raw_path, detected_type)
 
 
 def remote_frontmatter(tags: list[str]) -> str:
-    if not tags:
-        return "tags: []"
-    lines = ["tags:"]
-    lines.extend(f"  - {tag}" for tag in tags)
-    return "\n".join(lines)
+    from .runtime_knowledge import remote_frontmatter as _impl
+    return _impl(tags)
 
 
 def parse_http_headers(raw_headers: str) -> tuple[int, dict[str, str]]:
-    normalized = raw_headers.replace("\r\n", "\n")
-    blocks = [block.strip() for block in re.split(r"\n\s*\n", normalized) if block.strip()]
-    if not blocks:
-        return 0, {}
-    final_block = blocks[-1]
-    lines = [line.strip() for line in final_block.splitlines() if line.strip()]
-    status_line = lines[0] if lines else ""
-    match = re.match(r"HTTP/\S+\s+(\d+)", status_line)
-    status_code = int(match.group(1)) if match else 0
-    headers: dict[str, str] = {}
-    for line in lines[1:]:
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        headers[key.strip()] = value.strip()
-    return status_code, headers
+    from .runtime_knowledge import parse_http_headers as _impl
+    return _impl(raw_headers)
 
 
 def fetch_remote_payload_bytes(url: str) -> tuple[bytes, int, dict[str, str]]:
-    request = urllib_request.Request(
-        url,
-        headers={"User-Agent": "ai-context-engine/16 (+local knowledge ingestion)"},
-    )
-    try:
-        with urllib_request.urlopen(request, timeout=20) as response:
-            raw_bytes = response.read()
-            status_code = getattr(response, "status", response.getcode())
-            headers = {key: value for key, value in response.headers.items()}
-        return raw_bytes, int(status_code), headers
-    except urllib_error.URLError as exc:
-        if not shutil.which("curl"):
-            raise
-        with tempfile.TemporaryDirectory(prefix="ai_context_engine_fetch_") as temp_dir:
-            headers_path = Path(temp_dir) / "headers.txt"
-            body_path = Path(temp_dir) / "body.bin"
-            result = subprocess.run(
-                [
-                    "curl",
-                    "-L",
-                    "-sS",
-                    "--fail",
-                    "-D",
-                    headers_path.as_posix(),
-                    "-o",
-                    body_path.as_posix(),
-                    url,
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise exc
-            raw_bytes = body_path.read_bytes()
-            status_code, headers = parse_http_headers(headers_path.read_text(encoding="utf-8", errors="ignore"))
-            return raw_bytes, status_code or 200, headers
+    from .runtime_knowledge import fetch_remote_payload_bytes as _impl
+    return _impl(url)
 
 
 def register_remote_source(mod_id: str, url: str, declared_type: str = "auto", tags: list[str] | None = None) -> dict[str, Any]:
@@ -2892,29 +2404,8 @@ def process_mod_documents(mod_id: str) -> dict[str, Any]:
 
 
 def infer_candidate_mods(task: str) -> list[str]:
-    registry = library_registry().get("mods", {})
-    haystack = task.lower()
-    matches = []
-    for mod_id, info in registry.items():
-        aliases = [mod_id, *info.get("aliases", [])]
-        if any(alias and alias in haystack for alias in aliases):
-            matches.append(mod_id)
-    if matches:
-        return sorted(set(matches))
-    for hint, mod_id in {
-        "ux": "ux",
-        "ui": "ux",
-        "design": "ux",
-        "accessibility": "accessibility",
-        "a11y": "accessibility",
-        "architecture": "architecture",
-        "api": "api",
-        "testing": "testing",
-    }.items():
-        if hint in haystack:
-            bootstrap_mod(mod_id)
-            matches.append(mod_id)
-    return sorted(set(matches))
+    from .runtime_knowledge import infer_candidate_mods as _impl
+    return _impl(task)
 
 
 def retrieve_knowledge(task: str) -> dict[str, Any]:

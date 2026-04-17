@@ -790,3 +790,60 @@ def test_runtime_knowledge_module_bootstrap_mod(tmp_path: Path, monkeypatch):
     manifest = runtime_knowledge.bootstrap_mod("ux", create_reference_stub=True)
     assert manifest["id"] == "ux"
     assert (tmp_path / ".ai_context_engine" / "library" / "mods" / "ux" / "inbox" / "references.md").exists()
+
+
+def test_python_module_entrypoint_smoke(tmp_path: Path):
+    repo = tmp_path / "repo"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+
+    init_proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "aictx",
+            "init",
+            "--repo",
+            str(repo),
+            "--yes",
+            "--no-register",
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    assert init_proc.returncode == 0, init_proc.stderr
+
+    boot_proc = subprocess.run(
+        [sys.executable, "-m", "aictx", "boot", "--repo", str(repo)],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    assert boot_proc.returncode == 0, boot_proc.stderr
+    payload = json.loads(boot_proc.stdout)
+    assert payload["repo_bootstrap"]["status"] == "initialized"
+
+
+def test_global_health_check_marks_not_initialized_repo_as_warning(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "plain"
+    repo.mkdir()
+
+    monkeypatch.setattr("aictx.global_metrics.PROJECTS_INDEX_PATH", tmp_path / "projects_index.json")
+    monkeypatch.setattr("aictx.global_metrics.CONTEXT_SAVINGS_PATH", tmp_path / "context.json")
+    monkeypatch.setattr("aictx.global_metrics.TELEMETRY_SOURCES_PATH", tmp_path / "telemetry_sources.json")
+    monkeypatch.setattr("aictx.global_metrics.HEALTH_REPORT_PATH", tmp_path / "health.json")
+
+    (tmp_path / "projects_index.json").write_text(json.dumps({"projects": [{"name": repo.name, "repo_path": str(repo), "installed_iteration": "unknown", "telemetry_dir": "unknown"}]}), encoding="utf-8")
+    (tmp_path / "context.json").write_text(json.dumps({"project_breakdown": [{"name": repo.name}], "projects_with_telemetry": 0, "projects_with_memory": 0}), encoding="utf-8")
+    (tmp_path / "telemetry_sources.json").write_text(json.dumps({"sources": [{"project": repo.name}]}), encoding="utf-8")
+
+    import aictx.global_metrics as global_metrics
+
+    health = global_metrics.run_health_check()
+    project_check = next(item for item in health["checks"] if item["scope"] == repo.name and item["check"] == "project_health")
+    assert project_check["status"] == "warning"
+    assert project_check["consistency"]["status"] == "not_initialized"
+    assert any(issue["check"] == "runtime_consistency" for issue in project_check["issues"])

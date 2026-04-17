@@ -628,8 +628,11 @@ def run_health_check() -> dict[str, Any]:
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Claude native project hooks .claude/settings.json"))
         if consistency.get("status") == "warning":
             repo_issues.append(issue("warning", row["name"], "runtime_consistency", "Repo runtime state disagrees with effective communication policy"))
-        elif consistency.get("status") == "not_initialized" and row.get("installed_iteration") not in {"unknown", "1"}:
-            repo_issues.append(issue("warning", row["name"], "runtime_consistency", "Repo runtime consistency could not be verified because initialization is incomplete"))
+        elif consistency.get("status") == "not_initialized":
+            message = "Repo runtime consistency could not be verified because initialization is incomplete"
+            if row.get("installed_iteration") in {"unknown", "1"}:
+                message = "Repo runtime consistency is not initialized yet"
+            repo_issues.append(issue("warning", row["name"], "runtime_consistency", message))
         if not agents.exists():
             repo_issues.append(issue("warning", row["name"], "bootstrap", "Missing AGENTS.md instructions"))
         if row.get("telemetry_dir") != "unknown" and not weekly.exists():

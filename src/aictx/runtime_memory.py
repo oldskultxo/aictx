@@ -243,7 +243,7 @@ def rebuild_memory_store() -> dict[str, Any]:
     )
     cr.write_json(cr.MIGRATION_IMPORT_MAP_PATH, {'version': 1, 'imports': import_map})
     cr.write_migration_report(import_map)
-    cr.append_if_missing(
+    append_if_missing(
         cr.LOGS_MAINTENANCE_PATH,
         f"- {date.today().isoformat()} | rebuilt store/indexes/boot artifacts from current ai_context_engine notes and preferences.\n",
     )
