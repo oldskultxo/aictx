@@ -25,3 +25,4 @@ delta/last_packets/
 compaction_report.json
 README.es.md
 .tmp/
+/.vscode

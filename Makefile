@@ -4,13 +4,14 @@ VENV_PYTHON := $(VENV)/bin/python
 VENV_PIP := $(VENV_PYTHON) -m pip
 AICTX_MODULE := $(VENV_PYTHON) -m aictx
 VENV_READY := $(VENV)/.aictx-ready
+INSTALL_INPUTS := pyproject.toml Makefile $(shell find src -type f | sort)
 
 .PHONY: venv test smoke package-check ci clean-smoke
 
 $(VENV_PYTHON):
 	@if [ ! -x "$(VENV_PYTHON)" ]; then $(PYTHON) -m venv $(VENV); fi
 
-$(VENV_READY): $(VENV_PYTHON) pyproject.toml
+$(VENV_READY): $(VENV_PYTHON) $(INSTALL_INPUTS)
 	$(VENV_PIP) install --upgrade pip
 	$(VENV_PIP) install --ignore-installed -e . pytest build
 	@touch $(VENV_READY)

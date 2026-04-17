@@ -453,14 +453,13 @@ def ensure_remote_manifest(root: Path) -> None:
 
 
 def should_process_inbox_file(path: Path) -> bool:
-    return path.is_file() and path.name != "references.md" and path.suffix.lower() in SUPPORTED_INBOX_EXTENSIONS
+    from .runtime_knowledge import should_process_inbox_file as _impl
+    return _impl(path)
 
 
 def resolve_reference_path(raw_path: str) -> Path:
-    candidate = Path(raw_path)
-    if candidate.is_absolute():
-        return candidate.resolve()
-    return (BASE / raw_path).resolve()
+    from .runtime_knowledge import resolve_reference_path as _impl
+    return _impl(raw_path)
 
 
 def parse_references_file(path: Path) -> list[dict[str, Any]]:
@@ -469,25 +468,18 @@ def parse_references_file(path: Path) -> list[dict[str, Any]]:
 
 
 def sanitize_source_name(value: str, fallback: str = "source") -> str:
-    cleaned = slugify(Path(value).stem if value else fallback)
-    return cleaned[:80] or fallback
+    from .runtime_knowledge import sanitize_source_name as _impl
+    return _impl(value, fallback=fallback)
 
 
 def delete_artifact_paths(root: Path, paths: list[str]) -> None:
-    for raw_path in paths:
-        if not raw_path:
-            continue
-        candidate = Path(raw_path)
-        if not candidate.is_absolute():
-            candidate = root / raw_path
-        if candidate.exists() and candidate.is_file():
-            candidate.unlink()
+    from .runtime_knowledge import delete_artifact_paths as _impl
+    return _impl(root, paths)
 
 
 def invalidate_source_artifacts(root: Path, previous: dict[str, Any]) -> None:
-    delete_artifact_paths(root, list(previous.get("note_files", [])))
-    delete_artifact_paths(root, list(previous.get("summary_files", [])))
-    delete_artifact_paths(root, [previous.get("processed_path", ""), previous.get("manifest_path", "")])
+    from .runtime_knowledge import invalidate_source_artifacts as _impl
+    return _impl(root, previous)
 
 
 def rebuild_mod_indices(root: Path, state: dict[str, Any]) -> dict[str, list[str]]:
@@ -496,20 +488,18 @@ def rebuild_mod_indices(root: Path, state: dict[str, Any]) -> dict[str, list[str
 
 
 def remote_manifest_path(root: Path) -> Path:
-    return root / "remote_sources" / "manifest.json"
+    from .runtime_knowledge import remote_manifest_path as _impl
+    return _impl(root)
 
 
 def load_remote_sources_manifest(root: Path) -> dict[str, Any]:
-    ensure_remote_manifest(root)
-    manifest = read_json(remote_manifest_path(root), {"version": 1, "sources": []})
-    manifest.setdefault("version", 1)
-    manifest.setdefault("sources", [])
-    return manifest
+    from .runtime_knowledge import load_remote_sources_manifest as _impl
+    return _impl(root)
 
 
 def save_remote_sources_manifest(root: Path, manifest: dict[str, Any]) -> None:
-    manifest["version"] = 1
-    write_json(remote_manifest_path(root), manifest)
+    from .runtime_knowledge import save_remote_sources_manifest as _impl
+    return _impl(root, manifest)
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
@@ -2327,11 +2317,8 @@ def topic_keywords(text: str, *, limit: int = 12) -> list[str]:
 
 
 def stable_source_name(source_path: Path, source_kind: str, source_key: str, previous: dict[str, Any] | None = None) -> str:
-    existing = (previous or {}).get("source_name")
-    if existing:
-        return str(existing)
-    base = sanitize_source_name(source_path.stem if source_kind == "inbox" else f"{source_path.stem}_{hashlib.md5(source_key.encode('utf-8')).hexdigest()[:8]}")
-    return base
+    from .runtime_knowledge import stable_source_name as _impl
+    return _impl(source_path, source_kind, source_key, previous=previous)
 
 
 def process_knowledge_source(
