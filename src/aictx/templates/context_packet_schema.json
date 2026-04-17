@@ -27,11 +27,7 @@
     "relevant_patterns",
     "validation_recipes",
     "model_suggestion",
-    "packet_budget_status",
-    "task_memory_summary",
-    "failure_memory_summary",
     "relevant_failures",
-    "memory_graph_summary",
     "relevant_graph_context",
     "knowledge_artifacts"
   ]

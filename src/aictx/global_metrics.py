@@ -172,11 +172,11 @@ def infer_iteration(repo: Path) -> str:
         return "5" if (repo_cost_dir(repo) / "packet_budget_status.json").exists() else "4"
     has_memory = repo_memory_dir(repo).exists()
     has_metrics = repo_metrics_dir(repo).exists()
-    has_cost = (repo_memory_dir(repo) / "packet_budget_status.json").exists()
-    has_task_memory = (repo_memory_dir(repo) / "task_memory_summary.json").exists()
-    has_failure_memory = (repo_memory_dir(repo) / "failure_memory_summary.json").exists()
-    has_memory_graph = (repo_memory_dir(repo) / "memory_graph_summary.json").exists()
-    task_memory_summary = read_json(repo_memory_dir(repo) / "task_memory_summary.json", {}) if has_task_memory else {}
+    has_cost = (repo_cost_dir(repo) / "packet_budget_status.json").exists()
+    has_task_memory = (repo_task_memory_dir(repo) / "task_memory_status.json").exists()
+    has_failure_memory = (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists()
+    has_memory_graph = (repo_memory_graph_dir(repo) / "graph_status.json").exists()
+    task_memory_summary = read_json(repo_task_memory_dir(repo) / "task_memory_status.json", {}) if has_task_memory else {}
     agents_text = (repo / "AGENTS.md").read_text(encoding="utf-8", errors="ignore") if (repo / "AGENTS.md").exists() else ""
     if has_memory_graph:
         return "9"
@@ -236,10 +236,10 @@ def load_context_savings_markdown(repo: Path) -> dict[str, Any]:
 
 def load_project_telemetry(repo: Path) -> ProjectTelemetry:
     weekly = repo_metrics_dir(repo) / "weekly_summary.json"
-    cost_status_path = (repo_cost_dir(repo) / "packet_budget_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "packet_budget_status.json")
-    task_status_path = (repo_task_memory_dir(repo) / "task_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "task_memory_summary.json")
-    failure_status_path = (repo_failure_memory_dir(repo) / "failure_memory_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "failure_memory_summary.json")
-    memory_graph_status_path = (repo_memory_graph_dir(repo) / "graph_status.json") if repo.name == CANONICAL_SCOPE else (repo_memory_dir(repo) / "memory_graph_summary.json")
+    cost_status_path = repo_cost_dir(repo) / "packet_budget_status.json"
+    task_status_path = repo_task_memory_dir(repo) / "task_memory_status.json"
+    failure_status_path = repo_failure_memory_dir(repo) / "failure_memory_status.json"
+    memory_graph_status_path = repo_memory_graph_dir(repo) / "graph_status.json"
     library_registry_path = repo_library_dir(repo) / "registry.json"
     retrieval_status_path = repo_library_dir(repo) / "retrieval_status.json"
     cost_status = read_json(cost_status_path, {}) if cost_status_path.exists() else {}
@@ -601,14 +601,14 @@ def run_health_check() -> dict[str, Any]:
             derived = compat / "derived_boot_summary.json"
             if not derived.exists():
                 repo_issues.append(issue("needs_attention", row["name"], "bootstrap", "Missing .ai_context_engine/memory/derived_boot_summary.json"))
-            if row.get("installed_iteration") in OPTIMIZER_ITERATIONS and not (compat / "packet_budget_status.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "cost_optimizer", "Missing .ai_context_engine/memory/packet_budget_status.json"))
-            if row.get("installed_iteration") in TASK_MEMORY_ITERATIONS and not (compat / "task_memory_summary.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "task_memory", "Missing .ai_context_engine/memory/task_memory_summary.json"))
-            if row.get("installed_iteration") in FAILURE_MEMORY_ITERATIONS and not (compat / "failure_memory_summary.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing .ai_context_engine/memory/failure_memory_summary.json"))
-            if row.get("installed_iteration") in MEMORY_GRAPH_ITERATIONS and not (compat / "memory_graph_summary.json").exists():
-                repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing .ai_context_engine/memory/memory_graph_summary.json"))
+        if row.get("installed_iteration") in OPTIMIZER_ITERATIONS and not (repo_cost_dir(repo) / "packet_budget_status.json").exists():
+            repo_issues.append(issue("needs_attention", row["name"], "cost_optimizer", "Missing canonical .ai_context_engine/cost/packet_budget_status.json"))
+        if row.get("installed_iteration") in TASK_MEMORY_ITERATIONS and not (repo_task_memory_dir(repo) / "task_memory_status.json").exists():
+            repo_issues.append(issue("needs_attention", row["name"], "task_memory", "Missing canonical .ai_context_engine/task_memory/task_memory_status.json"))
+        if row.get("installed_iteration") in FAILURE_MEMORY_ITERATIONS and not (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists():
+            repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing canonical .ai_context_engine/failure_memory/failure_memory_status.json"))
+        if row.get("installed_iteration") in MEMORY_GRAPH_ITERATIONS and not (repo_memory_graph_dir(repo) / "graph_status.json").exists():
+            repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing canonical .ai_context_engine/memory_graph/graph_status.json"))
         consistency = runtime_consistency_report(repo)
         if not state_path.exists():
             repo_issues.append(issue("warning", row["name"], "runtime_state", "Missing .ai_context_engine/state.json"))

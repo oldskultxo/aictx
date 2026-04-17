@@ -8,6 +8,13 @@ from typing import Any
 from .runtime_io import days_since, slugify
 
 
+def apply_packet_compat_fields(packet: dict[str, Any]) -> dict[str, Any]:
+    compatible = dict(packet)
+    compatible['architecture_decisions'] = list(compatible.get('architecture_rules', []))
+    compatible['relevant_paths'] = list(compatible.get('repo_scope', []))
+    return compatible
+
+
 def route_task(task: str) -> dict[str, Any]:
     task_l = task.lower()
     files_hint = 1
@@ -81,6 +88,7 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
     from . import core_runtime as cr
     from .runtime_knowledge import retrieve_knowledge
     from .runtime_memory import load_records, normalize_record, rank_records, summarize_query
+    from .runtime_task_memory import category_summary_path
 
     cr.ensure_cost_artifacts()
     cr.ensure_task_memory_artifacts()
@@ -185,9 +193,7 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
         'user_preferences': prefs,
         'constraints': constraints,
         'architecture_rules': architecture,
-        'architecture_decisions': architecture,
         'relevant_memory': relevant_memory,
-        'relevant_paths': relevant_paths,
         'known_patterns': known_patterns,
         'relevant_patterns': patterns,
         'validation_recipes': validation,
@@ -200,7 +206,7 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
         'task_memory': {
             'resolved_task_type': resolved_task['task_type'], 'task_type_source': resolved_task['source'], 'task_type_confidence': resolved_task.get('confidence', 0.35), 'task_type_signals': resolved_task.get('signals', []),
             'task_specific_memory_used': bool(task_specific_matches), 'task_specific_records_retrieved': len(task_specific_matches[:5]), 'unknown_records_retrieved': len(fallback_task_matches[:5]), 'general_records_retrieved': len(general_matches[:5]), 'queried_categories': queried_task_categories,
-            'category_summary_paths': [(cr.TASK_MEMORY_DIR / category / 'summary.json').as_posix() for category in queried_task_categories if (cr.TASK_MEMORY_DIR / category / 'summary.json').exists()],
+            'category_summary_paths': [category_summary_path(category).as_posix() for category in queried_task_categories if category_summary_path(category).exists()],
             'fallback_to_general': resolved_task['task_type'] == 'unknown' or not task_specific_matches, 'task_memory_written': False, 'learning_channel': 'scripts/task_memory.py',
         },
         'failure_memory': {'failure_memory_used': bool(relevant_failures), 'records_retrieved': len(relevant_failures), 'index_path': cr.FAILURE_MEMORY_INDEX_PATH.as_posix(), 'summary_path': cr.FAILURE_MEMORY_SUMMARY_PATH.as_posix()},
@@ -216,7 +222,7 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
         },
     }
     optimized = cr.optimize_packet(packet)
-    final_packet = optimized['packet']
+    final_packet = apply_packet_compat_fields(optimized['packet'])
     packet_name = f"{date.today().isoformat()}_{slugify(task)[:60]}.json"
     packet_path = cr.LAST_PACKETS_DIR / packet_name
     cr.write_json(packet_path, final_packet)
@@ -226,10 +232,6 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
     cr.update_failure_memory_status(final_packet, packet_path)
     cr.update_memory_graph_status(final_packet, packet_path)
     weekly_summary = cr.record_granular_telemetry(final_packet, packet_path, optimized['report'])
-    cr.sync_repo_cost_status(project_name)
-    cr.sync_repo_task_memory_status(project_name)
-    cr.sync_repo_failure_memory_status(project_name)
-    cr.sync_repo_memory_graph_status(project_name)
     final_packet.setdefault('telemetry_granularity', {})
     final_packet['telemetry_granularity']['weekly_summary_path'] = cr.CONTEXT_WEEKLY_SUMMARY_PATH.as_posix()
     final_packet['telemetry_granularity']['phase_events_sampled'] = int(weekly_summary.get('phase_events_sampled', 0) or 0)

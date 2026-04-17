@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 from pathlib import Path
 
 from . import core_runtime, global_metrics
@@ -373,26 +372,6 @@ def cmd_workspace_list(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_extract_legacy(args: argparse.Namespace) -> int:
-    source = Path(args.source).expanduser().resolve()
-    copied: list[str] = []
-    mapping = {
-        source / "delta" / "task_packet_schema.json": TEMPLATES_DIR / "context_packet_schema.json",
-        source / "boot" / "user_defaults.json": TEMPLATES_DIR / "user_preferences.json",
-        source / "boot" / "model_routing.json": TEMPLATES_DIR / "model_routing.json",
-    }
-    for src, dest in mapping.items():
-        if src.exists():
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dest)
-            copied.append(f"{src} -> {dest}")
-    print("Copied:")
-    for row in copied:
-        print(f"- {row}")
-    if not copied:
-        print("- nothing copied")
-    return 0
-
 
 def cmd_global(args: argparse.Namespace) -> int:
     payload: dict[str, object] = {}
@@ -444,10 +423,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_root.set_defaults(func=cmd_workspace_add_root)
     list_cmd = workspace_sub.add_parser("list", help="List workspace roots and repos")
     list_cmd.set_defaults(func=cmd_workspace_list)
-
-    extract = sub.add_parser("extract-legacy", help=argparse.SUPPRESS)
-    extract.add_argument("--source", required=True, help="Path to an existing ai_context_engine repo")
-    extract.set_defaults(func=cmd_extract_legacy)
 
     boot = sub.add_parser("boot", help=argparse.SUPPRESS)
     boot.add_argument("--repo", default=".", help="Repository path for session boot context.")

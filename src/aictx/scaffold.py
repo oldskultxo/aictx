@@ -149,8 +149,6 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
                 "derived_boot_summary": "derived_boot_summary.json",
                 "user_preferences": "user_preferences.json",
                 "project_bootstrap": "project_bootstrap.json",
-                "context_packet_schema": "context_packet_schema.json",
-                "model_routing": "model_routing.json",
             },
         },
     )
@@ -166,15 +164,6 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         },
     )
     write_json(compat / "user_preferences.json", load_template_json("user_preferences.json"))
-    write_json(compat / "context_packet_schema.json", load_template_json("context_packet_schema.json"))
-    write_json(compat / "model_routing.json", load_template_json("model_routing.json"))
-    write_json(compat / "compaction_report.json", {"version": 1, "status": "not_initialized"})
-    write_json(compat / "packet_budget_status.json", {"version": 1, "status": "not_initialized"})
-    write_json(compat / "task_memory_summary.json", {"version": 1, "status": "not_initialized"})
-    write_json(compat / "failure_memory_summary.json", {"version": 1, "status": "not_initialized"})
-    write_json(compat / "memory_graph_summary.json", {"version": 1, "status": "not_initialized"})
-    for name in ["architecture_learnings.jsonl", "technical_patterns.jsonl", "workflow_learnings.jsonl"]:
-        (compat / name).write_text("", encoding="utf-8")
 
     write_json(repo / REPO_COST_DIR / "packet_budget_status.json", {"version": 1, "status": "not_initialized"})
     (repo / REPO_COST_DIR / "latest_optimization_report.md").write_text(

@@ -70,7 +70,7 @@ def normalize_record(record: dict[str, Any]) -> dict[str, Any]:
     normalized['times_used'] = int(record.get('times_used', 0))
     normalized['success_rate'] = float(record.get('success_rate', 0.75))
     normalized['context_cost'] = int(record.get('context_cost', max(1, min(12, len(str(record.get('summary', '')).split()) // 8 or 1))))
-    normalized['source_type'] = str(record.get('source_type', 'legacy'))
+    normalized['source_type'] = str(record.get('source_type', 'record'))
     normalized['staleness_score'] = float(record.get('staleness_score', 0.2))
     normalized['task_type'] = cr.normalize_task_type(record.get('task_type'))
     normalized['files_involved'] = list(record.get('files_involved', [record.get('path')] if record.get('path') else []))
@@ -236,13 +236,10 @@ def rebuild_memory_store() -> dict[str, Any]:
             ],
             'compatibility_fields': [
                 'project', 'architecture_decisions', 'relevant_paths', 'relevant_patterns', 'validation_recipes', 'model_suggestion',
-                'packet_budget_status', 'task_memory_summary', 'failure_memory_summary', 'relevant_failures', 'memory_graph_summary',
-                'relevant_graph_context', 'knowledge_artifacts',
+                'relevant_failures', 'relevant_graph_context', 'knowledge_artifacts',
             ],
         },
     )
-    cr.write_json(cr.MIGRATION_IMPORT_MAP_PATH, {'version': 1, 'imports': import_map})
-    cr.write_migration_report(import_map)
     append_if_missing(
         cr.LOGS_MAINTENANCE_PATH,
         f"- {date.today().isoformat()} | rebuilt store/indexes/boot artifacts from current ai_context_engine notes and preferences.\n",

@@ -19,6 +19,7 @@ import aictx.runtime_knowledge as runtime_knowledge
 import aictx.runtime_cost as runtime_cost
 import aictx.runtime_failure as runtime_failure
 import aictx.runtime_graph as runtime_graph
+import aictx.runtime_task_memory as runtime_task_memory
 from aictx.agent_runtime import (
     AGENTS_END,
     AGENTS_START,
@@ -136,6 +137,20 @@ def test_init_repo_scaffold_installs_repo_adapters(tmp_path: Path):
     assert registry["middleware_mode"] == "always_on"
     assert codex["explicit_skill_metadata"] is True
     assert claude["middleware_always_on"] is True
+
+
+def test_init_repo_scaffold_keeps_compat_memory_minimal(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    compat = repo / ".ai_context_engine" / "memory"
+    assert (compat / "derived_boot_summary.json").exists()
+    assert (compat / "user_preferences.json").exists()
+    assert (compat / "project_bootstrap.json").exists()
+    assert not (compat / "packet_budget_status.json").exists()
+    assert not (compat / "task_memory_summary.json").exists()
+    assert not (compat / "failure_memory_summary.json").exists()
+    assert not (compat / "memory_graph_summary.json").exists()
 
 
 def test_prepare_execution_plain_mode_without_skill_metadata(tmp_path: Path):
@@ -783,7 +798,27 @@ def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
 
     packet = runtime_tasks.packet_for_task("debug failing integration")
     assert packet["task_summary"] == "debug failing integration"
+    assert packet["repo_scope"] == packet["relevant_paths"]
+    assert packet["architecture_rules"] == packet["architecture_decisions"]
     assert "communication_policy" not in packet
+
+
+def test_task_memory_writes_only_canonical_buckets(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_runtime, "BASE", tmp_path)
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".ai_context_engine" / "task_memory")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_STATUS_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_memory_status.json")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_TAXONOMY_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_taxonomy.json")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_RULES_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_resolution_rules.md")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_HISTORY_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_memory_history.jsonl")
+
+    runtime_task_memory.build_task_memory_artifacts([
+        {"id": "r1", "type": "task_pattern", "task_type": "testing", "title": "Run tests", "summary": "Use pytest", "project": "aictx"}
+    ])
+    assert (tmp_path / ".ai_context_engine" / "task_memory" / "testing" / "summary.json").exists()
+    assert not (tmp_path / ".ai_context_engine" / "task_memory" / "tests" / "summary.json").exists()
+    assert not (tmp_path / ".ai_context_engine" / "task_memory" / "general" / "summary.json").exists()
+    assert runtime_task_memory.category_summary_path("tests").name == "summary.json"
 
 
 def test_runtime_knowledge_module_bootstrap_mod(tmp_path: Path, monkeypatch):

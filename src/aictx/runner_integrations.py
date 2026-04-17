@@ -206,7 +206,7 @@ if not prompt:
 
 packet = run_json(["aictx", "packet", "--task", prompt])
 relevant_memory = packet.get("relevant_memory", [])[:3]
-relevant_paths = packet.get("relevant_paths", [])[:5]
+relevant_paths = packet.get("repo_scope", packet.get("relevant_paths", []))[:5]
 summary = [
     "AICTX packet prepared automatically for this prompt.",
     f"Resolved task type: {packet.get('task_type', 'unknown')}",

@@ -274,14 +274,9 @@ def repo_root_for_project(project: str) -> Path | None:
 
 
 def ensure_repo_compat_readme(compat_dir: Path) -> None:
-    readme = compat_dir / "README.md"
-    readme.write_text(
-        "# .ai_context_engine/memory\n\n"
-        "Repo-local bootstrap layer for AI agent sessions in this repository.\n\n"
-        "- Canonical source: `.ai_context_engine/`\n"
-        "- Purpose: fast local bootstrap and predictable artifact paths (`derived_boot_summary.json`, `user_preferences.json`, `project_bootstrap.json`).\n"
-        "- Do not hand-edit generated JSON/JSONL here; rebuild from the runtime instead.\n"
-    )
+    from .runtime_compat import ensure_repo_compat_readme as _impl
+    return _impl(compat_dir)
+
 
 
 def slugify(text: str) -> str:
@@ -886,32 +881,9 @@ def write_indexes(rows: list[dict[str, Any]]) -> None:
 
 
 def write_migration_report(import_map: list[dict[str, str]]) -> None:
-    legacy_memory_paths = find_legacy_memory_dirs()
-    lines = [
-        "# legacy memory migration report",
-        "",
-        f"- Date: {date.today().isoformat()}",
-        f"- Legacy memory dirs detected: {'yes' if legacy_memory_paths else 'no'}",
-        "- Migration target: existing `ai_context_engine` upgraded in place to structured boot/store/indexes/delta layout.",
-        f"- Notes imported from legacy markdown store: {len(import_map)}",
-        "",
-        "## Result",
-        "",
-    ]
-    if legacy_memory_paths:
-        lines.append("- A legacy memory directory exists and still needs explicit import handling.")
-    else:
-        lines.append("- No legacy memory directory was found under `/Users/santisantamaria/Documents/projects`.")
-        lines.append("- The new schema therefore migrated from the pre-existing `ai_context_engine` note system.")
-    lines.extend(
-        [
-            "",
-            "## Imported notes",
-            "",
-        ]
-    )
-    lines.extend(f"- `{item['source']}` -> `{item['target_record_id']}`" for item in import_map)
-    MIGRATION_REPORT_PATH.write_text("\n".join(lines) + "\n")
+    from .runtime_compat import write_migration_report as _impl
+    return _impl(import_map)
+
 
 
 def sync_repo_compat_layers(
@@ -923,162 +895,39 @@ def sync_repo_compat_layers(
     boot_summary_payload: dict[str, Any],
     model_routing: dict[str, Any],
 ) -> list[str]:
-    synced = []
-    project_map = project_registry.get("projects", {})
-    adapter_contract = default_adapter_contract()
-    for project, rows in project_rows.items():
-        repo_root = repo_root_for_project(project)
-        if not repo_root:
-            continue
-        compat_dir = repo_root / REPO_COMPAT_DIRNAME
-        compat_dir.mkdir(parents=True, exist_ok=True)
-        ensure_repo_compat_readme(compat_dir)
+    from .runtime_compat import sync_repo_compat_layers as _impl
+    return _impl(project_rows=project_rows, global_rows=global_rows, defaults_payload=defaults_payload, project_registry=project_registry, boot_summary_payload=boot_summary_payload, model_routing=model_routing)
 
-        project_info = project_map.get(project, {})
-        project_bootstrap = {
-            "version": 1,
-            "generated_at": date.today().isoformat(),
-            "project": project,
-            "repo_root": repo_root.as_posix(),
-            "engine_name": "ai_context_engine",
-            **adapter_contract,
-            "summary": project_info.get("summary", ""),
-            "lookup_order": project_registry.get("lookup_order", []),
-            "subprojects": project_info.get("subprojects", {}),
-            "canonical_memory_root": BASE.as_posix(),
-            "external_index": ROOT_INDEX_PATH.as_posix(),
-            "external_preferences": ROOT_PREFS_PATH.as_posix(),
-        }
-        derived_boot_summary = {
-            "version": 1,
-            "generated_at": date.today().isoformat(),
-            "project": project,
-            "repo_root": repo_root.as_posix(),
-            "engine_name": boot_summary_payload.get("engine_name", "ai_context_engine"),
-            "agent_adapter": boot_summary_payload.get("agent_adapter", DEFAULT_AGENT_ADAPTER),
-            "adapter_id": boot_summary_payload.get("adapter_id", DEFAULT_ADAPTER_ID),
-            "adapter_family": boot_summary_payload.get("adapter_family", DEFAULT_ADAPTER_FAMILY),
-            "provider_capabilities": boot_summary_payload.get("provider_capabilities", list(DEFAULT_PROVIDER_CAPABILITIES)),
-            "canonical_memory_root": BASE.as_posix(),
-            "bootstrap_required": True,
-            "bootstrap_sequence": [
-                f"load {REPO_COMPAT_DIRNAME}/derived_boot_summary.json",
-                f"load {REPO_COMPAT_DIRNAME}/user_preferences.json",
-                f"load {REPO_COMPAT_DIRNAME}/project_bootstrap.json",
-                "load smallest relevant project note from canonical ai_context_engine",
-                "apply preferences as runtime defaults",
-            ],
-            "fallback_order": [
-                REPO_COMPAT_DIRNAME,
-                "ai_context_engine",
-                "normal_repo_analysis",
-            ],
-            "preference_precedence": boot_summary_payload.get("preference_precedence", []),
-            "default_behavior": boot_summary_payload.get("default_behavior", {}),
-            "preferred_output_patterns": boot_summary_payload.get("preferred_output_patterns", []),
-            "communication_policy": boot_summary_payload.get("communication_policy", {}),
-            "communication_contract": boot_summary_payload.get("communication_contract", {}),
-            "model_routing_profile": model_routing.get("profile", "default"),
-            "active_subprojects": sorted(project_info.get("subprojects", {}).keys()),
-        }
-        manifest = {
-            "version": 1,
-            "generated_at": date.today().isoformat(),
-            "canonical_memory_root": BASE.as_posix(),
-            "project": project,
-            "artifacts": {
-                "derived_boot_summary": "derived_boot_summary.json",
-                "user_preferences": "user_preferences.json",
-                "project_bootstrap": "project_bootstrap.json",
-                "context_packet_schema": "context_packet_schema.json",
-                "compaction_report": "compaction_report.json",
-                "packet_budget_status": "packet_budget_status.json",
-                "task_memory_summary": "task_memory_summary.json",
-                "failure_memory_summary": "failure_memory_summary.json",
-                "memory_graph_summary": "memory_graph_summary.json",
-                "architecture_learnings": "architecture_learnings.jsonl",
-                "technical_patterns": "technical_patterns.jsonl",
-                "workflow_learnings": "workflow_learnings.jsonl",
-            },
-        }
-
-        combined_rows = list(global_rows) + list(rows)
-        architecture_rows = [row for row in combined_rows if row.get("type") in COMPAT_ARCHITECTURE_TYPES]
-        workflow_rows = [row for row in combined_rows if row.get("type") in COMPAT_WORKFLOW_TYPES]
-        technical_rows = [row for row in combined_rows if row.get("type") in COMPAT_TECHNICAL_TYPES]
-
-        write_json(compat_dir / "manifest.json", manifest)
-        write_json(compat_dir / "derived_boot_summary.json", derived_boot_summary)
-        write_json(compat_dir / "project_bootstrap.json", project_bootstrap)
-        write_json(compat_dir / "context_packet_schema.json", read_json(DELTA_SCHEMA_PATH, {}))
-        write_json(compat_dir / "compaction_report.json", read_json(ROOT_COMPACTION_REPORT_PATH, {}))
-        write_json(compat_dir / "packet_budget_status.json", read_json(COST_STATUS_PATH, {}))
-        write_json(compat_dir / "task_memory_summary.json", read_json(TASK_MEMORY_STATUS_PATH, {}))
-        write_json(compat_dir / "failure_memory_summary.json", read_json(FAILURE_MEMORY_STATUS_PATH, {}))
-        write_json(compat_dir / "memory_graph_summary.json", read_json(MEMORY_GRAPH_STATUS_PATH, {}))
-        write_json(compat_dir / "user_preferences.json", defaults_payload)
-        write_jsonl(compat_dir / "architecture_learnings.jsonl", architecture_rows)
-        write_jsonl(compat_dir / "technical_patterns.jsonl", technical_rows)
-        write_jsonl(compat_dir / "workflow_learnings.jsonl", workflow_rows)
-        synced.append(repo_root.as_posix())
-    return synced
 
 
 def sync_repo_cost_status(project: str | None) -> None:
-    if not project:
-        return
-    repo_root = repo_root_for_project(project)
-    if not repo_root:
-        return
-    compat_dir = repo_root / REPO_COMPAT_DIRNAME
-    compat_dir.mkdir(parents=True, exist_ok=True)
-    ensure_repo_compat_readme(compat_dir)
-    write_json(compat_dir / "packet_budget_status.json", read_json(COST_STATUS_PATH, {}))
+    from .runtime_compat import sync_repo_cost_status as _impl
+    return _impl(project)
+
 
 
 def sync_repo_task_memory_status(project: str | None) -> None:
-    if not project:
-        return
-    repo_root = repo_root_for_project(project)
-    if not repo_root:
-        return
-    compat_dir = repo_root / REPO_COMPAT_DIRNAME
-    compat_dir.mkdir(parents=True, exist_ok=True)
-    ensure_repo_compat_readme(compat_dir)
-    write_json(compat_dir / "task_memory_summary.json", read_json(TASK_MEMORY_STATUS_PATH, {}))
+    from .runtime_compat import sync_repo_task_memory_status as _impl
+    return _impl(project)
+
 
 
 def sync_repo_failure_memory_status(project: str | None) -> None:
-    if not project:
-        return
-    repo_root = repo_root_for_project(project)
-    if not repo_root:
-        return
-    compat_dir = repo_root / REPO_COMPAT_DIRNAME
-    compat_dir.mkdir(parents=True, exist_ok=True)
-    ensure_repo_compat_readme(compat_dir)
-    write_json(compat_dir / "failure_memory_summary.json", read_json(FAILURE_MEMORY_STATUS_PATH, {}))
+    from .runtime_compat import sync_repo_failure_memory_status as _impl
+    return _impl(project)
+
 
 
 def sync_repo_memory_graph_status(project: str | None) -> None:
-    if not project:
-        return
-    repo_root = repo_root_for_project(project)
-    if not repo_root:
-        return
-    compat_dir = repo_root / REPO_COMPAT_DIRNAME
-    compat_dir.mkdir(parents=True, exist_ok=True)
-    ensure_repo_compat_readme(compat_dir)
-    write_json(compat_dir / "memory_graph_summary.json", read_json(MEMORY_GRAPH_STATUS_PATH, {}))
+    from .runtime_compat import sync_repo_memory_graph_status as _impl
+    return _impl(project)
+
 
 
 def find_legacy_memory_dirs() -> list[str]:
-    root = BASE.parent
-    matches = []
-    for pattern in ["legacy_memory", ".legacy_memory"]:
-        for path in root.rglob(pattern):
-            matches.append(path.as_posix())
-    return sorted(set(matches))
+    from .runtime_compat import find_legacy_memory_dirs as _impl
+    return _impl()
+
 
 
 def default_model_routing() -> dict[str, Any]:
@@ -1207,157 +1056,21 @@ def ensure_cost_artifacts() -> None:
 
 
 def ensure_task_memory_artifacts() -> None:
-    ensure_dirs()
-    write_json(
-        TASK_MEMORY_TAXONOMY_PATH,
-        {
-            "version": 2,
-            "installed_iteration": 8,
-            "generated_at": date.today().isoformat(),
-            "task_types": TASK_TYPES,
-            "aliases": {
-                "tests": "testing",
-                "test": "testing",
-                "general": "unknown",
-                "generic": "unknown",
-                "feature": "feature_work",
-            },
-        },
-    )
-    write_text(
-        TASK_MEMORY_RULES_PATH,
-        "# task resolution rules\n\n"
-        "- Resolution order: explicit task type -> packet/runtime metadata -> heuristic task inference -> `unknown`.\n"
-        "- Stable canonical task types: `bug_fixing`, `refactoring`, `testing`, `performance`, `architecture`, `feature_work`, `unknown`.\n"
-        "- Existing markdown notes remain canonical; `.ai_context_engine/task_memory/` is derived from them.\n"
-        "- Retrieval prefers the resolved task bucket first, then `unknown`, then deterministic fallback matches only when needed.\n"
-        "- Ambiguous notes stay in `unknown` rather than being force-migrated.\n"
-    )
-    if not TASK_MEMORY_STATUS_PATH.exists():
-        write_json(
-            TASK_MEMORY_STATUS_PATH,
-            {
-                "version": 2,
-                "installed_iteration": 8,
-                "task_taxonomy_version": 2,
-                "generated_at": date.today().isoformat(),
-                "task_types": TASK_TYPES,
-                "records_by_task_type": {task_type: 0 for task_type in TASK_TYPES},
-                "resolved_task_packets": 0,
-                "fallback_to_general_events": 0,
-                "task_memory_write_count": 0,
-                "manual_records": 0,
-                "last_resolved_task_type": "unknown",
-                "last_packet_path": "",
-            },
-        )
-    if not TASK_MEMORY_HISTORY_PATH.exists():
-        write_text(TASK_MEMORY_HISTORY_PATH, "")
+    from .runtime_task_memory import ensure_task_memory_artifacts as _impl
+    return _impl()
+
 
 
 def build_task_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, int]:
-    ensure_task_memory_artifacts()
-    records_by_task_type = {task_type: 0 for task_type in TASK_TYPES}
-    for task_type in TASK_TYPES:
-        derived_rows = [
-            row
-            for row in rows
-            if row.get("type") != "user_preference" and normalize_task_type(row.get("task_type")) == task_type
-        ]
-        task_rows = derived_rows + manual_task_memory_records(task_type)
-        task_rows.sort(key=lambda row: (row.get("project") or "", row.get("path") or "", row.get("id") or ""))
-        records_by_task_type[task_type] = len(task_rows)
-        write_jsonl(TASK_MEMORY_DIR / task_type / "records.jsonl", task_rows)
-        summary = summarize_task_memory_rows(task_type, task_rows)
-        write_json(
-            TASK_MEMORY_DIR / task_type / "summary.json",
-            {
-                "task_type": task_type,
-                "records": len(task_rows),
-                "derived_records": len(derived_rows),
-                "manual_records": max(0, len(task_rows) - len(derived_rows)),
-                "projects": sorted({str(row.get("project")) for row in task_rows if row.get("project")}),
-                "updated_at": date.today().isoformat(),
-                **summary,
-            },
-        )
-        write_text(
-            TASK_MEMORY_DIR / task_type / "summary.md",
-            "\n".join(
-                [
-                    f"# {task_type} task memory",
-                    "",
-                    f"- Records: {len(task_rows)}",
-                    f"- Derived records: {len(derived_rows)}",
-                    f"- Manual records: {max(0, len(task_rows) - len(derived_rows))}",
-                    f"- Common locations: {', '.join(summary['common_locations']) if summary['common_locations'] else 'none'}",
-                    f"- Patterns: {', '.join(summary['patterns']) if summary['patterns'] else 'none'}",
-                    f"- Preferred validation: {'; '.join(summary['preferred_validation']) if summary['preferred_validation'] else 'none'}",
-                ]
-            )
-            + "\n",
-        )
-    for legacy_task_type, canonical_task_type in LEGACY_TASK_TYPE_ALIASES.items():
-        legacy_dir = TASK_MEMORY_DIR / legacy_task_type
-        canonical_dir = TASK_MEMORY_DIR / canonical_task_type
-        legacy_dir.mkdir(parents=True, exist_ok=True)
-        write_jsonl(legacy_dir / "records.jsonl", read_jsonl(canonical_dir / "records.jsonl"))
-        write_json(
-            legacy_dir / "summary.json",
-            {
-                **read_json(canonical_dir / "summary.json", {}),
-                "task_type": legacy_task_type,
-                "alias_of": canonical_task_type,
-                "updated_at": date.today().isoformat(),
-            },
-        )
-    previous_status = read_json(TASK_MEMORY_STATUS_PATH, {})
-    write_json(
-        TASK_MEMORY_STATUS_PATH,
-        {
-            **previous_status,
-            "version": 2,
-            "installed_iteration": 8,
-            "task_taxonomy_version": 2,
-            "generated_at": date.today().isoformat(),
-            "task_types": TASK_TYPES,
-            "records_by_task_type": records_by_task_type,
-            "task_memory_write_count": sum(records_by_task_type.values()),
-            "manual_records": sum(len(manual_task_memory_records(task_type)) for task_type in TASK_TYPES),
-        },
-    )
-    return records_by_task_type
+    from .runtime_task_memory import build_task_memory_artifacts as _impl
+    return _impl(rows)
+
 
 
 def update_task_memory_status(packet: dict[str, Any], packet_path: Path) -> None:
-    status = read_json(TASK_MEMORY_STATUS_PATH, {})
-    packets = int(status.get("resolved_task_packets", 0) or 0) + 1
-    fallback_event = 1 if packet.get("task_memory", {}).get("fallback_to_general") else 0
-    updated = {
-        **status,
-        "version": 2,
-        "installed_iteration": 8,
-        "task_taxonomy_version": 2,
-        "generated_at": date.today().isoformat(),
-        "resolved_task_packets": packets,
-        "fallback_to_general_events": int(status.get("fallback_to_general_events", 0) or 0) + fallback_event,
-        "last_resolved_task_type": packet.get("task_type", "unknown"),
-        "last_packet_path": packet_path.as_posix(),
-        "last_queried_categories": packet.get("task_memory", {}).get("queried_categories", []),
-    }
-    write_json(TASK_MEMORY_STATUS_PATH, updated)
-    history = read_jsonl(TASK_MEMORY_HISTORY_PATH)
-    history.append(
-        {
-            "generated_at": date.today().isoformat(),
-            "task": packet.get("task"),
-            "task_type": packet.get("task_type", "unknown"),
-            "task_memory_used": bool(packet.get("task_memory", {}).get("task_specific_memory_used")),
-            "fallback_to_general": bool(packet.get("task_memory", {}).get("fallback_to_general")),
-            "queried_categories": packet.get("task_memory", {}).get("queried_categories", []),
-        }
-    )
-    write_jsonl(TASK_MEMORY_HISTORY_PATH, history[-50:])
+    from .runtime_task_memory import update_task_memory_status as _impl
+    return _impl(packet, packet_path)
+
 
 
 def ensure_failure_memory_artifacts() -> None:
@@ -1517,40 +1230,9 @@ def update_memory_graph_status(packet: dict[str, Any], packet_path: Path) -> Non
 
 
 def ensure_context_metrics_artifacts() -> None:
-    ensure_dirs()
-    if not CONTEXT_TASK_LOGS_PATH.exists():
-        write_text(CONTEXT_TASK_LOGS_PATH, "")
-    if not CONTEXT_BASELINE_PATH.exists():
-        write_json(
-            CONTEXT_BASELINE_PATH,
-            {
-                "version": 1,
-                "generated_at": date.today().isoformat(),
-                "source": "derived_from_packets",
-                "assumptions": {
-                    "average_task_context_tokens_without_engine": 3200,
-                    "average_task_context_tokens_with_engine": 1900,
-                },
-            },
-        )
-    if not CONTEXT_WEEKLY_SUMMARY_PATH.exists():
-        write_json(
-            CONTEXT_WEEKLY_SUMMARY_PATH,
-            {
-                "version": 2,
-                "generated_at": date.today().isoformat(),
-                "confidence": "low",
-                "tasks_sampled": 0,
-                "repeated_tasks": 0,
-                "phase_events_sampled": 0,
-                "telemetry_granularity": "task_plus_phase",
-                "estimated_context_reduction": {"range": [0.0, 0.0], "point": 0.0},
-                "estimated_total_token_reduction": {"range": [0.0, 0.0]},
-                "estimated_latency_improvement": {"range": [0.0, 0.0]},
-                "estimated_cost_reduction": {"range": [0.0, 0.0]},
-                "top_expensive_phases": [],
-            },
-        )
+    from .runtime_metrics import ensure_context_metrics_artifacts as _impl
+    return _impl()
+
 
 
 def estimate_tokens(value: Any) -> int:
@@ -1562,88 +1244,15 @@ def estimate_tokens(value: Any) -> int:
 
 
 def summarize_granular_telemetry(log_rows: list[dict[str, Any]]) -> dict[str, Any]:
-    task_rows = [row for row in log_rows if row.get("level") == "task"]
-    phase_rows = [row for row in log_rows if row.get("level") == "phase"]
-    if not task_rows:
-        return read_json(CONTEXT_WEEKLY_SUMMARY_PATH, {})
-    context_reductions = [float(row.get("context_reduction_ratio", 0.0) or 0.0) for row in task_rows]
-    token_reductions = [float(row.get("token_reduction_estimate", 0.0) or 0.0) for row in task_rows]
-    latency_improvements = [float(row.get("latency_reduction_estimate", 0.0) or 0.0) for row in task_rows]
-    phase_costs: dict[str, int] = defaultdict(int)
-    for row in phase_rows:
-        phase_costs[str(row.get("phase_name", "unknown"))] += int(row.get("estimated_tokens", 0) or 0)
-    point = sum(context_reductions) / len(context_reductions)
-    token_point = sum(token_reductions) / len(token_reductions)
-    latency_point = sum(latency_improvements) / len(latency_improvements)
-    return {
-        "version": 2,
-        "generated_at": date.today().isoformat(),
-        "confidence": "medium" if len(task_rows) >= 5 else "low",
-        "tasks_sampled": len(task_rows),
-        "repeated_tasks": max(0, len(task_rows) - len({row.get("task_summary") for row in task_rows})),
-        "phase_events_sampled": len(phase_rows),
-        "telemetry_granularity": "task_plus_phase",
-        "estimated_context_reduction": {
-            "range": [round(max(0.0, point * 0.85), 4), round(min(1.0, point * 1.15), 4)],
-            "point": round(point, 4),
-        },
-        "estimated_total_token_reduction": {
-            "range": [round(max(0.0, token_point * 0.85), 2), round(max(0.0, token_point * 1.15), 2)],
-        },
-        "estimated_latency_improvement": {
-            "range": [round(max(0.0, latency_point * 0.85), 2), round(max(0.0, latency_point * 1.15), 2)],
-        },
-        "estimated_cost_reduction": {
-            "range": [round(max(0.0, token_point * 0.00001), 4), round(max(0.0, token_point * 0.00002), 4)],
-        },
-        "top_expensive_phases": [
-            {"phase_name": name, "estimated_tokens": tokens}
-            for name, tokens in sorted(phase_costs.items(), key=lambda item: (-item[1], item[0]))[:5]
-        ],
-    }
+    from .runtime_metrics import summarize_granular_telemetry as _impl
+    return _impl(log_rows)
+
 
 
 def record_granular_telemetry(packet: dict[str, Any], packet_path: Path, optimization_report: dict[str, Any]) -> dict[str, Any]:
-    ensure_context_metrics_artifacts()
-    task_id = str(packet.get("task_id") or slugify(str(packet.get("task_summary", packet.get("task", "task")))))
-    phases = list(packet.get("telemetry_granularity", {}).get("phases", []))
-    task_tokens_before = int(optimization_report.get("estimated_tokens_before", 0) or 0)
-    task_tokens_after = int(optimization_report.get("estimated_tokens_after", 0) or 0)
-    reduction = max(0, task_tokens_before - task_tokens_after)
-    task_row = {
-        "generated_at": now_iso(),
-        "task_id": task_id,
-        "level": "task",
-        "task_summary": packet.get("task_summary", packet.get("task")),
-        "task_type": packet.get("task_type", "unknown"),
-        "phase_count": len(phases),
-        "packet_path": packet_path.as_posix(),
-        "estimated_tokens_before": task_tokens_before,
-        "estimated_tokens_after": task_tokens_after,
-        "token_reduction_estimate": reduction,
-        "context_reduction_ratio": round((reduction / task_tokens_before), 4) if task_tokens_before else 0.0,
-        "latency_reduction_estimate": round(reduction * 0.002, 4),
-    }
-    phase_rows = []
-    for index, phase in enumerate(phases):
-        estimated_tokens = int(phase.get("estimated_tokens", 0) or 0)
-        phase_rows.append(
-            {
-                "generated_at": now_iso(),
-                "task_id": task_id,
-                "parent_task_id": task_id,
-                "level": "phase",
-                "phase_name": phase.get("phase_name", f"phase_{index + 1}"),
-                "sequence": index + 1,
-                "estimated_tokens": estimated_tokens,
-                "notes": phase.get("notes", ""),
-            }
-        )
-    existing = read_jsonl(CONTEXT_TASK_LOGS_PATH)
-    write_jsonl(CONTEXT_TASK_LOGS_PATH, (existing + [task_row] + phase_rows)[-400:])
-    summary = summarize_granular_telemetry(read_jsonl(CONTEXT_TASK_LOGS_PATH))
-    write_json(CONTEXT_WEEKLY_SUMMARY_PATH, summary)
-    return summary
+    from .runtime_metrics import record_granular_telemetry as _impl
+    return _impl(packet, packet_path, optimization_report)
+
 
 
 def library_registry() -> dict[str, Any]:
