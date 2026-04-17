@@ -16,6 +16,11 @@ from .runtime_contract import (
     resolve_effective_preferences,
     runtime_consistency_report,
 )
+from .runtime_versioning import (
+    compat_version_payload,
+    current_engine_capability_version as runtime_current_engine_capability_version,
+    current_installed_version as runtime_current_installed_version,
+)
 
 BASE = Path(__file__).resolve().parents[2]
 BOOT_DIR = BASE / "boot"
@@ -125,7 +130,8 @@ RECORD_TYPES = [
     "staleness_warning",
 ]
 
-CURRENT_ENGINE_ITERATION = 16
+CURRENT_ENGINE_CAPABILITY_VERSION = runtime_current_engine_capability_version()
+CURRENT_ENGINE_ITERATION = CURRENT_ENGINE_CAPABILITY_VERSION
 MTIME_TOLERANCE_SECONDS = 0.5
 SUPPORTED_INBOX_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf"}
 SUPPORTED_REFERENCED_EXTENSIONS = SUPPORTED_INBOX_EXTENSIONS | {".sql", ".xml", ".json", ".yaml", ".yml", ".py", ".csv"}
@@ -285,7 +291,15 @@ def slugify(text: str) -> str:
 
 
 def current_engine_iteration() -> int:
-    return CURRENT_ENGINE_ITERATION
+    return current_engine_capability_version()
+
+
+def current_engine_capability_version() -> int:
+    return runtime_current_engine_capability_version()
+
+
+def current_installed_version() -> str:
+    return runtime_current_installed_version()
 
 
 def default_adapter_contract() -> dict[str, Any]:
@@ -1281,7 +1295,7 @@ def ensure_library_artifacts() -> None:
             {
                 "version": 1,
                 "generated_at": date.today().isoformat(),
-                "installed_iteration": current_engine_iteration(),
+                **compat_version_payload(),
                 "mods_total": 0,
                 "retrieval_events": 0,
                 "last_selected_artifacts": [],
@@ -1452,7 +1466,7 @@ def ensure_engine_state() -> None:
                 "engine_id": "ai_context_engine",
                 "engine_name": "ai_context_engine",
                 **adapter_contract,
-                "installed_iteration": current_engine_iteration(),
+                **compat_version_payload(),
                 "install_mode": "in_repo",
                 "engine_role": "canonical_runtime",
                 "communication_layer": communication_policy.get("layer", "enabled"),
@@ -1482,7 +1496,7 @@ def refresh_engine_state() -> dict[str, Any]:
             "adapter_id": str(state.get("adapter_id") or adapter_contract["adapter_id"]),
             "adapter_family": str(state.get("adapter_family") or adapter_contract["adapter_family"]),
             "provider_capabilities": list(state.get("provider_capabilities") or adapter_contract["provider_capabilities"]),
-            "installed_iteration": current_engine_iteration(),
+            **compat_version_payload(),
             "install_mode": "in_repo",
             "engine_role": "canonical_runtime",
             "communication_layer": normalize_communication_layer(state.get("communication_layer"), communication_policy.get("layer", "enabled")),
@@ -1861,5 +1875,3 @@ def cli_memory_graph(args: argparse.Namespace) -> int:
 def cli_library(args: argparse.Namespace) -> int:
     from .runtime_knowledge import cli_library as _impl
     return _impl(args)
-
-

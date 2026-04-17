@@ -5,6 +5,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .runtime_versioning import compat_version_payload
+
 
 def _cr():
     from . import core_runtime as cr
@@ -51,7 +53,7 @@ def ensure_memory_graph_artifacts() -> None:
             cr.MEMORY_GRAPH_STATUS_PATH,
             {
                 'version': 1,
-                'installed_iteration': 9,
+                **compat_version_payload(),
                 'generated_at': date.today().isoformat(),
                 'nodes_total': 0,
                 'edges_total': 0,
@@ -210,7 +212,7 @@ def build_memory_graph_artifacts(rows: list[dict[str, Any]]) -> dict[str, Any]:
     status = {
         **previous,
         'version': 1,
-        'installed_iteration': 9,
+        **compat_version_payload(),
         'generated_at': date.today().isoformat(),
         'nodes_total': len(node_rows),
         'edges_total': len(edge_rows),
@@ -326,7 +328,7 @@ def update_memory_graph_status(packet: dict[str, Any], packet_path: Path) -> Non
     updated = {
         **status,
         'version': 1,
-        'installed_iteration': 9,
+        **compat_version_payload(),
         'generated_at': date.today().isoformat(),
         'expansion_events': int(status.get('expansion_events', 0) or 0) + (1 if graph_meta.get('graph_used') else 0),
         'last_seed_count': int(graph_meta.get('seed_count', 0) or 0),

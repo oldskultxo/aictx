@@ -27,6 +27,7 @@ from .runtime_io import (
     truncate_words,
     write_text,
 )
+from .runtime_versioning import compat_version_payload
 
 
 def _cr():
@@ -860,7 +861,7 @@ def bootstrap_mod(
     registry['generated_at'] = date.today().isoformat()
     cr.write_json(cr.LIBRARY_REGISTRY_PATH, registry)
     status = cr.read_json(cr.LIBRARY_RETRIEVAL_STATUS_PATH, {})
-    status.update({'installed_iteration': cr.current_engine_iteration(), 'mods_total': len(registry.get('mods', {})), 'supports_reference_ingestion': True, 'supports_remote_ingestion': True})
+    status.update({**compat_version_payload(), 'mods_total': len(registry.get('mods', {})), 'supports_reference_ingestion': True, 'supports_remote_ingestion': True})
     cr.write_json(cr.LIBRARY_RETRIEVAL_STATUS_PATH, status)
     return manifest
 
@@ -1067,7 +1068,7 @@ def retrieve_knowledge(task: str) -> dict[str, Any]:
         if selected_artifacts:
             break
     status = cr.read_json(cr.LIBRARY_RETRIEVAL_STATUS_PATH, {})
-    status.update({'generated_at': date.today().isoformat(), 'installed_iteration': cr.current_engine_iteration(), 'mods_total': len(library_registry().get('mods', {})), 'retrieval_events': int(status.get('retrieval_events', 0) or 0) + 1, 'last_selected_artifacts': selected_artifacts[:6], 'supports_reference_ingestion': True, 'supports_remote_ingestion': True})
+    status.update({**compat_version_payload(), 'generated_at': date.today().isoformat(), 'mods_total': len(library_registry().get('mods', {})), 'retrieval_events': int(status.get('retrieval_events', 0) or 0) + 1, 'last_selected_artifacts': selected_artifacts[:6], 'supports_reference_ingestion': True, 'supports_remote_ingestion': True})
     cr.write_json(cr.LIBRARY_RETRIEVAL_STATUS_PATH, status)
     return {'mods': candidate_mods[:3], 'topics': topics, 'selected_artifacts': selected_artifacts[:6], 'artifacts': artifact_rows[:6], 'strategy': 'topic_first_minimal_pack' if selected_artifacts else 'empty_fallback'}
 

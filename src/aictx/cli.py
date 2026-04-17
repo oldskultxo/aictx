@@ -16,6 +16,7 @@ from .agent_runtime import (
 from .middleware import cli_finalize_execution, cli_prepare_execution
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from .runtime_launcher import cli_run_execution
+from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
 from .state import (
     CONFIG_PATH,
@@ -116,7 +117,7 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
             "provider_capabilities": list(
                 state.get("provider_capabilities") or ["chat_completion", "tool_use", "structured_output", "long_context"]
             ),
-            "installed_iteration": core_runtime.current_engine_iteration(),
+            **compat_version_payload(),
             "install_mode": "repo_init",
             "engine_role": "initialized_repo_runtime",
             "adapter_runtime_enabled": True,

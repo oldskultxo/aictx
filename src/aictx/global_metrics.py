@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .runtime_contract import runtime_consistency_report
+from .runtime_versioning import normalize_engine_capability_version, normalize_installed_version
 
 BASE = Path(__file__).resolve().parents[2]
 PROJECTS_ROOT = BASE.parent
@@ -21,10 +22,10 @@ TOKEN_SAVINGS_PATH = GLOBAL_DIR / "global_token_savings.json"
 LATENCY_METRICS_PATH = GLOBAL_DIR / "global_latency_metrics.json"
 HEALTH_REPORT_PATH = GLOBAL_DIR / "system_health_report.json"
 TELEMETRY_SOURCES_PATH = GLOBAL_DIR / "telemetry_sources.json"
-OPTIMIZER_ITERATIONS = {"5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"}
-TASK_MEMORY_ITERATIONS = {"6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"}
-FAILURE_MEMORY_ITERATIONS = {"7", "8", "9", "10", "11", "12", "13", "14", "15", "16"}
-MEMORY_GRAPH_ITERATIONS = {"9", "10", "11", "12", "13", "14", "15", "16"}
+MIN_CAPABILITY_COST_OPTIMIZER = 5
+MIN_CAPABILITY_TASK_MEMORY = 6
+MIN_CAPABILITY_FAILURE_MEMORY = 7
+MIN_CAPABILITY_MEMORY_GRAPH = 9
 
 
 def now_iso() -> str:
@@ -79,6 +80,8 @@ class ProjectEntry:
     repo_path: Path
     telemetry_dir: Path | None
     memory_dir: Path | None
+    installed_version: str
+    engine_capability_version: int | None
     installed_iteration: str
     source: str
 
@@ -142,34 +145,53 @@ def detect_repo_dirs(root: Path) -> list[Path]:
     return repos
 
 
-def infer_iteration(repo: Path) -> str:
+def capability_at_least(value: int | None, minimum: int) -> bool:
+    return value is not None and value >= minimum
+
+
+def infer_installed_version(repo: Path) -> str:
     engine_state = read_json(repo_engine_dir(repo) / "state.json", {})
-    explicit_iteration = str(engine_state.get("installed_iteration", "") or "").strip()
-    if explicit_iteration:
-        return explicit_iteration
+    explicit_version = normalize_installed_version(engine_state.get("installed_version"), fallback="unknown")
+    return explicit_version
+
+
+def infer_engine_capability_version(repo: Path) -> int | None:
+    engine_state = read_json(repo_engine_dir(repo) / "state.json", {})
+    explicit_capability = normalize_engine_capability_version(
+        engine_state.get("engine_capability_version"),
+        legacy_iteration=engine_state.get("installed_iteration"),
+    )
+    if explicit_capability is not None:
+        return explicit_capability
     if repo.name == CANONICAL_SCOPE:
         if (repo_library_dir(repo) / "retrieval_status.json").exists():
             retrieval_status = read_json(repo_library_dir(repo) / "retrieval_status.json", {})
+            retrieval_capability = normalize_engine_capability_version(
+                retrieval_status.get("engine_capability_version"),
+                legacy_iteration=retrieval_status.get("installed_iteration"),
+            )
+            if retrieval_capability is not None:
+                return retrieval_capability
             if retrieval_status.get("supports_remote_ingestion"):
-                return "15"
+                return 15
             if retrieval_status.get("supports_reference_ingestion"):
-                return "14"
-            return str(retrieval_status.get("installed_iteration", "13") or "13")
+                return 14
+            return 13
         if (repo_library_dir(repo) / "registry.json").exists():
-            return "12" if any((repo_library_dir(repo) / "mods").glob("*/indices/*.json")) else "11"
+            return 12 if any((repo_library_dir(repo) / "mods").glob("*/indices/*.json")) else 11
         if (repo_metrics_dir(repo) / "weekly_summary.json").exists():
             weekly = read_json(repo_metrics_dir(repo) / "weekly_summary.json", {})
             if weekly.get("phase_events_sampled") is not None or weekly.get("telemetry_granularity") == "task_plus_phase":
-                return "10"
+                return 10
         if (repo_memory_graph_dir(repo) / "graph_status.json").exists():
-            return "9"
+            return 9
         if (repo_task_memory_dir(repo) / "task_taxonomy.json").exists():
-            return "8"
+            return 8
         if (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists():
-            return "7"
+            return 7
         if (repo_task_memory_dir(repo) / "task_memory_status.json").exists():
-            return "6"
-        return "5" if (repo_cost_dir(repo) / "packet_budget_status.json").exists() else "4"
+            return 6
+        return 5 if (repo_cost_dir(repo) / "packet_budget_status.json").exists() else 4
     has_memory = repo_memory_dir(repo).exists()
     has_metrics = repo_metrics_dir(repo).exists()
     has_cost = (repo_cost_dir(repo) / "packet_budget_status.json").exists()
@@ -179,24 +201,24 @@ def infer_iteration(repo: Path) -> str:
     task_memory_summary = read_json(repo_task_memory_dir(repo) / "task_memory_status.json", {}) if has_task_memory else {}
     agents_text = (repo / "AGENTS.md").read_text(encoding="utf-8", errors="ignore") if (repo / "AGENTS.md").exists() else ""
     if has_memory_graph:
-        return "9"
+        return 9
     if has_task_memory and int(task_memory_summary.get("task_taxonomy_version", 0) or 0) >= 2:
-        return "8"
+        return 8
     if has_failure_memory:
-        return "7"
+        return 7
     if has_task_memory:
-        return "6"
+        return 6
     if has_cost:
-        return "5"
+        return 5
     if "global reporting" in agents_text.lower() or "health check" in agents_text.lower() or repo.name == "iepub":
-        return "4"
+        return 4
     if has_memory and has_metrics:
-        return "3"
+        return 3
     if has_memory:
-        return "2"
+        return 2
     if "ai_context_engine" in agents_text:
-        return "1"
-    return "unknown"
+        return 1
+    return None
 
 
 def discover_projects() -> list[ProjectEntry]:
@@ -207,13 +229,16 @@ def discover_projects() -> list[ProjectEntry]:
         agents = repo / "AGENTS.md"
         if not (has_memory.exists() or has_metrics.exists() or agents.exists()):
             continue
+        capability_version = infer_engine_capability_version(repo)
         entries.append(
             ProjectEntry(
                 name=repo.name,
                 repo_path=repo,
                 telemetry_dir=has_metrics if has_metrics.exists() else None,
                 memory_dir=has_memory if has_memory.exists() else None,
-                installed_iteration=infer_iteration(repo),
+                installed_version=infer_installed_version(repo),
+                engine_capability_version=capability_version,
+                installed_iteration=str(capability_version or "unknown"),
                 source="auto_discovered",
             )
         )
@@ -342,6 +367,27 @@ def confidence_for_projects(projects: list[dict[str, Any]]) -> str:
     return "unknown"
 
 
+def project_feature_flags(repo: Path, telemetry: ProjectTelemetry, row: dict[str, Any]) -> dict[str, bool]:
+    capability_version = normalize_engine_capability_version(
+        row.get("engine_capability_version"),
+        legacy_iteration=row.get("installed_iteration"),
+    )
+    return {
+        "packet_budget_status_found": (repo_cost_dir(repo) / "packet_budget_status.json").exists()
+        or telemetry.optimization_events > 0
+        or capability_at_least(capability_version, MIN_CAPABILITY_COST_OPTIMIZER),
+        "task_memory_found": (repo_task_memory_dir(repo) / "task_memory_status.json").exists()
+        or bool(telemetry.task_memory_enabled)
+        or capability_at_least(capability_version, MIN_CAPABILITY_TASK_MEMORY),
+        "failure_memory_found": (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists()
+        or bool(telemetry.failure_memory_enabled)
+        or capability_at_least(capability_version, MIN_CAPABILITY_FAILURE_MEMORY),
+        "memory_graph_found": (repo_memory_graph_dir(repo) / "graph_status.json").exists()
+        or bool(telemetry.memory_graph_enabled)
+        or capability_at_least(capability_version, MIN_CAPABILITY_MEMORY_GRAPH),
+    }
+
+
 def register_projects() -> dict[str, Any]:
     discovered = discover_projects()
     rows = []
@@ -352,6 +398,8 @@ def register_projects() -> dict[str, Any]:
                 "repo_path": rel(entry.repo_path),
                 "telemetry_dir": rel(entry.telemetry_dir) if entry.telemetry_dir else "unknown",
                 "memory_dir": rel(entry.memory_dir) if entry.memory_dir else "unknown",
+                "installed_version": entry.installed_version,
+                "engine_capability_version": entry.engine_capability_version,
                 "installed_iteration": entry.installed_iteration,
                 "source": entry.source,
                 "registered_at": now_iso(),
@@ -374,6 +422,7 @@ def refresh_global_metrics() -> dict[str, Any]:
         repo = Path(row["repo_path"])
         telemetry = load_project_telemetry(repo)
         savings_md = load_context_savings_markdown(repo)
+        feature_flags = project_feature_flags(repo, telemetry, row)
         project_payload = {
             **row,
             "telemetry": {
@@ -407,22 +456,27 @@ def refresh_global_metrics() -> dict[str, Any]:
                 "telemetry_dir": row["telemetry_dir"],
                 "weekly_summary_found": telemetry.source != "unknown",
                 "weekly_summary_source": telemetry.source,
-                "packet_budget_status_found": telemetry.optimization_events > 0 or row["installed_iteration"] in OPTIMIZER_ITERATIONS,
-                "task_memory_found": telemetry.task_memory_enabled or row["installed_iteration"] in TASK_MEMORY_ITERATIONS,
-                "failure_memory_found": telemetry.failure_memory_enabled or row["installed_iteration"] in FAILURE_MEMORY_ITERATIONS,
-                "memory_graph_found": telemetry.memory_graph_enabled or row["installed_iteration"] in MEMORY_GRAPH_ITERATIONS,
+                **feature_flags,
                 "context_savings_markdown": savings_md,
                 "memory_dir": row["memory_dir"],
             }
         )
 
-    iterations = Counter(project["installed_iteration"] for project in project_rows)
+    capability_versions = Counter(str(project.get("engine_capability_version") or "unknown") for project in project_rows)
     projects_with_memory = sum(1 for project in project_rows if project["memory_dir"] != "unknown")
     projects_with_telemetry = sum(1 for project in project_rows if project["telemetry"]["source"] != "unknown")
-    projects_with_cost_optimizer = sum(1 for project in project_rows if int(project["telemetry"].get("optimization_events", 0) or 0) > 0 or project["installed_iteration"] in OPTIMIZER_ITERATIONS)
-    projects_with_task_memory = sum(1 for project in project_rows if bool(project["telemetry"].get("task_memory_enabled")) or project["installed_iteration"] in TASK_MEMORY_ITERATIONS)
-    projects_with_failure_memory = sum(1 for project in project_rows if bool(project["telemetry"].get("failure_memory_enabled")) or project["installed_iteration"] in FAILURE_MEMORY_ITERATIONS)
-    projects_with_memory_graph = sum(1 for project in project_rows if bool(project["telemetry"].get("memory_graph_enabled")) or project["installed_iteration"] in MEMORY_GRAPH_ITERATIONS)
+    projects_with_cost_optimizer = sum(
+        1 for project in project_rows if project_feature_flags(Path(project["repo_path"]), ProjectTelemetry(**project["telemetry"]), project)["packet_budget_status_found"]
+    )
+    projects_with_task_memory = sum(
+        1 for project in project_rows if project_feature_flags(Path(project["repo_path"]), ProjectTelemetry(**project["telemetry"]), project)["task_memory_found"]
+    )
+    projects_with_failure_memory = sum(
+        1 for project in project_rows if project_feature_flags(Path(project["repo_path"]), ProjectTelemetry(**project["telemetry"]), project)["failure_memory_found"]
+    )
+    projects_with_memory_graph = sum(
+        1 for project in project_rows if project_feature_flags(Path(project["repo_path"]), ProjectTelemetry(**project["telemetry"]), project)["memory_graph_found"]
+    )
     context = aggregate_range(project_rows, "context_range")
     token = aggregate_range(project_rows, "token_range")
     latency = aggregate_range(project_rows, "latency_range")
@@ -438,7 +492,8 @@ def refresh_global_metrics() -> dict[str, Any]:
         "projects_with_task_memory": projects_with_task_memory,
         "projects_with_failure_memory": projects_with_failure_memory,
         "projects_with_memory_graph": projects_with_memory_graph,
-        "projects_by_iteration": dict(sorted(iterations.items())),
+        "projects_by_capability_version": dict(sorted(capability_versions.items())),
+        "projects_by_iteration": dict(sorted(Counter(project["installed_iteration"] for project in project_rows).items())),
         "estimated_context_reduction": context,
         "confidence": confidence,
         "unknown_projects": [project["name"] for project in project_rows if project["telemetry"]["source"] == "unknown"],
@@ -453,7 +508,8 @@ def refresh_global_metrics() -> dict[str, Any]:
         "projects_with_task_memory": projects_with_task_memory,
         "projects_with_failure_memory": projects_with_failure_memory,
         "projects_with_memory_graph": projects_with_memory_graph,
-        "projects_by_iteration": dict(sorted(iterations.items())),
+        "projects_by_capability_version": dict(sorted(capability_versions.items())),
+        "projects_by_iteration": context_payload["projects_by_iteration"],
         "estimated_total_token_reduction": token,
         "confidence": confidence,
         "unknown_projects": context_payload["unknown_projects"],
@@ -467,7 +523,8 @@ def refresh_global_metrics() -> dict[str, Any]:
         "projects_with_task_memory": projects_with_task_memory,
         "projects_with_failure_memory": projects_with_failure_memory,
         "projects_with_memory_graph": projects_with_memory_graph,
-        "projects_by_iteration": dict(sorted(iterations.items())),
+        "projects_by_capability_version": dict(sorted(capability_versions.items())),
+        "projects_by_iteration": context_payload["projects_by_iteration"],
         "estimated_latency_improvement": latency,
         "confidence": confidence,
         "unknown_projects": context_payload["unknown_projects"],
@@ -593,21 +650,25 @@ def run_health_check() -> dict[str, Any]:
         agents = repo / "AGENTS.md"
         weekly = repo_metrics_dir(repo) / "weekly_summary.json"
         state_path = repo_engine_dir(repo) / "state.json"
+        capability_version = normalize_engine_capability_version(
+            row.get("engine_capability_version"),
+            legacy_iteration=row.get("installed_iteration"),
+        )
         repo_issues: list[dict[str, str]] = []
         if not compat.exists():
-            if row.get("installed_iteration") not in {"1", "unknown"}:
+            if capability_at_least(capability_version, 2) or state_path.exists():
                 repo_issues.append(issue("warning", row["name"], "memory_availability", "Missing .ai_context_engine/memory bootstrap layer"))
         else:
             derived = compat / "derived_boot_summary.json"
             if not derived.exists():
                 repo_issues.append(issue("needs_attention", row["name"], "bootstrap", "Missing .ai_context_engine/memory/derived_boot_summary.json"))
-        if row.get("installed_iteration") in OPTIMIZER_ITERATIONS and not (repo_cost_dir(repo) / "packet_budget_status.json").exists():
+        if capability_at_least(capability_version, MIN_CAPABILITY_COST_OPTIMIZER) and not (repo_cost_dir(repo) / "packet_budget_status.json").exists():
             repo_issues.append(issue("needs_attention", row["name"], "cost_optimizer", "Missing canonical .ai_context_engine/cost/packet_budget_status.json"))
-        if row.get("installed_iteration") in TASK_MEMORY_ITERATIONS and not (repo_task_memory_dir(repo) / "task_memory_status.json").exists():
+        if capability_at_least(capability_version, MIN_CAPABILITY_TASK_MEMORY) and not (repo_task_memory_dir(repo) / "task_memory_status.json").exists():
             repo_issues.append(issue("needs_attention", row["name"], "task_memory", "Missing canonical .ai_context_engine/task_memory/task_memory_status.json"))
-        if row.get("installed_iteration") in FAILURE_MEMORY_ITERATIONS and not (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists():
+        if capability_at_least(capability_version, MIN_CAPABILITY_FAILURE_MEMORY) and not (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists():
             repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing canonical .ai_context_engine/failure_memory/failure_memory_status.json"))
-        if row.get("installed_iteration") in MEMORY_GRAPH_ITERATIONS and not (repo_memory_graph_dir(repo) / "graph_status.json").exists():
+        if capability_at_least(capability_version, MIN_CAPABILITY_MEMORY_GRAPH) and not (repo_memory_graph_dir(repo) / "graph_status.json").exists():
             repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing canonical .ai_context_engine/memory_graph/graph_status.json"))
         consistency = runtime_consistency_report(repo)
         if not state_path.exists():
@@ -630,7 +691,7 @@ def run_health_check() -> dict[str, Any]:
             repo_issues.append(issue("warning", row["name"], "runtime_consistency", "Repo runtime state disagrees with effective communication policy"))
         elif consistency.get("status") == "not_initialized":
             message = "Repo runtime consistency could not be verified because initialization is incomplete"
-            if row.get("installed_iteration") in {"unknown", "1"}:
+            if capability_version in {None, 1}:
                 message = "Repo runtime consistency is not initialized yet"
             repo_issues.append(issue("warning", row["name"], "runtime_consistency", message))
         if not agents.exists():

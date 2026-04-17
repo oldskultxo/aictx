@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from .adapters import install_repo_adapters
+from .runtime_versioning import compat_version_payload
 from .state import (
     REPO_COST_DIR,
     REPO_DIRS,
@@ -131,6 +132,7 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
             "adapter_family": "multi_llm",
             "provider_capabilities": ["chat_completion", "tool_use", "structured_output", "long_context"],
             "installed_at": now_iso(),
+            **compat_version_payload(),
             "repo_root": str(repo),
         },
     )
@@ -175,8 +177,8 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         encoding="utf-8",
     )
 
-    write_json(repo / REPO_TASK_MEMORY_DIR / "task_memory_status.json", {"version": 1, "records_by_task_type": {t: 0 for t in TASK_TYPES}})
-    write_json(repo / REPO_TASK_MEMORY_DIR / "task_taxonomy.json", {"version": 1, "task_types": TASK_TYPES})
+    write_json(repo / REPO_TASK_MEMORY_DIR / "task_memory_status.json", {"version": 1, **compat_version_payload(), "records_by_task_type": {t: 0 for t in TASK_TYPES}})
+    write_json(repo / REPO_TASK_MEMORY_DIR / "task_taxonomy.json", {"version": 1, **compat_version_payload(), "task_types": TASK_TYPES})
     (repo / REPO_TASK_MEMORY_DIR / "task_resolution_rules.md").write_text("# task resolution rules\n\nStarter scaffold.\n", encoding="utf-8")
 
     write_json(repo / REPO_FAILURE_MEMORY_DIR / "index.json", {"version": 1, "failures": []})
@@ -185,13 +187,13 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     (repo / REPO_FAILURE_MEMORY_DIR / "summaries" / "common_patterns.md").write_text("# common failure patterns\n\nNone yet.\n", encoding="utf-8")
     (repo / REPO_FAILURE_MEMORY_DIR / "failures").mkdir(parents=True, exist_ok=True)
 
-    write_json(repo / REPO_MEMORY_GRAPH_DIR / "graph_status.json", {"version": 1, "nodes_total": 0, "edges_total": 0})
+    write_json(repo / REPO_MEMORY_GRAPH_DIR / "graph_status.json", {"version": 1, **compat_version_payload(), "nodes_total": 0, "edges_total": 0})
     for sub in ["nodes", "edges", "indexes", "snapshots"]:
         (repo / REPO_MEMORY_GRAPH_DIR / sub).mkdir(parents=True, exist_ok=True)
     (repo / REPO_MEMORY_GRAPH_DIR / "snapshots" / "latest_graph_snapshot.json").write_text("{}\n", encoding="utf-8")
 
     write_json(repo / REPO_LIBRARY_DIR / "registry.json", {"version": 1, "mods": {}})
-    write_json(repo / REPO_LIBRARY_DIR / "retrieval_status.json", {"version": 1, "retrieval_events": 0})
+    write_json(repo / REPO_LIBRARY_DIR / "retrieval_status.json", {"version": 1, **compat_version_payload(), "retrieval_events": 0})
     (repo / REPO_LIBRARY_DIR / "REFERENCES_TEMPLATE.md").write_text("# references template\n\n- title:\n- source:\n- tags:\n", encoding="utf-8")
     (repo / REPO_LIBRARY_DIR / "mods").mkdir(parents=True, exist_ok=True)
 

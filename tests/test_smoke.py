@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from aictx._version import __version__ as package_version
 from aictx.adapters import install_global_adapters
 import aictx.cli as cli
 import aictx.core_runtime as core_runtime
@@ -433,7 +434,9 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert cli.cmd_init(args) == 0
 
     state = read_json(repo / ".ai_context_engine" / "state.json", {})
-    assert state["installed_iteration"] >= 1
+    assert state["installed_version"] == package_version
+    assert state["engine_capability_version"] >= 1
+    assert state["installed_iteration"] == state["engine_capability_version"]
     assert state["engine_role"] == "initialized_repo_runtime"
     assert state["supports"]["packet_construction"] is True
     assert state["adapter_runtime_enabled"] is True
@@ -803,6 +806,21 @@ def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
     assert "communication_policy" not in packet
 
 
+def test_scaffold_status_files_include_version_contract(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    state = read_json(repo / ".ai_context_engine" / "state.json", {})
+    task_status = read_json(repo / ".ai_context_engine" / "task_memory" / "task_memory_status.json", {})
+    graph_status = read_json(repo / ".ai_context_engine" / "memory_graph" / "graph_status.json", {})
+    retrieval_status = read_json(repo / ".ai_context_engine" / "library" / "retrieval_status.json", {})
+
+    for payload in [state, task_status, graph_status, retrieval_status]:
+        assert payload["installed_version"] == package_version
+        assert payload["engine_capability_version"] >= 1
+        assert payload["installed_iteration"] == payload["engine_capability_version"]
+
+
 def test_task_memory_writes_only_canonical_buckets(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(core_runtime, "BASE", tmp_path)
     monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
@@ -980,3 +998,15 @@ def test_global_health_check_marks_not_initialized_repo_as_warning(tmp_path: Pat
     assert project_check["status"] == "warning"
     assert project_check["consistency"]["status"] == "not_initialized"
     assert any(issue["check"] == "runtime_consistency" for issue in project_check["issues"])
+
+
+def test_global_metrics_reads_legacy_iteration_only_repo(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / ".ai_context_engine").mkdir(parents=True)
+    (repo / "AGENTS.md").write_text("ai_context_engine enabled\n", encoding="utf-8")
+    (repo / ".ai_context_engine" / "state.json").write_text(json.dumps({"installed_iteration": 9}), encoding="utf-8")
+
+    import aictx.global_metrics as global_metrics
+
+    assert global_metrics.infer_installed_version(repo) == "unknown"
+    assert global_metrics.infer_engine_capability_version(repo) == 9

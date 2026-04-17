@@ -4,6 +4,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .runtime_versioning import compat_version_payload
+
 
 def _cr():
     from . import core_runtime as cr
@@ -26,7 +28,7 @@ def ensure_task_memory_artifacts() -> None:
         cr.TASK_MEMORY_TAXONOMY_PATH,
         {
             'version': 3,
-            'installed_iteration': 8,
+            **compat_version_payload(),
             'generated_at': date.today().isoformat(),
             'task_types': canonical_task_types(),
             'aliases': dict(cr.LEGACY_TASK_TYPE_ALIASES),
@@ -48,7 +50,7 @@ def ensure_task_memory_artifacts() -> None:
             cr.TASK_MEMORY_STATUS_PATH,
             {
                 'version': 3,
-                'installed_iteration': 8,
+                **compat_version_payload(),
                 'task_taxonomy_version': 3,
                 'generated_at': date.today().isoformat(),
                 'task_types': canonical_task_types(),
@@ -120,7 +122,7 @@ def build_task_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, int]:
         {
             **previous_status,
             'version': 3,
-            'installed_iteration': 8,
+            **compat_version_payload(),
             'task_taxonomy_version': 3,
             'generated_at': date.today().isoformat(),
             'task_types': canonical_task_types(),
@@ -141,7 +143,7 @@ def update_task_memory_status(packet: dict[str, Any], packet_path: Path) -> None
     updated = {
         **status,
         'version': 3,
-        'installed_iteration': 8,
+        **compat_version_payload(),
         'task_taxonomy_version': 3,
         'generated_at': date.today().isoformat(),
         'resolved_task_packets': packets,
