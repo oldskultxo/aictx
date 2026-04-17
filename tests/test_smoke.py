@@ -266,6 +266,8 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
     assert weekly["tasks_sampled"] >= 1
     assert status["last_execution_mode"] == "plain"
     assert any("exec-finalize-1" in row for row in workflow_rows)
+    assert "value_evidence" in finalized
+    assert weekly["value_evidence"]["files_opened_per_task"] == "unknown"
 
 
 def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
@@ -803,7 +805,50 @@ def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
     assert packet["task_summary"] == "debug failing integration"
     assert packet["repo_scope"] == packet["relevant_paths"]
     assert packet["architecture_rules"] == packet["architecture_decisions"]
+    assert packet["selection_report"]["why_included"]["task_memory"]
+    assert isinstance(packet["task_type_resolution"]["ambiguous"], bool)
+    assert all(isinstance(item, dict) for item in packet["repo_scope"])
     assert "communication_policy" not in packet
+
+
+def test_rank_records_returns_score_breakdown(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    matches = runtime_memory.rank_records("workflow contract")
+    assert isinstance(matches, list)
+    if matches:
+        assert "score_breakdown" in matches[0]
+        assert "total" in matches[0]["score_breakdown"]
+
+
+def test_repeated_task_reports_value_evidence(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    first = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "review middleware behavior",
+            "agent_id": "agent-test",
+            "execution_id": "repeat-1",
+        }
+    )
+    finalize_execution(first, {"success": True, "result_summary": "first", "validated_learning": True})
+
+    second = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "review middleware behavior",
+            "agent_id": "agent-test",
+            "execution_id": "repeat-2",
+        }
+    )
+    finalized = finalize_execution(second, {"success": True, "result_summary": "second", "validated_learning": False})
+
+    weekly = read_json(repo / ".ai_context_engine" / "metrics" / "weekly_summary.json", {})
+    assert finalized["value_evidence"]["repeated_context_request"] is True
+    assert weekly["value_evidence"]["repeated_tasks_observed"] >= 1
 
 
 def test_scaffold_status_files_include_version_contract(tmp_path: Path):

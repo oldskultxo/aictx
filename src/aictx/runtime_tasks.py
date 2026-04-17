@@ -16,24 +16,57 @@ def apply_packet_compat_fields(packet: dict[str, Any]) -> dict[str, Any]:
 
 
 def route_task(task: str) -> dict[str, Any]:
+    return route_task_with_context(task)
+
+
+def route_task_with_context(
+    task: str,
+    *,
+    resolved_task_type: str | None = None,
+    repo_scope: list[str] | None = None,
+    relevant_failures: list[dict[str, Any]] | None = None,
+    graph_hits: int = 0,
+) -> dict[str, Any]:
     task_l = task.lower()
-    files_hint = 1
+    scope_width = len(repo_scope or [])
+    failure_hits = len(relevant_failures or [])
+    signals = []
+    files_hint = max(1, scope_width or 1)
     if any(word in task_l for word in ['cross-system', 'migration', 'architecture', 'redesign', 'protocol']):
         level = 'heavy'
-        files_hint = 10
+        files_hint = max(files_hint, 10)
+        signals.append('text:cross_system')
     elif any(word in task_l for word in ['add', 'implement', 'fix', 'debug', 'test', 'refactor']):
         level = 'medium'
-        files_hint = 4
+        files_hint = max(files_hint, 4)
+        signals.append('text:implementation')
     else:
         level = 'light'
-        files_hint = 1
+    level_rank = {'light': 1, 'medium': 2, 'heavy': 3}
+    if resolved_task_type in {'architecture', 'performance'}:
+        level = 'heavy' if scope_width >= 4 else ('medium' if level_rank[level] < level_rank['medium'] else level)
+        signals.append(f'task_type:{resolved_task_type}')
+    if failure_hits >= 2:
+        level = 'heavy'
+        signals.append('failure_memory:high')
+    elif failure_hits == 1 and level == 'light':
+        level = 'medium'
+        signals.append('failure_memory:present')
+    if graph_hits >= 6 and level == 'light':
+        level = 'medium'
+        signals.append('graph:connected_context')
+    ambiguity = 'high' if scope_width == 0 and failure_hits == 0 and graph_hits == 0 else ('medium' if level != 'light' else 'low')
     return {
         'task': task,
         'model_suggestion': level,
         'signals': {
             'estimated_files': files_hint,
-            'ambiguity': 'medium' if level != 'light' else 'low',
+            'ambiguity': ambiguity,
             'cross_system': level == 'heavy',
+            'failure_hits': failure_hits,
+            'graph_hits': graph_hits,
+            'repo_scope_width': scope_width,
+            'evidence': signals,
         },
     }
 
@@ -56,6 +89,8 @@ def resolve_task_type(
             'fallback': normalized_explicit == 'unknown',
             'confidence': 0.95,
             'signals': [f'explicit:{normalized_explicit}'],
+            'evidence': [f'user_declared:{normalized_explicit}'],
+            'ambiguous': normalized_explicit == 'unknown',
         }
     metadata_task_type = cr.normalize_task_type((packet_metadata or {}).get('task_type'))
     if packet_metadata and packet_metadata.get('task_type') and metadata_task_type in cr.TASK_TYPES:
@@ -65,15 +100,22 @@ def resolve_task_type(
             'fallback': metadata_task_type == 'unknown',
             'confidence': 0.9,
             'signals': [f'metadata:{metadata_task_type}'],
+            'evidence': [f'packet_metadata:{metadata_task_type}'],
+            'ambiguous': metadata_task_type == 'unknown',
         }
     inferred = cr.classify_task_type_from_text('\n'.join([task, ' '.join(touched_files or [])]), tags=[], record_type=None)
+    evidence = task_signals[:6]
+    ambiguity_markers = len({signal.split(':')[1] for signal in task_signals if ':' in signal}) >= 2
     if inferred != 'unknown':
+        confidence = cr.task_type_confidence(task, inferred, touched_files=touched_files)
         return {
             'task_type': inferred,
             'source': 'heuristic_inference',
             'fallback': False,
-            'confidence': cr.task_type_confidence(task, inferred, touched_files=touched_files),
+            'confidence': confidence,
             'signals': task_signals,
+            'evidence': evidence or [f'heuristic:{inferred}'],
+            'ambiguous': confidence < 0.68 or ambiguity_markers,
         }
     return {
         'task_type': 'unknown',
@@ -81,7 +123,26 @@ def resolve_task_type(
         'fallback': True,
         'confidence': 0.35,
         'signals': task_signals,
+        'evidence': evidence or ['no_strong_task_type_signal'],
+        'ambiguous': True,
     }
+
+
+def dedupe_packet_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    seen: set[tuple[str, str]] = set()
+    kept: list[dict[str, Any]] = []
+    dropped: list[dict[str, Any]] = []
+    for item in items:
+        identity = (
+            str(item.get('id') or item.get('path') or item.get('title') or ''),
+            slugify(str(item.get('summary') or item.get('title') or '')),
+        )
+        if identity in seen:
+            dropped.append({'id': item.get('id', ''), 'reason': 'duplicate'})
+            continue
+        seen.add(identity)
+        kept.append(item)
+    return kept, dropped
 
 
 def packet_for_task(task: str, project: str | None = None, task_type: str | None = None) -> dict[str, Any]:
@@ -144,7 +205,6 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
         path = row.get('path')
         if path and path not in relevant_paths:
             relevant_paths.append(path)
-    route = route_task(task)
     relevant_failures = cr.rank_failure_records(task) if cr.should_consult_failure_memory(task, resolved_task['task_type']) else []
     knowledge_pack = retrieve_knowledge(task)
     graph_seed_ids = [cr.graph_node_id('task_type', resolved_task['task_type'])]
@@ -166,7 +226,27 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
     for node in graph_expansion.get('nodes', []):
         if node.get('type') == 'task_type':
             continue
+        if node.get('type') == 'repository_area' and project_name and project_name not in str(node.get('label', '')):
+            continue
+        if float(node.get('confidence', 0.5) or 0.5) < 0.62:
+            continue
         graph_context.append({'id': node.get('id'), 'title': node.get('label'), 'summary': f"{node.get('type')} from {node.get('source')}", 'score': round(float(node.get('confidence', 0.5)), 2), 'context_cost': 2, 'source_type': 'memory_graph'})
+    graph_context = [
+        row for row in graph_context
+        if row.get('source_type') == 'memory_graph' and (
+            'architecture' in str(row.get('id', ''))
+            or 'failure_pattern' in str(row.get('id', ''))
+            or 'repository_area' in str(row.get('id', ''))
+            or float(row.get('score', 0.0) or 0.0) >= 0.75
+        )
+    ][:5]
+    route = route_task_with_context(
+        task,
+        resolved_task_type=resolved_task['task_type'],
+        repo_scope=relevant_paths,
+        relevant_failures=relevant_failures,
+        graph_hits=len(graph_context),
+    )
     if graph_connected_ids:
         connected_rows = {row.get('id'): row for row in ([normalize_record(row) for row in load_records()] + cr.manual_task_memory_records()) if row.get('id') in graph_connected_ids}
         for record_id in sorted(graph_connected_ids):
@@ -177,10 +257,24 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
     relevant_memory = []
     known_patterns = []
     for row in memory_matches[:5]:
-        relevant_memory.append({'id': row.get('id'), 'title': row.get('title'), 'summary': row.get('summary'), 'score': row.get('score'), 'source_type': row.get('source_type', 'legacy'), 'context_cost': row.get('context_cost', 5)})
+        relevant_memory.append({'id': row.get('id'), 'title': row.get('title'), 'summary': row.get('summary'), 'score': row.get('score'), 'score_breakdown': row.get('score_breakdown', {}), 'source_type': row.get('source_type', 'legacy'), 'context_cost': row.get('context_cost', 5), 'path': row.get('path', '')})
         for tag in row.get('tags', []):
             if tag not in known_patterns:
                 known_patterns.append(tag)
+    relevant_memory, dropped_memory = dedupe_packet_items(relevant_memory)
+    repo_scope_objects = [{'path': path, 'reason': 'retrieval_hit'} for path in relevant_paths]
+    repo_scope_objects, dropped_scope = dedupe_packet_items(repo_scope_objects)
+    packet_groups = {
+        'constraints': constraints,
+        'architecture_rules': architecture,
+        'repo_scope': repo_scope_objects,
+        'task_memory': [{'id': row.get('id'), 'title': row.get('title'), 'summary': row.get('summary'), 'score': row.get('score'), 'source_type': row.get('source_type', 'record')} for row in task_specific_matches[:3]],
+        'failure_memory': [{'id': row.get('id'), 'title': row.get('title'), 'summary': row.get('root_cause', '') or row.get('solution', ''), 'score': row.get('score'), 'source_type': 'failure_memory'} for row in relevant_failures[:3]],
+        'graph_context': graph_context[:5],
+        'relevant_memory': relevant_memory[:5],
+        'knowledge_artifacts': knowledge_pack.get('artifacts', [])[:4],
+    }
+    packet_group_order = ['constraints', 'architecture_rules', 'repo_scope', 'task_memory', 'failure_memory', 'graph_context', 'relevant_memory', 'knowledge_artifacts']
     task_id = f"{date.today().isoformat()}_{slugify(task)[:40]}"
     packet = {
         'task_id': task_id,
@@ -189,20 +283,53 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
         'task_type': resolved_task['task_type'],
         'task_type_resolution': resolved_task,
         'project': project_name,
-        'repo_scope': relevant_paths,
+        'repo_scope': repo_scope_objects,
         'user_preferences': prefs,
         'constraints': constraints,
         'architecture_rules': architecture,
-        'relevant_memory': relevant_memory,
+        'relevant_memory': relevant_memory[:5],
         'known_patterns': known_patterns,
         'relevant_patterns': patterns,
         'validation_recipes': validation,
         'relevant_failures': relevant_failures,
-        'relevant_graph_context': graph_context[:5],
+        'relevant_graph_context': graph_context,
         'knowledge_artifacts': knowledge_pack.get('artifacts', []),
         'knowledge_retrieval': knowledge_pack,
         'model_suggestion': route['model_suggestion'],
         'fallback_mode': 'normal_repo_analysis',
+        'packet_strategy': {
+            'type': 'budgeted_intent_groups',
+            'group_order': packet_group_order,
+            'heuristic_context': True,
+            'ambiguity_markers': resolved_task.get('ambiguous', False),
+        },
+        'selection_report': {
+            'group_order': packet_group_order,
+            'included': {
+                'constraints': len(constraints),
+                'architecture_rules': len(architecture),
+                'repo_scope': len(repo_scope_objects),
+                'task_memory': len(packet_groups['task_memory']),
+                'failure_memory': len(packet_groups['failure_memory']),
+                'graph_context': len(graph_context),
+                'relevant_memory': len(relevant_memory[:5]),
+                'knowledge_artifacts': len(packet_groups['knowledge_artifacts']),
+            },
+            'dropped': {
+                'relevant_memory': dropped_memory,
+                'repo_scope': dropped_scope,
+            },
+            'why_included': {
+                'constraints': 'hard repo/runtime rules first',
+                'architecture_rules': 'preserve repo contract and design constraints',
+                'repo_scope': 'exact paths seen in relevant hits',
+                'task_memory': 'prefer prior lessons for same task type',
+                'failure_memory': 'surface repeated breakages before generic memory',
+                'graph_context': 'only when connected context passes threshold',
+                'relevant_memory': 'top deterministic retrieval after stronger groups',
+                'knowledge_artifacts': 'optional supporting references',
+            },
+        },
         'task_memory': {
             'resolved_task_type': resolved_task['task_type'], 'task_type_source': resolved_task['source'], 'task_type_confidence': resolved_task.get('confidence', 0.35), 'task_type_signals': resolved_task.get('signals', []),
             'task_specific_memory_used': bool(task_specific_matches), 'task_specific_records_retrieved': len(task_specific_matches[:5]), 'unknown_records_retrieved': len(fallback_task_matches[:5]), 'general_records_retrieved': len(general_matches[:5]), 'queried_categories': queried_task_categories,
@@ -210,7 +337,7 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
             'fallback_to_general': resolved_task['task_type'] == 'unknown' or not task_specific_matches, 'task_memory_written': False, 'learning_channel': 'scripts/task_memory.py',
         },
         'failure_memory': {'failure_memory_used': bool(relevant_failures), 'records_retrieved': len(relevant_failures), 'index_path': cr.FAILURE_MEMORY_INDEX_PATH.as_posix(), 'summary_path': cr.FAILURE_MEMORY_SUMMARY_PATH.as_posix()},
-        'memory_graph': {'graph_used': bool(graph_context), 'seed_count': len(sorted(set(graph_seed_ids))), 'expansion_depth_used': graph_expansion.get('depth_used', 0), 'graph_hits': len(graph_expansion.get('nodes', [])), 'connected_record_hits': len(graph_connected_ids), 'nodes_total': int(cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {}).get('nodes_total', 0) or 0), 'edges_total': int(cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {}).get('edges_total', 0) or 0), 'status_path': cr.MEMORY_GRAPH_STATUS_PATH.as_posix(), 'snapshot_path': cr.MEMORY_GRAPH_SNAPSHOT_PATH.as_posix()},
+        'memory_graph': {'graph_used': bool(graph_context), 'graph_threshold': 'connected_or_high_confidence_only', 'seed_count': len(sorted(set(graph_seed_ids))), 'expansion_depth_used': graph_expansion.get('depth_used', 0), 'graph_hits': len(graph_context), 'connected_record_hits': len(graph_connected_ids), 'nodes_total': int(cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {}).get('nodes_total', 0) or 0), 'edges_total': int(cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {}).get('edges_total', 0) or 0), 'status_path': cr.MEMORY_GRAPH_STATUS_PATH.as_posix(), 'snapshot_path': cr.MEMORY_GRAPH_SNAPSHOT_PATH.as_posix()},
         'telemetry_granularity': {
             'supported': True, 'task_id': task_id, 'level': 'task', 'phase_count': 4,
             'phases': [

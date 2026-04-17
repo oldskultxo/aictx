@@ -207,6 +207,14 @@ if not prompt:
 packet = run_json(["aictx", "packet", "--task", prompt])
 relevant_memory = packet.get("relevant_memory", [])[:3]
 relevant_paths = packet.get("repo_scope", packet.get("relevant_paths", []))[:5]
+normalized_paths = []
+for path in relevant_paths:
+    if isinstance(path, dict):
+        value = str(path.get("path") or "").strip()
+        if value:
+            normalized_paths.append(value)
+    elif str(path).strip():
+        normalized_paths.append(str(path).strip())
 summary = [
     "AICTX packet prepared automatically for this prompt.",
     f"Resolved task type: {packet.get('task_type', 'unknown')}",
@@ -214,8 +222,8 @@ summary = [
 ]
 if relevant_memory:
     summary.append("Relevant memory: " + ", ".join(str(item.get("title") or item.get("id") or "") for item in relevant_memory))
-if relevant_paths:
-    summary.append("Relevant paths: " + ", ".join(str(path) for path in relevant_paths))
+if normalized_paths:
+    summary.append("Relevant paths: " + ", ".join(normalized_paths))
 summary.append("Use .ai_context_engine as first context layer before broad repo scanning.")
 
 print(json.dumps({

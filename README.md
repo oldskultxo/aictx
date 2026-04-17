@@ -2,7 +2,7 @@
 
 **Install once. Initialize a repo. Give coding agents a real runtime contract.**
 
-`aictx` turns a normal repository into a repository that is prepared for coding agents.
+`aictx` turns a normal repository into a repository with a **runtime contract for coding agents**.
 
 ## Product surface
 
@@ -25,6 +25,14 @@ After `install + init`, `aictx` can provide:
 - wrapped middleware for generic automation via `aictx internal run-execution`
 - local/global telemetry and health artifacts
 
+The strongest value today is:
+
+- repo-native runtime contract
+- runner-aware execution discipline
+- structured local persistence
+
+The contextual layer is real, but still mostly heuristic rather than deeply intelligent.
+
 ## Honest limits
 
 This is still a **0.x beta** product.
@@ -32,7 +40,7 @@ This is still a **0.x beta** product.
 - final behavior depends on each runner honoring its instruction and hook system
 - telemetry quality is best-effort unless confidence is explicitly high
 - advanced/internal commands are supported, but not the main thing being sold
-- some deeper capabilities are still being extracted from the canonical engine
+- current task routing, ranking, graph expansion, and packet building are mostly deterministic heuristics
 
 See [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
@@ -114,6 +122,15 @@ And native repo integration files:
 Precedence is:
 
 `explicit user instruction > repo prefs > global defaults > hardcoded fallback`
+
+## What to expect from the contextual core
+
+Today `aictx` is better understood as:
+
+- **primary**: runtime contract + execution discipline + repo bootstrap
+- **secondary**: heuristic packet, memory, failure, and graph accelerators
+
+That means the product already adds structure and reuse, but it does **not** yet claim deep repo understanding beyond deterministic retrieval and bounded heuristics.
 
 ## Public beta posture
 

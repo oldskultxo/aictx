@@ -10,6 +10,7 @@ from typing import Any
 from .adapters import resolve_adapter_profile
 from . import core_runtime
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
+from .runtime_io import slugify
 from .runtime_memory import rank_records
 from .runtime_tasks import packet_for_task, resolve_task_type
 from .state import (
@@ -182,6 +183,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "memory_titles": [str(row.get("title") or row.get("id") or "") for row in retrieval_matches[:3]],
         "boot_pref_language": str(boot_sources.get("user_preferences", {}).get("preferred_language", "")),
     }
+    task_fingerprint = slugify(f"{repo_root.name}:{task_resolution['task_type']}:{envelope['user_request']}")[:80]
     packet = None
     packet_path = ""
     if should_prepare_packet(
@@ -202,6 +204,9 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
                 "packet_built": True,
                 "relevant_memory_count": len(packet.get("relevant_memory", [])),
                 "knowledge_artifact_count": len(packet.get("knowledge_artifacts", [])),
+                "failure_memory_reused": bool(packet.get("failure_memory", {}).get("failure_memory_used")),
+                "task_memory_reused": bool(packet.get("task_memory", {}).get("task_specific_memory_used")),
+                "repo_scope_count": len(packet.get("repo_scope", [])),
             }
         )
     else:
@@ -219,6 +224,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "skill_detection": execution["skill_detection"],
         "resolved_task_type": task_resolution["task_type"],
         "task_resolution": task_resolution,
+        "task_fingerprint": task_fingerprint,
         "communication_policy": communication_policy,
         "communication_sources": resolved_preferences.get("sources", {}).get("communication", {}),
         "effective_preferences": resolved_preferences.get("effective_preferences", {}),
@@ -255,14 +261,28 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
     status_path = repo_root / EXECUTION_STATUS_PATH
     weekly_path = repo_root / REPO_METRICS_DIR / "weekly_summary.json"
     rows = read_jsonl(log_path)
+    packet = prepared.get("packet", {}) if isinstance(prepared.get("packet"), dict) else {}
+    packet_budget = packet.get("context_budget", {}) if isinstance(packet.get("context_budget"), dict) else {}
+    existing_same = [row for row in rows if row.get("task_fingerprint") == prepared.get("task_fingerprint")]
+    prior_successes = sum(1 for row in existing_same if row.get("success"))
+    prior_total = len(existing_same)
     entry = {
         "execution_id": prepared["envelope"]["execution_id"],
         "agent_id": prepared["envelope"]["agent_id"],
         "execution_mode": prepared["execution_mode"],
         "resolved_task_type": prepared["resolved_task_type"],
+        "task_fingerprint": prepared.get("task_fingerprint", ""),
         "success": bool(result.get("success")),
         "validated_learning": bool(result.get("validated_learning")),
         "packet_path": prepared.get("packet_path", ""),
+        "packet_built": bool(prepared.get("retrieval_summary", {}).get("packet_built")),
+        "packet_estimated_tokens": int(packet_budget.get("estimated_total_tokens", 0) or 0),
+        "files_opened_per_task": "unknown",
+        "re_explanation_turns": 0,
+        "repeated_context_request": prior_total > 0,
+        "task_memory_reused": bool(prepared.get("retrieval_summary", {}).get("task_memory_reused")),
+        "failure_memory_reused": bool(prepared.get("retrieval_summary", {}).get("failure_memory_reused")),
+        "repo_scope_count": int(prepared.get("retrieval_summary", {}).get("repo_scope_count", 0) or 0),
         "skill_detection": prepared.get("skill_detection", {}),
         "skill_metadata": prepared.get("skill_metadata", {}) if prepared.get("execution_mode") == "skill" else {},
         "result_summary": str(result.get("result_summary", "") or ""),
@@ -287,6 +307,21 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
     weekly["last_execution_mode"] = prepared["execution_mode"]
     weekly["last_execution_at"] = entry["recorded_at"]
     weekly["last_execution_success"] = bool(result.get("success"))
+    previous_repeat_success_rate = round(prior_successes / prior_total, 4) if prior_total else "unknown"
+    current_repeat_success_lift = "unknown"
+    if prior_total:
+        current_repeat_success_lift = round((1.0 if result.get("success") else 0.0) - (prior_successes / prior_total), 4)
+    previous_value = weekly.get("value_evidence", {}) if isinstance(weekly.get("value_evidence"), dict) else {}
+    weekly["value_evidence"] = {
+        "files_opened_per_task": "unknown",
+        "re_explanation_turns": 0,
+        "repeat_task_success_lift": current_repeat_success_lift,
+        "repeated_tasks_observed": int(previous_value.get("repeated_tasks_observed", 0) or 0) + (1 if prior_total else 0),
+        "tasks_using_task_memory": int(previous_value.get("tasks_using_task_memory", 0) or 0) + (1 if entry["task_memory_reused"] else 0),
+        "tasks_using_failure_memory": int(previous_value.get("tasks_using_failure_memory", 0) or 0) + (1 if entry["failure_memory_reused"] else 0),
+        "last_task_fingerprint": prepared.get("task_fingerprint", ""),
+        "last_repeat_baseline_success_rate": previous_repeat_success_rate,
+    }
     if prepared["execution_mode"] == "skill":
         weekly["last_skill_name"] = prepared.get("skill_metadata", {}).get("skill_name", "")
     write_json(weekly_path, weekly)
@@ -365,6 +400,14 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "telemetry_entry": telemetry_entry,
         "learning_persisted": learning,
         "failure_recorded": failure,
+        "value_evidence": {
+            "task_fingerprint": prepared.get("task_fingerprint", ""),
+            "task_memory_reused": bool(telemetry_entry.get("task_memory_reused")),
+            "failure_memory_reused": bool(telemetry_entry.get("failure_memory_reused")),
+            "repeated_context_request": bool(telemetry_entry.get("repeated_context_request")),
+            "files_opened_per_task": telemetry_entry.get("files_opened_per_task", "unknown"),
+            "re_explanation_turns": telemetry_entry.get("re_explanation_turns", 0),
+        },
         "finalized_at": now_iso(),
     }
 

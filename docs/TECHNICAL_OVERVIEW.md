@@ -59,7 +59,12 @@ Missing data is reported as `not_initialized` or `unknown` instead of being sile
 
 ## Code structure
 
-The runtime is still evolving, but product-hardening logic is now being split out of the monolith into focused modules such as `runtime_contract.py` so communication policy and consistency checks are owned in one place.
+The runtime is still evolving, but the architecture is moving toward a clearer split:
+
+- runtime contract and execution discipline first
+- heuristic context assembly second
+
+Task routing, ranking, packet building, and graph expansion are currently deterministic and bounded by design. They are meant to be explainable accelerators, not opaque intelligence claims.
 
 ## Global health checks
 

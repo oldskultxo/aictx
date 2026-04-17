@@ -15,6 +15,7 @@
 - that bootstrap memory is always better than direct code inspection
 - that telemetry estimates are high-confidence on every project
 - that advanced/internal commands are stable enough for broad third-party integrations
+- that the current heuristic routing/ranking/graph layers will outperform plain repo inspection on every large or noisy codebase
 
 ## Operational limits
 

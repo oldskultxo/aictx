@@ -35,8 +35,36 @@ mkdir -p /tmp/aictx-demo-repo
 
 - `init` provisions repo-local runtime files and runner integration files.
 - `boot` now reports effective preferences plus runtime consistency checks.
-- `packet` gives compact context for a task without pretending to solve the task.
+- `packet` gives compact heuristic context for a task without pretending to solve the task.
 - `execution prepare/finalize` provides the middleware contract used by wrappers.
+
+## Day-2 value demo
+
+After the first run, repeat a similar task:
+
+```bash
+.venv/bin/aictx execution prepare \
+  --repo /tmp/aictx-demo-repo \
+  --request "review middleware behavior again and reuse prior findings" \
+  --agent-id demo-agent \
+  --execution-id demo-2 > /tmp/aictx-demo-repo/prepared-2.json
+
+.venv/bin/aictx execution finalize \
+  --prepared /tmp/aictx-demo-repo/prepared-2.json \
+  --success \
+  --validated-learning \
+  --result-summary "second demo completed"
+```
+
+Then inspect:
+
+- `.ai_context_engine/metrics/weekly_summary.json`
+- `value_evidence`
+- `task_memory_reused`
+- `repeated_context_request`
+
+The point is not “magic intelligence”.
+The point is that the second run should enter with more reusable repo-local context and better execution discipline.
 
 ## Honest framing
 

@@ -77,6 +77,72 @@ def normalize_record(record: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def record_score_breakdown(
+    query: str,
+    row: dict[str, Any],
+    *,
+    task_type: str | None = None,
+    project: str | None = None,
+) -> dict[str, float]:
+    from . import core_runtime as cr
+
+    normalized = normalize_record(row)
+    query_l = str(query or "").lower()
+    haystacks = [
+        str(normalized.get('title', '')),
+        str(normalized.get('summary', '')),
+        ' '.join(str(tag) for tag in normalized.get('tags', [])),
+        ' '.join(str(path) for path in normalized.get('files_involved', [])),
+    ]
+    lexical = max(cr.score_match(query_l, text) for text in haystacks if text) / 100 if query_l else 0.0
+    recency_days = max(0, days_since(normalized.get('last_used_at')))
+    recency_decay = round(max(0.0, 1 - min(recency_days, 180) / 240), 4)
+    task_match = 1.0 if task_type and cr.normalize_task_type(normalized.get('task_type')) == cr.normalize_task_type(task_type) else 0.0
+    project_match = 1.0 if project and normalized.get('project') == project else 0.0
+    success_boost = round(clamp((float(normalized.get('success_rate', 0.75)) - 0.5) * 0.8, 0.0, 0.4), 4)
+    repeat_boost = round(clamp(min(int(normalized.get('times_used', 0) or 0), 6) / 20, 0.0, 0.3), 4)
+    path_mentions = ' '.join(str(path) for path in normalized.get('files_involved', []))
+    path_boost = 0.0
+    if path_mentions and query_l:
+        path_boost = round(min(0.45, cr.score_match(query_l, path_mentions) / 200), 4)
+    failure_boost = 0.18 if normalized.get('type') in {'failure_mode', 'debugging_pattern'} and any(word in query_l for word in ['fail', 'error', 'debug', 'broken', 'regression']) else 0.0
+    exact_id_boost = 0.22 if str(normalized.get('id', '')).lower() and str(normalized.get('id', '')).lower() in query_l else 0.0
+    generic_penalty = 0.0
+    if not normalized.get('files_involved') and len(normalized.get('tags', [])) <= 1:
+        generic_penalty += 0.08
+    if len(str(normalized.get('summary', '')).split()) <= 4:
+        generic_penalty += 0.05
+    stale_penalty = round(clamp(float(normalized.get('staleness_score', 0.2)) * 0.25, 0.0, 0.2), 4)
+    total = round(
+        lexical * 0.45
+        + recency_decay * 0.1
+        + task_match * 0.18
+        + project_match * 0.08
+        + success_boost
+        + repeat_boost
+        + path_boost
+        + failure_boost
+        + exact_id_boost
+        - generic_penalty
+        - stale_penalty,
+        4,
+    )
+    return {
+        'lexical': round(lexical, 4),
+        'recency_decay': recency_decay,
+        'task_match': task_match,
+        'project_match': project_match,
+        'success_boost': success_boost,
+        'repeat_boost': repeat_boost,
+        'path_boost': path_boost,
+        'failure_boost': failure_boost,
+        'exact_id_boost': exact_id_boost,
+        'generic_penalty': round(generic_penalty, 4),
+        'stale_penalty': stale_penalty,
+        'total': total,
+    }
+
+
 def rank_records(
     query: str,
     record_type: str | None = None,
@@ -94,11 +160,12 @@ def rank_records(
             continue
         if project and row.get('project') not in {None, project}:
             continue
-        score = cr.deterministic_score(query, row)
+        breakdown = record_score_breakdown(query, row, task_type=task_type, project=project)
+        score = breakdown['total']
         if score > 0:
-            ranked.append((score, row))
+            ranked.append((score, row, breakdown))
     ranked.sort(key=lambda item: (-item[0], item[1].get('context_cost', 99), item[1].get('id', '')))
-    return [{'score': score, **row} for score, row in ranked[:12]]
+    return [{'score': score, 'score_breakdown': breakdown, **row} for score, row, breakdown in ranked[:12]]
 
 
 def summarize_query(query: str, mode: str = 'all') -> dict[str, Any]:
