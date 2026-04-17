@@ -1731,6 +1731,7 @@ def new_note(path: str, title: str, tags: list[str] | None = None, task_type: st
     note_path.parent.mkdir(parents=True, exist_ok=True)
     tag_list = ", ".join(tags or [])
     normalized_task_type = normalize_task_type(task_type) if task_type else None
+    task_type_line = f"task_type: {normalized_task_type}\n" if normalized_task_type else ""
     note_path.write_text(
         (
             "---\n"
@@ -1738,7 +1739,7 @@ def new_note(path: str, title: str, tags: list[str] | None = None, task_type: st
             "confidence: medium\n"
             f"last_verified: {date.today().isoformat()}\n"
             f"tags: {tag_list}\n"
-            f"{f'task_type: {normalized_task_type}\\n' if normalized_task_type else ''}"
+            f"{task_type_line}"
             "---\n\n"
             f"# {title}\n\n"
             "Problem\n"

@@ -100,7 +100,7 @@ For release validation, also verify a clean wheel install:
 
 ```bash
 python3 -m venv /tmp/aictx-release-venv
-/tmp/aictx-release-venv/bin/pip install dist/aictx-0.3.0-py3-none-any.whl
+/tmp/aictx-release-venv/bin/pip install dist/aictx-<version>-py3-none-any.whl
 /tmp/aictx-release-venv/bin/aictx --help
 ```
 

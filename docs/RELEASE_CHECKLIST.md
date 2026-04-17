@@ -2,7 +2,7 @@
 
 ## Release identity
 
-- [ ] target version is set (`0.3.0` for this public beta release)
+- [ ] target version is set (for example `0.3.1` for the current public beta release)
 - [ ] release remains intentionally `0.x`
 - [ ] tag format is `vX.Y.Z`
 - [ ] changelog entry is ready before tagging
