@@ -6,7 +6,7 @@ Most coding agents forget important repo context between sessions.
 
 ---
 
-If you use Codex or Claude Code, this is common:
+If you use coding agents (Codex, Claude Code, or similar), this is common:
 
 - you explain the same thing over and over
 - past decisions are not reused consistently
