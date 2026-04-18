@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from . import core_runtime, global_metrics
+from .benchmark import cli_benchmark_report, cli_benchmark_run
 from .adapters import install_global_adapters
 from .agent_runtime import (
     copy_local_agent_runtime,
@@ -432,7 +433,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,benchmark}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -456,6 +457,22 @@ def build_parser() -> argparse.ArgumentParser:
     add_root.set_defaults(func=cmd_workspace_add_root)
     list_cmd = workspace_sub.add_parser("list", help="List workspace roots and repos")
     list_cmd.set_defaults(func=cmd_workspace_list)
+
+    benchmark = sub.add_parser("benchmark", help="Run and report A/B/C benchmark suites")
+    benchmark_sub = benchmark.add_subparsers(dest="benchmark_command", required=True)
+
+    benchmark_run = benchmark_sub.add_parser("run", help="Generate deterministic benchmark runs for one arm")
+    benchmark_run.add_argument("--suite", required=True, help="Path to benchmark_suite.json")
+    benchmark_run.add_argument("--arm", required=True, choices=["A", "B", "C", "a", "b", "c"], help="Benchmark arm")
+    benchmark_run.add_argument("--repo", help="Optional single repo filter")
+    benchmark_run.add_argument("--seed", type=int, help="Optional single seed filter")
+    benchmark_run.add_argument("--out", required=True, help="Output directory for benchmark artifacts")
+    benchmark_run.set_defaults(func=cli_benchmark_run)
+
+    benchmark_report = benchmark_sub.add_parser("report", help="Aggregate benchmark runs and emit report artifacts")
+    benchmark_report.add_argument("--input", required=True, help="Benchmark directory containing runs/")
+    benchmark_report.add_argument("--format", choices=["json", "md"], default="json", help="Terminal output format")
+    benchmark_report.set_defaults(func=cli_benchmark_report)
 
     boot = sub.add_parser("boot", help=argparse.SUPPRESS)
     boot.add_argument("--repo", default=".", help="Repository path for session boot context.")

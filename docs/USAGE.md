@@ -163,3 +163,21 @@ Then inspect:
 - `repeated_context_request`
 - `task_memory_reused`
 - `failure_memory_reused`
+
+## Benchmark A/B/C
+
+Run benchmark artifacts:
+
+```bash
+aictx benchmark run --suite benchmark_suite.json --arm A --out .ai_context_engine/metrics/benchmark_runs
+aictx benchmark run --suite benchmark_suite.json --arm B --out .ai_context_engine/metrics/benchmark_runs
+aictx benchmark run --suite benchmark_suite.json --arm C --out .ai_context_engine/metrics/benchmark_runs
+aictx benchmark report --input .ai_context_engine/metrics/benchmark_runs --format json
+```
+
+This generates:
+
+- `.ai_context_engine/metrics/benchmark_runs/benchmark_report.json`
+- `.ai_context_engine/metrics/benchmark_runs/benchmark_report.md`
+
+For full setup and gating rules, see `docs/BENCHMARK_QUICKSTART.md`.

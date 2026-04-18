@@ -197,8 +197,58 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     (repo / REPO_LIBRARY_DIR / "REFERENCES_TEMPLATE.md").write_text("# references template\n\n- title:\n- source:\n- tags:\n", encoding="utf-8")
     (repo / REPO_LIBRARY_DIR / "mods").mkdir(parents=True, exist_ok=True)
 
-    write_json(repo / REPO_METRICS_DIR / "weekly_summary.json", {"version": 1, "confidence": "unknown", "tasks_sampled": 0})
+    write_json(
+        repo / REPO_METRICS_DIR / "weekly_summary.json",
+        {
+            "version": 2,
+            "generated_at": "not_initialized",
+            "confidence": "low",
+            "tasks_sampled": 0,
+            "repeated_tasks": 0,
+            "phase_events_sampled": 0,
+            "telemetry_granularity": "task_plus_phase",
+            "estimated_context_reduction": {"range": [0.0, 0.0], "point": 0.0},
+            "estimated_total_token_reduction": {"range": [0.0, 0.0]},
+            "estimated_latency_improvement": {"range": [0.0, 0.0]},
+            "estimated_cost_reduction": {"range": [0.0, 0.0]},
+            "evidence_status": "insufficient_data",
+            "measurement_basis": "fallback_defaults",
+            "metrics": {
+                "estimated": {
+                    "context_reduction": {"range": [0.0, 0.0], "point": 0.0},
+                    "total_token_reduction": {"range": [0.0, 0.0]},
+                    "latency_improvement": {"range": [0.0, 0.0]},
+                    "cost_reduction": {"range": [0.0, 0.0]},
+                },
+                "measured": None,
+            },
+            "sample_requirements": {
+                "min_tasks_for_estimated": 20,
+                "min_tasks_for_measured": 60,
+                "required_benchmark_arms": ["A", "B", "C"],
+                "requires_complete_benchmark_for_measured": True,
+            },
+            "sample_gaps": {
+                "tasks_missing_for_estimated": 20,
+                "tasks_missing_for_measured": 60,
+                "benchmark_complete": False,
+                "missing_benchmark_arms": ["A", "B", "C"],
+            },
+            "top_expensive_phases": [],
+        },
+    )
     write_json(repo / REPO_METRICS_DIR / "baseline_estimates.json", {"version": 1, "status": "not_initialized"})
+    write_json(
+        repo / REPO_METRICS_DIR / "benchmark_status.json",
+        {
+            "version": 1,
+            "generated_at": "not_initialized",
+            "benchmark_present": False,
+            "complete_abc": False,
+            "arms_covered": [],
+            "runs_total": 0,
+        },
+    )
     (repo / REPO_METRICS_DIR / "task_logs.jsonl").write_text("", encoding="utf-8")
 
     if update_gitignore:

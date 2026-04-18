@@ -190,6 +190,40 @@ Precedence is:
 
 `explicit user instruction > repo prefs > global defaults > hardcoded fallback`
 
+## Benchmark A/B/C
+
+`aictx` now includes a reproducible benchmark surface for comparative runs:
+
+```bash
+aictx benchmark run --suite benchmark_suite.json --arm A --out .ai_context_engine/metrics/benchmark_runs
+aictx benchmark run --suite benchmark_suite.json --arm B --out .ai_context_engine/metrics/benchmark_runs
+aictx benchmark run --suite benchmark_suite.json --arm C --out .ai_context_engine/metrics/benchmark_runs
+aictx benchmark report --input .ai_context_engine/metrics/benchmark_runs --format json
+```
+
+This generates standardized JSON/Markdown report artifacts with:
+
+- by-arm aggregates (mean/median/p95/variance)
+- deltas (`C vs A`, `C vs B`)
+- confidence and publication gating labels
+
+See [docs/BENCHMARK_QUICKSTART.md](docs/BENCHMARK_QUICKSTART.md).
+
+## Evidence model and claim policy
+
+Repo telemetry now tracks evidence state explicitly:
+
+- `evidence_status`: `insufficient_data | estimated | measured`
+- `measurement_basis`: `fallback_defaults | task_logs | benchmark_runs`
+
+Default thresholds:
+
+- `<20` tasks sampled -> `insufficient_data`
+- `20-59` tasks sampled -> `estimated`
+- `>=60` tasks + complete `A/B/C` benchmark -> `measured`
+
+Only use strong external claims when evidence is measured and publication gating is complete (`claim_label=material_repeatable`).
+
 ## What to expect from the contextual core
 
 Today `aictx` is better understood as:
@@ -232,5 +266,6 @@ Public release validation also checks clean wheel installation, not just editabl
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
 - [5-minute demo](docs/DEMO.md)
 - [Current limitations](docs/LIMITATIONS.md)
+- [Benchmark quickstart](docs/BENCHMARK_QUICKSTART.md)
 - [Phase 2 notes](docs/PHASE2_NOTES.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)

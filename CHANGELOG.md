@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 - 2026-04-18
+
+- added benchmark CLI surface:
+  - `aictx benchmark run --suite ... --arm A|B|C --out ...`
+  - `aictx benchmark report --input ... --format json|md`
+- added deterministic A/B/C benchmark artifacts and standardized report outputs (JSON + Markdown)
+- introduced telemetry truthfulness model in weekly summary:
+  - `evidence_status` and `measurement_basis`
+  - additive `metrics.estimated` and nullable `metrics.measured`
+  - `sample_requirements` and `sample_gaps`
+- enforced evidence guardrails for reporting posture:
+  - insufficient sample -> no measured claims
+  - measured state requires sufficient sample + complete A/B/C benchmark coverage
+- updated global aggregation to exclude `insufficient_data` contributors from savings ranges
+- added `contributors_by_status` and global `claim_label` for publication posture (`exploratory` vs `material_repeatable`)
+- updated scaffold defaults to include benchmark status and extended weekly summary schema
+- expanded docs with benchmark quickstart and README evidence/claim policy
+
 ## 0.4.0 - 2026-04-18
 
 - repositioned product messaging to emphasize `runtime contract + execution discipline` as primary value

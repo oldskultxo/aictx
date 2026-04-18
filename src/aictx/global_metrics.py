@@ -72,6 +72,8 @@ class ProjectTelemetry:
     telemetry_granularity: str = "task_only"
     knowledge_mods_enabled: bool = False
     knowledge_retrieval_enabled: bool = False
+    evidence_status: str = "unknown"
+    measurement_basis: str = "unknown"
 
 
 @dataclass
@@ -276,13 +278,33 @@ def load_project_telemetry(repo: Path) -> ProjectTelemetry:
     if weekly.exists():
         payload = read_json(weekly, {})
         context = payload.get("estimated_context_reduction", {})
+        metrics_payload = payload.get("metrics", {}) if isinstance(payload.get("metrics"), dict) else {}
+        estimated_metrics = metrics_payload.get("estimated", {}) if isinstance(metrics_payload.get("estimated"), dict) else {}
+        if isinstance(estimated_metrics.get("context_reduction"), dict):
+            context = estimated_metrics.get("context_reduction", context)
         token = payload.get("estimated_total_token_reduction", {})
+        if isinstance(estimated_metrics.get("total_token_reduction"), dict):
+            token = estimated_metrics.get("total_token_reduction", token)
         latency = payload.get("estimated_latency_improvement", {})
+        if isinstance(estimated_metrics.get("latency_improvement"), dict):
+            latency = estimated_metrics.get("latency_improvement", latency)
         cost = payload.get("estimated_cost_reduction", {})
+        if isinstance(estimated_metrics.get("cost_reduction"), dict):
+            cost = estimated_metrics.get("cost_reduction", cost)
         context_range = tuple(context.get("range", [])) if len(context.get("range", [])) == 2 else None
         token_range = tuple(token.get("range", [])) if len(token.get("range", [])) == 2 else None
         latency_range = tuple(latency.get("range", [])) if len(latency.get("range", [])) == 2 else None
         cost_range = tuple(cost.get("range", [])) if len(cost.get("range", [])) == 2 else None
+        tasks_sampled = int(payload.get("tasks_sampled", 0) or 0)
+        evidence_status = str(payload.get("evidence_status", "unknown"))
+        measurement_basis = str(payload.get("measurement_basis", "unknown"))
+        if evidence_status == "unknown":
+            if tasks_sampled < 20:
+                evidence_status = "insufficient_data"
+                measurement_basis = "fallback_defaults"
+            else:
+                evidence_status = "estimated"
+                measurement_basis = "task_logs"
         return ProjectTelemetry(
             context_range=context_range,
             context_point=context.get("point"),
@@ -290,7 +312,7 @@ def load_project_telemetry(repo: Path) -> ProjectTelemetry:
             latency_range=latency_range,
             cost_range=cost_range,
             confidence=str(payload.get("confidence", "unknown")),
-            tasks_sampled=int(payload.get("tasks_sampled", 0) or 0),
+            tasks_sampled=tasks_sampled,
             repeated_tasks=int(payload.get("repeated_tasks", 0) or 0),
             source=rel(weekly),
             generated_at=str(payload.get("generated_at") or ""),
@@ -307,6 +329,8 @@ def load_project_telemetry(repo: Path) -> ProjectTelemetry:
             telemetry_granularity=str(payload.get("telemetry_granularity", "task_only")),
             knowledge_mods_enabled=bool(library_registry.get("mods")),
             knowledge_retrieval_enabled=bool(retrieval_status),
+            evidence_status=evidence_status,
+            measurement_basis=measurement_basis,
         )
     return ProjectTelemetry(
         optimization_events=int(cost_status.get("optimization_events", 0) or 0),
@@ -320,6 +344,8 @@ def load_project_telemetry(repo: Path) -> ProjectTelemetry:
         memory_graph_enabled=bool(memory_graph_status),
         knowledge_mods_enabled=bool(library_registry.get("mods")),
         knowledge_retrieval_enabled=bool(retrieval_status),
+        evidence_status="unknown",
+        measurement_basis="unknown",
     )
 
 
@@ -335,8 +361,12 @@ def aggregate_range(projects: list[dict[str, Any]], field: str) -> dict[str, Any
     weighted_high: list[tuple[float, int]] = []
     weighted_point: list[tuple[float, int]] = []
     contributing = 0
+    excluded_insufficient_data = 0
     for project in projects:
         telemetry = project.get("telemetry", {})
+        if str(telemetry.get("evidence_status", "unknown")) == "insufficient_data":
+            excluded_insufficient_data += 1
+            continue
         sample_weight = max(int(telemetry.get("tasks_sampled", 0) or 0), 1)
         range_value = telemetry.get(field)
         if isinstance(range_value, list) and len(range_value) == 2:
@@ -350,9 +380,20 @@ def aggregate_range(projects: list[dict[str, Any]], field: str) -> dict[str, Any
     point = weighted_mean(weighted_point) if weighted_point else None
     return {
         "projects_with_telemetry": contributing,
+        "projects_excluded_insufficient_data": excluded_insufficient_data,
         "range": [round(low, 4), round(high, 4)] if low is not None and high is not None else None,
         "point": round(point, 4) if point is not None else None,
     }
+
+
+def contributors_by_status(projects: list[dict[str, Any]]) -> dict[str, int]:
+    counts = {"measured": 0, "estimated": 0, "insufficient_data": 0, "unknown": 0}
+    for project in projects:
+        status = str(project.get("telemetry", {}).get("evidence_status", "unknown"))
+        if status not in counts:
+            status = "unknown"
+        counts[status] += 1
+    return counts
 
 
 def confidence_for_projects(projects: list[dict[str, Any]]) -> str:
@@ -445,6 +486,8 @@ def refresh_global_metrics() -> dict[str, Any]:
                 "memory_graph_nodes": telemetry.memory_graph_nodes,
                 "memory_graph_edges": telemetry.memory_graph_edges,
                 "memory_graph_enabled": telemetry.memory_graph_enabled,
+                "evidence_status": telemetry.evidence_status,
+                "measurement_basis": telemetry.measurement_basis,
             },
             "context_savings_markdown": savings_md,
         }
@@ -456,6 +499,8 @@ def refresh_global_metrics() -> dict[str, Any]:
                 "telemetry_dir": row["telemetry_dir"],
                 "weekly_summary_found": telemetry.source != "unknown",
                 "weekly_summary_source": telemetry.source,
+                "evidence_status": telemetry.evidence_status,
+                "measurement_basis": telemetry.measurement_basis,
                 **feature_flags,
                 "context_savings_markdown": savings_md,
                 "memory_dir": row["memory_dir"],
@@ -481,6 +526,8 @@ def refresh_global_metrics() -> dict[str, Any]:
     token = aggregate_range(project_rows, "token_range")
     latency = aggregate_range(project_rows, "latency_range")
     confidence = confidence_for_projects(project_rows)
+    status_breakdown = contributors_by_status(project_rows)
+    claim_label = "material_repeatable" if status_breakdown.get("measured", 0) >= 3 else "exploratory"
 
     context_payload = {
         "version": 1,
@@ -496,6 +543,8 @@ def refresh_global_metrics() -> dict[str, Any]:
         "projects_by_iteration": dict(sorted(Counter(project["installed_iteration"] for project in project_rows).items())),
         "estimated_context_reduction": context,
         "confidence": confidence,
+        "contributors_by_status": status_breakdown,
+        "claim_label": claim_label,
         "unknown_projects": [project["name"] for project in project_rows if project["telemetry"]["source"] == "unknown"],
         "project_breakdown": project_rows,
     }
@@ -512,6 +561,8 @@ def refresh_global_metrics() -> dict[str, Any]:
         "projects_by_iteration": context_payload["projects_by_iteration"],
         "estimated_total_token_reduction": token,
         "confidence": confidence,
+        "contributors_by_status": status_breakdown,
+        "claim_label": claim_label,
         "unknown_projects": context_payload["unknown_projects"],
     }
     latency_payload = {
@@ -527,6 +578,8 @@ def refresh_global_metrics() -> dict[str, Any]:
         "projects_by_iteration": context_payload["projects_by_iteration"],
         "estimated_latency_improvement": latency,
         "confidence": confidence,
+        "contributors_by_status": status_breakdown,
+        "claim_label": claim_label,
         "unknown_projects": context_payload["unknown_projects"],
     }
     telemetry_sources_payload = {

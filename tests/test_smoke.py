@@ -21,6 +21,9 @@ import aictx.runtime_cost as runtime_cost
 import aictx.runtime_failure as runtime_failure
 import aictx.runtime_graph as runtime_graph
 import aictx.runtime_task_memory as runtime_task_memory
+import aictx.runtime_metrics as runtime_metrics
+import aictx.benchmark as benchmark
+import aictx.global_metrics as global_metrics
 from aictx.agent_runtime import (
     AGENTS_END,
     AGENTS_START,
@@ -462,6 +465,7 @@ def test_cli_main_help_shows_simple_surface_only():
     help_text = parser.format_help()
     assert "install" in help_text
     assert "init" in help_text
+    assert "benchmark" in help_text
     assert "workspace" not in help_text
     assert "boot" not in help_text
     assert "memory-graph" not in help_text
@@ -521,6 +525,71 @@ def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, 
     init_out = capsys.readouterr().out
     assert "provision Codex and Claude native repo integration files" in init_out
     assert "Use your coding agent normally in this repo." in init_out
+
+
+def test_runtime_metrics_truthfulness_status_rules(monkeypatch):
+    monkeypatch.setattr(runtime_metrics, "load_benchmark_status", lambda: {"complete_abc": False, "arms_covered": []})
+    low = runtime_metrics.apply_truthfulness_guardrails({"tasks_sampled": 0})
+    assert low["evidence_status"] == "insufficient_data"
+    assert low["measurement_basis"] == "fallback_defaults"
+    assert low["confidence"] == "low"
+
+    estimated = runtime_metrics.apply_truthfulness_guardrails({"tasks_sampled": 25})
+    assert estimated["evidence_status"] == "estimated"
+    assert estimated["measurement_basis"] == "task_logs"
+    assert estimated["metrics"]["measured"] is None
+
+    monkeypatch.setattr(runtime_metrics, "load_benchmark_status", lambda: {"complete_abc": True, "arms_covered": ["A", "B", "C"]})
+    measured = runtime_metrics.apply_truthfulness_guardrails({"tasks_sampled": 80})
+    assert measured["evidence_status"] == "measured"
+    assert measured["measurement_basis"] == "benchmark_runs"
+    assert measured["confidence"] == "high"
+
+
+def test_global_aggregation_excludes_insufficient_data():
+    rows = [
+        {"telemetry": {"context_range": [0.1, 0.2], "context_point": 0.15, "tasks_sampled": 30, "evidence_status": "estimated"}},
+        {"telemetry": {"context_range": [0.8, 0.9], "context_point": 0.85, "tasks_sampled": 80, "evidence_status": "insufficient_data"}},
+    ]
+    context = global_metrics.aggregate_range(rows, "context_range")
+    assert context["projects_with_telemetry"] == 1
+    assert context["projects_excluded_insufficient_data"] == 1
+    assert context["range"] == [0.1, 0.2]
+
+
+def test_benchmark_run_and_report_pipeline(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    suite = {
+        "repos": [str(repo)],
+        "tasks": [
+            {"id": "t1", "prompt": "implement feature"},
+            {"id": "t2", "prompt": "fix bug"},
+        ],
+        "seeds": [1, 2],
+        "acceptance_checks": ["tests_pass", "no_regression"],
+    }
+    suite_path = tmp_path / "benchmark_suite.json"
+    suite_path.write_text(json.dumps(suite), encoding="utf-8")
+    out = tmp_path / "bench"
+
+    assert benchmark.run_suite(suite_path, out, arm="A", repo=None, seed=None)["runs_generated"] == 4
+    assert benchmark.run_suite(suite_path, out, arm="B", repo=None, seed=None)["runs_generated"] == 4
+    partial_report, partial_code = benchmark.build_report(out)
+    assert partial_code == 1
+    assert "required_arms_A_B_C" in partial_report["missing_requirements"]
+
+    assert benchmark.run_suite(suite_path, out, arm="C", repo=None, seed=None)["runs_generated"] == 4
+    report, exit_code = benchmark.build_report(out)
+    assert exit_code == 0
+    assert report["complete_abc"] is True
+    assert report["aggregation"]["by_arm"]["C"]["runs"] == 4
+    assert "C_vs_A" in report["aggregation"]["deltas"]
+
+    benchmark.write_benchmark_status(benchmark.load_runs(out), report)
+    status = read_json(repo / ".ai_context_engine" / "metrics" / "benchmark_status.json", {})
+    assert status["benchmark_present"] is True
+    assert set(status["arms_covered"]) == {"A", "B", "C"}
 
 
 def test_internal_run_execution_wraps_command_and_persists_status(tmp_path: Path, capsys):
