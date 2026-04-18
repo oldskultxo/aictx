@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from . import core_runtime, global_metrics
@@ -43,6 +44,21 @@ COMMUNICATION_MODE_OPTIONS = [
     ("caveman_full", "caveman_full"),
     ("caveman_ultra", "caveman_ultra"),
 ]
+
+ASCII_BANNER = "\n".join(
+    [
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+        "~                                            ~",
+        "~             .__          __                ~",
+        "~     _____   |__|  ____ _/  |_ ___  ___     ~",
+        "~     \\__  \\  |  |_/ ___\\\\   __\\\\  \\/  /     ~",
+        "~      / __ \\_|  |\\  \\___ |  |   >    <      ~",
+        "~     (____  /|__| \\___  >|__|  /__/\\_ \\     ~",
+        "~          \\/          \\/             \\/     ~",
+        "~                                            ~",
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+    ]
+)
 
 
 class ProductArgumentParser(argparse.ArgumentParser):
@@ -393,6 +409,20 @@ def cmd_global(args: argparse.Namespace) -> int:
     return 0
 
 
+def should_render_banner(argv: list[str], stdout_is_tty: bool) -> bool:
+    if not stdout_is_tty:
+        return False
+    if "--no-banner" in argv:
+        return False
+    if "--banner" in argv:
+        return True
+    effective = argv
+    if "--" in effective:
+        effective = effective[: effective.index("--")]
+    suppressed_flags = {"--json", "--quiet", "-q", "-h", "--help"}
+    return not any(flag in effective for flag in suppressed_flags)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = ProductArgumentParser(
         prog="aictx",
@@ -400,6 +430,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Quickstart:\n  aictx install\n  aictx init",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init}")
 
     install = sub.add_parser("install", help="Install global engine home")
@@ -580,6 +612,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    if should_render_banner(sys.argv[1:], sys.stdout.isatty()):
+        print(ASCII_BANNER)
     parser = build_parser()
     args = parser.parse_args()
     return args.func(args)

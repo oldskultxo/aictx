@@ -468,6 +468,18 @@ def test_cli_main_help_shows_simple_surface_only():
     assert "execution" not in help_text
 
 
+def test_should_render_banner_defaults_to_tty_when_not_suppressed():
+    assert cli.should_render_banner(["install", "--yes"], stdout_is_tty=True) is True
+
+
+def test_should_render_banner_respects_no_banner_json_and_help():
+    assert cli.should_render_banner(["--no-banner", "init"], stdout_is_tty=True) is False
+    assert cli.should_render_banner(["internal", "run-execution", "--json"], stdout_is_tty=True) is False
+    assert cli.should_render_banner(["install", "--help"], stdout_is_tty=True) is False
+    assert cli.should_render_banner(["--banner", "install", "--help"], stdout_is_tty=True) is True
+    assert cli.should_render_banner(["workspace", "list"], stdout_is_tty=False) is False
+
+
 def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, capsys):
     def fake_read_json(path, default):
         path_str = str(path)
