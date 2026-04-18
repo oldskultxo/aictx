@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2026-04-18
+
+- clarified telemetry limitations and evidence gating language in README and limitations docs
+- aligned public claim guidance with `evidence_status` and `claim_label` semantics introduced in 0.5.0
+- docs-only patch release (no runtime behavior change)
+
 ## 0.5.0 - 2026-04-18
 
 - added benchmark CLI surface:
