@@ -105,7 +105,11 @@ The contextual layer is real, but still mostly heuristic rather than deeply inte
 This is still a **0.x beta** product.
 
 - final behavior depends on each runner honoring its instruction and hook system
-- telemetry quality is best-effort unless confidence is explicitly high
+- telemetry quality is now explicitly gated by evidence state:
+  - `insufficient_data` (<20 tasks)
+  - `estimated` (20-59 tasks)
+  - `measured` (>=60 tasks + complete A/B/C benchmark)
+- strong external claims should only be made when telemetry is `measured` and publication gating is complete (`claim_label=material_repeatable`)
 - advanced/internal commands are supported, but not the main thing being sold
 - current task routing, ranking, graph expansion, and packet building are mostly deterministic heuristics
 
