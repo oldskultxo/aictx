@@ -167,9 +167,35 @@ def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
 def load_bootstrap_sources(repo_root: Path) -> dict[str, Any]:
     memory_root = repo_root / REPO_MEMORY_DIR
     return {
-        "derived_boot_summary": read_json(memory_root / "derived_boot_summary.json", {}),
-        "user_preferences": read_json(memory_root / "user_preferences.json", {}),
-        "project_bootstrap": read_json(memory_root / "project_bootstrap.json", {}),
+        "derived_boot_summary": read_json(
+            memory_root / "derived_boot_summary.json",
+            {
+                "version": 1,
+                "project": repo_root.name,
+                "repo_root": str(repo_root),
+                "engine_name": "ai_context_engine",
+                "bootstrap_required": True,
+            },
+        ),
+        "user_preferences": read_json(
+            memory_root / "user_preferences.json",
+            {
+                "preferred_language": "",
+                "communication": {
+                    "layer": "disabled",
+                    "mode": "caveman_full",
+                },
+            },
+        ),
+        "project_bootstrap": read_json(
+            memory_root / "project_bootstrap.json",
+            {
+                "version": 1,
+                "project": repo_root.name,
+                "repo_root": str(repo_root),
+                "engine_name": "ai_context_engine",
+            },
+        ),
     }
 
 
@@ -181,6 +207,8 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     execution = classify_execution(envelope)
     resolved_preferences = resolve_effective_preferences(repo_root, global_defaults_path=core_runtime.ROOT_PREFS_PATH)
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
+    if not (repo_root / REPO_MEMORY_DIR / "user_preferences.json").exists():
+        communication_policy = {"layer": "disabled", "mode": "caveman_full"}
     task_resolution = resolve_task_type(
         envelope["user_request"],
         explicit_task_type=envelope.get("declared_task_type"),

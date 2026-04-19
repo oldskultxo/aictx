@@ -54,10 +54,12 @@ def get_strategies_by_task_type(repo_root: Path, task_type: str, include_failure
 def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any], timestamp: str, is_failure: bool) -> dict[str, Any]:
     files_used = execution_log.get("files_opened", []) if isinstance(execution_log.get("files_opened"), list) else []
     normalized_files = [str(path) for path in files_used if str(path).strip()]
+    primary_entry_point = normalized_files[0] if normalized_files else None
     return {
         "task_id": str(execution_log.get("task_id") or prepared.get("envelope", {}).get("execution_id") or ""),
         "task_type": str(prepared.get("resolved_task_type") or execution_log.get("task_type") or "unknown"),
-        "entry_points": normalized_files[:2],
+        "entry_points": normalized_files[:3],
+        "primary_entry_point": primary_entry_point,
         "files_used": normalized_files,
         "success": not is_failure,
         "is_failure": is_failure,
