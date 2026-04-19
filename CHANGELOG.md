@@ -38,7 +38,7 @@
 ## 0.3.1 - 2026-04-18
 
 - fixed a Python 3.11 syntax error in `core_runtime.py` that broke test collection in CI
-- fixed a wheel-install runtime import error in `runtime_memory.py` during `aictx boot`
+- fixed a wheel-install runtime import error in `runtime_memory.py` during `aictx internal boot`
 - keeps the public beta distribution flow introduced in `0.3.0`
 
 ## 0.3.0 - 2026-04-17

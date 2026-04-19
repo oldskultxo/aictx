@@ -18,8 +18,8 @@
 
 ## Runtime integrity
 
-- [ ] `aictx boot --repo <repo>` reports effective communication policy
-- [ ] `aictx execution prepare ...` reports the same communication policy for the same repo
+- [ ] `aictx internal boot --repo <repo>` reports effective communication policy
+- [ ] `aictx internal execution prepare ...` reports the same communication policy for the same repo
 - [ ] contradictions between repo prefs and repo state surface as warnings
 - [ ] missing data is reported as `unknown` or `not_initialized`
 
@@ -34,7 +34,7 @@
 - [ ] install clean wheel in a fresh venv
 - [ ] `aictx --help` works from the clean wheel install
 - [ ] `aictx init --repo <tmp> --yes --no-register` works from the clean wheel install
-- [ ] `aictx boot --repo <tmp>` works from the clean wheel install
+- [ ] `aictx internal boot --repo <tmp>` works from the clean wheel install
 
 ## CI
 

@@ -27,10 +27,10 @@ jobs:
         run: |
           TMP_REPO="$(mktemp -d)"
           aictx init --repo "$TMP_REPO" --yes --no-register
-          aictx boot --repo "$TMP_REPO" >/dev/null
-          aictx packet --task "debug failing integration" >/dev/null
-          aictx execution prepare --repo "$TMP_REPO" --request "review middleware behavior" --agent-id ci-agent --execution-id ci-1 > "$TMP_REPO/prepared.json"
-          aictx execution finalize --prepared "$TMP_REPO/prepared.json" --success --result-summary "ci smoke" >/dev/null
+          aictx internal boot --repo "$TMP_REPO" >/dev/null
+          aictx internal packet --task "debug failing integration" >/dev/null
+          aictx internal execution prepare --repo "$TMP_REPO" --request "review middleware behavior" --agent-id ci-agent --execution-id ci-1 > "$TMP_REPO/prepared.json"
+          aictx internal execution finalize --prepared "$TMP_REPO/prepared.json" --success --result-summary "ci smoke" >/dev/null
       - name: Package build
         run: python -m build
       - name: Validate clean wheel install
@@ -42,4 +42,4 @@ jobs:
           /tmp/aictx-wheel-venv/bin/aictx --help >/dev/null
           TMP_REPO="$(mktemp -d)"
           /tmp/aictx-wheel-venv/bin/aictx init --repo "$TMP_REPO" --yes --no-register
-          /tmp/aictx-wheel-venv/bin/aictx boot --repo "$TMP_REPO" >/dev/null
+          /tmp/aictx-wheel-venv/bin/aictx internal boot --repo "$TMP_REPO" >/dev/null
