@@ -220,6 +220,11 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
         execution_log_path.write_text("", encoding="utf-8")
         created.append(str(execution_log_path))
 
+    execution_logs_path = repo / REPO_METRICS_DIR / "execution_logs.jsonl"
+    if not execution_logs_path.exists():
+        execution_logs_path.write_text("", encoding="utf-8")
+        created.append(str(execution_logs_path))
+
     optimization_history_path = repo / REPO_COST_DIR / "optimization_history.jsonl"
     if not optimization_history_path.exists():
         optimization_history_path.write_text("", encoding="utf-8")

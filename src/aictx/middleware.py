@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from .state import (
 )
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
+REAL_EXECUTION_LOG_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
 EXECUTION_STATUS_PATH = REPO_METRICS_DIR / "agent_execution_status.json"
 FAILURE_EVENTS_DIR = REPO_FAILURE_MEMORY_DIR / "failures"
 HEURISTIC_SKILL_PATTERN = re.compile(r"(\$[A-Za-z0-9:_-]+|SKILL\.md|\bskill\b)", re.IGNORECASE)
@@ -48,6 +50,12 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows)
     path.write_text((payload + "\n") if payload else "", encoding="utf-8")
+
+
+def append_jsonl(path: Path, row: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def normalize_skill_metadata(value: Any) -> dict[str, str]:
@@ -213,6 +221,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         retrieval_summary["packet_built"] = False
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),
+        "execution_logs": (repo_root / REAL_EXECUTION_LOG_PATH).as_posix(),
         "execution_status": (repo_root / EXECUTION_STATUS_PATH).as_posix(),
         "weekly_summary": (repo_root / REPO_METRICS_DIR / "weekly_summary.json").as_posix(),
         "workflow_learnings": (repo_root / REPO_MEMORY_DIR / "workflow_learnings.jsonl").as_posix(),
@@ -240,6 +249,17 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "retrieval_summary": retrieval_summary,
         "telemetry_targets": telemetry_targets,
         "prepared_at": now_iso(),
+        "execution_observation": {
+            "task_id": str((packet or {}).get("task_id") or envelope["execution_id"]),
+            "timestamp": now_iso(),
+            "start_time_ms": int(time.time() * 1000),
+            "task_type": task_resolution["task_type"],
+            "files_opened": [],
+            "files_reopened": [],
+            "execution_time_ms": None,
+            "success": None,
+            "used_packet": bool(retrieval_summary.get("packet_built")),
+        },
     }
     if execution["execution_mode"] == "skill":
         prepared["skill_context"] = {
@@ -258,14 +278,18 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
 
 def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     log_path = repo_root / EXECUTION_LOG_PATH
+    real_log_path = repo_root / REAL_EXECUTION_LOG_PATH
     status_path = repo_root / EXECUTION_STATUS_PATH
     weekly_path = repo_root / REPO_METRICS_DIR / "weekly_summary.json"
     rows = read_jsonl(log_path)
-    packet = prepared.get("packet", {}) if isinstance(prepared.get("packet"), dict) else {}
-    packet_budget = packet.get("context_budget", {}) if isinstance(packet.get("context_budget"), dict) else {}
     existing_same = [row for row in rows if row.get("task_fingerprint") == prepared.get("task_fingerprint")]
-    prior_successes = sum(1 for row in existing_same if row.get("success"))
     prior_total = len(existing_same)
+    observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
+    started_ms = observation.get("start_time_ms")
+    finished_ms = int(time.time() * 1000)
+    execution_time_ms = None
+    if isinstance(started_ms, int):
+        execution_time_ms = max(0, finished_ms - started_ms)
     entry = {
         "execution_id": prepared["envelope"]["execution_id"],
         "agent_id": prepared["envelope"]["agent_id"],
@@ -276,9 +300,6 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "validated_learning": bool(result.get("validated_learning")),
         "packet_path": prepared.get("packet_path", ""),
         "packet_built": bool(prepared.get("retrieval_summary", {}).get("packet_built")),
-        "packet_estimated_tokens": int(packet_budget.get("estimated_total_tokens", 0) or 0),
-        "files_opened_per_task": "unknown",
-        "re_explanation_turns": 0,
         "repeated_context_request": prior_total > 0,
         "task_memory_reused": bool(prepared.get("retrieval_summary", {}).get("task_memory_reused")),
         "failure_memory_reused": bool(prepared.get("retrieval_summary", {}).get("failure_memory_reused")),
@@ -286,41 +307,62 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "skill_detection": prepared.get("skill_detection", {}),
         "skill_metadata": prepared.get("skill_metadata", {}) if prepared.get("execution_mode") == "skill" else {},
         "result_summary": str(result.get("result_summary", "") or ""),
+        "execution_time_ms": execution_time_ms,
         "recorded_at": now_iso(),
+    }
+    real_entry = {
+        "task_id": str(observation.get("task_id") or prepared["envelope"]["execution_id"]),
+        "timestamp": str(observation.get("timestamp") or prepared.get("prepared_at") or now_iso()),
+        "task_type": prepared["resolved_task_type"],
+        "files_opened": list(observation.get("files_opened", [])) if isinstance(observation.get("files_opened"), list) else [],
+        "files_reopened": list(observation.get("files_reopened", [])) if isinstance(observation.get("files_reopened"), list) else [],
+        "execution_time_ms": execution_time_ms,
+        "success": bool(result.get("success")),
+        "used_packet": bool(prepared.get("retrieval_summary", {}).get("packet_built")),
     }
     rows.append(entry)
     write_jsonl(log_path, rows)
+    append_jsonl(real_log_path, real_entry)
     write_json(
         status_path,
         {
-            "version": 1,
+            "version": 2,
             "executions_total": len(rows),
             "last_execution_id": prepared["envelope"]["execution_id"],
             "last_execution_mode": prepared["execution_mode"],
             "last_success": bool(result.get("success")),
             "last_recorded_at": entry["recorded_at"],
+            "last_execution_time_ms": execution_time_ms,
+            "real_execution_log": real_log_path.as_posix(),
         },
     )
-    weekly = read_json(weekly_path, {"version": 1, "confidence": "unknown", "tasks_sampled": 0})
+    weekly = read_json(weekly_path, {"version": 3, "tasks_sampled": 0, "repeated_tasks": 0, "phase_events_sampled": 0})
     weekly["tasks_sampled"] = int(weekly.get("tasks_sampled", 0) or 0) + 1
+    weekly["repeated_tasks"] = int(weekly.get("repeated_tasks", 0) or 0) + (1 if prior_total else 0)
     weekly["last_execution_id"] = prepared["envelope"]["execution_id"]
     weekly["last_execution_mode"] = prepared["execution_mode"]
     weekly["last_execution_at"] = entry["recorded_at"]
     weekly["last_execution_success"] = bool(result.get("success"))
-    previous_repeat_success_rate = round(prior_successes / prior_total, 4) if prior_total else "unknown"
-    current_repeat_success_lift = "unknown"
-    if prior_total:
-        current_repeat_success_lift = round((1.0 if result.get("success") else 0.0) - (prior_successes / prior_total), 4)
-    previous_value = weekly.get("value_evidence", {}) if isinstance(weekly.get("value_evidence"), dict) else {}
+    weekly["last_execution_time_ms"] = execution_time_ms
+    weekly["measurement_basis"] = "execution_logs"
+    weekly["evidence_status"] = "unknown"
+    weekly["metrics"] = {
+        "observed": {
+            "tasks_sampled": int(weekly.get("tasks_sampled", 0) or 0),
+            "repeated_tasks": int(weekly.get("repeated_tasks", 0) or 0),
+            "phase_events_sampled": int(weekly.get("phase_events_sampled", 0) or 0),
+            "last_execution_time_ms": execution_time_ms,
+        }
+    }
     weekly["value_evidence"] = {
-        "files_opened_per_task": "unknown",
-        "re_explanation_turns": 0,
-        "repeat_task_success_lift": current_repeat_success_lift,
-        "repeated_tasks_observed": int(previous_value.get("repeated_tasks_observed", 0) or 0) + (1 if prior_total else 0),
-        "tasks_using_task_memory": int(previous_value.get("tasks_using_task_memory", 0) or 0) + (1 if entry["task_memory_reused"] else 0),
-        "tasks_using_failure_memory": int(previous_value.get("tasks_using_failure_memory", 0) or 0) + (1 if entry["failure_memory_reused"] else 0),
+        "repeated_tasks_observed": int(weekly.get("repeated_tasks", 0) or 0),
+        "tasks_using_task_memory": int((weekly.get("value_evidence", {}) or {}).get("tasks_using_task_memory", 0) or 0) + (1 if entry["task_memory_reused"] else 0),
+        "tasks_using_failure_memory": int((weekly.get("value_evidence", {}) or {}).get("tasks_using_failure_memory", 0) or 0) + (1 if entry["failure_memory_reused"] else 0),
         "last_task_fingerprint": prepared.get("task_fingerprint", ""),
-        "last_repeat_baseline_success_rate": previous_repeat_success_rate,
+        "last_execution_time_ms": execution_time_ms,
+        "last_used_packet": real_entry["used_packet"],
+        "files_opened": real_entry["files_opened"],
+        "files_reopened": real_entry["files_reopened"],
     }
     if prepared["execution_mode"] == "skill":
         weekly["last_skill_name"] = prepared.get("skill_metadata", {}).get("skill_name", "")
@@ -405,8 +447,10 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "task_memory_reused": bool(telemetry_entry.get("task_memory_reused")),
             "failure_memory_reused": bool(telemetry_entry.get("failure_memory_reused")),
             "repeated_context_request": bool(telemetry_entry.get("repeated_context_request")),
-            "files_opened_per_task": telemetry_entry.get("files_opened_per_task", "unknown"),
-            "re_explanation_turns": telemetry_entry.get("re_explanation_turns", 0),
+            "execution_time_ms": telemetry_entry.get("execution_time_ms"),
+            "used_packet": bool(telemetry_entry.get("packet_built")),
+            "files_opened": [],
+            "files_reopened": [],
         },
         "finalized_at": now_iso(),
     }

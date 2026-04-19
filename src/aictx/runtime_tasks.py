@@ -341,10 +341,10 @@ def packet_for_task(task: str, project: str | None = None, task_type: str | None
         'telemetry_granularity': {
             'supported': True, 'task_id': task_id, 'level': 'task', 'phase_count': 4,
             'phases': [
-                {'phase_name': 'memory_retrieval', 'estimated_tokens': cr.estimate_tokens(relevant_memory) + cr.estimate_tokens(knowledge_pack.get('artifacts', [])), 'notes': 'memory, failures, graph seeds, and knowledge artifacts'},
-                {'phase_name': 'graph_expansion', 'estimated_tokens': cr.estimate_tokens(graph_context), 'notes': 'bounded memory-graph expansion'},
-                {'phase_name': 'packet_optimization', 'estimated_tokens': cr.estimate_tokens({'constraints': constraints, 'architecture': architecture, 'patterns': patterns}), 'notes': 'budget-aware packet optimization'},
-                {'phase_name': 'packet_persistence', 'estimated_tokens': cr.estimate_tokens({'packet': task_id, 'writes': 5}), 'notes': 'packet and status persistence'},
+                {'phase_name': 'memory_retrieval', 'notes': 'memory, failures, graph seeds, and knowledge artifacts'},
+                {'phase_name': 'graph_expansion', 'notes': 'bounded memory-graph expansion'},
+                {'phase_name': 'packet_optimization', 'notes': 'budget-aware packet optimization'},
+                {'phase_name': 'packet_persistence', 'notes': 'packet and status persistence'},
             ],
         },
     }

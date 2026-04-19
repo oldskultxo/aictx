@@ -77,6 +77,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Savings reports / telemetry / health
 - Repo-local sources of truth:
+  - `.ai_context_engine/metrics/execution_logs.jsonl`
   - `.ai_context_engine/metrics/weekly_summary.json`
   - `CONTEXT_SAVINGS.md` when present
 - Global cross-project sources of truth:

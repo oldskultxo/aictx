@@ -76,6 +76,7 @@ def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkey
 
 def test_agent_runtime_mentions_savings_sources_and_communication_modes():
     text = render_agent_runtime()
+    assert ".ai_context_engine/metrics/execution_logs.jsonl" in text
     assert ".ai_context_engine/metrics/weekly_summary.json" in text
     assert "global_context_savings.json" in text
     assert "unknown" in text
@@ -270,7 +271,8 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
     assert status["last_execution_mode"] == "plain"
     assert any("exec-finalize-1" in row for row in workflow_rows)
     assert "value_evidence" in finalized
-    assert weekly["value_evidence"]["files_opened_per_task"] == "unknown"
+    assert weekly["value_evidence"]["files_opened"] == []
+    assert isinstance(finalized["value_evidence"]["execution_time_ms"], int)
 
 
 def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
@@ -302,9 +304,45 @@ def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
 
     failure_status = read_json(repo / ".ai_context_engine" / "failure_memory" / "failure_memory_status.json", {})
     log_lines = (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").read_text(encoding="utf-8").splitlines()
+    real_log_lines = (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
     assert finalized["failure_recorded"]["failure_id"].startswith("exec-failure-1_")
     assert failure_status["records_total"] == 1
     assert any("\"execution_mode\": \"skill\"" in row for row in log_lines)
+    assert any("\"success\": false" in row for row in real_log_lines)
+
+
+def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "inspect middleware behavior",
+            "agent_id": "agent-test",
+            "execution_id": "exec-real-log-1",
+        }
+    )
+
+    finalized = finalize_execution(
+        prepared,
+        {
+            "success": True,
+            "result_summary": "ok",
+            "validated_learning": False,
+        },
+    )
+
+    rows = [json.loads(line) for line in (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["task_id"]
+    assert row["task_type"] == prepared["resolved_task_type"]
+    assert row["files_opened"] == []
+    assert row["files_reopened"] == []
+    assert row["success"] is True
+    assert row["used_packet"] == bool(prepared["retrieval_summary"]["packet_built"])
+    assert isinstance(row["execution_time_ms"], int)
+    assert finalized["value_evidence"]["used_packet"] == row["used_packet"]
 
 
 def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypatch, capsys):
@@ -452,6 +490,7 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert state["communication_layer"] == "disabled"
     assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").exists()
+    assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
     assert (repo / ".ai_context_engine" / "cost" / "optimization_history.jsonl").exists()
     assert (repo / "AGENTS.override.md").exists()
     assert (repo / "CLAUDE.md").exists()
@@ -894,6 +933,7 @@ def test_repeated_task_reports_value_evidence(tmp_path: Path):
     weekly = read_json(repo / ".ai_context_engine" / "metrics" / "weekly_summary.json", {})
     assert finalized["value_evidence"]["repeated_context_request"] is True
     assert weekly["value_evidence"]["repeated_tasks_observed"] >= 1
+    assert weekly["value_evidence"]["last_used_packet"] in {True, False}
 
 
 def test_scaffold_status_files_include_version_contract(tmp_path: Path):
