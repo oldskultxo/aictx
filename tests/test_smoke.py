@@ -75,10 +75,11 @@ def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkey
     assert install_status["runtime_entrypoint"] == "aictx internal run-execution"
 
 
-def test_agent_runtime_mentions_savings_sources_and_communication_modes():
+def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     text = render_agent_runtime()
     assert ".ai_context_engine/metrics/execution_logs.jsonl" in text
-    assert "global_context_savings.json" in text
+    assert ".ai_context_engine/metrics/execution_feedback.jsonl" in text
+    assert ".ai_context_engine/strategy_memory/strategies.jsonl" in text
     assert "unknown" in text
     assert "## Communication mode" in text
     assert "## Execution middleware" in text
@@ -1327,11 +1328,13 @@ def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
 
     packet = runtime_tasks.packet_for_task("debug failing integration")
     assert packet["task_summary"] == "debug failing integration"
-    assert packet["repo_scope"] == packet["relevant_paths"]
-    assert packet["architecture_rules"] == packet["architecture_decisions"]
-    assert packet["selection_report"]["why_included"]["task_memory"]
+    assert packet["repo_scope"] == []
+    assert packet["relevant_paths"] == []
+    assert packet["architecture_rules"] == []
+    assert packet["architecture_decisions"] == []
     assert isinstance(packet["task_type_resolution"]["ambiguous"], bool)
-    assert all(isinstance(item, dict) for item in packet["repo_scope"])
+    assert packet["context"] == {}
+    assert "selection_report" not in packet
     assert "communication_policy" not in packet
 
 
