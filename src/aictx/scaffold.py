@@ -201,29 +201,7 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     (repo / REPO_STRATEGY_MEMORY_DIR).mkdir(parents=True, exist_ok=True)
     (repo / REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl").write_text("", encoding="utf-8")
 
-    write_json(
-        repo / REPO_METRICS_DIR / "weekly_summary.json",
-        {
-            "version": 3,
-            "generated_at": "not_initialized",
-            "confidence": "low",
-            "tasks_sampled": 0,
-            "repeated_tasks": 0,
-            "phase_events_sampled": 0,
-            "telemetry_granularity": "task_plus_phase",
-            "evidence_status": "unknown",
-            "measurement_basis": "execution_logs",
-            "metrics": {
-                "observed": {
-                    "tasks_sampled": 0,
-                    "repeated_tasks": 0,
-                    "phase_events_sampled": 0,
-                    "top_recorded_phases": [],
-                }
-            },
-        },
-    )
-    (repo / REPO_METRICS_DIR / "task_logs.jsonl").write_text("", encoding="utf-8")
+    (repo / REPO_METRICS_DIR / "execution_logs.jsonl").write_text("", encoding="utf-8")
     (repo / REPO_METRICS_DIR / "execution_feedback.jsonl").write_text("", encoding="utf-8")
 
     if update_gitignore:

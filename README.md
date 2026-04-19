@@ -199,7 +199,7 @@ The previous synthetic A/B/C benchmark flow was removed from the public product 
 - it is not valid evidence for external performance claims
 - historical code now lives under `experiments/simulated/benchmark.py`
 
-See [docs/BENCHMARK_QUICKSTART.md](docs/BENCHMARK_QUICKSTART.md).
+See `experiments/simulated/BENCHMARK_QUICKSTART.md` for historical non-product benchmark notes.
 
 ## What to expect from the contextual core
 
@@ -243,6 +243,6 @@ Public release validation also checks clean wheel installation, not just editabl
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
 - [5-minute demo](docs/DEMO.md)
 - [Current limitations](docs/LIMITATIONS.md)
-- [Benchmark quickstart](docs/BENCHMARK_QUICKSTART.md)
+- [Historical benchmark notes](experiments/simulated/BENCHMARK_QUICKSTART.md)
 - [Phase 2 notes](docs/PHASE2_NOTES.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)

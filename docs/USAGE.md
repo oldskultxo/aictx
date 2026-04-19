@@ -169,4 +169,4 @@ Then inspect:
 The old synthetic benchmark flow was removed from the public CLI.
 
 Use real execution artifacts under `.ai_context_engine/metrics/` instead.
-For historical context only, see `experiments/simulated/benchmark.py` and `docs/BENCHMARK_QUICKSTART.md`.
+For historical context only, see `experiments/simulated/benchmark.py` and `experiments/simulated/BENCHMARK_QUICKSTART.md`.

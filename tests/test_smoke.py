@@ -22,7 +22,6 @@ import aictx.runtime_failure as runtime_failure
 import aictx.runtime_graph as runtime_graph
 import aictx.runtime_task_memory as runtime_task_memory
 import aictx.runtime_metrics as runtime_metrics
-import aictx.benchmark as benchmark
 import aictx.global_metrics as global_metrics
 import aictx.strategy_memory as strategy_memory
 import aictx.report as report_module
@@ -79,7 +78,6 @@ def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkey
 def test_agent_runtime_mentions_savings_sources_and_communication_modes():
     text = render_agent_runtime()
     assert ".ai_context_engine/metrics/execution_logs.jsonl" in text
-    assert ".ai_context_engine/metrics/weekly_summary.json" in text
     assert "global_context_savings.json" in text
     assert "unknown" in text
     assert "## Communication mode" in text
@@ -588,8 +586,6 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert state["runner_native_integrations"]["codex"]["status"] == "native_hardened"
     assert state["runner_native_integrations"]["claude"]["status"] == "native_hardened"
     assert state["communication_layer"] == "disabled"
-    assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json").exists()
-    assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").exists()
     assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").exists()
@@ -834,11 +830,14 @@ def test_cli_main_help_shows_simple_surface_only():
     help_text = parser.format_help()
     assert "install" in help_text
     assert "init" in help_text
+    assert "suggest" in help_text
+    assert "reflect" in help_text
+    assert "reuse" in help_text
+    assert "report" in help_text
     assert "benchmark" not in help_text
     assert "workspace" not in help_text
     assert "boot" not in help_text
     assert "memory-graph" not in help_text
-    assert "execution" not in help_text
 
 
 def test_should_render_banner_defaults_to_tty_when_not_suppressed():
@@ -918,11 +917,6 @@ def test_global_aggregation_excludes_insufficient_data():
     assert context["projects_with_telemetry"] == 1
     assert context["projects_excluded_insufficient_data"] == 1
     assert context["range"] == [0.1, 0.2]
-
-
-def test_benchmark_module_is_removed_from_product_path(tmp_path: Path):
-    with pytest.raises(benchmark.SyntheticBenchmarkRemovedError):
-        benchmark.run_suite(tmp_path / "suite.json", tmp_path / "out", arm="A", repo=None, seed=None)
 
 
 def test_internal_run_execution_wraps_command_and_persists_status(tmp_path: Path, capsys):

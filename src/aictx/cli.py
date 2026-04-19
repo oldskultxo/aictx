@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from . import core_runtime, global_metrics
-from .benchmark import cli_benchmark_report, cli_benchmark_run
 from .adapters import install_global_adapters
 from .agent_runtime import (
     copy_local_agent_runtime,
@@ -279,34 +278,10 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
     write_json(state_path, state)
     created = [str(state_path)]
 
-    metrics_status_path = repo / REPO_METRICS_DIR / "agent_execution_status.json"
-    if not metrics_status_path.exists():
-        write_json(
-            metrics_status_path,
-            {
-                "version": 1,
-                "last_execution_id": "",
-                "last_execution_mode": "not_initialized",
-                "last_agent_id": "",
-                "last_result_summary": "",
-            },
-        )
-        created.append(str(metrics_status_path))
-
-    execution_log_path = repo / REPO_METRICS_DIR / "agent_execution_log.jsonl"
-    if not execution_log_path.exists():
-        execution_log_path.write_text("", encoding="utf-8")
-        created.append(str(execution_log_path))
-
     execution_logs_path = repo / REPO_METRICS_DIR / "execution_logs.jsonl"
     if not execution_logs_path.exists():
         execution_logs_path.write_text("", encoding="utf-8")
         created.append(str(execution_logs_path))
-
-    execution_feedback_path = repo / REPO_METRICS_DIR / "execution_feedback.jsonl"
-    if not execution_feedback_path.exists():
-        execution_feedback_path.write_text("", encoding="utf-8")
-        created.append(str(execution_feedback_path))
 
     strategies_path = repo / REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl"
     if not strategies_path.exists():
@@ -527,7 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,report}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -544,24 +519,24 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--no-register", action="store_true", help="Do not register repo in active workspace")
     init.set_defaults(func=cmd_init)
 
-    suggest = sub.add_parser("suggest", help=argparse.SUPPRESS)
-    suggest.add_argument("--repo", default=".", help=argparse.SUPPRESS)
-    suggest.add_argument("--task-type", default="", help=argparse.SUPPRESS)
+    suggest = sub.add_parser("suggest", help="Get deterministic next-step guidance from strategy memory")
+    suggest.add_argument("--repo", default=".", help="Repository root")
+    suggest.add_argument("--task-type", default="", help="Optional task type filter")
     suggest.set_defaults(func=cmd_suggest)
 
-    reflect = sub.add_parser("reflect", help=argparse.SUPPRESS)
-    reflect.add_argument("--repo", default=".", help=argparse.SUPPRESS)
+    reflect = sub.add_parser("reflect", help="Reflect on recent exploration patterns from real execution logs")
+    reflect.add_argument("--repo", default=".", help="Repository root")
     reflect.set_defaults(func=cmd_reflect)
 
-    reuse = sub.add_parser("reuse", help=argparse.SUPPRESS)
-    reuse.add_argument("--repo", default=".", help=argparse.SUPPRESS)
-    reuse.add_argument("--task-type", default="", help=argparse.SUPPRESS)
+    reuse = sub.add_parser("reuse", help="Return the latest reusable successful strategy")
+    reuse.add_argument("--repo", default=".", help="Repository root")
+    reuse.add_argument("--task-type", default="", help="Optional task type filter")
     reuse.set_defaults(func=cmd_reuse)
 
-    report = sub.add_parser("report", help=argparse.SUPPRESS)
+    report = sub.add_parser("report", help="Report real aggregated runtime usage")
     report_sub = report.add_subparsers(dest="report_command", required=True)
-    report_real_usage = report_sub.add_parser("real-usage", help=argparse.SUPPRESS)
-    report_real_usage.add_argument("--repo", default=".", help=argparse.SUPPRESS)
+    report_real_usage = report_sub.add_parser("real-usage", help="Aggregate real execution logs and feedback")
+    report_real_usage.add_argument("--repo", default=".", help="Repository root")
     report_real_usage.set_defaults(func=cmd_report_real_usage)
 
     workspace = sub.add_parser("workspace", help=argparse.SUPPRESS)
@@ -571,22 +546,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_root.set_defaults(func=cmd_workspace_add_root)
     list_cmd = workspace_sub.add_parser("list", help="List workspace roots and repos")
     list_cmd.set_defaults(func=cmd_workspace_list)
-
-    benchmark = sub.add_parser("benchmark", help=argparse.SUPPRESS)
-    benchmark_sub = benchmark.add_subparsers(dest="benchmark_command", required=True)
-
-    benchmark_run = benchmark_sub.add_parser("run", help=argparse.SUPPRESS)
-    benchmark_run.add_argument("--suite", required=True, help=argparse.SUPPRESS)
-    benchmark_run.add_argument("--arm", required=True, choices=["A", "B", "C", "a", "b", "c"], help=argparse.SUPPRESS)
-    benchmark_run.add_argument("--repo", help=argparse.SUPPRESS)
-    benchmark_run.add_argument("--seed", type=int, help=argparse.SUPPRESS)
-    benchmark_run.add_argument("--out", required=True, help=argparse.SUPPRESS)
-    benchmark_run.set_defaults(func=cli_benchmark_run)
-
-    benchmark_report = benchmark_sub.add_parser("report", help=argparse.SUPPRESS)
-    benchmark_report.add_argument("--input", required=True, help=argparse.SUPPRESS)
-    benchmark_report.add_argument("--format", choices=["json", "md"], default="json", help=argparse.SUPPRESS)
-    benchmark_report.set_defaults(func=cli_benchmark_report)
 
     boot = sub.add_parser("boot", help=argparse.SUPPRESS)
     boot.add_argument("--repo", default=".", help="Repository path for session boot context.")
