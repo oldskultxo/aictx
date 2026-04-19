@@ -164,20 +164,9 @@ Then inspect:
 - `task_memory_reused`
 - `failure_memory_reused`
 
-## Benchmark A/B/C
+## Benchmark status
 
-Run benchmark artifacts:
+The old synthetic benchmark flow was removed from the public CLI.
 
-```bash
-aictx benchmark run --suite benchmark_suite.json --arm A --out .ai_context_engine/metrics/benchmark_runs
-aictx benchmark run --suite benchmark_suite.json --arm B --out .ai_context_engine/metrics/benchmark_runs
-aictx benchmark run --suite benchmark_suite.json --arm C --out .ai_context_engine/metrics/benchmark_runs
-aictx benchmark report --input .ai_context_engine/metrics/benchmark_runs --format json
-```
-
-This generates:
-
-- `.ai_context_engine/metrics/benchmark_runs/benchmark_report.json`
-- `.ai_context_engine/metrics/benchmark_runs/benchmark_report.md`
-
-For full setup and gating rules, see `docs/BENCHMARK_QUICKSTART.md`.
+Use real execution artifacts under `.ai_context_engine/metrics/` instead.
+For historical context only, see `experiments/simulated/benchmark.py` and `docs/BENCHMARK_QUICKSTART.md`.

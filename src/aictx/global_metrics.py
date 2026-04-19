@@ -277,34 +277,13 @@ def load_project_telemetry(repo: Path) -> ProjectTelemetry:
     retrieval_status = read_json(retrieval_status_path, {}) if retrieval_status_path.exists() else {}
     if weekly.exists():
         payload = read_json(weekly, {})
-        context = payload.get("estimated_context_reduction", {})
-        metrics_payload = payload.get("metrics", {}) if isinstance(payload.get("metrics"), dict) else {}
-        estimated_metrics = metrics_payload.get("estimated", {}) if isinstance(metrics_payload.get("estimated"), dict) else {}
-        if isinstance(estimated_metrics.get("context_reduction"), dict):
-            context = estimated_metrics.get("context_reduction", context)
-        token = payload.get("estimated_total_token_reduction", {})
-        if isinstance(estimated_metrics.get("total_token_reduction"), dict):
-            token = estimated_metrics.get("total_token_reduction", token)
-        latency = payload.get("estimated_latency_improvement", {})
-        if isinstance(estimated_metrics.get("latency_improvement"), dict):
-            latency = estimated_metrics.get("latency_improvement", latency)
-        cost = payload.get("estimated_cost_reduction", {})
-        if isinstance(estimated_metrics.get("cost_reduction"), dict):
-            cost = estimated_metrics.get("cost_reduction", cost)
-        context_range = tuple(context.get("range", [])) if len(context.get("range", [])) == 2 else None
-        token_range = tuple(token.get("range", [])) if len(token.get("range", [])) == 2 else None
-        latency_range = tuple(latency.get("range", [])) if len(latency.get("range", [])) == 2 else None
-        cost_range = tuple(cost.get("range", [])) if len(cost.get("range", [])) == 2 else None
+        context_range = None
+        token_range = None
+        latency_range = None
+        cost_range = None
         tasks_sampled = int(payload.get("tasks_sampled", 0) or 0)
         evidence_status = str(payload.get("evidence_status", "unknown"))
-        measurement_basis = str(payload.get("measurement_basis", "unknown"))
-        if evidence_status == "unknown":
-            if tasks_sampled < 20:
-                evidence_status = "insufficient_data"
-                measurement_basis = "fallback_defaults"
-            else:
-                evidence_status = "estimated"
-                measurement_basis = "task_logs"
+        measurement_basis = str(payload.get("measurement_basis", "execution_logs"))
         return ProjectTelemetry(
             context_range=context_range,
             context_point=context.get("point"),

@@ -105,11 +105,8 @@ The contextual layer is real, but still mostly heuristic rather than deeply inte
 This is still a **0.x beta** product.
 
 - final behavior depends on each runner honoring its instruction and hook system
-- telemetry quality is now explicitly gated by evidence state:
-  - `insufficient_data` (<20 tasks)
-  - `estimated` (20-59 tasks)
-  - `measured` (>=60 tasks + complete A/B/C benchmark)
-- strong external claims should only be made when telemetry is `measured` and publication gating is complete (`claim_label=material_repeatable`)
+- telemetry/reporting should be treated as execution trace and observed runtime activity, not synthetic performance proof
+- when real measurement is missing, prefer `unknown` over inferred improvement claims
 - advanced/internal commands are supported, but not the main thing being sold
 - current task routing, ranking, graph expansion, and packet building are mostly deterministic heuristics
 
@@ -194,39 +191,15 @@ Precedence is:
 
 `explicit user instruction > repo prefs > global defaults > hardcoded fallback`
 
-## Benchmark A/B/C
+## Benchmark status
 
-`aictx` now includes a reproducible benchmark surface for comparative runs:
+The previous synthetic A/B/C benchmark flow was removed from the public product path.
 
-```bash
-aictx benchmark run --suite benchmark_suite.json --arm A --out .ai_context_engine/metrics/benchmark_runs
-aictx benchmark run --suite benchmark_suite.json --arm B --out .ai_context_engine/metrics/benchmark_runs
-aictx benchmark run --suite benchmark_suite.json --arm C --out .ai_context_engine/metrics/benchmark_runs
-aictx benchmark report --input .ai_context_engine/metrics/benchmark_runs --format json
-```
-
-This generates standardized JSON/Markdown report artifacts with:
-
-- by-arm aggregates (mean/median/p95/variance)
-- deltas (`C vs A`, `C vs B`)
-- confidence and publication gating labels
+- it produced deterministic simulated metrics
+- it is not valid evidence for external performance claims
+- historical code now lives under `experiments/simulated/benchmark.py`
 
 See [docs/BENCHMARK_QUICKSTART.md](docs/BENCHMARK_QUICKSTART.md).
-
-## Evidence model and claim policy
-
-Repo telemetry now tracks evidence state explicitly:
-
-- `evidence_status`: `insufficient_data | estimated | measured`
-- `measurement_basis`: `fallback_defaults | task_logs | benchmark_runs`
-
-Default thresholds:
-
-- `<20` tasks sampled -> `insufficient_data`
-- `20-59` tasks sampled -> `estimated`
-- `>=60` tasks + complete `A/B/C` benchmark -> `measured`
-
-Only use strong external claims when evidence is measured and publication gating is complete (`claim_label=material_repeatable`).
 
 ## What to expect from the contextual core
 
