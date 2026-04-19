@@ -24,6 +24,7 @@ import aictx.runtime_task_memory as runtime_task_memory
 import aictx.runtime_metrics as runtime_metrics
 import aictx.benchmark as benchmark
 import aictx.global_metrics as global_metrics
+import aictx.strategy_memory as strategy_memory
 from aictx.agent_runtime import (
     AGENTS_END,
     AGENTS_START,
@@ -270,6 +271,13 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
     assert weekly["tasks_sampled"] >= 1
     assert status["last_execution_mode"] == "plain"
     assert any("exec-finalize-1" in row for row in workflow_rows)
+    assert finalized["strategy_persisted"]["task_id"] == "exec-finalize-1"
+    strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(strategies) == 1
+    assert strategies[0]["task_id"] == "exec-finalize-1"
+    assert strategies[0]["task_type"] == prepared["resolved_task_type"]
+    assert strategies[0]["files_used"] == []
+    assert strategies[0]["entry_points"] == []
     assert "value_evidence" in finalized
     assert weekly["value_evidence"]["files_opened"] == []
     assert isinstance(finalized["value_evidence"]["execution_time_ms"], int)
@@ -305,10 +313,32 @@ def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
     failure_status = read_json(repo / ".ai_context_engine" / "failure_memory" / "failure_memory_status.json", {})
     log_lines = (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").read_text(encoding="utf-8").splitlines()
     real_log_lines = (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
+    assert finalized["strategy_persisted"] is None
     assert finalized["failure_recorded"]["failure_id"].startswith("exec-failure-1_")
     assert failure_status["records_total"] == 1
     assert any("\"execution_mode\": \"skill\"" in row for row in log_lines)
     assert any("\"success\": false" in row for row in real_log_lines)
+
+
+def test_strategy_memory_load_and_filter(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "document strategy memory behavior",
+            "agent_id": "agent-test",
+            "execution_id": "exec-strategy-1",
+        }
+    )
+    finalize_execution(prepared, {"success": True, "result_summary": "ok", "validated_learning": True})
+
+    all_rows = strategy_memory.load_strategies(repo)
+    filtered = strategy_memory.get_strategies_by_task_type(repo, prepared["resolved_task_type"])
+    assert len(all_rows) == 1
+    assert len(filtered) == 1
+    assert filtered[0]["task_id"] == "exec-strategy-1"
 
 
 def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
@@ -491,6 +521,7 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
+    assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").exists()
     assert (repo / ".ai_context_engine" / "cost" / "optimization_history.jsonl").exists()
     assert (repo / "AGENTS.override.md").exists()
     assert (repo / "CLAUDE.md").exists()

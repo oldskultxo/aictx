@@ -13,6 +13,7 @@ from .state import (
     REPO_FAILURE_MEMORY_DIR,
     REPO_LIBRARY_DIR,
     REPO_MEMORY_DIR,
+    REPO_STRATEGY_MEMORY_DIR,
     REPO_MEMORY_GRAPH_DIR,
     REPO_METRICS_DIR,
     REPO_STATE_PATH,
@@ -196,6 +197,9 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     write_json(repo / REPO_LIBRARY_DIR / "retrieval_status.json", {"version": 1, **compat_version_payload(), "retrieval_events": 0})
     (repo / REPO_LIBRARY_DIR / "REFERENCES_TEMPLATE.md").write_text("# references template\n\n- title:\n- source:\n- tags:\n", encoding="utf-8")
     (repo / REPO_LIBRARY_DIR / "mods").mkdir(parents=True, exist_ok=True)
+
+    (repo / REPO_STRATEGY_MEMORY_DIR).mkdir(parents=True, exist_ok=True)
+    (repo / REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl").write_text("", encoding="utf-8")
 
     write_json(
         repo / REPO_METRICS_DIR / "weekly_summary.json",

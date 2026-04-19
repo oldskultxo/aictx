@@ -14,6 +14,7 @@ from .runtime_contract import resolve_effective_preferences, runtime_consistency
 from .runtime_io import slugify
 from .runtime_memory import rank_records
 from .runtime_tasks import packet_for_task, resolve_task_type
+from .strategy_memory import build_strategy_entry, persist_strategy
 from .state import (
     REPO_FAILURE_MEMORY_DIR,
     REPO_MEMORY_DIR,
@@ -323,6 +324,7 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
     rows.append(entry)
     write_jsonl(log_path, rows)
     append_jsonl(real_log_path, real_entry)
+    prepared["last_execution_log"] = real_entry
     write_json(
         status_path,
         {
@@ -401,6 +403,18 @@ def persist_validated_learning(repo_root: Path, prepared: dict[str, Any], result
     return {"path": path.as_posix(), "record_id": learning["id"]}
 
 
+def persist_strategy_memory(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
+    if not result.get("success") or not result.get("validated_learning"):
+        return None
+    execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
+    if not execution_log:
+        return None
+    strategy = build_strategy_entry(prepared, execution_log, timestamp=now_iso())
+    if not strategy.get("task_id"):
+        return None
+    return persist_strategy(repo_root, strategy)
+
+
 def persist_failure_event(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
     if result.get("success"):
         return None
@@ -435,12 +449,14 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     }
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
+    strategy = persist_strategy_memory(repo_root, prepared, normalized_result)
     failure = persist_failure_event(repo_root, prepared, normalized_result)
     return {
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
         "telemetry_entry": telemetry_entry,
         "learning_persisted": learning,
+        "strategy_persisted": strategy,
         "failure_recorded": failure,
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),

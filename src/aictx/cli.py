@@ -28,6 +28,7 @@ from .state import (
     REPO_COST_DIR,
     REPO_MEMORY_DIR,
     REPO_METRICS_DIR,
+    REPO_STRATEGY_MEMORY_DIR,
     REPO_STATE_PATH,
     default_global_config,
     ensure_global_home,
@@ -224,6 +225,12 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
     if not execution_logs_path.exists():
         execution_logs_path.write_text("", encoding="utf-8")
         created.append(str(execution_logs_path))
+
+    strategies_path = repo / REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl"
+    if not strategies_path.exists():
+        strategies_path.parent.mkdir(parents=True, exist_ok=True)
+        strategies_path.write_text("", encoding="utf-8")
+        created.append(str(strategies_path))
 
     optimization_history_path = repo / REPO_COST_DIR / "optimization_history.jsonl"
     if not optimization_history_path.exists():

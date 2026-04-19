@@ -19,6 +19,7 @@ REPO_TASK_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "task_memory"
 REPO_FAILURE_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "failure_memory"
 REPO_MEMORY_GRAPH_DIR = Path(REPO_ENGINE_DIR) / "memory_graph"
 REPO_LIBRARY_DIR = Path(REPO_ENGINE_DIR) / "library"
+REPO_STRATEGY_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "strategy_memory"
 REPO_METRICS_DIR = Path(REPO_ENGINE_DIR) / "metrics"
 REPO_ADAPTERS_DIR = Path(REPO_ENGINE_DIR) / "adapters"
 REPO_STATE_PATH = Path(REPO_ENGINE_DIR) / "state.json"
@@ -40,6 +41,7 @@ REPO_DIRS = [
     REPO_FAILURE_MEMORY_DIR.as_posix(),
     REPO_MEMORY_GRAPH_DIR.as_posix(),
     REPO_LIBRARY_DIR.as_posix(),
+    REPO_STRATEGY_MEMORY_DIR.as_posix(),
     REPO_METRICS_DIR.as_posix(),
     REPO_ADAPTERS_DIR.as_posix(),
 ]
