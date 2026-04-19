@@ -45,10 +45,14 @@ def load_strategies(repo_root: Path) -> list[dict[str, Any]]:
 
 def get_strategies_by_task_type(repo_root: Path, task_type: str) -> list[dict[str, Any]]:
     target = str(task_type or "unknown")
-    return [row for row in load_strategies(repo_root) if str(row.get("task_type") or "unknown") == target]
+    return [
+        row
+        for row in load_strategies(repo_root)
+        if str(row.get("task_type") or "unknown") == target and not bool(row.get("is_failure"))
+    ]
 
 
-def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any], timestamp: str) -> dict[str, Any]:
+def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any], timestamp: str, is_failure: bool) -> dict[str, Any]:
     files_used = execution_log.get("files_opened", []) if isinstance(execution_log.get("files_opened"), list) else []
     normalized_files = [str(path) for path in files_used if str(path).strip()]
     return {
@@ -56,7 +60,8 @@ def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any]
         "task_type": str(prepared.get("resolved_task_type") or execution_log.get("task_type") or "unknown"),
         "entry_points": normalized_files[:2],
         "files_used": normalized_files,
-        "success": True,
+        "success": not is_failure,
+        "is_failure": is_failure,
         "timestamp": timestamp,
     }
 

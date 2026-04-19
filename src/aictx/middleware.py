@@ -419,12 +419,13 @@ def persist_validated_learning(repo_root: Path, prepared: dict[str, Any], result
 
 
 def persist_strategy_memory(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
-    if not result.get("success") or not result.get("validated_learning"):
-        return None
     execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
     if not execution_log:
         return None
-    strategy = build_strategy_entry(prepared, execution_log, timestamp=now_iso())
+    if result.get("success") and not result.get("validated_learning"):
+        return None
+    is_failure = not bool(result.get("success"))
+    strategy = build_strategy_entry(prepared, execution_log, timestamp=now_iso(), is_failure=is_failure)
     if not strategy.get("task_id"):
         return None
     return persist_strategy(repo_root, strategy)

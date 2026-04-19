@@ -302,6 +302,7 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
     assert strategies[0]["task_type"] == prepared["resolved_task_type"]
     assert strategies[0]["files_used"] == []
     assert strategies[0]["entry_points"] == []
+    assert strategies[0]["is_failure"] is False
     assert finalized["aictx_feedback"] == {
         "files_opened": 0,
         "reopened_files": 0,
@@ -347,11 +348,50 @@ def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
     failure_status = read_json(repo / ".ai_context_engine" / "failure_memory" / "failure_memory_status.json", {})
     log_lines = (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").read_text(encoding="utf-8").splitlines()
     real_log_lines = (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
-    assert finalized["strategy_persisted"] is None
+    strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert finalized["strategy_persisted"]["task_id"] == strategies[-1]["task_id"]
     assert finalized["failure_recorded"]["failure_id"].startswith("exec-failure-1_")
     assert failure_status["records_total"] == 1
     assert any("\"execution_mode\": \"skill\"" in row for row in log_lines)
     assert any("\"success\": false" in row for row in real_log_lines)
+    assert strategies[-1]["is_failure"] is True
+    assert strategies[-1]["success"] is False
+
+
+
+def test_failure_strategies_are_not_reused_by_prepare_execution(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "debug failing middleware run",
+            "agent_id": "agent-test",
+            "execution_id": "exec-failure-only-1",
+            "declared_task_type": "debug_fix",
+        }
+    )
+    finalize_execution(
+        prepared,
+        {
+            "success": False,
+            "result_summary": "failed run",
+            "validated_learning": False,
+        },
+    )
+
+    next_prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "debug failing middleware run again",
+            "agent_id": "agent-test",
+            "execution_id": "exec-failure-only-2",
+            "declared_task_type": "debug_fix",
+        }
+    )
+
+    assert "execution_hint" not in next_prepared
 
 
 def test_prepare_execution_includes_execution_hint_from_latest_strategy(tmp_path: Path):
