@@ -1,71 +1,175 @@
 # Technical overview
 
-## Product model
+## Product shape
 
-`aictx` is intentionally split into:
+`aictx` is a repo-local runtime layer for coding agents.
 
-- **human surface**
-  - `aictx install`
-  - `aictx init`
-- **runtime/internal surface**
-  - bootstrap
-  - packet
-  - query
-  - middleware prepare/finalize
-  - health and global metrics
+The public surface is intentionally small:
 
-The package is now distributed publicly as a **0.4.x beta**:
+- `aictx install`
+- `aictx init`
+- `aictx suggest`
+- `aictx reflect`
+- `aictx reuse`
+- `aictx report real-usage`
 
-- PyPI is the normal install channel
-- GitHub Releases track tagged artifacts
-- runtime compatibility is still best-effort rather than a 1.0 stability contract
+Under that surface, the runtime still contains internal commands and compatibility layers used by middleware and runner integrations.
 
-## Preference precedence
+## Core runtime flow
 
-Runtime communication policy uses one precedence model everywhere:
+The runtime is built around one simple loop:
 
-1. explicit user instruction
-2. repo-local preferences
-3. global defaults
-4. hardcoded fallback
+1. prepare execution
+2. run task
+3. finalize execution
+4. persist reusable data
+5. reuse it on later executions
 
-`boot` and `execution prepare` expose the effective result plus source metadata.
+### Prepare
 
-## Repo-local runtime
+`prepare_execution()` currently does these things:
 
-Repo-local state lives under `.ai_context_engine/`.
+- builds an execution envelope
+- resolves task type
+- loads repo bootstrap sources
+- may build packet-oriented context for non-trivial work
+- loads strategy memory by task type
+- if a previous successful strategy exists, injects an `execution_hint`
 
-Primary runtime files:
+### Execute
 
-- `.ai_context_engine/memory/user_preferences.json`
-- `.ai_context_engine/state.json`
+The agent then executes normally.
+
+`aictx` does not replace the agent loop. It adds runtime data around it.
+
+### Finalize
+
+`finalize_execution()` currently does these things:
+
+- appends a real execution log
+- appends operational feedback
+- persists validated learning where enabled
+- persists strategy memory for successful validated runs
+- records failure events on unsuccessful runs
+
+## Real data sources
+
+The main real-data files are:
+
+```text
+.ai_context_engine/metrics/execution_logs.jsonl
+.ai_context_engine/metrics/execution_feedback.jsonl
+.ai_context_engine/strategy_memory/strategies.jsonl
+```
+
+### Execution logs
+
+Each execution log is based only on observed runtime data, for example:
+
+- task id
+- timestamp
+- task type
+- files opened
+- files reopened
+- execution time
+- success
+- packet usage
+
+If a field is not available yet, it remains empty or null rather than being inferred.
+
+### Execution feedback
+
+Feedback is operational, not narrative.
+
+It summarizes real facts such as:
+
+- files opened count
+- reopened files count
+- packet usage
+- strategy reuse
+- simple redundant exploration detection
+
+### Strategy memory
+
+Strategy memory is append-only and based on real successful executions.
+
+Current schema is intentionally minimal:
+
+- `task_id`
+- `task_type`
+- `entry_points`
+- `files_used`
+- `success`
+- `timestamp`
+
+There is no scoring, ranking, clustering, or ML layer.
+
+## Strategy reuse
+
+Strategy reuse is deliberately conservative.
+
+Current behavior:
+
+- load strategies by exact task type
+- take the most recent successful one
+- expose it as `execution_hint`
+
+The runtime does not claim deeper similarity matching than that.
+
+## Agent-facing commands
+
+### `aictx suggest`
+
+- source: strategy memory
+- returns: suggested entry points and files from the latest matching strategy
+
+### `aictx reflect`
+
+- source: latest execution log
+- returns: simple exploration warning from real reopened/opened file data
+
+### `aictx reuse`
+
+- source: strategy memory
+- returns: latest reusable successful execution pattern
+
+### `aictx report real-usage`
+
+- source: execution logs + execution feedback
+- returns: real aggregated runtime usage only
+
+## Runner integration
+
+### Codex
+
+Repo guidance is written into:
+
+- `AGENTS.md`
+- `AGENTS.override.md`
 - `.ai_context_engine/agent_runtime.md`
 
-## Consistency hardening
+### Claude
 
-`aictx` now checks for contradictions between:
+Repo guidance is written into:
 
-- repo-local preferences
-- repo-local state
-- effective communication policy reported by runtime endpoints
+- `CLAUDE.md`
+- `.claude/settings.json`
+- `.claude/hooks/*`
 
-Missing data is reported as `not_initialized` or `unknown` instead of being silently treated as healthy.
+The purpose is not to force behavior, but to make `aictx` discoverable and easy to use during execution.
 
-## Integration model
+## Design principles
 
-- **Codex**: `AGENTS.md` + `AGENTS.override.md` + repo runtime contract
-- **Claude Code**: `CLAUDE.md` + `.claude/settings.json` + project hooks
-- **Generic automation**: `aictx internal run-execution`
+Current design choices are intentional:
 
-## Code structure
+- real data over synthetic metrics
+- deterministic logic over opaque ranking
+- small public surface over large command sprawl
+- reuse of successful runs over speculative intelligence claims
 
-The runtime is still evolving, but the architecture is moving toward a clearer split:
+## What remains intentionally simple
 
-- runtime contract and execution discipline first
-- heuristic context assembly second
-
-Task routing, ranking, packet building, and graph expansion are currently deterministic and bounded by design. They are meant to be explainable accelerators, not opaque intelligence claims.
-
-## Global health checks
-
-Global health checks now include runtime-consistency reporting per project so state drift is visible during cross-project validation.
+- file tracking is still incomplete
+- strategy reuse is by task type only
+- no baseline comparison is reported unless real baseline data exists
+- no claim of guaranteed speed or quality improvement is made

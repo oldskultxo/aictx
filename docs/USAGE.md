@@ -1,172 +1,122 @@
-# Usage guide
+# Usage
 
-## Normal workflow
-
-The intended human workflow is still:
-
-1. install once
-2. init a repo
-3. use your agent normally
-
-## Product posture (important)
-
-`aictx` should be read as:
-
-- **primary**: repo-native runtime contract + execution discipline
-- **secondary**: heuristic packet/memory/failure/graph acceleration
-
-So the current value is strongest in reproducible runtime behavior and structured reuse, not in “deep intelligence” claims.
-
-## Install
-
-Public install:
+## Install and initialize
 
 ```bash
 pip install aictx
-```
-
-Then:
-
-```bash
 aictx install
-```
-
-Editable/development install:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -e . pytest build
-```
-
-## Global runtime setup
-
-```bash
-aictx install
-```
-
-Non-interactive:
-
-```bash
-aictx install --yes --workspace-root ~/projects
-```
-
-## Init
-
-```bash
 aictx init
 ```
 
-Non-interactive:
+Use `--repo <path>` when initializing a repository outside the current directory.
+
+## Public commands
+
+### `aictx suggest`
+
+Return deterministic next-step guidance from the latest stored strategy.
+
+Data source:
+
+- `.ai_context_engine/strategy_memory/strategies.jsonl`
+
+Example:
 
 ```bash
-aictx init --repo . --yes
+aictx suggest --repo .
 ```
 
-Interactive init can persist a repo communication mode:
+Example output:
 
-- `disabled`
-- `caveman_lite`
-- `caveman_full`
-- `caveman_ultra`
+```json
+{"suggested_entry_points": [], "suggested_files": [], "source": "none"}
+```
 
-## Advanced/internal commands
+### `aictx reflect`
 
-These are supported, but not the main product surface:
+Inspect the latest real execution log and report a simple exploration issue.
 
-- `aictx boot`
-- `aictx query`
-- `aictx packet`
-- `aictx global`
-- `aictx execution prepare|finalize`
+Data source:
+
+- `.ai_context_engine/metrics/execution_logs.jsonl`
+
+Example:
+
+```bash
+aictx reflect --repo .
+```
+
+Example output:
+
+```json
+{"reopened_files": [], "possible_issue": "none"}
+```
+
+### `aictx reuse`
+
+Return the latest reusable successful strategy.
+
+Data source:
+
+- `.ai_context_engine/strategy_memory/strategies.jsonl`
+
+Example:
+
+```bash
+aictx reuse --repo .
+```
+
+Example output:
+
+```json
+{"task_type": "", "entry_points": [], "files_used": [], "source": "none"}
+```
+
+### `aictx report real-usage`
+
+Aggregate real execution logs and feedback.
+
+Data sources:
+
+- `.ai_context_engine/metrics/execution_logs.jsonl`
+- `.ai_context_engine/metrics/execution_feedback.jsonl`
+
+Example:
+
+```bash
+aictx report real-usage --repo .
+```
+
+Example output:
+
+```json
+{"total_executions": 0, "avg_execution_time_ms": null, "avg_files_opened": null, "avg_reopened_files": null, "strategy_usage": 0, "packet_usage": 0, "redundant_exploration_cases": 0}
+```
+
+## Internal/runtime commands
+
+`aictx` still contains internal commands used by middleware and runner integrations, such as:
+
+- `aictx execution prepare`
+- `aictx execution finalize`
 - `aictx internal run-execution`
 
-## Runtime consistency checks
+These exist because the runtime itself depends on them, but they are not the main public surface for v1.
 
-Both of these report effective communication policy and source-of-truth details:
+## Agent usage pattern
 
-```bash
-aictx boot --repo .
-aictx execution prepare --repo . --request "task" --agent-id demo --execution-id demo-1
-```
+The repo-level instructions written by `aictx init` tell the agent to:
 
-Use this when validating that repo-local preferences and repo-local state are still aligned.
+- run `aictx suggest --repo .` before opening many files
+- run `aictx reflect --repo .` if it reopens the same file
+- run `aictx reuse --repo .` for similar prior tasks
+- run `aictx suggest --repo .` when unsure about the next step
 
-## Heuristic context behavior
+## Historical note
 
-`aictx packet` and `execution prepare` use deterministic/heuristic routing and ranking:
+Synthetic benchmark material is no longer part of the product path.
 
-- task typing with confidence/evidence/ambiguity
-- bounded graph expansion
-- budgeted packet groups with selection reports
+Historical reference only:
 
-Use this for compact, explainable context assembly, not as a guarantee of superior understanding on every repo/task.
-
-Quick check:
-
-```bash
-aictx packet --task "debug failing integration"
-```
-
-Look at:
-
-- `task_type_resolution`
-- `selection_report`
-- `packet_strategy`
-
-## Development workflow
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -e . pytest build
-make test
-make smoke
-make package-check
-```
-
-## Public-package validation
-
-For release validation, also verify a clean wheel install:
-
-```bash
-python3 -m venv /tmp/aictx-release-venv
-/tmp/aictx-release-venv/bin/pip install dist/aictx-<version>-py3-none-any.whl
-/tmp/aictx-release-venv/bin/aictx --help
-```
-
-## Repo bootstrap status
-
-`aictx boot --repo <path>` now reports repo bootstrap status explicitly:
-
-- `initialized`
-- `not_initialized`
-
-That status is separate from communication defaults and helps distinguish missing runtime setup from normal operation.
-
-## Day-2 value evidence (second run)
-
-Run two similar executions and inspect telemetry:
-
-```bash
-aictx execution prepare --repo . --request "review middleware behavior" --agent-id demo --execution-id demo-1 > /tmp/prepared-1.json
-aictx execution finalize --prepared /tmp/prepared-1.json --success --validated-learning --result-summary "first pass"
-
-aictx execution prepare --repo . --request "review middleware behavior" --agent-id demo --execution-id demo-2 > /tmp/prepared-2.json
-aictx execution finalize --prepared /tmp/prepared-2.json --success --result-summary "second pass"
-```
-
-Then inspect:
-
-- `.ai_context_engine/metrics/weekly_summary.json`
-- `value_evidence`
-- `repeated_context_request`
-- `task_memory_reused`
-- `failure_memory_reused`
-
-## Benchmark status
-
-The old synthetic benchmark flow was removed from the public CLI.
-
-Use real execution artifacts under `.ai_context_engine/metrics/` instead.
-For historical context only, see `experiments/simulated/benchmark.py` and `experiments/simulated/BENCHMARK_QUICKSTART.md`.
+- `experiments/simulated/benchmark.py`
+- `experiments/simulated/BENCHMARK_QUICKSTART.md`

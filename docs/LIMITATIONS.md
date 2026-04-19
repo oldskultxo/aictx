@@ -1,26 +1,42 @@
-# Current limitations
+# Limitations
 
-`aictx` is usable, but it is not a magic layer that upgrades every coding agent automatically.
+This document describes current limits of the real system.
 
-## What it does today
+## Runtime limits
 
-- provisions a repo-local runtime contract under `.ai_context_engine/`
-- installs repo-native instructions for Codex and Claude Code
-- provides wrapped middleware for generic automation
-- exposes bootstrap, packet, telemetry, and memory-oriented runtime commands
+- `aictx` depends on the agent following repo instructions and hooks
+- different runners may honor those instructions differently
+- some runtime/internal commands still exist for compatibility and integration support
 
-## What it does not guarantee
+## Logging limits
 
-- that every runner will fully honor repo instructions or hooks
-- that bootstrap memory is always better than direct code inspection
-- that telemetry already proves performance deltas on every project (real measurement/reporting is still being hardened and missing data should stay `unknown`)
-- that advanced/internal commands are stable enough for broad third-party integrations
-- that the current heuristic routing/ranking/graph layers will outperform plain repo inspection on every large or noisy codebase
+- file tracking is still minimal, so `files_opened` and `files_reopened` may often remain empty
+- average file-open metrics in reports may therefore understate actual browsing behavior
+- execution logs only contain fields that are currently observable by the runtime
 
-## Operational limits
+## Strategy memory limits
 
-- some runtime capabilities are still being extracted from the canonical engine
-- missing or partial runtime evidence should be treated as `unknown`, not converted into inferred gains
-- `0.x` means compatibility is best-effort, not a long-term stability promise
-- public PyPI distribution does not change that promise: this is a public beta, not a stability guarantee
-- upgrades for already-initialized repos are intended to be safe, but release notes should still be read before broad rollout
+- strategies are stored only from successful validated executions
+- strategy reuse is by exact task type only
+- the runtime currently takes the latest matching strategy, not the best-ranked one
+- there is no ranking, scoring, or clustering between strategies
+
+## Guidance limits
+
+- `suggest`, `reflect`, and `reuse` are intentionally simple
+- `reflect` only checks a small set of real signals from the latest execution log
+- no command claims that aictx caused a better result; they only expose observed data
+
+## Reporting limits
+
+- `aictx report real-usage` reports only real aggregates from stored logs and feedback
+- if data is missing, metrics may be `null`, `0`, or empty
+- there is no built-in baseline-vs-aictx comparison unless explicit real baseline data exists
+- the system does not report synthetic improvements, estimated savings, or benchmark-style deltas
+
+## Product limits
+
+- `aictx` does not guarantee faster task completion
+- `aictx` does not guarantee fewer file reads
+- `aictx` does not guarantee better code quality
+- `aictx` is a runtime layer for discipline and reuse, not a guarantee of outcome

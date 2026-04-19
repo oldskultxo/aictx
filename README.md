@@ -1,49 +1,52 @@
 # aictx
 
-Most coding agents forget important repo context between sessions.
+`aictx` is a repo-local runtime layer for coding agents.
 
-`aictx` turns a normal repository into one with a **runtime contract for coding agents** so repeated work is reduced and behavior is more consistent.
+It turns a repository into a place where an agent can:
 
----
+- log real execution
+- persist structured runtime data
+- store successful strategies
+- reuse those strategies on later tasks
+- get lightweight guidance during execution
 
-If you use coding agents (Codex, Claude Code, or similar), this is common:
+It does **not** claim synthetic performance gains, magic memory, or benchmark results that were not measured from real runs.
 
-- you explain the same thing over and over
-- past decisions are not reused consistently
-- context gets expensive fast
-- many tasks feel like starting from zero
+## What it is
 
-`aictx` addresses that by making the repository itself agent-aware.
+`aictx` is for repositories where coding agents are used repeatedly.
 
-Not by adding more prompt templates.  
-Not by replacing your agent.  
-By giving the repo a persistent runtime layer for execution and reuse.
+It adds a small runtime contract around agent work:
 
----
+- `prepare_execution()` can assemble context and reuse a previous successful strategy
+- the agent runs normally
+- `finalize_execution()` records real logs and feedback
+- successful runs can be saved as strategy memory
+- later runs can reuse that memory through runtime hints and CLI commands
 
-After `aictx install` + `aictx init`, your repo gets:
+## What it does today
 
-- a runtime contract for agent execution
-- structured repo-local memory reuse across tasks
-- more consistent run-to-run behavior
-- automatic prepare/finalize middleware with telemetry + learning write-back
+Real, implemented capabilities:
 
-You keep using your agent normally.  
-`aictx` adds structure and reuse; results still vary by runner behavior and task ambiguity.
+- real execution logging in `.ai_context_engine/metrics/execution_logs.jsonl`
+- real execution feedback in `.ai_context_engine/metrics/execution_feedback.jsonl`
+- strategy memory in `.ai_context_engine/strategy_memory/strategies.jsonl`
+- strategy reuse during `prepare_execution()`
+- agent-facing CLI commands:
+  - `aictx suggest`
+  - `aictx reflect`
+  - `aictx reuse`
+  - `aictx report real-usage`
+- repo-native integration hints for Codex and Claude
 
----
+## What it is not
 
-This is not:
+`aictx` is not:
 
-- a prompt template
-- an agent framework
-- a wrapper that replaces Codex or Claude
-
-This is:
-
-- a repo-level runtime for coding agents
-
----
+- a prompt pack
+- a benchmark engine
+- a synthetic telemetry layer
+- a replacement for Codex, Claude, or other coding agents
 
 ## Quick start
 
@@ -54,195 +57,140 @@ cd your-repo
 aictx init
 ```
 
-Then use your coding agent as usual.
+After that, use your coding agent normally inside the repo.
 
----
+## Public CLI surface
 
-## Status
+The intended public surface is small:
 
-`aictx` is currently in **beta (0.x)**.
+```bash
+aictx install
+aictx init
+aictx suggest
+aictx reflect
+aictx reuse
+aictx report real-usage
+```
 
-It is designed to be:
+Example:
 
-- minimal on the surface
-- structured internally
-- explicit about limitations
+```bash
+aictx suggest --repo .
+aictx report real-usage --repo .
+```
 
-It does not try to replace your agent.  
-It helps your agent operate with a repo-native runtime contract.
+## How it works
 
-## Product surface
+1. `prepare_execution()` runs before an execution.
+   - resolves task type
+   - may build packet-oriented context
+   - may attach `execution_hint` from a previous successful strategy of the same task type
+2. the agent executes the task
+3. `finalize_execution()` runs after execution.
+   - records real execution logs
+   - records operational feedback
+   - persists validated strategy memory for successful runs when applicable
+4. later executions can reuse that strategy memory
 
-The sellable user flow stays intentionally small:
+## Real runtime artifacts
 
-1. `aictx install`
-2. `aictx init`
-3. use Codex, Claude Code, or your normal automation
+Main repo-local artifacts:
 
-Everything else exists to support that runtime, not to expand the primary UX.
+```text
+.ai_context_engine/
+  metrics/
+    execution_logs.jsonl
+    execution_feedback.jsonl
+  strategy_memory/
+    strategies.jsonl
+```
 
-## What it really does today
+Additional runtime files may exist for compatibility and existing integrations, but the files above are the main v1 data sources for real usage and strategy reuse.
 
-After `install + init`, `aictx` can provide:
+## CLI commands
 
-- repo-local bootstrap memory under `.ai_context_engine/`
-- packet-oriented context for non-trivial work
-- task memory, failure memory, and memory graph scaffolds
-- repo-native instruction integration for Codex and Claude Code
-- wrapped middleware for generic automation via `aictx internal run-execution`
-- local/global telemetry and health artifacts
+### `aictx suggest`
 
-The strongest value today is:
+Reads strategy memory and returns deterministic next-step guidance.
 
-- repo-native runtime contract
-- runner-aware execution discipline
-- structured local persistence
+Example output:
 
-The contextual layer is real, but still mostly heuristic rather than deeply intelligent.
+```json
+{"suggested_entry_points": [], "suggested_files": [], "source": "none"}
+```
+
+### `aictx reflect`
+
+Reads the latest real execution log and reports simple exploration issues.
+
+Example output:
+
+```json
+{"reopened_files": [], "possible_issue": "none"}
+```
+
+### `aictx reuse`
+
+Returns the latest reusable successful strategy.
+
+Example output:
+
+```json
+{"task_type": "", "entry_points": [], "files_used": [], "source": "none"}
+```
+
+### `aictx report real-usage`
+
+Aggregates only real execution logs and feedback.
+
+Example output:
+
+```json
+{"total_executions": 0, "avg_execution_time_ms": null, "avg_files_opened": null, "avg_reopened_files": null, "strategy_usage": 0, "packet_usage": 0, "redundant_exploration_cases": 0}
+```
+
+## Runner integration
+
+`aictx` writes repo-level instructions so agents can discover and use the runtime automatically.
+
+Current guidance tells the agent to:
+
+- run `aictx suggest --repo .` before opening too many files
+- run `aictx reflect --repo .` when reopening the same file
+- run `aictx reuse --repo .` for similar prior work
+- run `aictx suggest --repo .` when unsure about the next step
 
 ## Honest limits
 
-This is still a **0.x beta** product.
-
-- final behavior depends on each runner honoring its instruction and hook system
-- telemetry/reporting should be treated as execution trace and observed runtime activity, not synthetic performance proof
-- when real measurement is missing, prefer `unknown` over inferred improvement claims
-- advanced/internal commands are supported, but not the main thing being sold
-- current task routing, ranking, graph expansion, and packet building are mostly deterministic heuristics
+- strategy reuse is intentionally simple: latest successful strategy by task type
+- file tracking is still minimal, so `files_opened` and `files_reopened` may remain empty
+- there is no built-in ranking between strategies
+- there is no guaranteed performance improvement
+- real behavior still depends on the agent following repo instructions and hooks
 
 See [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
-## Install from PyPI
-
-```bash
-pip install aictx
-```
-
-Then:
-
-```bash
-aictx install
-aictx init --repo .
-```
-
-## Install once
-
-```bash
-aictx install
-```
-
-Non-interactive:
-
-```bash
-aictx install --yes --workspace-root ~/projects
-```
-
-This creates the global runtime under `~/.ai_context_engine/` and provisions:
-
-- global configuration
-- workspace registry
-- adapters and wrappers
-- global telemetry storage
-- global Codex instructions
-
-## Initialize a repo
-
-```bash
-aictx init
-```
-
-Non-interactive:
-
-```bash
-aictx init --repo . --yes
-```
-
-`init` creates:
-
-- `.ai_context_engine/memory/`
-- `.ai_context_engine/cost/`
-- `.ai_context_engine/task_memory/`
-- `.ai_context_engine/failure_memory/`
-- `.ai_context_engine/memory_graph/`
-- `.ai_context_engine/library/`
-- `.ai_context_engine/metrics/`
-- `.ai_context_engine/adapters/`
-- `.ai_context_engine/state.json`
-- `.ai_context_engine/agent_runtime.md`
-
-And native repo integration files:
-
-- `AGENTS.md`
-- `AGENTS.override.md`
-- `CLAUDE.md`
-- `.claude/settings.json`
-- `.claude/hooks/...`
-- `.gitignore`
-
-## Runtime consistency
-
-`aictx boot --repo <path>` and `aictx execution prepare ...` now expose:
-
-- effective communication policy
-- communication source precedence
-- runtime consistency checks between repo preferences and repo state
-
-Precedence is:
-
-`explicit user instruction > repo prefs > global defaults > hardcoded fallback`
-
-## Benchmark status
-
-The previous synthetic A/B/C benchmark flow was removed from the public product path.
-
-- it produced deterministic simulated metrics
-- it is not valid evidence for external performance claims
-- historical code now lives under `experiments/simulated/benchmark.py`
-
-See `experiments/simulated/BENCHMARK_QUICKSTART.md` for historical non-product benchmark notes.
-
-## What to expect from the contextual core
-
-Today `aictx` is better understood as:
-
-- **primary**: runtime contract + execution discipline + repo bootstrap
-- **secondary**: heuristic packet, memory, failure, and graph accelerators
-
-That means the product already adds structure and reuse, but it does **not** yet claim deep repo understanding beyond deterministic retrieval and bounded heuristics.
-
-## Public beta posture
-
-`aictx` is now distributed publicly as a **beta 0.x** package.
-
-- installation is supported through PyPI and GitHub releases
-- the core user flow is `pip install aictx` -> `aictx install` -> `aictx init`
-- compatibility is still best-effort, not a long-term 1.0 stability promise
-
-## Development quickstart
+## Development
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -e . pytest build
 make test
-make smoke
-make package-check
 ```
 
-You can also call the installed script directly:
+## Historical note
 
-```bash
-.venv/bin/aictx --help
-```
+Synthetic benchmark code was removed from the product path.
 
-Public release validation also checks clean wheel installation, not just editable installs.
+Historical non-product benchmark material lives only under:
+
+- `experiments/simulated/benchmark.py`
+- `experiments/simulated/BENCHMARK_QUICKSTART.md`
 
 ## Read next
 
-- [Usage guide](docs/USAGE.md)
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
-- [5-minute demo](docs/DEMO.md)
-- [Current limitations](docs/LIMITATIONS.md)
-- [Historical benchmark notes](experiments/simulated/BENCHMARK_QUICKSTART.md)
-- [Phase 2 notes](docs/PHASE2_NOTES.md)
-- [Release checklist](docs/RELEASE_CHECKLIST.md)
+- [Demo](docs/DEMO.md)
+- [Limitations](docs/LIMITATIONS.md)
+- [Usage guide](docs/USAGE.md)
