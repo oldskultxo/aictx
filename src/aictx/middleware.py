@@ -14,7 +14,7 @@ from .runtime_contract import resolve_effective_preferences, runtime_consistency
 from .runtime_io import slugify
 from .runtime_memory import rank_records
 from .runtime_tasks import packet_for_task, resolve_task_type
-from .strategy_memory import build_strategy_entry, persist_strategy
+from .strategy_memory import build_strategy_entry, get_strategies_by_task_type, persist_strategy
 from .state import (
     REPO_FAILURE_MEMORY_DIR,
     REPO_MEMORY_DIR,
@@ -220,6 +220,8 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         )
     else:
         retrieval_summary["packet_built"] = False
+    strategies = get_strategies_by_task_type(repo_root, task_resolution["task_type"])
+    selected_strategy = strategies[-1] if strategies else None
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),
         "execution_logs": (repo_root / REAL_EXECUTION_LOG_PATH).as_posix(),
@@ -260,8 +262,16 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "execution_time_ms": None,
             "success": None,
             "used_packet": bool(retrieval_summary.get("packet_built")),
+            "used_strategy": bool(selected_strategy),
         },
     }
+    if selected_strategy:
+        prepared["execution_hint"] = {
+            "entry_points": list(selected_strategy.get("entry_points", [])) if isinstance(selected_strategy.get("entry_points"), list) else [],
+            "files_used": list(selected_strategy.get("files_used", [])) if isinstance(selected_strategy.get("files_used"), list) else [],
+            "based_on": "previous_successful_execution",
+        }
+
     if execution["execution_mode"] == "skill":
         prepared["skill_context"] = {
             "skill_id": execution["skill_metadata"].get("skill_id", ""),
@@ -309,6 +319,7 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "skill_metadata": prepared.get("skill_metadata", {}) if prepared.get("execution_mode") == "skill" else {},
         "result_summary": str(result.get("result_summary", "") or ""),
         "execution_time_ms": execution_time_ms,
+        "used_strategy": bool(observation.get("used_strategy")),
         "recorded_at": now_iso(),
     }
     real_entry = {
@@ -465,6 +476,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "repeated_context_request": bool(telemetry_entry.get("repeated_context_request")),
             "execution_time_ms": telemetry_entry.get("execution_time_ms"),
             "used_packet": bool(telemetry_entry.get("packet_built")),
+            "used_strategy": bool(telemetry_entry.get("used_strategy")),
             "files_opened": [],
             "files_reopened": [],
         },

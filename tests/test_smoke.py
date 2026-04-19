@@ -320,6 +320,56 @@ def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
     assert any("\"success\": false" in row for row in real_log_lines)
 
 
+def test_prepare_execution_includes_execution_hint_from_latest_strategy(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    first = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "document strategy memory behavior",
+            "agent_id": "agent-test",
+            "execution_id": "exec-hint-1",
+        }
+    )
+    finalize_execution(first, {"success": True, "result_summary": "ok", "validated_learning": True})
+
+    second = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "another feature task",
+            "agent_id": "agent-test",
+            "execution_id": "exec-hint-2",
+            "declared_task_type": first["resolved_task_type"],
+        }
+    )
+
+    assert second["execution_hint"] == {
+        "entry_points": [],
+        "files_used": [],
+        "based_on": "previous_successful_execution",
+    }
+    assert second["execution_observation"]["used_strategy"] is True
+
+
+
+def test_prepare_execution_omits_execution_hint_when_no_strategy_exists(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "brand new task without history",
+            "agent_id": "agent-test",
+            "execution_id": "exec-no-hint-1",
+        }
+    )
+
+    assert "execution_hint" not in prepared
+    assert prepared["execution_observation"]["used_strategy"] is False
+
+
 def test_strategy_memory_load_and_filter(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -373,6 +423,7 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
     assert row["used_packet"] == bool(prepared["retrieval_summary"]["packet_built"])
     assert isinstance(row["execution_time_ms"], int)
     assert finalized["value_evidence"]["used_packet"] == row["used_packet"]
+    assert finalized["value_evidence"]["used_strategy"] is False
 
 
 def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypatch, capsys):
