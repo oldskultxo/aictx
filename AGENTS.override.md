@@ -10,4 +10,11 @@
 - After meaningful writes, prefer `aictx memory-graph --refresh` and `aictx global --refresh`.
 - When running wrapped automations, prefer `aictx internal run-execution` as the middleware entrypoint.
 - Persist learnings through the engine flow rather than inventing parallel memory files.
+
+## aictx usage rules
+
+- Before opening more than 3 files: run `aictx suggest --repo .`
+- If you reopen the same file: run `aictx reflect --repo .`
+- If the task seems similar to a previous one: run `aictx reuse --repo .`
+- If you are unsure about the next step: run `aictx suggest --repo .`
 <!-- AICTX:END -->

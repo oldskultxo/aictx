@@ -6,7 +6,10 @@ import sys
 
 
 def run_json(cmd):
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return {}
     if proc.returncode != 0:
         return {}
     try:
@@ -24,7 +27,15 @@ if not prompt:
 
 packet = run_json(["aictx", "packet", "--task", prompt])
 relevant_memory = packet.get("relevant_memory", [])[:3]
-relevant_paths = packet.get("relevant_paths", [])[:5]
+relevant_paths = packet.get("repo_scope", packet.get("relevant_paths", []))[:5]
+normalized_paths = []
+for path in relevant_paths:
+    if isinstance(path, dict):
+        value = str(path.get("path") or "").strip()
+        if value:
+            normalized_paths.append(value)
+    elif str(path).strip():
+        normalized_paths.append(str(path).strip())
 summary = [
     "AICTX packet prepared automatically for this prompt.",
     f"Resolved task type: {packet.get('task_type', 'unknown')}",
@@ -32,9 +43,12 @@ summary = [
 ]
 if relevant_memory:
     summary.append("Relevant memory: " + ", ".join(str(item.get("title") or item.get("id") or "") for item in relevant_memory))
-if relevant_paths:
-    summary.append("Relevant paths: " + ", ".join(str(path) for path in relevant_paths))
+if normalized_paths:
+    summary.append("Relevant paths: " + ", ".join(normalized_paths))
 summary.append("Use .ai_context_engine as first context layer before broad repo scanning.")
+summary.append("Before opening more than 3 files or when unsure, run: aictx suggest --repo .")
+summary.append("If you reopen the same file, run: aictx reflect --repo .")
+summary.append("If the task matches previous work, run: aictx reuse --repo .")
 
 print(json.dumps({
     "hookSpecificOutput": {

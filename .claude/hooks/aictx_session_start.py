@@ -5,7 +5,10 @@ import subprocess
 
 
 def run_json(cmd):
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return {}
     if proc.returncode != 0:
         return {}
     try:

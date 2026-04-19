@@ -83,6 +83,10 @@ def test_agent_runtime_mentions_savings_sources_and_communication_modes():
     assert "unknown" in text
     assert "## Communication mode" in text
     assert "## Execution middleware" in text
+    assert "## aictx usage rules" in text
+    assert "aictx suggest --repo ." in text
+    assert "aictx reflect --repo ." in text
+    assert "aictx reuse --repo ." in text
     assert "enabled` or `disabled" in text
     assert "caveman_lite" in text
     assert "caveman_full" in text
@@ -854,6 +858,10 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert "PreToolUse" in settings["hooks"]
     assert (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").exists()
     assert (repo / ".claude" / "hooks" / "aictx_pre_tool_use.py").exists()
+    assert "aictx suggest --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
+    assert "aictx reflect --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
+    assert "aictx reuse --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
+    assert "aictx suggest --repo ." in (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 def test_install_codex_native_integration_writes_home_override(tmp_path: Path, monkeypatch):

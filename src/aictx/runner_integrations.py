@@ -47,6 +47,13 @@ def render_codex_repo_override_block() -> str:
 - After meaningful writes, prefer `aictx memory-graph --refresh` and `aictx global --refresh`.
 - When running wrapped automations, prefer `aictx internal run-execution` as the middleware entrypoint.
 - Persist learnings through the engine flow rather than inventing parallel memory files.
+
+## aictx usage rules
+
+- Before opening more than 3 files: run `aictx suggest --repo .`
+- If you reopen the same file: run `aictx reflect --repo .`
+- If the task seems similar to a previous one: run `aictx reuse --repo .`
+- If you are unsure about the next step: run `aictx suggest --repo .`
 {AICTX_END}
 """
 
@@ -62,6 +69,13 @@ This repository is initialized with `aictx`.
 - Claude project hooks may inject bootstrap and packet summaries automatically.
 - Pre-tool enforcement may block direct edits to generated runtime artifacts and legacy parallel memory paths.
 - Treat `aictx internal run-execution` as the preferred wrapped execution entrypoint when available.
+
+## aictx usage rules
+
+- Before opening more than 3 files: run `aictx suggest --repo .`
+- If you reopen the same file: run `aictx reflect --repo .`
+- If the task seems similar to a previous one: run `aictx reuse --repo .`
+- If you are unsure about the next step: run `aictx suggest --repo .`
 {AICTX_END}
 """
 
@@ -225,6 +239,9 @@ if relevant_memory:
 if normalized_paths:
     summary.append("Relevant paths: " + ", ".join(normalized_paths))
 summary.append("Use .ai_context_engine as first context layer before broad repo scanning.")
+summary.append("Before opening more than 3 files or when unsure, run: aictx suggest --repo .")
+summary.append("If you reopen the same file, run: aictx reflect --repo .")
+summary.append("If the task matches previous work, run: aictx reuse --repo .")
 
 print(json.dumps({
     "hookSpecificOutput": {

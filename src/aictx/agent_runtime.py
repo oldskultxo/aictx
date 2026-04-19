@@ -47,6 +47,12 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Heuristic skill detection is low-confidence fallback only; do not treat it as authoritative metadata.
 - Repo-local adapter manifests live under `.ai_context_engine/adapters/` and are auto-installed for generic, Codex, and Claude runners.
 
+## aictx usage rules
+- Before opening more than 3 files: run `aictx suggest --repo .`
+- If you reopen the same file: run `aictx reflect --repo .`
+- If the task seems similar to a previous one: run `aictx reuse --repo .`
+- If you are unsure about the next step: run `aictx suggest --repo .`
+
 ## Communication mode
 - `communication.layer` controls whether the caveman communication layer is active by default: `enabled` or `disabled`.
 - `communication.mode` supports `caveman_lite`, `caveman_full`, and `caveman_ultra`.
@@ -125,6 +131,10 @@ Agent rules:
 - If the user asks for savings reports or health, use repo-local `.ai_context_engine/metrics/` and global engine telemetry artifacts as the source of truth.
 - Missing telemetry must be reported as `unknown`, never as zero or as an invented estimate.
 - Do not hand-edit generated `.ai_context_*` artifacts.
+- Before opening more than 3 files: run `aictx suggest --repo .`
+- If you reopen the same file: run `aictx reflect --repo .`
+- If the task seems similar to a previous one: run `aictx reuse --repo .`
+- If you are unsure about the next step: run `aictx suggest --repo .`
 
 Detailed runtime instructions:
 - `.ai_context_engine/agent_runtime.md`
