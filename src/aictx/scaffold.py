@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .runtime_versioning import compat_version_payload
-from .state import REPO_COST_DIR, REPO_ENGINE_DIR, REPO_METRICS_DIR, REPO_STATE_PATH, REPO_STRATEGY_MEMORY_DIR, write_json
+from .state import REPO_ENGINE_DIR, REPO_METRICS_DIR, REPO_STATE_PATH, REPO_STRATEGY_MEMORY_DIR, write_json
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -41,8 +41,7 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     engine_dir = repo / REPO_ENGINE_DIR
     metrics_dir = repo / REPO_METRICS_DIR
     strategy_dir = repo / REPO_STRATEGY_MEMORY_DIR
-    cost_dir = repo / REPO_COST_DIR
-    for path in [engine_dir, metrics_dir, strategy_dir, cost_dir]:
+    for path in [engine_dir, metrics_dir, strategy_dir]:
         path.mkdir(parents=True, exist_ok=True)
         if str(path) not in created:
             created.append(str(path))

@@ -1,8 +1,8 @@
 # aictx
 
-aictx is a repo-local runtime layer for coding agents.
+aictx is an execution-memory runtime for coding agents.
 
-It records real execution, stores reusable patterns, and reuses successful strategies in later executions.
+It records real execution, stores reusable patterns, and reuses successful strategies in later executions inside the same repository.
 
 ## Quick start
 
@@ -30,20 +30,20 @@ aictx report real-usage
 - writes operational feedback in `.ai_context_engine/metrics/execution_feedback.jsonl`
 - stores successful and failed strategies in `.ai_context_engine/strategy_memory/strategies.jsonl`
 - reuses only successful strategies during later executions
-- exposes small JSON commands for agent guidance
+- exposes small JSON commands for runtime guidance
 
 ## What aictx does NOT do
 
 aictx does not optimize your agent.
 aictx does not guarantee better performance.
 
-It makes past executions reusable and observable.
+It makes past executions observable and reusable.
 
 ## Runtime loop
 
 1. `prepare_execution()` loads prior successful strategies and may attach `execution_hint`
 2. the agent executes
-3. `finalize_execution()` logs real execution, stores strategy data, and writes feedback
+3. `finalize_execution()` records logs, feedback, and strategy memory
 4. the next execution can reuse successful strategies and ignore failed ones
 
 ## Main runtime artifacts
@@ -57,27 +57,10 @@ It makes past executions reusable and observable.
     strategies.jsonl
 ```
 
-## Command behavior
-
-### `aictx suggest`
-Returns the latest reusable strategy as next-step guidance.
-
-### `aictx reflect`
-Reads the latest execution log and returns one of:
-- `looping_on_same_files`
-- `too_much_exploration`
-- `none`
-
-### `aictx reuse`
-Returns the latest successful strategy for reuse.
-
-### `aictx report real-usage`
-Aggregates only real execution logs and feedback.
-
 ## Notes
 
 - file tracking depends on explicit input from the agent/runtime
-- strategy reuse is simple: latest successful strategy by task type
+- strategy reuse is intentionally simple: latest successful strategy by task type
 - failed strategies are stored but never reused as hints
 - no synthetic benchmarks or estimated improvements are reported
 

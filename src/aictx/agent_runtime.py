@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .middleware import finalize_execution, prepare_execution
-from .state import ENGINE_HOME, GLOBAL_METRICS_DIR
+from .state import ENGINE_HOME
 
 AGENTS_START = "<!-- AICTX:START -->"
 AGENTS_END = "<!-- AICTX:END -->"
@@ -24,7 +24,6 @@ def orchestrate_execution_finalize(prepared: dict[str, Any], result: dict[str, A
 
 def render_agent_runtime(engine_home: Path | None = None) -> str:
     engine_home = engine_home or ENGINE_HOME
-    global_metrics_dir = engine_home / ".ai_context_global_metrics"
     return f"""# AI Context Engine agent runtime
 
 Use this runtime guide after repository initialization with `aictx init`.
@@ -54,13 +53,9 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Explicit current-user instruction overrides persisted defaults.
 
 ## Sources of truth
-- Repo-local:
-  - `.ai_context_engine/metrics/execution_logs.jsonl`
-  - `.ai_context_engine/metrics/execution_feedback.jsonl`
-  - `.ai_context_engine/strategy_memory/strategies.jsonl`
-- Global:
-  - `{global_metrics_dir / 'projects_index.json'}`
-  - `{global_metrics_dir / 'telemetry_sources.json'}`
+- `.ai_context_engine/metrics/execution_logs.jsonl`
+- `.ai_context_engine/metrics/execution_feedback.jsonl`
+- `.ai_context_engine/strategy_memory/strategies.jsonl`
 """
 
 
@@ -124,7 +119,6 @@ def install_global_agent_runtime(write_json) -> list[Path]:
         {
             'version': 1,
             'agent_runtime_path': str(GLOBAL_RUNTIME_PATH),
-            'global_metrics_dir': str(GLOBAL_METRICS_DIR),
             'managed_agents_markers': [AGENTS_START, AGENTS_END],
             'local_runtime_relative_path': str(LOCAL_RUNTIME_PATH),
         },

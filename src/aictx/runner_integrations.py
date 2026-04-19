@@ -23,12 +23,10 @@ def render_codex_home_block() -> str:
 ## AICTX Codex integration
 
 When Codex is running inside a repository initialized with `aictx`:
-- prefer the repo-local `.ai_context_engine/` runtime before broad repo scanning
+- prefer repo-local execution history and strategy memory before broad repo scanning
 - read repo-local `AGENTS.override.md`, `AGENTS.md`, and `.ai_context_engine/agent_runtime.md` when present
 - treat `CLAUDE.md` as an additional high-signal project instruction file when available
-- for non-trivial tasks, prefer packet/bootstrap guidance derived from `aictx`
 - do not hand-edit generated `.ai_context_engine/*` artifacts
-- after meaningful code changes, prefer refreshing engine state through `aictx memory-graph --refresh` and `aictx global --refresh`
 - if the repository exposes `aictx internal run-execution`, treat it as the preferred middleware entrypoint for wrapped automations
 {AICTX_END}
 """
@@ -38,13 +36,12 @@ def render_codex_repo_override_block() -> str:
     return f"""{AICTX_START}
 ## AICTX repo-native Codex instructions
 
-- This repository is initialized with `aictx`; prefer `.ai_context_engine/` as the first memory/runtime layer.
+- This repository is initialized with `aictx`; prefer `.ai_context_engine/` as the first runtime layer.
 - Read `.ai_context_engine/agent_runtime.md` before deep repo analysis when the task is non-trivial.
 - Read `CLAUDE.md` too when it exists; it is part of the repo-level AICTX runtime contract.
-- For non-trivial work, prefer packet-oriented context from `aictx internal packet --task "<task>"`.
+- Use `.ai_context_engine/metrics/` and `.ai_context_engine/strategy_memory/` as the source of truth.
 - Do not hand-edit generated `.ai_context_engine/*` artifacts.
-- Do not recreate parallel memory folders like `.ai_context_memory` or `.ai_context_task_memory`.
-- After meaningful writes, prefer `aictx memory-graph --refresh` and `aictx global --refresh`.
+- Do not recreate parallel memory folders.
 - When running wrapped automations, prefer `aictx internal run-execution` as the middleware entrypoint.
 - Persist learnings through the engine flow rather than inventing parallel memory files.
 
@@ -64,9 +61,8 @@ def render_claude_md_block() -> str:
 
 This repository is initialized with `aictx`.
 
-- Prefer `.ai_context_engine/` as the first memory/bootstrap layer.
-- Use packet-oriented context for non-trivial tasks.
-- Claude project hooks may inject bootstrap and packet summaries automatically.
+- Use repo-local execution history and strategy memory for non-trivial tasks.
+- Claude project hooks may inject runtime guidance automatically.
 - Pre-tool enforcement may block direct edits to generated runtime artifacts and legacy parallel memory paths.
 - Treat `aictx internal run-execution` as the preferred wrapped execution entrypoint when available.
 
@@ -83,62 +79,11 @@ This repository is initialized with `aictx`.
 def render_claude_settings() -> dict:
     return {
         "hooks": {
-            "SessionStart": [
-                {
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/aictx_session_start.py",
-                            "timeout": 20,
-                        }
-                    ]
-                }
-            ],
-            "UserPromptSubmit": [
-                {
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/aictx_user_prompt_submit.py",
-                            "timeout": 30,
-                        }
-                    ]
-                }
-            ],
+            "SessionStart": [{"hooks": [{"type": "command", "command": '"$CLAUDE_PROJECT_DIR"/.claude/hooks/aictx_session_start.py', "timeout": 20}]}],
+            "UserPromptSubmit": [{"hooks": [{"type": "command", "command": '"$CLAUDE_PROJECT_DIR"/.claude/hooks/aictx_user_prompt_submit.py', "timeout": 30}]}],
             "PreToolUse": [
-                {
-                    "matcher": "Write|Edit|MultiEdit",
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/aictx_pre_tool_use.py",
-                            "timeout": 20,
-                        }
-                    ],
-                },
-                {
-                    "matcher": "Bash",
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/aictx_pre_tool_use.py",
-                            "timeout": 20,
-                        }
-                    ],
-                }
-            ],
-            "PostToolUse": [
-                {
-                    "matcher": "Write|Edit|MultiEdit",
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/aictx_refresh_memory_graph.sh",
-                            "async": True,
-                            "timeout": 60,
-                        }
-                    ],
-                }
+                {"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": '"$CLAUDE_PROJECT_DIR"/.claude/hooks/aictx_pre_tool_use.py', "timeout": 20}]},
+                {"matcher": "Bash", "hooks": [{"type": "command", "command": '"$CLAUDE_PROJECT_DIR"/.claude/hooks/aictx_pre_tool_use.py', "timeout": 20}]},
             ],
         }
     }
@@ -147,38 +92,12 @@ def render_claude_settings() -> dict:
 def render_session_start_script() -> str:
     return """#!/usr/bin/env python3
 import json
-import os
-import subprocess
-
-
-def run_json(cmd):
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    except FileNotFoundError:
-        return {}
-    if proc.returncode != 0:
-        return {}
-    try:
-        return json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return {}
-
-
-repo = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-boot = run_json(["aictx", "boot", "--repo", repo])
-repo_boot = boot.get("repo_bootstrap", {})
-derived = repo_boot.get("derived_boot_summary", {})
-project = repo_boot.get("project_bootstrap", {})
-memory_graph = boot.get("memory_graph", {})
-task_memory = boot.get("task_memory", {})
 
 summary = [
-    "AICTX bootstrap loaded automatically for this Claude session.",
-    f"Project: {project.get('project') or 'unknown'}",
-    f"Bootstrap required: {str(derived.get('bootstrap_required', True)).lower()}",
-    f"Task-memory records: {sum((task_memory.get('records_by_task_type') or {}).values()) if isinstance(task_memory.get('records_by_task_type'), dict) else 0}",
-    f"Memory-graph nodes: {memory_graph.get('nodes_total', 'unknown')}",
-    "Prefer .ai_context_engine/agent_runtime.md and packet-oriented context for non-trivial work.",
+    "AICTX runtime loaded for this Claude session.",
+    "Prefer .ai_context_engine/metrics/execution_logs.jsonl as real execution history.",
+    "Prefer .ai_context_engine/strategy_memory/strategies.jsonl for reusable patterns.",
+    "Use aictx suggest/reuse/reflect when needed.",
 ]
 
 print(json.dumps({
@@ -218,29 +137,20 @@ if not prompt:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "AICTX: empty prompt"}}))
     raise SystemExit(0)
 
-packet = run_json(["aictx", "packet", "--task", prompt])
-relevant_memory = packet.get("relevant_memory", [])[:3]
-relevant_paths = packet.get("repo_scope", packet.get("relevant_paths", []))[:5]
-normalized_paths = []
-for path in relevant_paths:
-    if isinstance(path, dict):
-        value = str(path.get("path") or "").strip()
-        if value:
-            normalized_paths.append(value)
-    elif str(path).strip():
-        normalized_paths.append(str(path).strip())
+suggest = run_json(["aictx", "suggest", "--repo", repo])
+reuse = run_json(["aictx", "reuse", "--repo", repo])
 summary = [
-    "AICTX packet prepared automatically for this prompt.",
-    f"Resolved task type: {packet.get('task_type', 'unknown')}",
-    f"Suggested model level: {packet.get('model_suggestion', 'unknown')}",
+    "AICTX runtime guidance loaded for this prompt.",
+    "Use execution history and strategy memory before broad repo scanning.",
 ]
-if relevant_memory:
-    summary.append("Relevant memory: " + ", ".join(str(item.get("title") or item.get("id") or "") for item in relevant_memory))
-if normalized_paths:
-    summary.append("Relevant paths: " + ", ".join(normalized_paths))
-summary.append("Use .ai_context_engine as first context layer before broad repo scanning.")
+entry_points = suggest.get("suggested_entry_points", []) if isinstance(suggest, dict) else []
+if entry_points:
+    summary.append("Suggested entry points: " + ", ".join(str(item) for item in entry_points))
+files_used = reuse.get("files_used", []) if isinstance(reuse, dict) else []
+if files_used:
+    summary.append("Reusable files: " + ", ".join(str(item) for item in files_used[:5]))
 summary.append("Before opening more than 3 files or when unsure, run: aictx suggest --repo .")
-summary.append("If you reopen the same file, run: aictx reflect --repo .")
+summary.append("If you reopen the same file several times, run: aictx reflect --repo .")
 summary.append("If the task matches previous work, run: aictx reuse --repo .")
 
 print(json.dumps({
@@ -249,16 +159,6 @@ print(json.dumps({
         "additionalContext": "\\n".join(summary)
     }
 }))
-"""
-
-
-def render_refresh_memory_graph_script() -> str:
-    return """#!/bin/sh
-set -eu
-REPO="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-aictx memory-graph --refresh >/dev/null 2>&1 || true
-aictx global --refresh >/dev/null 2>&1 || true
-exit 0
 """
 
 
@@ -329,7 +229,7 @@ if tool_name == "Bash":
     if mentions_generated and any(token in lowered for token in risky_tokens):
         deny(
             "AICTX policy: do not mutate generated runtime artifacts or legacy memory folders from Bash. "
-            "Use aictx-owned flows and refresh commands instead."
+            "Use aictx-owned flows instead."
         )
 
 raise SystemExit(0)
@@ -338,10 +238,7 @@ raise SystemExit(0)
 
 def ensure_codex_config_hardening() -> list[Path]:
     CODEX_HOME.mkdir(parents=True, exist_ok=True)
-    if CODEX_CONFIG_PATH.exists():
-        existing = CODEX_CONFIG_PATH.read_text(encoding="utf-8")
-    else:
-        existing = ""
+    existing = CODEX_CONFIG_PATH.read_text(encoding="utf-8") if CODEX_CONFIG_PATH.exists() else ""
     managed_comment = "# AICTX managed fallback docs for stronger repo instruction loading"
     desired = 'project_doc_fallback_filenames = ["CLAUDE.md"]'
     if "project_doc_fallback_filenames" in existing:
@@ -389,9 +286,5 @@ def install_repo_runner_integrations(repo: Path) -> list[Path]:
     pre_tool = repo / ".claude" / "hooks" / "aictx_pre_tool_use.py"
     write_executable(pre_tool, render_claude_pre_tool_use_script())
     created.append(pre_tool)
-
-    refresh_graph = repo / ".claude" / "hooks" / "aictx_refresh_memory_graph.sh"
-    write_executable(refresh_graph, render_refresh_memory_graph_script())
-    created.append(refresh_graph)
 
     return created

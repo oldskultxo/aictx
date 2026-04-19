@@ -20,18 +20,12 @@ aictx report real-usage
 ```
 
 ## `aictx suggest`
-
-Source:
-- `.ai_context_engine/strategy_memory/strategies.jsonl`
+Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
 
 Returns deterministic guidance from the latest successful strategy.
 
 ## `aictx reflect`
-
-Source:
-- `.ai_context_engine/metrics/execution_logs.jsonl`
-
-Returns JSON based on the latest execution log.
+Source: `.ai_context_engine/metrics/execution_logs.jsonl`
 
 Rules:
 - if `len(files_reopened) > 2` -> `looping_on_same_files`
@@ -39,14 +33,11 @@ Rules:
 - else -> `none`
 
 ## `aictx reuse`
-
-Source:
-- `.ai_context_engine/strategy_memory/strategies.jsonl`
+Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
 
 Returns the latest successful strategy. Failed strategies are not reused.
 
 ## `aictx report real-usage`
-
 Sources:
 - `.ai_context_engine/metrics/execution_logs.jsonl`
 - `.ai_context_engine/metrics/execution_feedback.jsonl`
@@ -55,15 +46,4 @@ Returns aggregated real usage only.
 
 ## Internal commands
 
-Internal runtime commands exist under:
-
-```bash
-aictx internal ...
-```
-
-Examples:
-- `aictx internal execution prepare`
-- `aictx internal execution finalize`
-- `aictx internal run-execution`
-
-These are runtime plumbing, not the public v1 surface.
+Internal runtime commands exist under `aictx internal ...`, including execution prepare/finalize and wrapped execution helpers.

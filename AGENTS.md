@@ -12,15 +12,8 @@
 This repository is initialized for `aictx`.
 
 Agent rules:
-- Read `.ai_context_engine/memory/derived_boot_summary.json` first when present.
-- Use `aictx` as the first low-cost memory layer before deeper repo analysis.
-- Apply `.ai_context_engine/memory/user_preferences.json` as defaults unless the current prompt overrides them.
-- Enter the engine middleware for every execution in initialized repos, not only when a skill is active.
-- Communication mode may be disabled by repo-local preferences; explicit user requests still override for the current session.
-- Persist validated learnings after non-trivial tasks.
-- If the user asks the agent to learn docs, reusable knowledge, or external references, activate the knowledge/library workflow.
-- If the user asks for savings reports or health, use repo-local `.ai_context_engine/metrics/` and global engine telemetry artifacts as the source of truth.
-- Missing telemetry must be reported as `unknown`, never as zero or as an invented estimate.
+- Enter the runtime middleware for every execution in initialized repos.
+- Use repo-local execution history and strategy memory before deeper repo analysis.
 - Do not hand-edit generated `.ai_context_*` artifacts.
 - Before opening more than 3 files: run `aictx suggest --repo .`
 - If you reopen the same file: run `aictx reflect --repo .`

@@ -64,7 +64,7 @@ if tool_name == "Bash":
     if mentions_generated and any(token in lowered for token in risky_tokens):
         deny(
             "AICTX policy: do not mutate generated runtime artifacts or legacy memory folders from Bash. "
-            "Use aictx-owned flows and refresh commands instead."
+            "Use aictx-owned flows instead."
         )
 
 raise SystemExit(0)

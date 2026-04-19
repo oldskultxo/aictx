@@ -297,7 +297,7 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
     assert isinstance(finalized["value_evidence"]["execution_time_ms"], int)
 
 
-def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
+def test_finalize_execution_failure_persists_failure_strategy(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
     prepared = prepare_execution(
@@ -324,13 +324,10 @@ def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
         },
     )
 
-    failure_status = read_json(repo / ".ai_context_engine" / "failure_memory" / "failure_memory_status.json", {})
     log_lines = (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").read_text(encoding="utf-8").splitlines()
     real_log_lines = (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
     strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert finalized["strategy_persisted"]["task_id"] == strategies[-1]["task_id"]
-    assert finalized["failure_recorded"]["failure_id"].startswith("exec-failure-1_")
-    assert failure_status["records_total"] == 1
     assert any("\"execution_mode\": \"skill\"" in row for row in log_lines)
     assert any("\"success\": false" in row for row in real_log_lines)
     assert strategies[-1]["is_failure"] is True
@@ -437,6 +434,7 @@ def test_prepare_execution_includes_execution_hint_from_latest_strategy(tmp_path
 
     assert second["execution_hint"] == {
         "entry_points": [],
+        "primary_entry_point": None,
         "files_used": [],
         "based_on": "previous_successful_execution",
     }
@@ -675,7 +673,9 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert state["engine_capability_version"] >= 1
     assert state["installed_iteration"] == state["engine_capability_version"]
     assert state["engine_role"] == "initialized_repo_runtime"
-    assert state["supports"]["packet_construction"] is True
+    assert state["supports"]["strategy_memory"] is True
+    assert state["supports"]["real_execution_logging"] is True
+    assert state["supports"]["feedback_reporting"] is True
     assert state["adapter_runtime_enabled"] is True
     assert state["runner_integration_status"] == "native_ready"
     assert state["auto_execution_entrypoint"] == "aictx internal run-execution"
@@ -685,7 +685,7 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").exists()
     assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").exists()
-    assert (repo / ".ai_context_engine" / "cost" / "optimization_history.jsonl").exists()
+    assert not (repo / ".ai_context_engine" / "cost" / "optimization_history.jsonl").exists()
     assert (repo / "AGENTS.override.md").exists()
     assert (repo / "CLAUDE.md").exists()
     assert (repo / ".claude" / "settings.json").exists()
@@ -1308,12 +1308,8 @@ def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
     assert resolved["task_type"] in {"bug_fixing", "unknown"}
 
     packet = runtime_tasks.packet_for_task("debug failing integration")
-    assert packet["task_summary"] == "debug failing integration"
-    assert packet["repo_scope"] == []
-    assert packet["relevant_paths"] == []
-    assert packet["architecture_rules"] == []
-    assert packet["architecture_decisions"] == []
-    assert isinstance(packet["task_type_resolution"]["ambiguous"], bool)
+    assert packet["description"] == "debug failing integration"
+    assert packet["task_type"] == "unknown"
     assert packet["context"] == {}
     assert "selection_report" not in packet
     assert "communication_policy" not in packet

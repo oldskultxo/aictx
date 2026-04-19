@@ -36,14 +36,8 @@ LEGACY_REPO_DIRS = [
 REPO_DIRS = [
     REPO_ENGINE_DIR,
     REPO_MEMORY_DIR.as_posix(),
-    REPO_COST_DIR.as_posix(),
-    REPO_TASK_MEMORY_DIR.as_posix(),
-    REPO_FAILURE_MEMORY_DIR.as_posix(),
-    REPO_MEMORY_GRAPH_DIR.as_posix(),
-    REPO_LIBRARY_DIR.as_posix(),
     REPO_STRATEGY_MEMORY_DIR.as_posix(),
     REPO_METRICS_DIR.as_posix(),
-    REPO_ADAPTERS_DIR.as_posix(),
 ]
 
 TASK_TYPES = [

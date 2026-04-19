@@ -25,29 +25,20 @@ if not prompt:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "AICTX: empty prompt"}}))
     raise SystemExit(0)
 
-packet = run_json(["aictx", "packet", "--task", prompt])
-relevant_memory = packet.get("relevant_memory", [])[:3]
-relevant_paths = packet.get("repo_scope", packet.get("relevant_paths", []))[:5]
-normalized_paths = []
-for path in relevant_paths:
-    if isinstance(path, dict):
-        value = str(path.get("path") or "").strip()
-        if value:
-            normalized_paths.append(value)
-    elif str(path).strip():
-        normalized_paths.append(str(path).strip())
+suggest = run_json(["aictx", "suggest", "--repo", repo])
+reuse = run_json(["aictx", "reuse", "--repo", repo])
 summary = [
-    "AICTX packet prepared automatically for this prompt.",
-    f"Resolved task type: {packet.get('task_type', 'unknown')}",
-    f"Suggested model level: {packet.get('model_suggestion', 'unknown')}",
+    "AICTX runtime guidance loaded for this prompt.",
+    "Use execution history and strategy memory before broad repo scanning.",
 ]
-if relevant_memory:
-    summary.append("Relevant memory: " + ", ".join(str(item.get("title") or item.get("id") or "") for item in relevant_memory))
-if normalized_paths:
-    summary.append("Relevant paths: " + ", ".join(normalized_paths))
-summary.append("Use .ai_context_engine as first context layer before broad repo scanning.")
+entry_points = suggest.get("suggested_entry_points", []) if isinstance(suggest, dict) else []
+if entry_points:
+    summary.append("Suggested entry points: " + ", ".join(str(item) for item in entry_points))
+files_used = reuse.get("files_used", []) if isinstance(reuse, dict) else []
+if files_used:
+    summary.append("Reusable files: " + ", ".join(str(item) for item in files_used[:5]))
 summary.append("Before opening more than 3 files or when unsure, run: aictx suggest --repo .")
-summary.append("If you reopen the same file, run: aictx reflect --repo .")
+summary.append("If you reopen the same file several times, run: aictx reflect --repo .")
 summary.append("If the task matches previous work, run: aictx reuse --repo .")
 
 print(json.dumps({

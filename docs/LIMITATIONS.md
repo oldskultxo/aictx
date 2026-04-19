@@ -1,7 +1,5 @@
 # Limitations
 
-## Current limits
-
 - file tracking depends on explicit input from the agent or runtime
 - there is no ranking of strategies
 - there is no guaranteed improvement in speed, quality, or file exploration

@@ -26,8 +26,7 @@ from .state import (
     ENGINE_HOME,
     GLOBAL_METRICS_DIR,
     PROJECTS_REGISTRY_PATH,
-    REPO_COST_DIR,
-    REPO_MEMORY_DIR,
+        REPO_MEMORY_DIR,
     REPO_METRICS_DIR,
     REPO_STRATEGY_MEMORY_DIR,
     REPO_STATE_PATH,
@@ -252,25 +251,14 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
                 "no_intermediate_output_by_default": True,
             },
             "shared_layers": {
-                "memory_dir": ".ai_context_engine/memory",
                 "telemetry_dir": ".ai_context_engine/metrics",
-                "cost_dir": ".ai_context_engine/cost",
-                "task_memory_dir": ".ai_context_engine/task_memory",
-                "failure_memory_dir": ".ai_context_engine/failure_memory",
-                "memory_graph_dir": ".ai_context_engine/memory_graph",
-                "library_dir": ".ai_context_engine/library",
-                "adapters_dir": ".ai_context_engine/adapters",
+                "strategy_memory_dir": ".ai_context_engine/strategy_memory",
             },
             "supports": {
                 "always_on_middleware": True,
-                "packet_construction": True,
-                "task_memory": True,
-                "failure_memory": True,
-                "memory_graph": True,
-                "knowledge_mods": True,
-                "knowledge_pipeline": True,
-                "knowledge_retrieval": True,
-                "global_metrics": True,
+                "strategy_memory": True,
+                "real_execution_logging": True,
+                "feedback_reporting": True,
                 "auto_execution_launcher": True,
             },
         }
@@ -288,11 +276,6 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
         strategies_path.parent.mkdir(parents=True, exist_ok=True)
         strategies_path.write_text("", encoding="utf-8")
         created.append(str(strategies_path))
-
-    optimization_history_path = repo / REPO_COST_DIR / "optimization_history.jsonl"
-    if not optimization_history_path.exists():
-        optimization_history_path.write_text("", encoding="utf-8")
-        created.append(str(optimization_history_path))
 
     return created
 
@@ -379,7 +362,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("This will:")
         print("- create the local AICTX runtime")
         print("- provision Codex and Claude native repo integration files")
-        print("- make the repo ready for automatic bootstrap/packet usage")
+        print("- make the repo ready for automatic execution-memory usage")
         print("- register this repo in the active workspace")
         print("- add safe .gitignore entries")
         print()
