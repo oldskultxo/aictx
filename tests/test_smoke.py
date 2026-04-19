@@ -182,6 +182,25 @@ def test_prepare_execution_plain_mode_without_skill_metadata(tmp_path: Path):
     assert prepared["adapter_profile"]["adapter_id"] == "generic"
 
 
+def test_prepare_execution_accepts_explicit_file_tracking(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "inspect middleware files",
+            "agent_id": "agent-test",
+            "execution_id": "exec-files-prepare-1",
+            "files_opened": ["src/aictx/middleware.py", "src/aictx/cli.py"],
+            "files_reopened": ["src/aictx/middleware.py"],
+        }
+    )
+
+    assert prepared["execution_observation"]["files_opened"] == ["src/aictx/middleware.py", "src/aictx/cli.py"]
+    assert prepared["execution_observation"]["files_reopened"] == ["src/aictx/middleware.py"]
+
+
 def test_prepare_execution_skill_mode_with_explicit_metadata(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -415,6 +434,8 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
             "user_request": "inspect middleware behavior",
             "agent_id": "agent-test",
             "execution_id": "exec-real-log-1",
+            "files_opened": ["src/aictx/middleware.py", "src/aictx/cli.py"],
+            "files_reopened": ["src/aictx/middleware.py"],
         }
     )
 
@@ -423,7 +444,7 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
         {
             "success": True,
             "result_summary": "ok",
-            "validated_learning": False,
+            "validated_learning": True,
         },
     )
 
@@ -432,15 +453,23 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
     row = rows[0]
     assert row["task_id"]
     assert row["task_type"] == prepared["resolved_task_type"]
-    assert row["files_opened"] == []
-    assert row["files_reopened"] == []
+    assert row["files_opened"] == ["src/aictx/middleware.py", "src/aictx/cli.py"]
+    assert row["files_reopened"] == ["src/aictx/middleware.py"]
     assert row["success"] is True
     assert row["used_packet"] == bool(prepared["retrieval_summary"]["packet_built"])
     assert isinstance(row["execution_time_ms"], int)
     assert finalized["value_evidence"]["used_packet"] == row["used_packet"]
     assert finalized["value_evidence"]["used_strategy"] is False
-    assert finalized["aictx_feedback"]["files_opened"] == 0
-    assert finalized["aictx_feedback"]["reopened_files"] == 0
+    assert finalized["aictx_feedback"]["files_opened"] == 2
+    assert finalized["aictx_feedback"]["reopened_files"] == 1
+
+    feedback_rows = [json.loads(line) for line in (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert feedback_rows[-1]["aictx_feedback"]["files_opened"] == 2
+    assert feedback_rows[-1]["aictx_feedback"]["reopened_files"] == 1
+
+    strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert strategies[-1]["files_used"] == ["src/aictx/middleware.py", "src/aictx/cli.py"]
+    assert strategies[-1]["entry_points"] == ["src/aictx/middleware.py", "src/aictx/cli.py"]
 
 
 def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypatch, capsys):
@@ -460,6 +489,11 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
             "agent-test",
             "--execution-id",
             "exec-cli-1",
+            "--files-opened",
+            "src/aictx/middleware.py",
+            "src/aictx/cli.py",
+            "--files-reopened",
+            "src/aictx/middleware.py",
         ]
     )
     assert prepare_args.func(prepare_args) == 0
@@ -482,6 +516,8 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
     assert finalize_args.func(finalize_args) == 0
     finalized_output = json.loads(capsys.readouterr().out)
     assert finalized_output["execution_id"] == "exec-cli-1"
+    assert finalized_output["aictx_feedback"]["files_opened"] == 2
+    assert finalized_output["aictx_feedback"]["reopened_files"] == 1
 
 
 def test_persist_repo_communication_mode_disabled(tmp_path: Path):

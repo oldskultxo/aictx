@@ -159,6 +159,8 @@ def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
         "execution_mode": str(payload.get("execution_mode") or "").strip().lower() or "plain",
         "skill_metadata": payload.get("skill_metadata", {}),
         "invocation_context": payload.get("invocation_context", {}),
+        "files_opened": [str(item) for item in payload.get("files_opened", []) if str(item).strip()] if isinstance(payload.get("files_opened"), list) else [],
+        "files_reopened": [str(item) for item in payload.get("files_reopened", []) if str(item).strip()] if isinstance(payload.get("files_reopened"), list) else [],
     }
 
 
@@ -259,8 +261,8 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "timestamp": now_iso(),
             "start_time_ms": int(time.time() * 1000),
             "task_type": task_resolution["task_type"],
-            "files_opened": [],
-            "files_reopened": [],
+            "files_opened": list(envelope.get("files_opened", [])),
+            "files_reopened": list(envelope.get("files_reopened", [])),
             "execution_time_ms": None,
             "success": None,
             "used_packet": bool(retrieval_summary.get("packet_built")),
@@ -530,6 +532,8 @@ def cli_prepare_execution(args: argparse.Namespace) -> int:
         "timestamp": args.timestamp or now_iso(),
         "declared_task_type": args.task_type,
         "execution_mode": args.execution_mode or "plain",
+        "files_opened": list(args.files_opened or []),
+        "files_reopened": list(args.files_reopened or []),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,
@@ -543,6 +547,10 @@ def cli_prepare_execution(args: argparse.Namespace) -> int:
 
 def cli_finalize_execution(args: argparse.Namespace) -> int:
     prepared = read_json(Path(args.prepared), {})
+    observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
+    observation["files_opened"] = list(args.files_opened or observation.get("files_opened", []) or [])
+    observation["files_reopened"] = list(args.files_reopened or observation.get("files_reopened", []) or [])
+    prepared["execution_observation"] = observation
     result = {
         "success": bool(args.success),
         "result_summary": args.result_summary,

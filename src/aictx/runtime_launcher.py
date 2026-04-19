@@ -90,6 +90,8 @@ def cli_run_execution(args: argparse.Namespace) -> int:
         "execution_id": build_execution_id(args.execution_id, args.agent_id),
         "declared_task_type": args.task_type,
         "execution_mode": args.execution_mode or "plain",
+        "files_opened": list(args.files_opened or []),
+        "files_reopened": list(args.files_reopened or []),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,

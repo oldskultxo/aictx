@@ -669,6 +669,8 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--skill-name", default="", help="Optional skill name.")
     prepare.add_argument("--skill-path", default="", help="Optional skill path.")
     prepare.add_argument("--skill-source", default="", help="Optional skill source.")
+    prepare.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
+    prepare.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
     prepare.set_defaults(func=cli_prepare_execution)
 
     finalize = execution_sub.add_parser("finalize", help="Run the middleware posthook from a prepared execution JSON")
@@ -676,6 +678,8 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--success", action="store_true", help="Mark execution as successful.")
     finalize.add_argument("--result-summary", default="", help="Execution result summary.")
     finalize.add_argument("--validated-learning", action="store_true", help="Persist validated learning when successful.")
+    finalize.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
+    finalize.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
     finalize.set_defaults(func=cli_finalize_execution)
 
     internal = sub.add_parser("internal", help=argparse.SUPPRESS)
@@ -695,6 +699,8 @@ def build_parser() -> argparse.ArgumentParser:
     run_execution.add_argument("--skill-source", default="", help="Optional skill source.")
     run_execution.add_argument("--validated-learning", action="store_true", help="Persist validated learning when the wrapped command succeeds.")
     run_execution.add_argument("--json", action="store_true", help="Print full JSON outcome instead of only command output.")
+    run_execution.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
+    run_execution.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
     run_execution.add_argument("command", nargs=argparse.REMAINDER, help="Wrapped command after --.")
     run_execution.set_defaults(func=cli_run_execution)
 
