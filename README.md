@@ -122,6 +122,15 @@ It makes past executions observable and reusable.
 
 ---
 
+## Additional properties
+
+* repo-local artifacts are the source of truth; execution history and strategy memory stay inspectable inside the repository
+* failed strategies are stored, but they are excluded from reuse by default
+* public command outputs are deterministic and machine-readable JSON
+* AICTX-managed changes can be removed cleanly with `aictx clean` and `aictx uninstall`
+
+---
+
 ## Notes
 
 * file tracking depends on explicit input from the agent/runtime

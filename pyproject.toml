@@ -4,19 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aictx"
-version = "0.5.1"
-description = "Repo-native runtime contract and context bootstrapper for coding agents"
+version = "1.0.0"
+description = "Repo-local execution memory for coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
   { name = "Santi Santamaria" }
 ]
 license = "MIT"
-keywords = ["ai", "llm", "coding-agents", "developer-tools", "context-engine", "codex", "claude"]
+keywords = ["ai", "llm", "coding-agents", "developer-tools", "execution-memory", "codex", "claude"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Development Status :: 4 - Beta"
+  "Development Status :: 5 - Production/Stable"
 ]
 dependencies = []
 

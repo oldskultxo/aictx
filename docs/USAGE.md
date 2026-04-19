@@ -17,7 +17,31 @@ aictx suggest
 aictx reflect
 aictx reuse
 aictx report real-usage
+aictx clean
+aictx uninstall
 ```
+
+After `aictx init`, manual `aictx` usage is optional.
+
+Normal intended flow:
+- user runs `install` and `init`
+- agent works normally inside the repo
+- agent or user calls the other commands only when needed
+
+## Output shape
+
+Public operational commands return deterministic JSON so they can be consumed safely by:
+- agents
+- scripts
+- CI/demo flows
+
+This applies in particular to:
+- `suggest`
+- `reflect`
+- `reuse`
+- `report real-usage`
+- `clean`
+- `uninstall`
 
 ## `aictx suggest`
 Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
@@ -36,6 +60,15 @@ Rules:
 Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
 
 Returns the latest successful strategy. Failed strategies are not reused.
+
+## Failure handling
+
+Failed executions are persisted into strategy memory too.
+
+Current behavior:
+- successful strategies can be reused
+- failed strategies stay visible in history
+- failed strategies are excluded from reuse by default
 
 ## `aictx report real-usage`
 Sources:

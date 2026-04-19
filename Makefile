@@ -27,10 +27,11 @@ clean-smoke:
 
 smoke: $(VENV_READY) clean-smoke
 	$(AICTX_MODULE) init --repo .tmp/smoke-repo --yes --no-register
-	$(AICTX_MODULE) boot --repo .tmp/smoke-repo >/dev/null
-	$(AICTX_MODULE) packet --task "debug failing integration" >/dev/null
-	$(AICTX_MODULE) execution prepare --repo .tmp/smoke-repo --request "review middleware behavior" --agent-id smoke-agent --execution-id smoke-prepare > .tmp/smoke-repo/prepared.json
-	$(AICTX_MODULE) execution finalize --prepared .tmp/smoke-repo/prepared.json --success --validated-learning --result-summary "Smoke flow completed." >/dev/null
+	$(AICTX_MODULE) internal boot --repo .tmp/smoke-repo >/dev/null
+	$(AICTX_MODULE) internal packet --task "debug failing integration" >/dev/null
+	$(AICTX_MODULE) internal execution prepare --repo .tmp/smoke-repo --request "review middleware behavior" --agent-id smoke-agent --execution-id smoke-prepare --files-opened src/a.py src/b.py --files-reopened src/a.py > .tmp/smoke-repo/prepared.json
+	$(AICTX_MODULE) internal execution finalize --prepared .tmp/smoke-repo/prepared.json --success --validated-learning --files-opened src/a.py src/b.py --files-reopened src/a.py --result-summary "Smoke flow completed." >/dev/null
+	$(AICTX_MODULE) report real-usage --repo .tmp/smoke-repo >/dev/null
 
 package-check: $(VENV_READY)
 	$(VENV_PYTHON) -m build

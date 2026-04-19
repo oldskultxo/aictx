@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0 - 2026-04-19
+
+- aligned public package metadata with the v1 product scope
+- positioned `aictx` as repo-local execution memory for coding agents
+- promoted the package to the first stable public v1 release
+
 ## 0.5.1 - 2026-04-18
 
 - clarified telemetry limitations and evidence gating language in README and limitations docs
