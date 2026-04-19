@@ -74,3 +74,8 @@ def persist_strategy(repo_root: Path, strategy: dict[str, Any]) -> dict[str, Any
         return None
     append_jsonl(path, strategy)
     return {"path": path.as_posix(), "task_id": strategy.get("task_id", "")}
+
+
+def latest_strategy(repo_root: Path, task_type: str | None = None) -> dict[str, Any] | None:
+    rows = get_strategies_by_task_type(repo_root, task_type) if task_type else load_strategies(repo_root)
+    return rows[-1] if rows else None

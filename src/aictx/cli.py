@@ -20,6 +20,7 @@ from .runner_integrations import install_codex_native_integration, install_repo_
 from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
+from .strategy_memory import latest_strategy
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
@@ -115,6 +116,75 @@ def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
         communication["mode"] = selected_mode
     prefs["communication"] = communication
     write_json(prefs_path, prefs)
+
+
+def read_jsonl_rows(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        rows.append(__import__("json").loads(line))
+    return rows
+
+
+def cmd_suggest(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    strategy = latest_strategy(repo, args.task_type)
+    payload = {
+        "suggested_entry_points": [],
+        "suggested_files": [],
+        "source": "none",
+    }
+    if strategy:
+        payload = {
+            "suggested_entry_points": list(strategy.get("entry_points", [])) if isinstance(strategy.get("entry_points"), list) else [],
+            "suggested_files": list(strategy.get("files_used", [])) if isinstance(strategy.get("files_used"), list) else [],
+            "source": "strategy_memory",
+        }
+    print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def cmd_reuse(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    strategy = latest_strategy(repo, args.task_type)
+    payload = {
+        "task_type": "",
+        "entry_points": [],
+        "files_used": [],
+        "source": "none",
+    }
+    if strategy:
+        payload = {
+            "task_type": str(strategy.get("task_type", "") or ""),
+            "entry_points": list(strategy.get("entry_points", [])) if isinstance(strategy.get("entry_points"), list) else [],
+            "files_used": list(strategy.get("files_used", [])) if isinstance(strategy.get("files_used"), list) else [],
+            "source": "previous_successful_execution",
+        }
+    print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def cmd_reflect(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    rows = read_jsonl_rows(repo / REPO_METRICS_DIR / "execution_logs.jsonl")
+    latest = rows[-1] if rows else {}
+    reopened = list(latest.get("files_reopened", [])) if isinstance(latest.get("files_reopened"), list) else []
+    opened = list(latest.get("files_opened", [])) if isinstance(latest.get("files_opened"), list) else []
+    issue = "none"
+    if reopened:
+        issue = "repeated_file_access"
+    elif len(opened) > 5:
+        issue = "high_exploration"
+    payload = {
+        "reopened_files": reopened,
+        "possible_issue": issue,
+    }
+    print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
 
 
 def prepare_repo_runtime(repo: Path) -> list[str]:
@@ -461,6 +531,20 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--no-gitignore", action="store_true", help="Do not modify .gitignore")
     init.add_argument("--no-register", action="store_true", help="Do not register repo in active workspace")
     init.set_defaults(func=cmd_init)
+
+    suggest = sub.add_parser("suggest", help=argparse.SUPPRESS)
+    suggest.add_argument("--repo", default=".", help=argparse.SUPPRESS)
+    suggest.add_argument("--task-type", default="", help=argparse.SUPPRESS)
+    suggest.set_defaults(func=cmd_suggest)
+
+    reflect = sub.add_parser("reflect", help=argparse.SUPPRESS)
+    reflect.add_argument("--repo", default=".", help=argparse.SUPPRESS)
+    reflect.set_defaults(func=cmd_reflect)
+
+    reuse = sub.add_parser("reuse", help=argparse.SUPPRESS)
+    reuse.add_argument("--repo", default=".", help=argparse.SUPPRESS)
+    reuse.add_argument("--task-type", default="", help=argparse.SUPPRESS)
+    reuse.set_defaults(func=cmd_reuse)
 
     workspace = sub.add_parser("workspace", help=argparse.SUPPRESS)
     workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)

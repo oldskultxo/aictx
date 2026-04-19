@@ -581,6 +581,131 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert (repo / ".claude" / "hooks" / "aictx_pre_tool_use.py").exists()
 
 
+def test_cli_suggest_returns_empty_json_without_history(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    parser = cli.build_parser()
+    args = parser.parse_args(["suggest", "--repo", str(repo)])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "suggested_entry_points": [],
+        "suggested_files": [],
+        "source": "none",
+    }
+
+
+
+def test_cli_reuse_returns_latest_strategy(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    first = prepare_execution({
+        "repo_root": str(repo),
+        "user_request": "document strategy behavior",
+        "agent_id": "agent-test",
+        "execution_id": "exec-reuse-1",
+        "declared_task_type": "feature_work",
+    })
+    finalize_execution(first, {"success": True, "result_summary": "ok", "validated_learning": True})
+
+    parser = cli.build_parser()
+    args = parser.parse_args(["reuse", "--repo", str(repo), "--task-type", "feature_work"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["task_type"] == "feature_work"
+    assert payload["entry_points"] == []
+    assert payload["files_used"] == []
+    assert payload["source"] == "previous_successful_execution"
+
+
+
+def test_cli_suggest_uses_latest_strategy(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    first = prepare_execution({
+        "repo_root": str(repo),
+        "user_request": "document strategy behavior",
+        "agent_id": "agent-test",
+        "execution_id": "exec-suggest-1",
+        "declared_task_type": "feature_work",
+    })
+    finalize_execution(first, {"success": True, "result_summary": "ok", "validated_learning": True})
+
+    parser = cli.build_parser()
+    args = parser.parse_args(["suggest", "--repo", str(repo), "--task-type", "feature_work"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "suggested_entry_points": [],
+        "suggested_files": [],
+        "source": "strategy_memory",
+    }
+
+
+
+def test_cli_reflect_detects_reopened_files(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    log_path = repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl"
+    log_path.write_text(json.dumps({
+        "task_id": "t1",
+        "timestamp": "2026-04-19T00:00:00Z",
+        "task_type": "feature_work",
+        "files_opened": ["a.py", "b.py"],
+        "files_reopened": ["a.py"],
+        "execution_time_ms": 100,
+        "success": True,
+        "used_packet": False,
+    }) + "\n", encoding="utf-8")
+    parser = cli.build_parser()
+    args = parser.parse_args(["reflect", "--repo", str(repo)])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "reopened_files": ["a.py"],
+        "possible_issue": "repeated_file_access",
+    }
+
+
+
+def test_cli_reflect_detects_high_exploration(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    log_path = repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl"
+    log_path.write_text(json.dumps({
+        "task_id": "t1",
+        "timestamp": "2026-04-19T00:00:00Z",
+        "task_type": "feature_work",
+        "files_opened": ["1.py", "2.py", "3.py", "4.py", "5.py", "6.py"],
+        "files_reopened": [],
+        "execution_time_ms": 100,
+        "success": True,
+        "used_packet": False,
+    }) + "\n", encoding="utf-8")
+    parser = cli.build_parser()
+    args = parser.parse_args(["reflect", "--repo", str(repo)])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "reopened_files": [],
+        "possible_issue": "high_exploration",
+    }
+
+
+
+def test_cli_reflect_returns_none_without_history(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    parser = cli.build_parser()
+    args = parser.parse_args(["reflect", "--repo", str(repo)])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "reopened_files": [],
+        "possible_issue": "none",
+    }
+
+
 def test_cli_main_help_shows_simple_surface_only():
     parser = cli.build_parser()
     help_text = parser.format_help()
