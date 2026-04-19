@@ -25,6 +25,7 @@ import aictx.runtime_metrics as runtime_metrics
 import aictx.benchmark as benchmark
 import aictx.global_metrics as global_metrics
 import aictx.strategy_memory as strategy_memory
+import aictx.report as report_module
 from aictx.agent_runtime import (
     AGENTS_END,
     AGENTS_START,
@@ -723,6 +724,109 @@ def test_cli_reflect_returns_none_without_history(tmp_path: Path, capsys):
         "reopened_files": [],
         "possible_issue": "none",
     }
+
+
+def test_report_real_usage_returns_empty_metrics_without_history(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    parser = cli.build_parser()
+    args = parser.parse_args(["report", "real-usage", "--repo", str(repo)])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "total_executions": 0,
+        "avg_execution_time_ms": None,
+        "avg_files_opened": None,
+        "avg_reopened_files": None,
+        "strategy_usage": 0,
+        "packet_usage": 0,
+        "redundant_exploration_cases": 0,
+    }
+
+
+
+def test_report_real_usage_aggregates_real_logs_and_feedback(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    metrics_dir = repo / ".ai_context_engine" / "metrics"
+    (metrics_dir / "execution_logs.jsonl").write_text(
+        "\n".join([
+            json.dumps({
+                "task_id": "t1",
+                "timestamp": "2026-04-19T00:00:00Z",
+                "task_type": "feature_work",
+                "files_opened": ["a.py", "b.py"],
+                "files_reopened": ["a.py"],
+                "execution_time_ms": 1000,
+                "success": True,
+                "used_packet": True,
+            }),
+            json.dumps({
+                "task_id": "t2",
+                "timestamp": "2026-04-19T00:05:00Z",
+                "task_type": "feature_work",
+                "files_opened": ["c.py", "d.py", "e.py", "f.py"],
+                "files_reopened": [],
+                "execution_time_ms": 2000,
+                "success": True,
+                "used_packet": False,
+            }),
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    (metrics_dir / "execution_feedback.jsonl").write_text(
+        "\n".join([
+            json.dumps({
+                "task_id": "t1",
+                "execution_id": "e1",
+                "timestamp": "2026-04-19T00:00:01Z",
+                "aictx_feedback": {
+                    "files_opened": 2,
+                    "reopened_files": 1,
+                    "used_strategy": True,
+                    "used_packet": True,
+                    "possible_redundant_exploration": True,
+                    "previous_strategy_reused": True,
+                },
+            }),
+            json.dumps({
+                "task_id": "t2",
+                "execution_id": "e2",
+                "timestamp": "2026-04-19T00:05:01Z",
+                "aictx_feedback": {
+                    "files_opened": 4,
+                    "reopened_files": 0,
+                    "used_strategy": False,
+                    "used_packet": True,
+                    "possible_redundant_exploration": False,
+                    "previous_strategy_reused": False,
+                },
+            }),
+        ]) + "\n",
+        encoding="utf-8",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["report", "real-usage", "--repo", str(repo)])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "total_executions": 2,
+        "avg_execution_time_ms": 1500,
+        "avg_files_opened": 3,
+        "avg_reopened_files": 0,
+        "strategy_usage": 1,
+        "packet_usage": 2,
+        "redundant_exploration_cases": 1,
+    }
+
+
+
+def test_report_module_build_real_usage_report(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    payload = report_module.build_real_usage_report(repo)
+    assert payload["total_executions"] == 0
+    assert payload["avg_execution_time_ms"] is None
 
 
 def test_cli_main_help_shows_simple_surface_only():

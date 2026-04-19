@@ -20,6 +20,7 @@ from .runner_integrations import install_codex_native_integration, install_repo_
 from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
+from .report import build_real_usage_report
 from .strategy_memory import latest_strategy
 from .state import (
     CONFIG_PATH,
@@ -184,6 +185,12 @@ def cmd_reflect(args: argparse.Namespace) -> int:
         "possible_issue": issue,
     }
     print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def cmd_report_real_usage(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    print(__import__("json").dumps(build_real_usage_report(repo), ensure_ascii=False))
     return 0
 
 
@@ -550,6 +557,12 @@ def build_parser() -> argparse.ArgumentParser:
     reuse.add_argument("--repo", default=".", help=argparse.SUPPRESS)
     reuse.add_argument("--task-type", default="", help=argparse.SUPPRESS)
     reuse.set_defaults(func=cmd_reuse)
+
+    report = sub.add_parser("report", help=argparse.SUPPRESS)
+    report_sub = report.add_subparsers(dest="report_command", required=True)
+    report_real_usage = report_sub.add_parser("real-usage", help=argparse.SUPPRESS)
+    report_real_usage.add_argument("--repo", default=".", help=argparse.SUPPRESS)
+    report_real_usage.set_defaults(func=cmd_report_real_usage)
 
     workspace = sub.add_parser("workspace", help=argparse.SUPPRESS)
     workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)
