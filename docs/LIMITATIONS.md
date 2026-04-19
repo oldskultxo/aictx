@@ -7,3 +7,5 @@
 - failed strategies are stored, but they are not yet used for negative guidance beyond exclusion from reuse
 - `reflect` uses only the latest execution log and a very small rule set
 - missing data stays empty or null; it is not inferred
+
+- `aictx uninstall` cleans registered repositories and AICTX global state; repositories unknown to AICTX are not auto-discovered.

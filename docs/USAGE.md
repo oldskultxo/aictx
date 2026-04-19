@@ -47,3 +47,32 @@ Returns aggregated real usage only.
 ## Internal commands
 
 Internal runtime commands exist under `aictx internal ...`, including execution prepare/finalize and wrapped execution helpers.
+
+
+## Cleanup
+
+### Clean one repository
+
+```bash
+aictx clean --repo .
+```
+
+Removes only AICTX-managed repository content:
+- `.ai_context_engine/`
+- AICTX blocks inside `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md`
+- AICTX Claude hook files and matching entries in `.claude/settings.json`
+- the `.gitignore` line for `.ai_context_engine/`
+
+### Uninstall globally
+
+```bash
+aictx uninstall
+```
+
+Removes only AICTX-managed global content:
+- `~/.ai_context_engine/`
+- AICTX block in `~/.codex/AGENTS.override.md`
+- AICTX-managed fallback line in `~/.codex/config.toml`
+- AICTX-managed content from registered repositories
+
+Both commands return JSON with the exact files they removed or updated.

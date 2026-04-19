@@ -22,6 +22,8 @@ aictx suggest
 aictx reflect
 aictx reuse
 aictx report real-usage
+aictx clean
+aictx uninstall
 ```
 
 ## What aictx does
@@ -69,3 +71,9 @@ It makes past executions observable and reusable.
 - [Usage](docs/USAGE.md)
 - [Demo](docs/DEMO.md)
 - [Limitations](docs/LIMITATIONS.md)
+
+## Cleanup
+
+- `aictx clean` removes only AICTX-managed content from the current repository: the `.ai_context_engine/` scaffold, AICTX blocks in `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`, AICTX Claude hooks/settings, and the `.gitignore` entry added by AICTX.
+- `aictx uninstall` removes AICTX-managed content from all registered repositories and removes global AICTX state under `~/.ai_context_engine`, plus AICTX-managed Codex global instructions/config lines.
+- Both commands are conservative: they only remove content that AICTX created or marked as AICTX-managed.

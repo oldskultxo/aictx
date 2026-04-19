@@ -930,6 +930,8 @@ def test_cli_main_help_shows_simple_surface_only():
     assert "reflect" in help_text
     assert "reuse" in help_text
     assert "report" in help_text
+    assert "clean" in help_text
+    assert "uninstall" in help_text
     assert "benchmark" not in help_text
     assert "workspace" not in help_text
     assert "boot" not in help_text
@@ -1587,3 +1589,77 @@ def test_global_metrics_reads_legacy_iteration_only_repo(tmp_path: Path):
 
     assert global_metrics.infer_installed_version(repo) == "unknown"
     assert global_metrics.infer_engine_capability_version(repo) == 9
+
+
+def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    init_repo_scaffold(repo, update_gitignore=True)
+    install_repo_runner_integrations(repo)
+    upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
+
+    user_agents = repo / "AGENTS.md"
+    user_agents.write_text(user_agents.read_text(encoding="utf-8") + "\nUser note.\n", encoding="utf-8")
+    extra_claude_hook = repo / ".claude" / "hooks" / "custom.py"
+    extra_claude_hook.parent.mkdir(parents=True, exist_ok=True)
+    extra_claude_hook.write_text("print('keep')\n", encoding="utf-8")
+
+    payload = cli.clean_repo_and_unregister(repo)
+
+    assert not (repo / ".ai_context_engine").exists()
+    assert not (repo / "AGENTS.override.md").exists()
+    assert not (repo / "CLAUDE.md").exists()
+    assert extra_claude_hook.exists()
+    assert 'AICTX:START' not in (repo / 'AGENTS.md').read_text(encoding='utf-8')
+    assert 'User note.' in (repo / 'AGENTS.md').read_text(encoding='utf-8')
+    assert '.ai_context_engine/' not in (repo / '.gitignore').read_text(encoding='utf-8')
+    settings_path = repo / '.claude' / 'settings.json'
+    assert not settings_path.exists()
+    assert any(item.endswith('.ai_context_engine') for item in payload['removed'])
+
+
+def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path: Path, monkeypatch):
+    engine_home = tmp_path / '.ai_context_engine_home'
+    codex_home = tmp_path / '.codex'
+    monkeypatch.setattr('aictx.state.ENGINE_HOME', engine_home)
+    monkeypatch.setattr('aictx.state.CONFIG_PATH', engine_home / 'config.json')
+    monkeypatch.setattr('aictx.state.PROJECTS_REGISTRY_PATH', engine_home / 'projects_registry.json')
+    monkeypatch.setattr('aictx.state.WORKSPACES_DIR', engine_home / 'workspaces')
+    monkeypatch.setattr('aictx.state.GLOBAL_METRICS_DIR', engine_home / '.ai_context_global_metrics')
+    monkeypatch.setattr('aictx.cleanup.ENGINE_HOME', engine_home)
+    monkeypatch.setattr('aictx.cleanup.PROJECTS_REGISTRY_PATH', engine_home / 'projects_registry.json')
+    monkeypatch.setattr('aictx.cleanup.WORKSPACES_DIR', engine_home / 'workspaces')
+    monkeypatch.setattr('aictx.cleanup.CODEX_HOME', codex_home)
+    monkeypatch.setattr('aictx.cleanup.CODEX_CONFIG_PATH', codex_home / 'config.toml')
+    monkeypatch.setattr('aictx.runner_integrations.CODEX_HOME', codex_home)
+    monkeypatch.setattr('aictx.runner_integrations.CODEX_CONFIG_PATH', codex_home / 'config.toml')
+    monkeypatch.setattr('aictx.agent_runtime.ENGINE_HOME', engine_home)
+    monkeypatch.setattr('aictx.adapters.ENGINE_HOME', engine_home)
+    monkeypatch.setattr('aictx.adapters.GLOBAL_ADAPTERS_DIR', engine_home / 'adapters')
+    monkeypatch.setattr('aictx.adapters.GLOBAL_ADAPTERS_REGISTRY_PATH', engine_home / 'adapters' / 'registry.json')
+    monkeypatch.setattr('aictx.adapters.GLOBAL_ADAPTERS_BIN_DIR', engine_home / 'adapters' / 'bin')
+    monkeypatch.setattr('aictx.adapters.GLOBAL_ADAPTERS_INSTALL_STATUS_PATH', engine_home / 'adapters' / 'install_status.json')
+
+    repo = tmp_path / 'repo'
+    repo.mkdir()
+    init_repo_scaffold(repo, update_gitignore=True)
+    install_repo_runner_integrations(repo)
+    upsert_marked_block(repo / 'AGENTS.md', render_repo_agents_block())
+
+    engine_home.mkdir(parents=True, exist_ok=True)
+    (engine_home / 'workspaces').mkdir(parents=True, exist_ok=True)
+    cli.write_json(engine_home / 'projects_registry.json', {'version': 1, 'projects': [{'name': 'repo', 'repo_path': str(repo), 'workspace': 'default'}]})
+    cli.write_json(engine_home / 'workspaces' / 'default.json', {'version': 1, 'workspace_id': 'default', 'roots': [], 'repos': [str(repo)], 'cross_project_mode': 'workspace'})
+    install_codex_native_integration()
+    user_file = codex_home / 'notes.txt'
+    user_file.parent.mkdir(parents=True, exist_ok=True)
+    user_file.write_text('keep\n', encoding='utf-8')
+
+    payload = cli.uninstall_all()
+
+    assert not engine_home.exists()
+    assert not (repo / '.ai_context_engine').exists()
+    assert user_file.exists()
+    codex_override = codex_home / 'AGENTS.override.md'
+    assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
+    assert str(repo) in payload['repos_cleaned']

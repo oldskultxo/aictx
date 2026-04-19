@@ -20,6 +20,7 @@ from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
 from .report import build_real_usage_report
+from .cleanup import clean_repo_and_unregister, uninstall_all
 from .strategy_memory import latest_strategy
 from .state import (
     CONFIG_PATH,
@@ -189,6 +190,19 @@ def cmd_reflect(args: argparse.Namespace) -> int:
 def cmd_report_real_usage(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     print(__import__("json").dumps(build_real_usage_report(repo), ensure_ascii=False))
+    return 0
+
+
+def cmd_clean(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = clean_repo_and_unregister(repo)
+    print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def cmd_uninstall(args: argparse.Namespace) -> int:
+    payload = uninstall_all()
+    print(__import__("json").dumps(payload, ensure_ascii=False))
     return 0
 
 
@@ -485,7 +499,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,report}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,report,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -515,6 +529,13 @@ def build_parser() -> argparse.ArgumentParser:
     reuse.add_argument("--repo", default=".", help="Repository root")
     reuse.add_argument("--task-type", default="", help="Optional task type filter")
     reuse.set_defaults(func=cmd_reuse)
+
+    clean = sub.add_parser("clean", help="Remove AICTX content from the current repository")
+    clean.add_argument("--repo", default=".", help="Repository root")
+    clean.set_defaults(func=cmd_clean)
+
+    uninstall = sub.add_parser("uninstall", help="Remove AICTX content from all registered repos and global config")
+    uninstall.set_defaults(func=cmd_uninstall)
 
     report = sub.add_parser("report", help="Report real aggregated runtime usage")
     report_sub = report.add_subparsers(dest="report_command", required=True)

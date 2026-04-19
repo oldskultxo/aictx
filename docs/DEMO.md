@@ -71,3 +71,16 @@ This demo proves:
 - run 2 can reuse a real prior strategy
 - file tracking only appears when explicitly provided
 - output comes from stored logs, feedback and strategy memory only
+
+
+## 5. Cleanup
+
+```bash
+aictx clean --repo .
+```
+
+This removes only AICTX-managed repo content. To remove AICTX globally across registered repos and global config:
+
+```bash
+aictx uninstall
+```
