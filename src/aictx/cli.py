@@ -175,10 +175,10 @@ def cmd_reflect(args: argparse.Namespace) -> int:
     reopened = list(latest.get("files_reopened", [])) if isinstance(latest.get("files_reopened"), list) else []
     opened = list(latest.get("files_opened", [])) if isinstance(latest.get("files_opened"), list) else []
     issue = "none"
-    if reopened:
-        issue = "repeated_file_access"
-    elif len(opened) > 5:
-        issue = "high_exploration"
+    if len(reopened) > 2:
+        issue = "looping_on_same_files"
+    elif len(opened) > 8:
+        issue = "too_much_exploration"
     payload = {
         "reopened_files": reopened,
         "possible_issue": issue,
@@ -539,61 +539,64 @@ def build_parser() -> argparse.ArgumentParser:
     report_real_usage.add_argument("--repo", default=".", help="Repository root")
     report_real_usage.set_defaults(func=cmd_report_real_usage)
 
-    workspace = sub.add_parser("workspace", help=argparse.SUPPRESS)
+    internal = sub.add_parser("internal", help=argparse.SUPPRESS)
+    internal_sub = internal.add_subparsers(dest="internal_command", required=True)
+
+    workspace = internal_sub.add_parser("workspace", help=argparse.SUPPRESS)
     workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)
-    add_root = workspace_sub.add_parser("add-root", help="Register a workspace root")
+    add_root = workspace_sub.add_parser("add-root", help=argparse.SUPPRESS)
     add_root.add_argument("path")
     add_root.set_defaults(func=cmd_workspace_add_root)
-    list_cmd = workspace_sub.add_parser("list", help="List workspace roots and repos")
+    list_cmd = workspace_sub.add_parser("list", help=argparse.SUPPRESS)
     list_cmd.set_defaults(func=cmd_workspace_list)
 
-    boot = sub.add_parser("boot", help=argparse.SUPPRESS)
+    boot = internal_sub.add_parser("boot", help=argparse.SUPPRESS)
     boot.add_argument("--repo", default=".", help="Repository path for session boot context.")
     boot.set_defaults(func=core_runtime.cli_boot)
 
-    query = sub.add_parser("query", help=argparse.SUPPRESS)
+    query = internal_sub.add_parser("query", help=argparse.SUPPRESS)
     query.add_argument("--prefs", action="store_true", help="Query preferences.")
     query.add_argument("--architecture", action="store_true", help="Query architecture decisions.")
     query.add_argument("--symptom", action="store_true", help="Query symptom index.")
     query.add_argument("query", nargs="*", help="Keyword query.")
     query.set_defaults(func=core_runtime.cli_query)
 
-    packet = sub.add_parser("packet", help=argparse.SUPPRESS)
+    packet = internal_sub.add_parser("packet", help=argparse.SUPPRESS)
     packet.add_argument("--task", required=True, help="Task description.")
     packet.add_argument("--project", help="Optional project override.")
     packet.add_argument("--task-type", help="Optional explicit task type override.")
     packet.set_defaults(func=core_runtime.cli_packet)
 
-    route = sub.add_parser("route", help=argparse.SUPPRESS)
+    route = internal_sub.add_parser("route", help=argparse.SUPPRESS)
     route.add_argument("--task", required=True, help="Task description.")
     route.set_defaults(func=core_runtime.cli_route)
 
-    migrate = sub.add_parser("migrate", help=argparse.SUPPRESS)
+    migrate = internal_sub.add_parser("migrate", help=argparse.SUPPRESS)
     migrate.set_defaults(func=core_runtime.cli_migrate)
 
-    stale = sub.add_parser("detect-stale", help=argparse.SUPPRESS)
+    stale = internal_sub.add_parser("detect-stale", help=argparse.SUPPRESS)
     stale.set_defaults(func=core_runtime.cli_stale)
 
-    compact = sub.add_parser("compact", help=argparse.SUPPRESS)
+    compact = internal_sub.add_parser("compact", help=argparse.SUPPRESS)
     compact.add_argument("--apply", action="store_true", help="Reserved for future non-dry-run compaction.")
     compact.set_defaults(func=core_runtime.cli_compact)
 
-    gitignore = sub.add_parser("ensure-gitignore", help=argparse.SUPPRESS)
+    gitignore = internal_sub.add_parser("ensure-gitignore", help=argparse.SUPPRESS)
     gitignore.add_argument("--repo", required=True, help="Repository root to update.")
     gitignore.set_defaults(func=core_runtime.cli_gitignore)
 
-    touch = sub.add_parser("touch", help=argparse.SUPPRESS)
+    touch = internal_sub.add_parser("touch", help=argparse.SUPPRESS)
     touch.add_argument("items", nargs="+", help="Record ids or note paths.")
     touch.set_defaults(func=core_runtime.cli_touch)
 
-    new_note = sub.add_parser("new-note", help=argparse.SUPPRESS)
+    new_note = internal_sub.add_parser("new-note", help=argparse.SUPPRESS)
     new_note.add_argument("--path", required=True, help="Note path relative to repo root.")
     new_note.add_argument("--title", required=True, help="Markdown H1 title.")
     new_note.add_argument("--tags", nargs="*", default=[], help="Optional tag list.")
     new_note.add_argument("--task-type", help="Optional task type for derived task-memory routing.")
     new_note.set_defaults(func=core_runtime.cli_new_note)
 
-    failure = sub.add_parser("failure", help=argparse.SUPPRESS)
+    failure = internal_sub.add_parser("failure", help=argparse.SUPPRESS)
     failure.add_argument("--failure-id", required=True, help="Stable failure identifier.")
     failure.add_argument("--category", default="unknown", help="Failure category.")
     failure.add_argument("--title", required=True, help="Short failure title.")
@@ -606,7 +609,7 @@ def build_parser() -> argparse.ArgumentParser:
     failure.add_argument("--notes", default="", help="Optional manual notes.")
     failure.set_defaults(func=core_runtime.cli_failure)
 
-    task_memory = sub.add_parser("task-memory", help=argparse.SUPPRESS)
+    task_memory = internal_sub.add_parser("task-memory", help=argparse.SUPPRESS)
     task_memory.add_argument("--task-type", required=True, help="Task type bucket.")
     task_memory.add_argument("--title", required=True, help="Short reusable pattern title.")
     task_memory.add_argument("--summary", required=True, help="Compact reusable lesson.")
@@ -620,43 +623,43 @@ def build_parser() -> argparse.ArgumentParser:
     task_memory.add_argument("--confidence", type=float, default=0.75, help="Confidence score between 0 and 1.")
     task_memory.set_defaults(func=core_runtime.cli_task_memory)
 
-    graph = sub.add_parser("memory-graph", help=argparse.SUPPRESS)
+    graph = internal_sub.add_parser("memory-graph", help=argparse.SUPPRESS)
     graph.add_argument("--refresh", action="store_true", help="Rebuild the memory graph from current artifacts.")
     graph.add_argument("--query", help="Node id or label query.")
     graph.add_argument("--depth", type=int, default=1, help="Expansion depth for queries.")
     graph.set_defaults(func=core_runtime.cli_memory_graph)
 
-    library = sub.add_parser("library", help=argparse.SUPPRESS)
+    library = internal_sub.add_parser("library", help=argparse.SUPPRESS)
     library_sub = library.add_subparsers(dest="library_command")
-    learn = library_sub.add_parser("learn", help="Bootstrap a knowledge mod.")
+    learn = library_sub.add_parser("learn", help=argparse.SUPPRESS)
     learn.add_argument("mod_id", help="Mod identifier.")
     learn.add_argument("--alias", dest="aliases", action="append", default=[], help="Optional alias.")
-    process = library_sub.add_parser("process", help="Process inbox documents for a mod.")
+    process = library_sub.add_parser("process", help=argparse.SUPPRESS)
     process.add_argument("mod_id", help="Mod identifier.")
-    add_source = library_sub.add_parser("add-source", help="Register a remote URL source for a mod.")
+    add_source = library_sub.add_parser("add-source", help=argparse.SUPPRESS)
     add_source.add_argument("mod_id", help="Mod identifier.")
     add_source.add_argument("--url", required=True, help="Remote source URL.")
     add_source.add_argument("--type", dest="declared_type", default="auto", help="Declared source type: auto|html|pdf|md|txt.")
     add_source.add_argument("--tag", dest="tags", action="append", default=[], help="Optional source tag.")
-    fetch = library_sub.add_parser("fetch-sources", help="Fetch registered remote URL sources for a mod.")
+    fetch = library_sub.add_parser("fetch-sources", help=argparse.SUPPRESS)
     fetch.add_argument("mod_id", help="Mod identifier.")
     fetch.add_argument("--source-id", help="Optional source id to fetch.")
     fetch.add_argument("--force", action="store_true", help="Force a new fetch even when checksum is unchanged.")
-    retrieve = library_sub.add_parser("retrieve", help="Retrieve a minimal knowledge pack for a task.")
+    retrieve = library_sub.add_parser("retrieve", help=argparse.SUPPRESS)
     retrieve.add_argument("--task", required=True, help="Task description.")
-    library_sub.add_parser("status", help="Show library and telemetry status.")
+    library_sub.add_parser("status", help=argparse.SUPPRESS)
     library.set_defaults(func=core_runtime.cli_library)
 
-    global_cmd = sub.add_parser("global", help=argparse.SUPPRESS)
+    global_cmd = internal_sub.add_parser("global", help=argparse.SUPPRESS)
     global_cmd.add_argument("--refresh", action="store_true", help="Refresh projects index and global savings artifacts.")
     global_cmd.add_argument("--health-check", action="store_true", help="Run global health checks.")
     global_cmd.add_argument("--json", action="store_true", help="Print full JSON output.")
     global_cmd.set_defaults(func=cmd_global)
 
-    execution = sub.add_parser("execution", help=argparse.SUPPRESS)
+    execution = internal_sub.add_parser("execution", help=argparse.SUPPRESS)
     execution_sub = execution.add_subparsers(dest="execution_command", required=True)
 
-    prepare = execution_sub.add_parser("prepare", help="Run the middleware prehook and emit an execution context")
+    prepare = execution_sub.add_parser("prepare", help=argparse.SUPPRESS)
     prepare.add_argument("--repo", default=".", help="Repository root.")
     prepare.add_argument("--request", required=True, help="User request or task description.")
     prepare.add_argument("--agent-id", required=True, help="Agent identifier.")
@@ -673,7 +676,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
     prepare.set_defaults(func=cli_prepare_execution)
 
-    finalize = execution_sub.add_parser("finalize", help="Run the middleware posthook from a prepared execution JSON")
+    finalize = execution_sub.add_parser("finalize", help=argparse.SUPPRESS)
     finalize.add_argument("--prepared", required=True, help="Path to prepared execution JSON.")
     finalize.add_argument("--success", action="store_true", help="Mark execution as successful.")
     finalize.add_argument("--result-summary", default="", help="Execution result summary.")
@@ -681,9 +684,6 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
     finalize.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
     finalize.set_defaults(func=cli_finalize_execution)
-
-    internal = sub.add_parser("internal", help=argparse.SUPPRESS)
-    internal_sub = internal.add_subparsers(dest="internal_command", required=True)
 
     run_execution = internal_sub.add_parser("run-execution", help=argparse.SUPPRESS)
     run_execution.add_argument("--repo", default=".", help="Repository root.")

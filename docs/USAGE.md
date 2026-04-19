@@ -8,115 +8,62 @@ aictx install
 aictx init
 ```
 
-Use `--repo <path>` when initializing a repository outside the current directory.
-
 ## Public commands
 
-### `aictx suggest`
+```bash
+aictx install
+aictx init
+aictx suggest
+aictx reflect
+aictx reuse
+aictx report real-usage
+```
 
-Return deterministic next-step guidance from the latest stored strategy.
+## `aictx suggest`
 
-Data source:
-
+Source:
 - `.ai_context_engine/strategy_memory/strategies.jsonl`
 
-Example:
+Returns deterministic guidance from the latest successful strategy.
 
-```bash
-aictx suggest --repo .
-```
+## `aictx reflect`
 
-Example output:
-
-```json
-{"suggested_entry_points": [], "suggested_files": [], "source": "none"}
-```
-
-### `aictx reflect`
-
-Inspect the latest real execution log and report a simple exploration issue.
-
-Data source:
-
+Source:
 - `.ai_context_engine/metrics/execution_logs.jsonl`
 
-Example:
+Returns JSON based on the latest execution log.
 
-```bash
-aictx reflect --repo .
-```
+Rules:
+- if `len(files_reopened) > 2` -> `looping_on_same_files`
+- elif `len(files_opened) > 8` -> `too_much_exploration`
+- else -> `none`
 
-Example output:
+## `aictx reuse`
 
-```json
-{"reopened_files": [], "possible_issue": "none"}
-```
-
-### `aictx reuse`
-
-Return the latest reusable successful strategy.
-
-Data source:
-
+Source:
 - `.ai_context_engine/strategy_memory/strategies.jsonl`
 
-Example:
+Returns the latest successful strategy. Failed strategies are not reused.
 
-```bash
-aictx reuse --repo .
-```
+## `aictx report real-usage`
 
-Example output:
-
-```json
-{"task_type": "", "entry_points": [], "files_used": [], "source": "none"}
-```
-
-### `aictx report real-usage`
-
-Aggregate real execution logs and feedback.
-
-Data sources:
-
+Sources:
 - `.ai_context_engine/metrics/execution_logs.jsonl`
 - `.ai_context_engine/metrics/execution_feedback.jsonl`
 
-Example:
+Returns aggregated real usage only.
+
+## Internal commands
+
+Internal runtime commands exist under:
 
 ```bash
-aictx report real-usage --repo .
+aictx internal ...
 ```
 
-Example output:
-
-```json
-{"total_executions": 0, "avg_execution_time_ms": null, "avg_files_opened": null, "avg_reopened_files": null, "strategy_usage": 0, "packet_usage": 0, "redundant_exploration_cases": 0}
-```
-
-## Internal/runtime commands
-
-`aictx` still contains internal commands used by middleware and runner integrations, such as:
-
-- `aictx execution prepare`
-- `aictx execution finalize`
+Examples:
+- `aictx internal execution prepare`
+- `aictx internal execution finalize`
 - `aictx internal run-execution`
 
-These exist because the runtime itself depends on them, but they are not the main public surface for v1.
-
-## Agent usage pattern
-
-The repo-level instructions written by `aictx init` tell the agent to:
-
-- run `aictx suggest --repo .` before opening many files
-- run `aictx reflect --repo .` if it reopens the same file
-- run `aictx reuse --repo .` for similar prior tasks
-- run `aictx suggest --repo .` when unsure about the next step
-
-## Historical note
-
-Synthetic benchmark material is no longer part of the product path.
-
-Historical reference only:
-
-- `experiments/simulated/benchmark.py`
-- `experiments/simulated/BENCHMARK_QUICKSTART.md`
+These are runtime plumbing, not the public v1 surface.

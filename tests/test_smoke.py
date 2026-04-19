@@ -537,6 +537,7 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
 
     prepare_args = parser.parse_args(
         [
+            "internal",
             "execution",
             "prepare",
             "--repo",
@@ -561,6 +562,7 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
 
     finalize_args = parser.parse_args(
         [
+            "internal",
             "execution",
             "finalize",
             "--prepared",
@@ -753,7 +755,7 @@ def test_cli_suggest_uses_latest_strategy(tmp_path: Path, capsys):
 
 
 
-def test_cli_reflect_detects_reopened_files(tmp_path: Path, capsys):
+def test_cli_reflect_detects_looping_on_same_files(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
     log_path = repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl"
@@ -762,7 +764,7 @@ def test_cli_reflect_detects_reopened_files(tmp_path: Path, capsys):
         "timestamp": "2026-04-19T00:00:00Z",
         "task_type": "feature_work",
         "files_opened": ["a.py", "b.py"],
-        "files_reopened": ["a.py"],
+        "files_reopened": ["a.py", "b.py", "c.py"],
         "execution_time_ms": 100,
         "success": True,
         "used_packet": False,
@@ -772,13 +774,13 @@ def test_cli_reflect_detects_reopened_files(tmp_path: Path, capsys):
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload == {
-        "reopened_files": ["a.py"],
-        "possible_issue": "repeated_file_access",
+        "reopened_files": ["a.py", "b.py", "c.py"],
+        "possible_issue": "looping_on_same_files",
     }
 
 
 
-def test_cli_reflect_detects_high_exploration(tmp_path: Path, capsys):
+def test_cli_reflect_detects_too_much_exploration(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
     log_path = repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl"
@@ -786,7 +788,7 @@ def test_cli_reflect_detects_high_exploration(tmp_path: Path, capsys):
         "task_id": "t1",
         "timestamp": "2026-04-19T00:00:00Z",
         "task_type": "feature_work",
-        "files_opened": ["1.py", "2.py", "3.py", "4.py", "5.py", "6.py"],
+        "files_opened": ["1.py", "2.py", "3.py", "4.py", "5.py", "6.py", "7.py", "8.py", "9.py"],
         "files_reopened": [],
         "execution_time_ms": 100,
         "success": True,
@@ -798,7 +800,7 @@ def test_cli_reflect_detects_high_exploration(tmp_path: Path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload == {
         "reopened_files": [],
-        "possible_issue": "high_exploration",
+        "possible_issue": "too_much_exploration",
     }
 
 
@@ -943,7 +945,7 @@ def test_should_render_banner_respects_no_banner_json_and_help():
     assert cli.should_render_banner(["internal", "run-execution", "--json"], stdout_is_tty=True) is False
     assert cli.should_render_banner(["install", "--help"], stdout_is_tty=True) is False
     assert cli.should_render_banner(["--banner", "install", "--help"], stdout_is_tty=True) is True
-    assert cli.should_render_banner(["workspace", "list"], stdout_is_tty=False) is False
+    assert cli.should_render_banner(["internal", "workspace", "list"], stdout_is_tty=False) is False
 
 
 def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, capsys):
@@ -1172,7 +1174,7 @@ def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
     assert init_proc.returncode == 0, init_proc.stderr
 
     boot_proc = subprocess.run(
-        [sys.executable, "-m", "aictx", "boot", "--repo", str(repo)],
+        [sys.executable, "-m", "aictx", "internal", "boot", "--repo", str(repo)],
         text=True,
         capture_output=True,
         env=env,
@@ -1184,7 +1186,7 @@ def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
     assert boot_payload["communication_policy"]["layer"] == "disabled"
 
     packet_proc = subprocess.run(
-        [sys.executable, "-m", "aictx", "packet", "--task", "debug failing integration"],
+        [sys.executable, "-m", "aictx", "internal", "packet", "--task", "debug failing integration"],
         text=True,
         capture_output=True,
         env=env,
@@ -1198,6 +1200,7 @@ def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
             sys.executable,
             "-m",
             "aictx",
+            "internal",
             "execution",
             "prepare",
             "--repo",
@@ -1222,6 +1225,7 @@ def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
             sys.executable,
             "-m",
             "aictx",
+            "internal",
             "execution",
             "finalize",
             "--prepared",
@@ -1544,7 +1548,7 @@ def test_python_module_entrypoint_smoke(tmp_path: Path):
     assert init_proc.returncode == 0, init_proc.stderr
 
     boot_proc = subprocess.run(
-        [sys.executable, "-m", "aictx", "boot", "--repo", str(repo)],
+        [sys.executable, "-m", "aictx", "internal", "boot", "--repo", str(repo)],
         text=True,
         capture_output=True,
         env=env,
