@@ -277,11 +277,23 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
     assert any("exec-finalize-1" in row for row in workflow_rows)
     assert finalized["strategy_persisted"]["task_id"] == "exec-finalize-1"
     strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    feedback_rows = [json.loads(line) for line in (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(strategies) == 1
+    assert len(feedback_rows) == 1
     assert strategies[0]["task_id"] == "exec-finalize-1"
     assert strategies[0]["task_type"] == prepared["resolved_task_type"]
     assert strategies[0]["files_used"] == []
     assert strategies[0]["entry_points"] == []
+    assert finalized["aictx_feedback"] == {
+        "files_opened": 0,
+        "reopened_files": 0,
+        "used_strategy": False,
+        "used_packet": bool(prepared["retrieval_summary"]["packet_built"]),
+        "possible_redundant_exploration": False,
+        "previous_strategy_reused": False,
+    }
+    assert feedback_rows[0]["execution_id"] == "exec-finalize-1"
+    assert feedback_rows[0]["aictx_feedback"] == finalized["aictx_feedback"]
     assert "value_evidence" in finalized
     assert weekly["value_evidence"]["files_opened"] == []
     assert isinstance(finalized["value_evidence"]["execution_time_ms"], int)
@@ -428,6 +440,8 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
     assert isinstance(row["execution_time_ms"], int)
     assert finalized["value_evidence"]["used_packet"] == row["used_packet"]
     assert finalized["value_evidence"]["used_strategy"] is False
+    assert finalized["aictx_feedback"]["files_opened"] == 0
+    assert finalized["aictx_feedback"]["reopened_files"] == 0
 
 
 def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypatch, capsys):
@@ -576,6 +590,7 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
+    assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").exists()
     assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").exists()
     assert (repo / ".ai_context_engine" / "cost" / "optimization_history.jsonl").exists()
     assert (repo / "AGENTS.override.md").exists()
@@ -1119,6 +1134,37 @@ def test_rank_records_returns_score_breakdown(tmp_path: Path):
     if matches:
         assert "score_breakdown" in matches[0]
         assert "total" in matches[0]["score_breakdown"]
+
+
+def test_finalize_execution_feedback_marks_strategy_reuse(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    first = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "document strategy memory behavior",
+            "agent_id": "agent-test",
+            "execution_id": "exec-feedback-1",
+            "declared_task_type": "feature_work",
+        }
+    )
+    finalize_execution(first, {"success": True, "result_summary": "ok", "validated_learning": True})
+
+    second = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "follow similar feature task",
+            "agent_id": "agent-test",
+            "execution_id": "exec-feedback-2",
+            "declared_task_type": "feature_work",
+        }
+    )
+    finalized = finalize_execution(second, {"success": True, "result_summary": "ok", "validated_learning": False})
+
+    assert finalized["aictx_feedback"]["used_strategy"] is True
+    assert finalized["aictx_feedback"]["previous_strategy_reused"] is True
+    assert finalized["aictx_feedback"]["used_packet"] in {True, False}
 
 
 def test_repeated_task_reports_value_evidence(tmp_path: Path):

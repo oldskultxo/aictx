@@ -296,6 +296,11 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
         execution_logs_path.write_text("", encoding="utf-8")
         created.append(str(execution_logs_path))
 
+    execution_feedback_path = repo / REPO_METRICS_DIR / "execution_feedback.jsonl"
+    if not execution_feedback_path.exists():
+        execution_feedback_path.write_text("", encoding="utf-8")
+        created.append(str(execution_feedback_path))
+
     strategies_path = repo / REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl"
     if not strategies_path.exists():
         strategies_path.parent.mkdir(parents=True, exist_ok=True)

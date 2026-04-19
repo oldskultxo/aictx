@@ -224,6 +224,7 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         },
     )
     (repo / REPO_METRICS_DIR / "task_logs.jsonl").write_text("", encoding="utf-8")
+    (repo / REPO_METRICS_DIR / "execution_feedback.jsonl").write_text("", encoding="utf-8")
 
     if update_gitignore:
         ensure_gitignore(repo)

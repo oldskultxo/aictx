@@ -26,6 +26,7 @@ from .state import (
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
 REAL_EXECUTION_LOG_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
+EXECUTION_FEEDBACK_PATH = REPO_METRICS_DIR / "execution_feedback.jsonl"
 EXECUTION_STATUS_PATH = REPO_METRICS_DIR / "agent_execution_status.json"
 FAILURE_EVENTS_DIR = REPO_FAILURE_MEMORY_DIR / "failures"
 HEURISTIC_SKILL_PATTERN = re.compile(r"(\$[A-Za-z0-9:_-]+|SKILL\.md|\bskill\b)", re.IGNORECASE)
@@ -225,6 +226,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),
         "execution_logs": (repo_root / REAL_EXECUTION_LOG_PATH).as_posix(),
+        "execution_feedback": (repo_root / EXECUTION_FEEDBACK_PATH).as_posix(),
         "execution_status": (repo_root / EXECUTION_STATUS_PATH).as_posix(),
         "weekly_summary": (repo_root / REPO_METRICS_DIR / "weekly_summary.json").as_posix(),
         "workflow_learnings": (repo_root / REPO_MEMORY_DIR / "workflow_learnings.jsonl").as_posix(),
@@ -426,6 +428,36 @@ def persist_strategy_memory(repo_root: Path, prepared: dict[str, Any], result: d
     return persist_strategy(repo_root, strategy)
 
 
+def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, Any]) -> dict[str, Any]:
+    execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
+    files_opened = list(execution_log.get("files_opened", [])) if isinstance(execution_log.get("files_opened"), list) else []
+    files_reopened = list(execution_log.get("files_reopened", [])) if isinstance(execution_log.get("files_reopened"), list) else []
+    used_strategy = bool(prepared.get("execution_hint")) or bool(telemetry_entry.get("used_strategy"))
+    files_opened_count = len(files_opened)
+    files_reopened_count = len(files_reopened)
+    return {
+        "files_opened": files_opened_count,
+        "reopened_files": files_reopened_count,
+        "used_strategy": used_strategy,
+        "used_packet": bool(telemetry_entry.get("packet_built")),
+        "possible_redundant_exploration": bool(files_reopened_count > 0 or files_opened_count > 5),
+        "previous_strategy_reused": used_strategy,
+    }
+
+
+
+def persist_execution_feedback(repo_root: Path, prepared: dict[str, Any], feedback: dict[str, Any]) -> dict[str, Any]:
+    path = repo_root / EXECUTION_FEEDBACK_PATH
+    payload = {
+        "task_id": str(prepared.get("execution_observation", {}).get("task_id") or prepared.get("envelope", {}).get("execution_id") or ""),
+        "execution_id": str(prepared.get("envelope", {}).get("execution_id") or ""),
+        "timestamp": now_iso(),
+        "aictx_feedback": feedback,
+    }
+    append_jsonl(path, payload)
+    return payload
+
+
 def persist_failure_event(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
     if result.get("success"):
         return None
@@ -462,6 +494,8 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
     strategy = persist_strategy_memory(repo_root, prepared, normalized_result)
     failure = persist_failure_event(repo_root, prepared, normalized_result)
+    aictx_feedback = build_aictx_feedback(prepared, telemetry_entry)
+    persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback)
     return {
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
@@ -469,6 +503,8 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "learning_persisted": learning,
         "strategy_persisted": strategy,
         "failure_recorded": failure,
+        "aictx_feedback": aictx_feedback,
+        "feedback_persisted": persisted_feedback,
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),
             "task_memory_reused": bool(telemetry_entry.get("task_memory_reused")),
