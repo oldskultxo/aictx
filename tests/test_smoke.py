@@ -359,6 +359,42 @@ def test_finalize_execution_failure_records_failure_memory(tmp_path: Path):
 
 
 
+def test_get_strategies_by_task_type_excludes_failures_by_default(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "success-1",
+            "task_type": "feature_work",
+            "entry_points": ["a.py"],
+            "files_used": ["a.py"],
+            "success": True,
+            "is_failure": False,
+            "timestamp": "2026-04-19T00:00:00Z",
+        },
+    )
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "failure-1",
+            "task_type": "feature_work",
+            "entry_points": ["b.py"],
+            "files_used": ["b.py"],
+            "success": False,
+            "is_failure": True,
+            "timestamp": "2026-04-19T00:01:00Z",
+        },
+    )
+
+    visible = strategy_memory.get_strategies_by_task_type(repo, "feature_work")
+    all_rows = strategy_memory.get_strategies_by_task_type(repo, "feature_work", include_failures=True)
+
+    assert [row["task_id"] for row in visible] == ["success-1"]
+    assert [row["task_id"] for row in all_rows] == ["success-1", "failure-1"]
+
+
 def test_failure_strategies_are_not_reused_by_prepare_execution(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)

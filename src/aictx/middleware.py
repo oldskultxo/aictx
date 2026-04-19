@@ -223,7 +223,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         )
     else:
         retrieval_summary["packet_built"] = False
-    strategies = get_strategies_by_task_type(repo_root, task_resolution["task_type"])
+    strategies = get_strategies_by_task_type(repo_root, task_resolution["task_type"], include_failures=False)
     selected_strategy = strategies[-1] if strategies else None
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),

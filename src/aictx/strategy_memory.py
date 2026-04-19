@@ -43,13 +43,12 @@ def load_strategies(repo_root: Path) -> list[dict[str, Any]]:
     return read_jsonl(strategies_path(repo_root))
 
 
-def get_strategies_by_task_type(repo_root: Path, task_type: str) -> list[dict[str, Any]]:
+def get_strategies_by_task_type(repo_root: Path, task_type: str, include_failures: bool = False) -> list[dict[str, Any]]:
     target = str(task_type or "unknown")
-    return [
-        row
-        for row in load_strategies(repo_root)
-        if str(row.get("task_type") or "unknown") == target and not bool(row.get("is_failure"))
-    ]
+    rows = [row for row in load_strategies(repo_root) if str(row.get("task_type") or "unknown") == target]
+    if include_failures:
+        return rows
+    return [row for row in rows if not bool(row.get("is_failure"))]
 
 
 def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any], timestamp: str, is_failure: bool) -> dict[str, Any]:
