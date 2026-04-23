@@ -7,6 +7,8 @@ This repository is initialized with `aictx`.
 - Claude project hooks may inject runtime guidance automatically.
 - Pre-tool enforcement may block direct edits to generated runtime artifacts and legacy parallel memory paths.
 - Treat `aictx internal run-execution` as the preferred wrapped execution entrypoint when available.
+- After finalize, append `agent_summary_text` verbatim to the final user response.
+- If no finalize output exists, say `AICTX summary unavailable`.
 
 ## aictx usage rules
 

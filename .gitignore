@@ -6,7 +6,6 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-.ai_context_engine/
 .ai_context_memory/
 .ai_context_cost/
 .ai_context_task_memory/
@@ -26,3 +25,4 @@ compaction_report.json
 README.es.md
 .tmp/
 /.vscode
+.ai_context_engine/

@@ -11,7 +11,7 @@
 - richer explainable strategy ranking
 - repo-local failure memory with resolution linkage
 - deterministic repo-area memory
-- `agent_summary` and `agent_summary_text` in finalize output
+- `agent_summary` and `agent_summary_text` in finalize output; current runtime instructions require agents to append `agent_summary_text` to final user responses
 - extended `report real-usage` capture, failure, area, and hygiene fields
 
 No release publishing is implied by this metadata update.

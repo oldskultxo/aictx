@@ -21,7 +21,7 @@ aictx clean
 aictx uninstall
 ```
 
-After `aictx init`, manual `aictx` usage is optional.
+After `aictx init`, manual `aictx` usage is optional. Agents are expected to follow the generated runtime instructions.
 
 Normal intended flow:
 - user runs `install` and `init`
@@ -46,7 +46,7 @@ This applies in particular to:
 ## `aictx suggest`
 Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
 
-Returns deterministic guidance from the latest successful strategy.
+Returns deterministic guidance from the selected reusable successful strategy.
 
 ## `aictx reflect`
 Source: `.ai_context_engine/metrics/execution_logs.jsonl`
@@ -59,11 +59,11 @@ Rules:
 ## `aictx reuse`
 Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
 
-Returns the latest successful strategy. Failed strategies are not reused.
+Returns the selected reusable successful strategy. Failed strategies are not reused.
 
 ## Failure handling
 
-Failed executions are persisted into strategy memory too.
+Failed executions are persisted for history/debugging too.
 
 Current behavior:
 - successful strategies can be reused
@@ -80,6 +80,13 @@ Returns aggregated real usage only.
 ## Internal commands
 
 Internal runtime commands exist under `aictx internal ...`, including execution prepare/finalize and wrapped execution helpers.
+
+Important runtime output behavior:
+- `aictx internal execution finalize` returns `agent_summary` and `agent_summary_text` in JSON.
+- agents must append `agent_summary_text` verbatim to the final user response after finalize.
+- if finalize output is unavailable, agents must say `AICTX summary unavailable`.
+- `aictx internal run-execution --json` returns the full wrapped outcome as JSON.
+- `aictx internal run-execution` without `--json` prints the wrapped command output plus the AICTX summary text.
 
 
 ## Cleanup

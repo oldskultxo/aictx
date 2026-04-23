@@ -9,6 +9,8 @@
 - Do not recreate parallel memory folders.
 - When running wrapped automations, prefer `aictx internal run-execution` as the middleware entrypoint.
 - Persist learnings through the engine flow rather than inventing parallel memory files.
+- After finalize, append `agent_summary_text` verbatim to the final user response.
+- If no finalize output exists, say `AICTX summary unavailable`.
 
 ## aictx usage rules
 

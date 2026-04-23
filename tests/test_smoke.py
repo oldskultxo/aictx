@@ -41,6 +41,9 @@ from aictx.middleware import finalize_execution, prepare_execution
 from aictx.runner_integrations import (
     install_codex_native_integration,
     install_repo_runner_integrations,
+    render_claude_md_block,
+    render_codex_repo_override_block,
+    render_user_prompt_submit_script,
 )
 from aictx.scaffold import TEMPLATES_DIR, init_repo_scaffold
 from aictx.state import Workspace, default_global_config, read_json
@@ -94,6 +97,20 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "caveman_lite" in text
     assert "caveman_full" in text
     assert "caveman_ultra" in text
+    assert "agent_summary_text" in text
+    assert "AICTX summary unavailable" in text
+    repo_block = render_repo_agents_block()
+    assert "agent_summary_text" in repo_block
+    assert "AICTX summary unavailable" in repo_block
+    codex_block = render_codex_repo_override_block()
+    assert "agent_summary_text" in codex_block
+    assert "AICTX summary unavailable" in codex_block
+    claude_block = render_claude_md_block()
+    assert "agent_summary_text" in claude_block
+    assert "AICTX summary unavailable" in claude_block
+    prompt_hook = render_user_prompt_submit_script()
+    assert "append agent_summary_text verbatim" in prompt_hook
+    assert "AICTX summary unavailable" in prompt_hook
 
 
 def test_communication_policy_uses_disabled_template_default():
@@ -1178,6 +1195,40 @@ def test_internal_run_execution_wraps_command_and_persists_status(tmp_path: Path
 
     status = read_json(repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json", {})
     assert status["last_execution_id"] == "exec-wrap-1"
+
+
+def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+    parser = cli.build_parser()
+
+    args = parser.parse_args(
+        [
+            "internal",
+            "run-execution",
+            "--repo",
+            str(repo),
+            "--request",
+            "run wrapped command and show summary",
+            "--agent-id",
+            "codex",
+            "--execution-id",
+            "exec-wrap-summary",
+            "--validated-learning",
+            "--",
+            "python3",
+            "-c",
+            "print('wrapped ok')",
+        ]
+    )
+
+    assert args.func(args) == 0
+    output = capsys.readouterr().out
+    assert "wrapped ok" in output
+    assert "AICTX" in output
+    assert "- Reused strategy:" in output
+    assert "- New learning stored:" in output
 
 
 def test_runtime_capture_provenance_and_prepare_fields(tmp_path: Path):

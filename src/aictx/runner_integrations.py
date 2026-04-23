@@ -29,6 +29,7 @@ When Codex is running inside a repository initialized with `aictx`:
 - treat `CLAUDE.md` as an additional high-signal project instruction file when available
 - do not hand-edit generated `.ai_context_engine/*` artifacts
 - if the repository exposes `aictx internal run-execution`, treat it as the preferred middleware entrypoint for wrapped automations
+- final responses for non-trivial tasks must include the AICTX `agent_summary_text` from finalize; if unavailable, say `AICTX summary unavailable`
 {AICTX_END}
 """
 
@@ -45,6 +46,8 @@ def render_codex_repo_override_block() -> str:
 - Do not recreate parallel memory folders.
 - When running wrapped automations, prefer `aictx internal run-execution` as the middleware entrypoint.
 - Persist learnings through the engine flow rather than inventing parallel memory files.
+- After finalize, append `agent_summary_text` verbatim to the final user response.
+- If no finalize output exists, say `AICTX summary unavailable`.
 
 ## aictx usage rules
 
@@ -66,6 +69,8 @@ This repository is initialized with `aictx`.
 - Claude project hooks may inject runtime guidance automatically.
 - Pre-tool enforcement may block direct edits to generated runtime artifacts and legacy parallel memory paths.
 - Treat `aictx internal run-execution` as the preferred wrapped execution entrypoint when available.
+- After finalize, append `agent_summary_text` verbatim to the final user response.
+- If no finalize output exists, say `AICTX summary unavailable`.
 
 ## aictx usage rules
 
@@ -196,6 +201,8 @@ if files_used:
 summary.append("Before opening more than 3 files or when unsure, run: aictx suggest --repo .")
 summary.append("If you reopen the same file several times, run: aictx reflect --repo .")
 summary.append("If the task matches previous work, run: aictx reuse --repo .")
+summary.append("After finalize, append agent_summary_text verbatim to the final user response.")
+summary.append("If no finalize output exists, say: AICTX summary unavailable.")
 
 print(json.dumps({
     "hookSpecificOutput": {

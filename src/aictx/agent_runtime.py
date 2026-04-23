@@ -32,7 +32,9 @@ Use this runtime guide after repository initialization with `aictx init`.
 1. Run `prepare_execution` before non-trivial work.
 2. Execute the task.
 3. Run `finalize_execution` with the real outcome.
-4. Reuse previous successful strategies when available.
+4. Append `finalized.agent_summary_text` verbatim to the final user response.
+5. If no finalize output exists, say `AICTX summary unavailable`.
+6. Reuse previous successful strategies when available.
 
 ## Execution middleware
 - Enter the runtime for every execution in initialized repos.
@@ -40,6 +42,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Read `.ai_context_engine/metrics/execution_feedback.jsonl` for real feedback.
 - Read `.ai_context_engine/strategy_memory/strategies.jsonl` for reusable successful patterns.
 - Report missing data as `unknown` instead of inventing values.
+- Final responses for non-trivial tasks must include the AICTX summary from finalize.
 
 ## aictx usage rules
 - Before opening more than 3 files: run `aictx suggest --repo .`
@@ -67,6 +70,8 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
+- After finalize, append `agent_summary_text` verbatim to the final user response.
+- If no finalize output exists, say `AICTX summary unavailable`.
 - Use repo-local execution history and strategy memory before deeper repo analysis.
 - Do not hand-edit generated `.ai_context_*` artifacts.
 - Before opening more than 3 files: run `aictx suggest --repo .`

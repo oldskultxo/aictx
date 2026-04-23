@@ -12,6 +12,8 @@ The public surface is intentionally small:
 - `aictx reflect`
 - `aictx reuse`
 - `aictx report real-usage`
+- `aictx clean`
+- `aictx uninstall`
 
 Under that surface, the runtime still contains internal commands and compatibility layers used by middleware and runner integrations.
 
@@ -22,8 +24,9 @@ The runtime is built around one simple loop:
 1. prepare execution
 2. run task
 3. finalize execution
-4. persist reusable data
-5. reuse it on later executions
+4. expose `agent_summary_text` for the final user response
+5. persist reusable data
+6. reuse it on later executions
 
 ### Prepare
 
@@ -51,6 +54,7 @@ The agent then executes normally.
 - persists validated learning where enabled
 - persists strategy memory for successful validated runs
 - records failure events on unsuccessful runs
+- returns `agent_summary` and `agent_summary_text`
 
 ## Real data sources
 
@@ -91,18 +95,11 @@ It summarizes real facts such as:
 
 ### Strategy memory
 
-Strategy memory is append-only and based on real successful executions.
+Strategy memory is append-only. Successful executions can become reusable strategy hints; failed executions are retained for history/debugging but excluded from positive reuse.
 
-Current schema is intentionally minimal:
+Current schema stores observed execution signals such as task id/type, entry points, files used, command/test/error hints, area, success, and timestamp.
 
-- `task_id`
-- `task_type`
-- `entry_points`
-- `files_used`
-- `success`
-- `timestamp`
-
-There is no scoring, ranking, clustering, or ML layer.
+There is no ML layer or synthetic scoring. Reuse ranking is deterministic and explainable.
 
 ## Strategy reuse
 
@@ -110,11 +107,12 @@ Strategy reuse is deliberately conservative.
 
 Current behavior:
 
-- load strategies by exact task type
-- take the most recent successful one
-- expose it as `execution_hint`
+- exclude failed strategies from reuse
+- prefer matching task type and related execution signals when available
+- consider prompt similarity, overlapping files, primary entry point, commands/tests/errors, area, and recency
+- expose the selected strategy as `execution_hint`
 
-The runtime does not claim deeper similarity matching than that.
+The runtime does not claim ML-grade semantic retrieval or guaranteed optimization.
 
 ## Agent-facing commands
 
@@ -156,7 +154,7 @@ Repo guidance is written into:
 - `.claude/settings.json`
 - `.claude/hooks/*`
 
-The purpose is not to force behavior, but to make `aictx` discoverable and easy to use during execution.
+The integrations make `aictx` discoverable, guide runtime usage, and require final responses for non-trivial tasks to include `agent_summary_text` after finalize. Enforcement still depends on runner support and agent cooperation.
 
 ## Design principles
 
@@ -170,6 +168,6 @@ Current design choices are intentional:
 ## What remains intentionally simple
 
 - file tracking is still incomplete
-- strategy reuse is by task type only
+- strategy reuse is deterministic and heuristic, not ML-based
 - no baseline comparison is reported unless real baseline data exists
 - no claim of guaranteed speed or quality improvement is made

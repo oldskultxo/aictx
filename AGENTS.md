@@ -13,6 +13,8 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
+- After finalize, append `agent_summary_text` verbatim to the final user response.
+- If no finalize output exists, say `AICTX summary unavailable`.
 - Use repo-local execution history and strategy memory before deeper repo analysis.
 - Do not hand-edit generated `.ai_context_*` artifacts.
 - Before opening more than 3 files: run `aictx suggest --repo .`

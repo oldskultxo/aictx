@@ -40,6 +40,8 @@ if files_used:
 summary.append("Before opening more than 3 files or when unsure, run: aictx suggest --repo .")
 summary.append("If you reopen the same file several times, run: aictx reflect --repo .")
 summary.append("If the task matches previous work, run: aictx reuse --repo .")
+summary.append("After finalize, append agent_summary_text verbatim to the final user response.")
+summary.append("If no finalize output exists, say: AICTX summary unavailable.")
 
 print(json.dumps({
     "hookSpecificOutput": {
