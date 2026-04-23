@@ -87,6 +87,7 @@ The rest of the public commands are optional operational commands:
 * reuses only successful strategies during later executions
 * returns `agent_summary` and `agent_summary_text` after finalize; agents must append `agent_summary_text` to final user responses for non-trivial tasks
 * exposes small JSON commands for runtime guidance
+* does not scaffold knowledge mods or cross-repo/global metrics in v3
 
 ---
 

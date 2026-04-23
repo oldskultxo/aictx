@@ -16,13 +16,11 @@ import aictx.core_runtime as core_runtime
 import aictx.runtime_io as runtime_io
 import aictx.runtime_memory as runtime_memory
 import aictx.runtime_tasks as runtime_tasks
-import aictx.runtime_knowledge as runtime_knowledge
 import aictx.runtime_cost as runtime_cost
 import aictx.runtime_failure as runtime_failure
 import aictx.runtime_graph as runtime_graph
 import aictx.runtime_task_memory as runtime_task_memory
 import aictx.runtime_metrics as runtime_metrics
-import aictx.global_metrics as global_metrics
 import aictx.strategy_memory as strategy_memory
 import aictx.report as report_module
 from aictx.area_memory import derive_area_id
@@ -1163,7 +1161,6 @@ def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, 
     install_args = argparse.Namespace(
         workspace_id="default",
         workspace_root=str(tmp_path / "ws"),
-        disable_global_metrics=False,
         cross_project_mode="workspace",
         yes=False,
     )
@@ -1202,17 +1199,6 @@ def test_runtime_metrics_truthfulness_status_rules():
     assert observed["measurement_basis"] == "execution_logs"
     assert observed["metrics"]["observed"]["tasks_sampled"] == 25
     assert observed["metrics"]["observed"]["repeated_tasks"] == 3
-
-
-def test_global_aggregation_excludes_insufficient_data():
-    rows = [
-        {"telemetry": {"context_range": [0.1, 0.2], "context_point": 0.15, "tasks_sampled": 30, "evidence_status": "estimated"}},
-        {"telemetry": {"context_range": [0.8, 0.9], "context_point": 0.85, "tasks_sampled": 80, "evidence_status": "insufficient_data"}},
-    ]
-    context = global_metrics.aggregate_range(rows, "context_range")
-    assert context["projects_with_telemetry"] == 1
-    assert context["projects_excluded_insufficient_data"] == 1
-    assert context["range"] == [0.1, 0.2]
 
 
 def test_internal_run_execution_wraps_command_and_persists_status(tmp_path: Path, capsys):
@@ -1521,7 +1507,6 @@ def test_cmd_install_default_does_not_touch_codex_global(tmp_path: Path, monkeyp
     args = argparse.Namespace(
         workspace_id="default",
         workspace_root=None,
-        disable_global_metrics=False,
         cross_project_mode="workspace",
         install_codex_global=False,
         dry_run=False,
@@ -1546,7 +1531,6 @@ def test_cmd_install_codex_global_opt_in_touches_codex_global(tmp_path: Path, mo
     args = argparse.Namespace(
         workspace_id="default",
         workspace_root=None,
-        disable_global_metrics=False,
         cross_project_mode="workspace",
         install_codex_global=True,
         dry_run=False,
@@ -1566,7 +1550,6 @@ def test_cmd_install_dry_run_does_not_mutate(tmp_path: Path, monkeypatch, capsys
     args = argparse.Namespace(
         workspace_id="default",
         workspace_root=str(tmp_path / "ws"),
-        disable_global_metrics=False,
         cross_project_mode="workspace",
         install_codex_global=True,
         dry_run=True,
@@ -1840,39 +1823,11 @@ def test_boot_reports_not_initialized_for_plain_repo(tmp_path: Path):
     assert boot["communication_sources"]["layer"] in {"global_defaults", "hardcoded_fallback"}
 
 
-def test_global_health_check_reports_runtime_consistency_warning(tmp_path: Path, monkeypatch):
-    repo = tmp_path / "repo"
-    init_repo_scaffold(repo, update_gitignore=False)
-    cli.prepare_repo_runtime(repo)
-
-    state_path = repo / ".aictx" / "state.json"
-    state = read_json(state_path, {})
-    state["communication_layer"] = "enabled"
-    state_path.write_text(json.dumps(state), encoding="utf-8")
-
-    monkeypatch.setattr("aictx.global_metrics.PROJECTS_INDEX_PATH", tmp_path / "projects_index.json")
-    monkeypatch.setattr("aictx.global_metrics.CONTEXT_SAVINGS_PATH", tmp_path / "context.json")
-    monkeypatch.setattr("aictx.global_metrics.TELEMETRY_SOURCES_PATH", tmp_path / "telemetry_sources.json")
-    monkeypatch.setattr("aictx.global_metrics.HEALTH_REPORT_PATH", tmp_path / "health.json")
-
-    (tmp_path / "projects_index.json").write_text(json.dumps({"projects": [{"name": repo.name, "repo_path": str(repo), "installed_iteration": "16", "telemetry_dir": "unknown"}]}), encoding="utf-8")
-    (tmp_path / "context.json").write_text(json.dumps({"project_breakdown": [{"name": repo.name}], "projects_with_telemetry": 0, "projects_with_memory": 1}), encoding="utf-8")
-    (tmp_path / "telemetry_sources.json").write_text(json.dumps({"sources": [{"project": repo.name}]}), encoding="utf-8")
-
-    import aictx.global_metrics as global_metrics
-    health = global_metrics.run_health_check()
-
-    project_check = next(item for item in health["checks"] if item["scope"] == repo.name and item["check"] == "project_health")
-    assert project_check["consistency"]["status"] in {"warning", "not_initialized"}
-
-
 def test_core_runtime_keeps_compatibility_exports_after_refactor():
     assert core_runtime.rank_records is not None
     assert core_runtime.packet_for_task is not None
-    assert core_runtime.retrieve_knowledge is not None
     assert callable(core_runtime.rank_records)
     assert callable(core_runtime.packet_for_task)
-    assert callable(core_runtime.retrieve_knowledge)
 
 
 def test_runtime_io_helpers_are_available():
@@ -2020,15 +1975,6 @@ def test_task_memory_writes_only_canonical_buckets(tmp_path: Path, monkeypatch):
     assert runtime_task_memory.category_summary_path("tests").name == "summary.json"
 
 
-def test_runtime_knowledge_module_bootstrap_mod(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(core_runtime, "LIBRARY_DIR", tmp_path / ".aictx" / "library")
-    monkeypatch.setattr(core_runtime, "LIBRARY_REGISTRY_PATH", tmp_path / ".aictx" / "library" / "registry.json")
-    monkeypatch.setattr(core_runtime, "LIBRARY_RETRIEVAL_STATUS_PATH", tmp_path / ".aictx" / "library" / "retrieval_status.json")
-    manifest = runtime_knowledge.bootstrap_mod("ux", create_reference_stub=True)
-    assert manifest["id"] == "ux"
-    assert (tmp_path / ".aictx" / "library" / "mods" / "ux" / "inbox" / "references.md").exists()
-
-
 def test_runtime_cost_module_optimizer_roundtrip(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(core_runtime, "BASE", tmp_path)
     monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".aictx")
@@ -2159,40 +2105,6 @@ def test_python_module_entrypoint_smoke(tmp_path: Path):
     assert payload["repo_bootstrap"]["status"] == "initialized"
 
 
-def test_global_health_check_marks_not_initialized_repo_as_warning(tmp_path: Path, monkeypatch):
-    repo = tmp_path / "plain"
-    repo.mkdir()
-
-    monkeypatch.setattr("aictx.global_metrics.PROJECTS_INDEX_PATH", tmp_path / "projects_index.json")
-    monkeypatch.setattr("aictx.global_metrics.CONTEXT_SAVINGS_PATH", tmp_path / "context.json")
-    monkeypatch.setattr("aictx.global_metrics.TELEMETRY_SOURCES_PATH", tmp_path / "telemetry_sources.json")
-    monkeypatch.setattr("aictx.global_metrics.HEALTH_REPORT_PATH", tmp_path / "health.json")
-
-    (tmp_path / "projects_index.json").write_text(json.dumps({"projects": [{"name": repo.name, "repo_path": str(repo), "installed_iteration": "unknown", "telemetry_dir": "unknown"}]}), encoding="utf-8")
-    (tmp_path / "context.json").write_text(json.dumps({"project_breakdown": [{"name": repo.name}], "projects_with_telemetry": 0, "projects_with_memory": 0}), encoding="utf-8")
-    (tmp_path / "telemetry_sources.json").write_text(json.dumps({"sources": [{"project": repo.name}]}), encoding="utf-8")
-
-    import aictx.global_metrics as global_metrics
-
-    health = global_metrics.run_health_check()
-    project_check = next(item for item in health["checks"] if item["scope"] == repo.name and item["check"] == "project_health")
-    assert project_check["status"] == "warning"
-    assert project_check["consistency"]["status"] == "not_initialized"
-    assert any(issue["check"] == "runtime_consistency" for issue in project_check["issues"])
-
-
-def test_global_metrics_reads_legacy_iteration_only_repo(tmp_path: Path):
-    repo = tmp_path / "repo"
-    (repo / ".aictx").mkdir(parents=True)
-    (repo / "AGENTS.md").write_text("aictx enabled\n", encoding="utf-8")
-    (repo / ".aictx" / "state.json").write_text(json.dumps({"installed_iteration": 9}), encoding="utf-8")
-
-    import aictx.global_metrics as global_metrics
-
-    assert global_metrics.infer_installed_version(repo) == "unknown"
-    assert global_metrics.infer_engine_capability_version(repo) == 9
-
-
 def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -2231,7 +2143,6 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     monkeypatch.setattr('aictx.state.CONFIG_PATH', engine_home / 'config.json')
     monkeypatch.setattr('aictx.state.PROJECTS_REGISTRY_PATH', engine_home / 'projects_registry.json')
     monkeypatch.setattr('aictx.state.WORKSPACES_DIR', engine_home / 'workspaces')
-    monkeypatch.setattr('aictx.state.GLOBAL_METRICS_DIR', engine_home / '.aictx_global_metrics')
     monkeypatch.setattr('aictx.cleanup.ENGINE_HOME', engine_home)
     monkeypatch.setattr('aictx.cleanup.PROJECTS_REGISTRY_PATH', engine_home / 'projects_registry.json')
     monkeypatch.setattr('aictx.cleanup.WORKSPACES_DIR', engine_home / 'workspaces')

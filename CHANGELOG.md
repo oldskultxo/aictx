@@ -7,6 +7,8 @@
 - `common/`, `projects/`, root `index.json`, root `symptoms.json`, and root `protocol.md` are no longer the canonical source layout
 - `aictx init` now scaffolds source knowledge inside `.aictx/memory/source/`
 - editing guidance now treats `.aictx/memory/source/` as user-editable while `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders remain generated
+- knowledge mods / `.aictx/library` scaffolding were removed
+- global metrics aggregation was removed; only per-repo real execution reporting remains
 
 ### Changed
 - repo knowledge ingestion now reads from `.aictx/memory/source/` and preserves legacy-path migration compatibility

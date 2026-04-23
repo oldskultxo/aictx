@@ -16,6 +16,7 @@ The public surface is intentionally small:
 - `aictx uninstall`
 
 Under that surface, the runtime still contains internal commands and compatibility layers used by middleware and runner integrations.
+Legacy knowledge mods and global aggregation are intentionally not part of v3.
 
 ## Core runtime flow
 

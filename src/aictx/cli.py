@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import core_runtime, global_metrics
+from . import core_runtime
 from .adapters import install_global_adapters
 from .agent_runtime import (
     copy_local_agent_runtime,
@@ -25,7 +25,6 @@ from .strategy_memory import select_strategy
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
-    GLOBAL_METRICS_DIR,
     PROJECTS_REGISTRY_PATH,
         REPO_MEMORY_DIR,
     REPO_METRICS_DIR,
@@ -324,7 +323,6 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
 def cmd_install(args: argparse.Namespace) -> int:
     workspace_id = args.workspace_id or "default"
     workspace_root = args.workspace_root
-    global_metrics_enabled = not args.disable_global_metrics
     cross_project_mode = args.cross_project_mode or "workspace"
     install_codex_global = bool(getattr(args, "install_codex_global", False))
     dry_run = bool(getattr(args, "dry_run", False))
@@ -343,15 +341,13 @@ def cmd_install(args: argparse.Namespace) -> int:
         workspace_id = ask_text("Default workspace name", workspace_id)
         if not workspace_root and ask_yes_no("Add a workspace root now?", True):
             workspace_root = ask_text("Workspace root", str(Path("~/projects").expanduser()))
-        global_metrics_enabled = ask_yes_no("Enable global metrics aggregation?", global_metrics_enabled)
 
     if dry_run:
         planned = [
             ENGINE_HOME,
             CONFIG_PATH,
             PROJECTS_REGISTRY_PATH,
-            GLOBAL_METRICS_DIR,
-            workspace_path(workspace_id),
+                    workspace_path(workspace_id),
         ]
         if install_codex_global:
             planned.extend([
@@ -373,7 +369,6 @@ def cmd_install(args: argparse.Namespace) -> int:
         {
             "active_workspace": workspace_id,
             "cross_project_mode": cross_project_mode,
-            "global_metrics_enabled": global_metrics_enabled,
         }
     )
     write_json(CONFIG_PATH, config)
@@ -403,7 +398,6 @@ def cmd_install(args: argparse.Namespace) -> int:
     print(f"- {ENGINE_HOME}")
     print(f"- {CONFIG_PATH}")
     print(f"- {PROJECTS_REGISTRY_PATH}")
-    print(f"- {GLOBAL_METRICS_DIR}")
     print(f"- {workspace_path(workspace_id)}")
     for path in runtime_paths:
         print(f"- {path}")
@@ -515,24 +509,6 @@ def cmd_workspace_list(args: argparse.Namespace) -> int:
 
 
 
-def cmd_global(args: argparse.Namespace) -> int:
-    payload: dict[str, object] = {}
-    if args.refresh:
-        payload["refresh"] = global_metrics.refresh_global_metrics()
-    if args.health_check:
-        payload["health_check"] = global_metrics.run_health_check()
-    if args.json:
-        import json
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
-    else:
-        import json
-        print(json.dumps({
-            "global_metrics_dir": global_metrics.rel(global_metrics.GLOBAL_DIR),
-            "refreshed": bool(args.refresh),
-            "health_checked": bool(args.health_check),
-        }, indent=2, ensure_ascii=False))
-    return 0
-
 
 def should_render_banner(argv: list[str], stdout_is_tty: bool) -> bool:
     if not stdout_is_tty:
@@ -563,7 +539,6 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--workspace-root", help="Initial workspace root")
     install.add_argument("--workspace-id", help="Workspace id", default="default")
     install.add_argument("--cross-project-mode", choices=["workspace", "explicit", "disabled"], help="Cross-project discovery mode")
-    install.add_argument("--disable-global-metrics", action="store_true", help="Disable global metrics aggregation")
     install.add_argument("--install-codex-global", action="store_true", help="Opt in to global Codex ~/.codex integration")
     install.add_argument("--dry-run", action="store_true", help="Show planned install writes without mutating files")
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
@@ -693,32 +668,7 @@ def build_parser() -> argparse.ArgumentParser:
     graph.add_argument("--depth", type=int, default=1, help="Expansion depth for queries.")
     graph.set_defaults(func=core_runtime.cli_memory_graph)
 
-    library = internal_sub.add_parser("library", help=argparse.SUPPRESS)
-    library_sub = library.add_subparsers(dest="library_command")
-    learn = library_sub.add_parser("learn", help=argparse.SUPPRESS)
-    learn.add_argument("mod_id", help="Mod identifier.")
-    learn.add_argument("--alias", dest="aliases", action="append", default=[], help="Optional alias.")
-    process = library_sub.add_parser("process", help=argparse.SUPPRESS)
-    process.add_argument("mod_id", help="Mod identifier.")
-    add_source = library_sub.add_parser("add-source", help=argparse.SUPPRESS)
-    add_source.add_argument("mod_id", help="Mod identifier.")
-    add_source.add_argument("--url", required=True, help="Remote source URL.")
-    add_source.add_argument("--type", dest="declared_type", default="auto", help="Declared source type: auto|html|pdf|md|txt.")
-    add_source.add_argument("--tag", dest="tags", action="append", default=[], help="Optional source tag.")
-    fetch = library_sub.add_parser("fetch-sources", help=argparse.SUPPRESS)
-    fetch.add_argument("mod_id", help="Mod identifier.")
-    fetch.add_argument("--source-id", help="Optional source id to fetch.")
-    fetch.add_argument("--force", action="store_true", help="Force a new fetch even when checksum is unchanged.")
-    retrieve = library_sub.add_parser("retrieve", help=argparse.SUPPRESS)
-    retrieve.add_argument("--task", required=True, help="Task description.")
-    library_sub.add_parser("status", help=argparse.SUPPRESS)
-    library.set_defaults(func=core_runtime.cli_library)
 
-    global_cmd = internal_sub.add_parser("global", help=argparse.SUPPRESS)
-    global_cmd.add_argument("--refresh", action="store_true", help="Refresh projects index and global savings artifacts.")
-    global_cmd.add_argument("--health-check", action="store_true", help="Run global health checks.")
-    global_cmd.add_argument("--json", action="store_true", help="Print full JSON output.")
-    global_cmd.set_defaults(func=cmd_global)
 
     execution = internal_sub.add_parser("execution", help=argparse.SUPPRESS)
     execution_sub = execution.add_subparsers(dest="execution_command", required=True)

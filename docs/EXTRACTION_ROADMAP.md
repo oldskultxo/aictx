@@ -24,8 +24,8 @@ Move the distributable installer, repo scaffold, and multi-LLM bootstrap contrac
 4. failure memory
 5. task memory
 6. memory graph
-7. library ingestion and retrieval
-8. optional global metrics aggregation
+7. repo-native `.aictx/memory/source/` knowledge ingestion
+8. runtime telemetry grounded only in per-repo real execution data
 
 ## Rules
 

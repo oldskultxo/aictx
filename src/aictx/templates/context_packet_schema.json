@@ -16,7 +16,6 @@
     "failure_memory",
     "memory_graph",
     "telemetry_granularity",
-    "knowledge_retrieval",
     "context_budget",
     "optimization_report"
   ],
@@ -28,7 +27,6 @@
     "validation_recipes",
     "model_suggestion",
     "relevant_failures",
-    "relevant_graph_context",
-    "knowledge_artifacts"
+    "relevant_graph_context"
   ]
 }

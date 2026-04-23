@@ -40,7 +40,6 @@ SECTION_RULES = {
     'validation_recipes': {'mandatory': False, 'priority': 2.3},
     'relevant_failures': {'mandatory': False, 'priority': 3.0},
     'relevant_graph_context': {'mandatory': False, 'priority': 2.9},
-    'knowledge_artifacts': {'mandatory': False, 'priority': 2.7},
     'repo_scope': {'mandatory': False, 'priority': 1.4},
     'relevant_paths': {'mandatory': False, 'priority': 1.4, 'mirror_of': 'repo_scope'},
     'known_patterns': {'mandatory': False, 'priority': 1.1},
@@ -394,11 +393,11 @@ def optimize_packet(packet: dict[str, Any]) -> dict[str, Any]:
     candidate_entries = 0
     kept_entries = 0
     available_tokens = int(config.get('budget_target_tokens', 3000))
-    for fixed_key in ['task', 'task_id', 'task_summary', 'task_type', 'project', 'model_suggestion', 'fallback_mode', 'knowledge_retrieval', 'telemetry_granularity']:
+    for fixed_key in ['task', 'task_id', 'task_summary', 'task_type', 'project', 'model_suggestion', 'fallback_mode', 'telemetry_granularity']:
         available_tokens = max(0, available_tokens - before['sections'].get(fixed_key, 0))
     for section_name in [
         'user_preferences', 'constraints', 'architecture_rules', 'relevant_memory', 'relevant_patterns', 'validation_recipes',
-        'relevant_failures', 'relevant_graph_context', 'knowledge_artifacts', 'repo_scope', 'known_patterns',
+        'relevant_failures', 'relevant_graph_context', 'repo_scope', 'known_patterns',
     ]:
         items = list(optimized.get(section_name, []))
         candidate_entries += len(items)

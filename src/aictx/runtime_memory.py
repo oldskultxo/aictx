@@ -292,7 +292,6 @@ def rebuild_memory_store() -> dict[str, Any]:
     failure_memory_status = cr.build_failure_memory_artifacts(normalized_all_rows)
     memory_graph_status = cr.build_memory_graph_artifacts(normalized_all_rows)
     cr.ensure_context_metrics_artifacts()
-    cr.ensure_library_artifacts()
     cr.write_json(
         cr.DELTA_SCHEMA_PATH,
         {
@@ -300,11 +299,11 @@ def rebuild_memory_store() -> dict[str, Any]:
             'required': [
                 'task_summary', 'task_id', 'task_type', 'task_type_resolution', 'repo_scope', 'user_preferences', 'constraints',
                 'architecture_rules', 'relevant_memory', 'known_patterns', 'fallback_mode', 'task_memory', 'failure_memory',
-                'memory_graph', 'telemetry_granularity', 'knowledge_retrieval', 'context_budget', 'optimization_report',
+                'memory_graph', 'telemetry_granularity', 'context_budget', 'optimization_report',
             ],
             'compatibility_fields': [
                 'project', 'architecture_decisions', 'relevant_paths', 'relevant_patterns', 'validation_recipes', 'model_suggestion',
-                'relevant_failures', 'relevant_graph_context', 'knowledge_artifacts',
+                'relevant_failures', 'relevant_graph_context',
             ],
         },
     )

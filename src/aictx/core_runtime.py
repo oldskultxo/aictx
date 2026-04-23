@@ -38,7 +38,6 @@ TASK_MEMORY_DIR = ENGINE_STATE_DIR / "task_memory"
 FAILURE_MEMORY_DIR = ENGINE_STATE_DIR / "failure_memory"
 MEMORY_GRAPH_DIR = ENGINE_STATE_DIR / "memory_graph"
 CONTEXT_METRICS_DIR = ENGINE_STATE_DIR / "metrics"
-LIBRARY_DIR = ENGINE_STATE_DIR / "library"
 MEMORY_SOURCE_DIR = ENGINE_STATE_DIR / "memory" / "source"
 MEMORY_SOURCE_COMMON_DIR = MEMORY_SOURCE_DIR / "common"
 MEMORY_SOURCE_PROJECTS_DIR = MEMORY_SOURCE_DIR / "projects"
@@ -100,8 +99,6 @@ CONTEXT_TASK_LOGS_PATH = CONTEXT_METRICS_DIR / "task_logs.jsonl"
 CONTEXT_WEEKLY_SUMMARY_PATH = CONTEXT_METRICS_DIR / "weekly_summary.json"
 CONTEXT_BASELINE_PATH = CONTEXT_METRICS_DIR / "baseline_estimates.json"
 ENGINE_STATE_PATH = ENGINE_STATE_DIR / "state.json"
-LIBRARY_REGISTRY_PATH = LIBRARY_DIR / "registry.json"
-LIBRARY_RETRIEVAL_STATUS_PATH = LIBRARY_DIR / "retrieval_status.json"
 
 DEFAULT_AGENT_ADAPTER = "generic"
 DEFAULT_ADAPTER_ID = "generic"
@@ -140,13 +137,6 @@ RECORD_TYPES = [
 CURRENT_ENGINE_CAPABILITY_VERSION = runtime_current_engine_capability_version()
 CURRENT_ENGINE_ITERATION = CURRENT_ENGINE_CAPABILITY_VERSION
 MTIME_TOLERANCE_SECONDS = 0.5
-SUPPORTED_INBOX_EXTENSIONS = {".md", ".txt", ".html", ".htm", ".pdf"}
-SUPPORTED_REFERENCED_EXTENSIONS = SUPPORTED_INBOX_EXTENSIONS | {".sql", ".xml", ".json", ".yaml", ".yml", ".py", ".csv"}
-REMOTE_DECLARED_TYPES = {"auto", "html", "pdf", "md", "txt"}
-REMOTE_TYPE_EXTENSIONS = {"html": ".html", "pdf": ".pdf", "md": ".md", "txt": ".txt"}
-
-
-
 COMPAT_ARCHITECTURE_TYPES = {"architecture_decision"}
 COMPAT_WORKFLOW_TYPES = {"workflow_rule"}
 COMPAT_TECHNICAL_TYPES = {
@@ -241,8 +231,6 @@ def ensure_dirs() -> None:
         MEMORY_GRAPH_DIR / "snapshots",
         CONTEXT_METRICS_DIR,
         ENGINE_STATE_DIR,
-        LIBRARY_DIR,
-        LIBRARY_DIR / "mods",
         BASE / "scripts",
         BASE / "bin",
     ]:
@@ -1293,43 +1281,15 @@ def record_granular_telemetry(packet: dict[str, Any], packet_path: Path, optimiz
 
 
 def library_registry() -> dict[str, Any]:
-    from .runtime_knowledge import library_registry as _impl
-    return _impl()
+    return {"version": 1, "generated_at": date.today().isoformat(), "mods": {}}
 
 
 def ensure_library_artifacts() -> None:
-    ensure_dirs()
-    readme = LIBRARY_DIR / "README.md"
-    if not readme.exists():
-        write_text(
-            readme,
-            "# .aictx/library\n\n"
-            "Local knowledge library for aictx.\n\n"
-            "- `mods/` contains domain workspaces.\n"
-            "- `inbox/` is the raw drop zone.\n"
-            "- `notes/`, `summaries/`, `indices/`, and `manifests/` are derived artifacts.\n",
-        )
-    ensure_references_template()
-    if not LIBRARY_REGISTRY_PATH.exists():
-        write_json(LIBRARY_REGISTRY_PATH, {"version": 1, "generated_at": date.today().isoformat(), "mods": {}})
-    if not LIBRARY_RETRIEVAL_STATUS_PATH.exists():
-        write_json(
-            LIBRARY_RETRIEVAL_STATUS_PATH,
-            {
-                "version": 1,
-                "generated_at": date.today().isoformat(),
-                **compat_version_payload(),
-                "mods_total": 0,
-                "retrieval_events": 0,
-                "last_selected_artifacts": [],
-                "supports_reference_ingestion": True,
-                "supports_remote_ingestion": True,
-            },
-        )
+    return None
 
 
 def mod_root(mod_id: str) -> Path:
-    return LIBRARY_DIR / "mods" / slugify(mod_id)
+    return ENGINE_STATE_DIR / "removed_library" / slugify(mod_id)
 
 
 def bootstrap_mod(
@@ -1339,8 +1299,7 @@ def bootstrap_mod(
     title: str | None = None,
     create_reference_stub: bool = False,
 ) -> dict[str, Any]:
-    from .runtime_knowledge import bootstrap_mod as _impl
-    return _impl(mod_id, aliases=aliases, title=title, create_reference_stub=create_reference_stub)
+    raise RuntimeError("Knowledge mods were removed in aictx v3.0.0")
 
 
 def extract_text_from_html(raw_html: str) -> tuple[str, str]:
@@ -1468,13 +1427,11 @@ def process_mod_documents(mod_id: str) -> dict[str, Any]:
 
 
 def infer_candidate_mods(task: str) -> list[str]:
-    from .runtime_knowledge import infer_candidate_mods as _impl
-    return _impl(task)
+    return []
 
 
 def retrieve_knowledge(task: str) -> dict[str, Any]:
-    from .runtime_knowledge import retrieve_knowledge as _impl
-    return _impl(task)
+    return {"mods": [], "topics": [], "selected_artifacts": [], "artifacts": [], "strategy": "disabled_in_v3"}
 
 
 def ensure_engine_state() -> None:
@@ -1536,20 +1493,13 @@ def refresh_engine_state() -> dict[str, Any]:
             "shared_layers": {
                 "memory_dir": ".aictx/memory",
                 "telemetry_dir": ".aictx/metrics",
-                "global_metrics_dir": ".aictx/global_metrics",
                 "cost_dir": ".aictx/cost",
                 "task_memory_dir": ".aictx/task_memory",
                 "failure_memory_dir": ".aictx/failure_memory",
                 "memory_graph_dir": ".aictx/memory_graph",
-                "library_dir": ".aictx/library",
             },
             "supports": {
                 "granular_telemetry": True,
-                "knowledge_mods": True,
-                "knowledge_pipeline": True,
-                "knowledge_retrieval": True,
-                "reference_ingestion": True,
-                "remote_ingestion": True,
             },
         }
     )
@@ -1942,5 +1892,4 @@ def cli_memory_graph(args: argparse.Namespace) -> int:
 
 
 def cli_library(args: argparse.Namespace) -> int:
-    from .runtime_knowledge import cli_library as _impl
-    return _impl(args)
+    raise SystemExit("aictx internal library was removed in v3.0.0")

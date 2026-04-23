@@ -9,7 +9,6 @@ ENGINE_HOME = Path.home() / ".aictx"
 CONFIG_PATH = ENGINE_HOME / "config.json"
 PROJECTS_REGISTRY_PATH = ENGINE_HOME / "projects_registry.json"
 WORKSPACES_DIR = ENGINE_HOME / "workspaces"
-GLOBAL_METRICS_DIR = ENGINE_HOME / ".aictx_global_metrics"
 
 REPO_ENGINE_DIR = ".aictx"
 REPO_COMPAT_DIR = ".aictx/memory"
@@ -19,7 +18,6 @@ REPO_TASK_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "task_memory"
 REPO_FAILURE_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "failure_memory"
 REPO_AREA_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "area_memory"
 REPO_MEMORY_GRAPH_DIR = Path(REPO_ENGINE_DIR) / "memory_graph"
-REPO_LIBRARY_DIR = Path(REPO_ENGINE_DIR) / "library"
 REPO_STRATEGY_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "strategy_memory"
 REPO_METRICS_DIR = Path(REPO_ENGINE_DIR) / "metrics"
 REPO_ADAPTERS_DIR = Path(REPO_ENGINE_DIR) / "adapters"
@@ -86,14 +84,12 @@ def default_global_config() -> dict[str, Any]:
         "engine_home": str(ENGINE_HOME),
         "active_workspace": "default",
         "cross_project_mode": "workspace",
-        "global_metrics_enabled": True,
     }
 
 
 def ensure_global_home() -> None:
     ENGINE_HOME.mkdir(parents=True, exist_ok=True)
     WORKSPACES_DIR.mkdir(parents=True, exist_ok=True)
-    GLOBAL_METRICS_DIR.mkdir(parents=True, exist_ok=True)
     if not CONFIG_PATH.exists():
         write_json(CONFIG_PATH, default_global_config())
     if not PROJECTS_REGISTRY_PATH.exists():

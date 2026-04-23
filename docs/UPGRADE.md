@@ -11,12 +11,15 @@
 - Legacy source locations like `common/`, `projects/`, root `index.json`, root `symptoms.json`, and root `protocol.md` are no longer the canonical layout.
 - `aictx init` scaffolds source knowledge under `.aictx/memory/source/`.
 - Only `.aictx/memory/source/` should be edited directly; `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders remain generated.
+- `aictx` no longer ships knowledge mods / `.aictx/library`.
+- `aictx` no longer ships global metrics aggregation or `--disable-global-metrics`.
 
 ### Migration notes
 
 - Existing legacy source files are migrated into `.aictx/memory/source/` by repo scaffolding/migration flows.
 - Queries, bootstrap generation, and project knowledge ingestion now read from `.aictx/memory/source/`.
 - `aictx internal new-note` now writes into `.aictx/memory/source/projects/<repo>/...` by default.
+- Remove any legacy `.aictx/library/` and `.aictx/global_metrics/` expectations from local automation or docs.
 
 No release publishing is implied by this metadata update.
 
