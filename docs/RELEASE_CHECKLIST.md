@@ -3,9 +3,9 @@
 ## Release identity
 
 - [ ] target version is set (for example `0.4.0` for the current public beta release)
-- [ ] release remains intentionally `0.x`
 - [ ] tag format is `vX.Y.Z`
 - [ ] changelog entry is ready before tagging
+- [ ] breaking-change notes are reflected in `docs/UPGRADE.md`
 
 ## Product trust
 
@@ -14,7 +14,7 @@
 - [ ] README and USAGE show the public `pip install aictx` flow
 - [ ] `LICENSE` exists
 - [ ] `CHANGELOG.md` is updated
-- [ ] version stays in `0.x` unless compatibility policy changes
+- [ ] version / compatibility policy is intentionally aligned with the release scope
 
 ## Runtime integrity
 
