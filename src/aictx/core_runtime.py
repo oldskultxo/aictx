@@ -23,27 +23,34 @@ from .runtime_versioning import (
 )
 
 BASE = Path(__file__).resolve().parents[2]
-BOOT_DIR = BASE / "boot"
-STORE_DIR = BASE / "store"
+ENGINE_STATE_DIR = BASE / ".aictx"
+BOOT_DIR = ENGINE_STATE_DIR / "boot"
+STORE_DIR = ENGINE_STATE_DIR / "store"
 PROJECT_RECORDS_DIR = STORE_DIR / "project_records"
 NOTES_STORE_DIR = STORE_DIR / "notes"
-INDEXES_DIR = BASE / "indexes"
-DELTA_DIR = BASE / "delta"
+INDEXES_DIR = ENGINE_STATE_DIR / "indexes"
+DELTA_DIR = ENGINE_STATE_DIR / "delta"
 LAST_PACKETS_DIR = DELTA_DIR / "last_packets"
-MIGRATION_DIR = BASE / "migration"
-LOGS_DIR = BASE / "logs"
-ENGINE_STATE_DIR = BASE / ".ai_context_engine"
+MIGRATION_DIR = ENGINE_STATE_DIR / "migration"
+LOGS_DIR = ENGINE_STATE_DIR / "logs"
 COST_DIR = ENGINE_STATE_DIR / "cost"
 TASK_MEMORY_DIR = ENGINE_STATE_DIR / "task_memory"
 FAILURE_MEMORY_DIR = ENGINE_STATE_DIR / "failure_memory"
 MEMORY_GRAPH_DIR = ENGINE_STATE_DIR / "memory_graph"
 CONTEXT_METRICS_DIR = ENGINE_STATE_DIR / "metrics"
 LIBRARY_DIR = ENGINE_STATE_DIR / "library"
+MEMORY_SOURCE_DIR = ENGINE_STATE_DIR / "memory" / "source"
+MEMORY_SOURCE_COMMON_DIR = MEMORY_SOURCE_DIR / "common"
+MEMORY_SOURCE_PROJECTS_DIR = MEMORY_SOURCE_DIR / "projects"
 
-ROOT_INDEX_PATH = BASE / "index.json"
-ROOT_PREFS_PATH = BASE / "user_preferences.json"
+LEGACY_ROOT_INDEX_PATH = BASE / "index.json"
+ROOT_INDEX_PATH = MEMORY_SOURCE_DIR / "index.json"
+ROOT_PREFS_PATH = BASE / ".aictx" / "memory" / "user_preferences.json"
 ROOT_FAST_LOOKUP_PATH = BASE / "fast_lookup.json"
-ROOT_SYMPTOMS_PATH = BASE / "symptoms.json"
+LEGACY_ROOT_SYMPTOMS_PATH = BASE / "symptoms.json"
+ROOT_SYMPTOMS_PATH = MEMORY_SOURCE_DIR / "symptoms.json"
+LEGACY_ROOT_PROTOCOL_PATH = BASE / "protocol.md"
+ROOT_PROTOCOL_PATH = MEMORY_SOURCE_DIR / "protocol.md"
 ROOT_CHANGE_JOURNAL_PATH = BASE / "change_journal.md"
 
 BOOT_SUMMARY_PATH = BOOT_DIR / "boot_summary.json"
@@ -67,8 +74,8 @@ MIGRATION_REPORT_PATH = MIGRATION_DIR / "legacy_memory_migration_report.md"
 MIGRATION_IMPORT_MAP_PATH = MIGRATION_DIR / "legacy_memory_import_map.json"
 LOGS_CHANGE_JOURNAL_PATH = LOGS_DIR / "change_journal.md"
 LOGS_MAINTENANCE_PATH = LOGS_DIR / "maintenance_log.md"
-REPO_COMPAT_DIRNAME = ".ai_context_engine/memory"
-ROOT_COMPACTION_REPORT_PATH = BASE / "compaction_report.json"
+REPO_COMPAT_DIRNAME = ".aictx/memory"
+ROOT_COMPACTION_REPORT_PATH = ENGINE_STATE_DIR / "compaction_report.json"
 COST_CONFIG_PATH = COST_DIR / "optimizer_config.yaml"
 COST_RULES_PATH = COST_DIR / "cost_estimation_rules.md"
 COST_LATEST_REPORT_PATH = COST_DIR / "latest_optimization_report.md"
@@ -215,6 +222,9 @@ def ensure_dirs() -> None:
         PROJECT_RECORDS_DIR,
         NOTES_STORE_DIR / "common",
         NOTES_STORE_DIR / "projects",
+        MEMORY_SOURCE_DIR,
+        MEMORY_SOURCE_COMMON_DIR,
+        MEMORY_SOURCE_PROJECTS_DIR,
         INDEXES_DIR,
         LAST_PACKETS_DIR,
         MIGRATION_DIR,
@@ -449,16 +459,23 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
 
 
 def note_paths() -> list[Path]:
-    paths = []
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for path in sorted(MEMORY_SOURCE_DIR.rglob("*.md")):
+        rel = path.relative_to(BASE).as_posix()
+        if path.name in NOTE_SKIP_NAMES:
+            continue
+        paths.append(path)
+        seen.add(rel)
     for path in sorted(BASE.rglob("*.md")):
         rel = path.relative_to(BASE).as_posix()
-        if rel.startswith(".ai_context_"):
+        if rel.startswith(".aictx/") or rel.startswith(".aictx_"):
             continue
-        if rel.startswith("metrics/"):
-            continue
-        if rel.startswith("store/") or rel.startswith("migration/") or rel.startswith("logs/"):
+        if MEMORY_SOURCE_DIR.exists() and (rel.startswith("common/") or rel.startswith("projects/")):
             continue
         if path.name in NOTE_SKIP_NAMES:
+            continue
+        if rel in seen:
             continue
         paths.append(path)
     return paths
@@ -689,7 +706,12 @@ def classify_note(path: Path) -> NoteInfo:
     project = None
     subproject = None
     scope = "global"
-    if parts and parts[0] == "projects":
+    if len(parts) >= 5 and parts[:4] == (".aictx", "memory", "source", "projects"):
+        scope = "project"
+        project = parts[4]
+        if len(parts) > 6:
+            subproject = parts[5]
+    elif parts and parts[0] == "projects":
         scope = "project"
         if len(parts) > 1:
             project = parts[1]
@@ -754,7 +776,7 @@ def note_to_record(note: NoteInfo) -> dict[str, Any]:
         "priority": note.meta.get("priority", "reference"),
         "confidence": note.meta.get("confidence", "medium"),
         "last_verified": note.meta.get("last_verified", date.today().isoformat()),
-        "source": "migrated_from_ai_context_engine_note",
+        "source": "migrated_from_aictx_note",
         "summary": summary,
         "sections": sections,
         "relevance_score": 0.75 if note.record_type in {"architecture_decision", "workflow_rule", "validation_recipe"} else 0.65,
@@ -862,7 +884,8 @@ def write_indexes(rows: list[dict[str, Any]]) -> None:
     by_project: dict[str, list[str]] = defaultdict(list)
     by_path: dict[str, dict[str, Any]] = {}
     by_preference: dict[str, dict[str, Any]] = {}
-    symptoms = read_json(ROOT_SYMPTOMS_PATH, {"symptoms": {}}).get("symptoms", {})
+    symptoms_path = ROOT_SYMPTOMS_PATH if ROOT_SYMPTOMS_PATH.exists() else LEGACY_ROOT_SYMPTOMS_PATH
+    symptoms = read_json(symptoms_path, {"symptoms": {}}).get("symptoms", {})
     by_symptom = {key: value for key, value in symptoms.items()}
 
     for row in rows:
@@ -1280,8 +1303,8 @@ def ensure_library_artifacts() -> None:
     if not readme.exists():
         write_text(
             readme,
-            "# .ai_context_engine/library\n\n"
-            "Local knowledge library for ai_context_engine.\n\n"
+            "# .aictx/library\n\n"
+            "Local knowledge library for aictx.\n\n"
             "- `mods/` contains domain workspaces.\n"
             "- `inbox/` is the raw drop zone.\n"
             "- `notes/`, `summaries/`, `indices/`, and `manifests/` are derived artifacts.\n",
@@ -1463,8 +1486,8 @@ def ensure_engine_state() -> None:
         write_json(
             ENGINE_STATE_PATH,
             {
-                "engine_id": "ai_context_engine",
-                "engine_name": "ai_context_engine",
+                "engine_id": "aictx",
+                "engine_name": "aictx",
                 **adapter_contract,
                 **compat_version_payload(),
                 "install_mode": "in_repo",
@@ -1490,8 +1513,8 @@ def refresh_engine_state() -> dict[str, Any]:
     adapter_contract = default_adapter_contract()
     state.update(
         {
-            "engine_id": "ai_context_engine",
-            "engine_name": "ai_context_engine",
+            "engine_id": "aictx",
+            "engine_name": "aictx",
             "agent_adapter": str(state.get("agent_adapter") or adapter_contract["agent_adapter"]),
             "adapter_id": str(state.get("adapter_id") or adapter_contract["adapter_id"]),
             "adapter_family": str(state.get("adapter_family") or adapter_contract["adapter_family"]),
@@ -1511,14 +1534,14 @@ def refresh_engine_state() -> dict[str, Any]:
             },
             "last_upgrade_at": now_iso(),
             "shared_layers": {
-                "memory_dir": ".ai_context_engine/memory",
-                "telemetry_dir": ".ai_context_engine/metrics",
-                "global_metrics_dir": ".ai_context_global_metrics",
-                "cost_dir": ".ai_context_engine/cost",
-                "task_memory_dir": ".ai_context_engine/task_memory",
-                "failure_memory_dir": ".ai_context_engine/failure_memory",
-                "memory_graph_dir": ".ai_context_engine/memory_graph",
-                "library_dir": ".ai_context_engine/library",
+                "memory_dir": ".aictx/memory",
+                "telemetry_dir": ".aictx/metrics",
+                "global_metrics_dir": ".aictx/global_metrics",
+                "cost_dir": ".aictx/cost",
+                "task_memory_dir": ".aictx/task_memory",
+                "failure_memory_dir": ".aictx/failure_memory",
+                "memory_graph_dir": ".aictx/memory_graph",
+                "library_dir": ".aictx/library",
             },
             "supports": {
                 "granular_telemetry": True,
@@ -1532,6 +1555,47 @@ def refresh_engine_state() -> dict[str, Any]:
     )
     write_json(ENGINE_STATE_PATH, state)
     return state
+
+
+def repair_repo_runtime_contract(repo: Path | None = None) -> dict[str, Any]:
+    target_repo = (repo or BASE).resolve()
+    state_path = target_repo / ".aictx" / "state.json"
+    if not state_path.exists():
+        return {"repo": target_repo.as_posix(), "repaired": False, "reason": "not_initialized", "created": [], "updated": []}
+    from .agent_runtime import render_repo_agents_block, upsert_marked_block, write_local_agent_runtime
+    from .runner_integrations import install_repo_runner_integrations
+
+    created: list[str] = []
+    updated: list[str] = []
+
+    runtime_path = write_local_agent_runtime(target_repo)
+    if runtime_path.exists():
+        updated.append(runtime_path.as_posix())
+
+    runner_paths = install_repo_runner_integrations(target_repo)
+    for path in runner_paths:
+        path_str = path.as_posix()
+        if path.exists():
+            updated.append(path_str)
+        else:
+            created.append(path_str)
+
+    agents_path = target_repo / "AGENTS.md"
+    before = agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
+    upsert_marked_block(agents_path, render_repo_agents_block())
+    after = agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
+    if after != before:
+        if before:
+            updated.append(agents_path.as_posix())
+        else:
+            created.append(agents_path.as_posix())
+
+    return {
+        "repo": target_repo.as_posix(),
+        "repaired": True,
+        "created": sorted(dict.fromkeys(created)),
+        "updated": sorted(dict.fromkeys(updated)),
+    }
 
 
 def truncate_words(text: str, max_words: int) -> str:
@@ -1635,8 +1699,8 @@ def bootstrap(repo_path: str | None = None) -> dict[str, Any]:
         rebuild_memory_store()
     repo = Path(repo_path).resolve() if repo_path else None
     repo_name = repo.name if repo else "unknown"
-    repo_memory_dir = repo / ".ai_context_engine" / "memory" if repo else None
-    repo_state_path = repo / ".ai_context_engine" / "state.json" if repo else None
+    repo_memory_dir = repo / ".aictx" / "memory" if repo else None
+    repo_state_path = repo / ".aictx" / "state.json" if repo else None
     resolved_preferences = resolve_effective_preferences(repo, global_defaults_path=ROOT_PREFS_PATH)
     consistency = runtime_consistency_report(repo, global_defaults_path=ROOT_PREFS_PATH)
     repo_exists = bool(repo_memory_dir and repo_memory_dir.exists())
@@ -1674,21 +1738,10 @@ def ensure_gitignore(target_repo: str) -> dict[str, Any]:
     repo = Path(target_repo).resolve()
     gitignore = repo / ".gitignore"
     desired = [
-        ".ai_context_engine/",
-        ".ai_context_global_metrics/",
-        ".ai_context_planner/",
+        ".aictx/",
+        ".aictx_planner/",
         "CONTEXT_SAVINGS.md",
     ]
-    try:
-        memory_rel = BASE.relative_to(repo)
-        desired.extend(
-            [
-                f"{memory_rel.as_posix()}/delta/last_packets/",
-                f"{memory_rel.as_posix()}/logs/maintenance_log.md",
-            ]
-        )
-    except ValueError:
-        pass
     existing = gitignore.read_text().splitlines() if gitignore.exists() else []
     changed = False
     for entry in desired:
@@ -1727,7 +1780,17 @@ def touch_records(paths: list[str]) -> dict[str, Any]:
 
 
 def new_note(path: str, title: str, tags: list[str] | None = None, task_type: str | None = None) -> dict[str, Any]:
-    note_path = BASE / path
+    raw_path = Path(path)
+    if raw_path.is_absolute():
+        note_path = raw_path
+    else:
+        rel = raw_path.as_posix().lstrip("./")
+        if rel.startswith(".aictx/"):
+            note_path = BASE / rel
+        elif rel.startswith("projects/") or rel.startswith("common/"):
+            note_path = BASE / ".aictx" / "memory" / "source" / rel
+        else:
+            note_path = BASE / ".aictx" / "memory" / "source" / "projects" / BASE.name / rel
     note_path.parent.mkdir(parents=True, exist_ok=True)
     tag_list = ", ".join(tags or [])
     normalized_task_type = normalize_task_type(task_type) if task_type else None
@@ -1790,7 +1853,12 @@ def cli_route(args: argparse.Namespace) -> int:
 
 
 def cli_migrate(_: argparse.Namespace) -> int:
+    from .scaffold import ensure_repo_memory_sources, ensure_repo_user_preferences
+    ensure_repo_user_preferences(BASE)
+    ensure_repo_memory_sources(BASE)
+    repair = repair_repo_runtime_contract(BASE)
     summary = rebuild_memory_store()
+    summary["repo_runtime_repair"] = repair
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
 

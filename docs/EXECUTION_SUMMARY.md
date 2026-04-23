@@ -3,7 +3,13 @@
 AICTX finalize output includes a deterministic user-facing summary payload:
 
 - `agent_summary`: structured fields for runner integration
-- `agent_summary_text`: compact Markdown suitable for appending to an agent final response
+- `agent_summary_text`: compact Markdown that agents must append verbatim to the final user response after finalize
+
+If finalize output is unavailable, agents must say:
+
+```text
+AICTX summary unavailable
+```
 
 The summary reports only observed or persisted facts:
 

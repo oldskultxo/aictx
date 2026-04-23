@@ -28,6 +28,12 @@ def infer_repository_area(row: dict[str, Any]) -> str | None:
     if row.get('project'):
         return str(row['project'])
     path = str(row.get('path', ''))
+    if path.startswith('.aictx/memory/source/projects/'):
+        parts = path.split('/')
+        if len(parts) >= 6:
+            return f"{parts[4]}/{parts[5]}"
+        if len(parts) >= 5:
+            return parts[4]
     if path.startswith('projects/'):
         parts = path.split('/')
         if len(parts) >= 3:

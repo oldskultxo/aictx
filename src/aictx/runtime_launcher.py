@@ -129,4 +129,10 @@ def cli_run_execution(args: argparse.Namespace) -> int:
             sys.stdout.write(outcome["stdout"])
         if outcome["stderr"]:
             sys.stderr.write(outcome["stderr"])
+        finalized = outcome.get("finalized", {}) if isinstance(outcome.get("finalized"), dict) else {}
+        summary = str(finalized.get("agent_summary_text") or "").strip()
+        if summary:
+            if outcome["stdout"] and not outcome["stdout"].endswith("\n"):
+                sys.stdout.write("\n")
+            sys.stdout.write(summary + "\n")
     return int(outcome["exit_code"])

@@ -5,13 +5,20 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-REPO_ENGINE_DIR = Path('.ai_context_engine')
+REPO_ENGINE_DIR = Path('.aictx')
 REPO_MEMORY_DIR = REPO_ENGINE_DIR / 'memory'
 REPO_STATE_PATH = REPO_ENGINE_DIR / 'state.json'
-DEFAULT_GLOBAL_PREFERENCES_PATH = Path(__file__).resolve().parents[2] / 'user_preferences.json'
+DEFAULT_GLOBAL_PREFERENCES_PATH = Path(__file__).resolve().parents[2] / '.aictx' / 'memory' / 'user_preferences.json'
 
 VALID_COMMUNICATION_MODES = {'caveman_lite', 'caveman_full', 'caveman_ultra'}
 VALID_COMMUNICATION_LAYERS = {'enabled', 'disabled'}
+NATIVE_RUNTIME_REQUIRED_PATHS = [
+    Path('CLAUDE.md'),
+    Path('.claude/settings.json'),
+    Path('.claude/hooks/aictx_session_start.py'),
+    Path('.claude/hooks/aictx_user_prompt_submit.py'),
+    Path('.claude/hooks/aictx_pre_tool_use.py'),
+]
 
 
 def read_json(path: Path, default: Any) -> Any:
@@ -188,6 +195,12 @@ def runtime_consistency_report(repo_root: Path | None = None, *, global_defaults
     state = read_json(state_path, {}) if state_path else {}
     issues: list[dict[str, Any]] = []
     status = 'not_initialized'
+    runner_status = str(state.get('runner_integration_status', '') or '').strip()
+    missing_runtime_files = [
+        str(path)
+        for path in NATIVE_RUNTIME_REQUIRED_PATHS
+        if repo_root and not (repo_root / path).exists()
+    ]
 
     if repo_root and prefs_path and prefs_path.exists() and state_path and state_path.exists():
         status = 'ok'
@@ -211,10 +224,47 @@ def runtime_consistency_report(repo_root: Path | None = None, *, global_defaults
                     'source_of_truth': 'repo_preferences',
                 }
             )
+        if missing_runtime_files:
+            issues.append(
+                {
+                    'check': 'native_runtime_contract_incomplete',
+                    'expected': 'repo-native runtime integration files present',
+                    'actual': missing_runtime_files,
+                    'source_of_truth': 'repo_runtime_contract',
+                }
+            )
+            if runner_status == 'native_ready':
+                issues.append(
+                    {
+                        'check': 'runner_integration_status_incorrect',
+                        'expected': 'runner_integration_status matches on-disk runtime files',
+                        'actual': runner_status,
+                        'source_of_truth': 'repo_runtime_contract',
+                    }
+                )
         if issues:
             status = 'warning'
     elif repo_root and ((prefs_path and prefs_path.exists()) or (state_path and state_path.exists())):
         status = 'not_initialized'
+        if state_path and state_path.exists() and missing_runtime_files:
+            issues.append(
+                {
+                    'check': 'native_runtime_contract_incomplete',
+                    'expected': 'repo-native runtime integration files present',
+                    'actual': missing_runtime_files,
+                    'source_of_truth': 'repo_runtime_contract',
+                }
+            )
+            if runner_status == 'native_ready':
+                issues.append(
+                    {
+                        'check': 'runner_integration_status_incorrect',
+                        'expected': 'runner_integration_status matches on-disk runtime files',
+                        'actual': runner_status,
+                        'source_of_truth': 'repo_runtime_contract',
+                    }
+                )
+            status = 'warning'
 
     return {
         'status': status,
@@ -226,4 +276,5 @@ def runtime_consistency_report(repo_root: Path | None = None, *, global_defaults
         'effective_communication_policy': effective_communication,
         'sources': resolved['sources'].get('communication', {}),
         'issues': issues,
+        'repair_hint': 'Run `aictx internal migrate` to restore missing AICTX repo runtime files.' if any(issue.get('check') == 'native_runtime_contract_incomplete' for issue in issues) else '',
     }

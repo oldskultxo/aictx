@@ -15,7 +15,7 @@ from .runtime_versioning import normalize_engine_capability_version, normalize_i
 BASE = Path(__file__).resolve().parents[2]
 PROJECTS_ROOT = BASE.parent
 CANONICAL_SCOPE = BASE.name
-GLOBAL_DIR = BASE / ".ai_context_global_metrics"
+GLOBAL_DIR = BASE / ".aictx" / "global_metrics"
 PROJECTS_INDEX_PATH = GLOBAL_DIR / "projects_index.json"
 CONTEXT_SAVINGS_PATH = GLOBAL_DIR / "global_context_savings.json"
 TOKEN_SAVINGS_PATH = GLOBAL_DIR / "global_token_savings.json"
@@ -88,7 +88,7 @@ class ProjectEntry:
     source: str
 
 
-ENGINE_DIRNAME = ".ai_context_engine"
+ENGINE_DIRNAME = ".aictx"
 ENGINE_MEMORY_DIR = Path(ENGINE_DIRNAME) / "memory"
 ENGINE_COST_DIR = Path(ENGINE_DIRNAME) / "cost"
 ENGINE_TASK_MEMORY_DIR = Path(ENGINE_DIRNAME) / "task_memory"
@@ -218,7 +218,7 @@ def infer_engine_capability_version(repo: Path) -> int | None:
         return 3
     if has_memory:
         return 2
-    if "ai_context_engine" in agents_text:
+    if "aictx" in agents_text:
         return 1
     return None
 
@@ -286,7 +286,7 @@ def load_project_telemetry(repo: Path) -> ProjectTelemetry:
         measurement_basis = str(payload.get("measurement_basis", "execution_logs"))
         return ProjectTelemetry(
             context_range=context_range,
-            context_point=context.get("point"),
+            context_point=None,
             token_range=token_range,
             latency_range=latency_range,
             cost_range=cost_range,
@@ -611,17 +611,17 @@ def run_health_check() -> dict[str, Any]:
 
     canonical_checks = {
         "boot_files": [
-            BASE / "boot" / "boot_summary.json",
-            BASE / "boot" / "user_defaults.json",
-            BASE / "boot" / "project_registry.json",
+            BASE / ".aictx" / "boot" / "boot_summary.json",
+            BASE / ".aictx" / "boot" / "user_defaults.json",
+            BASE / ".aictx" / "boot" / "project_registry.json",
         ],
         "memory_files": [
-            BASE / "user_preferences.json",
-            BASE / "store" / "global_records.jsonl",
-            BASE / "indexes" / "by_project.json",
+            BASE / ".aictx" / "memory" / "user_preferences.json",
+            BASE / ".aictx" / "store" / "global_records.jsonl",
+            BASE / ".aictx" / "indexes" / "by_project.json",
         ],
         "compaction": [
-            BASE / "compaction_report.json",
+            BASE / ".aictx" / "compaction_report.json",
             BASE / "scripts" / "compact.py",
         ],
         "cost_optimizer": [
@@ -647,7 +647,7 @@ def run_health_check() -> dict[str, Any]:
             repo_memory_graph_dir(BASE) / "snapshots" / "latest_graph_snapshot.json",
         ],
         "knowledge_library": [
-            BASE / ".ai_context_engine" / "state.json",
+            BASE / ".aictx" / "state.json",
             repo_metrics_dir(BASE) / "weekly_summary.json",
             repo_library_dir(BASE) / "registry.json",
             repo_library_dir(BASE) / "retrieval_status.json",
@@ -689,22 +689,22 @@ def run_health_check() -> dict[str, Any]:
         repo_issues: list[dict[str, str]] = []
         if not compat.exists():
             if capability_at_least(capability_version, 2) or state_path.exists():
-                repo_issues.append(issue("warning", row["name"], "memory_availability", "Missing .ai_context_engine/memory bootstrap layer"))
+                repo_issues.append(issue("warning", row["name"], "memory_availability", "Missing .aictx/memory bootstrap layer"))
         else:
             derived = compat / "derived_boot_summary.json"
             if not derived.exists():
-                repo_issues.append(issue("needs_attention", row["name"], "bootstrap", "Missing .ai_context_engine/memory/derived_boot_summary.json"))
+                repo_issues.append(issue("needs_attention", row["name"], "bootstrap", "Missing .aictx/memory/derived_boot_summary.json"))
         if capability_at_least(capability_version, MIN_CAPABILITY_COST_OPTIMIZER) and not (repo_cost_dir(repo) / "packet_budget_status.json").exists():
-            repo_issues.append(issue("needs_attention", row["name"], "cost_optimizer", "Missing canonical .ai_context_engine/cost/packet_budget_status.json"))
+            repo_issues.append(issue("needs_attention", row["name"], "cost_optimizer", "Missing canonical .aictx/cost/packet_budget_status.json"))
         if capability_at_least(capability_version, MIN_CAPABILITY_TASK_MEMORY) and not (repo_task_memory_dir(repo) / "task_memory_status.json").exists():
-            repo_issues.append(issue("needs_attention", row["name"], "task_memory", "Missing canonical .ai_context_engine/task_memory/task_memory_status.json"))
+            repo_issues.append(issue("needs_attention", row["name"], "task_memory", "Missing canonical .aictx/task_memory/task_memory_status.json"))
         if capability_at_least(capability_version, MIN_CAPABILITY_FAILURE_MEMORY) and not (repo_failure_memory_dir(repo) / "failure_memory_status.json").exists():
-            repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing canonical .ai_context_engine/failure_memory/failure_memory_status.json"))
+            repo_issues.append(issue("needs_attention", row["name"], "failure_memory", "Missing canonical .aictx/failure_memory/failure_memory_status.json"))
         if capability_at_least(capability_version, MIN_CAPABILITY_MEMORY_GRAPH) and not (repo_memory_graph_dir(repo) / "graph_status.json").exists():
-            repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing canonical .ai_context_engine/memory_graph/graph_status.json"))
+            repo_issues.append(issue("needs_attention", row["name"], "memory_graph", "Missing canonical .aictx/memory_graph/graph_status.json"))
         consistency = runtime_consistency_report(repo)
         if not state_path.exists():
-            repo_issues.append(issue("warning", row["name"], "runtime_state", "Missing .ai_context_engine/state.json"))
+            repo_issues.append(issue("warning", row["name"], "runtime_state", "Missing .aictx/state.json"))
         else:
             state = read_json(state_path, {})
             if not bool(state.get("adapter_runtime_enabled")):
@@ -713,8 +713,6 @@ def run_health_check() -> dict[str, Any]:
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Runner integration status is not ready"))
             if not str(state.get("auto_execution_entrypoint", "") or "").strip():
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing auto execution entrypoint in runtime state"))
-            if not (repo / "AGENTS.override.md").exists():
-                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Codex native repo file AGENTS.override.md"))
             if not (repo / "CLAUDE.md").exists():
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Claude native repo file CLAUDE.md"))
             if not (repo / ".claude" / "settings.json").exists():
@@ -729,7 +727,7 @@ def run_health_check() -> dict[str, Any]:
         if not agents.exists():
             repo_issues.append(issue("warning", row["name"], "bootstrap", "Missing AGENTS.md instructions"))
         if row.get("telemetry_dir") != "unknown" and not weekly.exists():
-            repo_issues.append(issue("warning", row["name"], "telemetry_activity", "Missing .ai_context_engine/metrics/weekly_summary.json"))
+            repo_issues.append(issue("warning", row["name"], "telemetry_activity", "Missing .aictx/metrics/weekly_summary.json"))
         checks.append({
             "scope": row["name"],
             "check": "project_health",

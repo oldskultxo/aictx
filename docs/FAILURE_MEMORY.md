@@ -2,8 +2,8 @@
 
 AICTX records failed executions as repo-local, inspectable failure patterns under:
 
-- `.ai_context_engine/failure_memory/failure_patterns.jsonl`
-- `.ai_context_engine/failure_memory/failure_index.json`
+- `.aictx/failure_memory/failure_patterns.jsonl`
+- `.aictx/failure_memory/failure_index.json`
 
 Records include a deterministic signature, task type, area, error text, failed command, involved files, attempted summary, status, and optional resolution link.
 

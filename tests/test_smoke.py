@@ -39,10 +39,15 @@ from aictx.agent_runtime import (
 from aictx.core_runtime import communication_policy_from_defaults
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.runner_integrations import (
+    CLAUDE_GITIGNORE_COMMENT,
+    CLAUDE_DIR_GITIGNORE_LINE,
+    CLAUDE_MD_GITIGNORE_LINE,
     install_codex_native_integration,
     install_repo_runner_integrations,
+    render_claude_md_block,
+    render_user_prompt_submit_script,
 )
-from aictx.scaffold import TEMPLATES_DIR, init_repo_scaffold
+from aictx.scaffold import TEMPLATES_DIR, ensure_repo_memory_sources, ensure_repo_user_preferences, init_repo_scaffold
 from aictx.state import Workspace, default_global_config, read_json
 
 
@@ -63,26 +68,59 @@ def test_template_defaults_communication_layer_disabled():
     assert payload["communication"]["mode"] == "caveman_full"
 
 
+def test_root_prefs_path_points_to_canonical_repo_local_preferences():
+    assert core_runtime.ROOT_PREFS_PATH.as_posix().endswith(".aictx/memory/user_preferences.json")
+
+
+def test_init_repo_scaffold_seeds_repo_preferences_from_template(tmp_path: Path):
+    repo = tmp_path / "repo"
+    created = init_repo_scaffold(repo, update_gitignore=False)
+    prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
+    assert str(prefs_path) in created
+    assert json.loads(prefs_path.read_text(encoding="utf-8")) == json.loads((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"))
+
+
+def test_ensure_repo_user_preferences_merges_legacy_root_without_losing_canonical_overrides(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / ".aictx" / "memory").mkdir(parents=True, exist_ok=True)
+    (repo / "user_preferences.json").write_text(json.dumps({
+        "updated_at": "2026-04-16",
+        "profile": {"preferred_language": "es"},
+        "communication": {"layer": "enabled"},
+    }), encoding="utf-8")
+    (repo / ".aictx" / "memory" / "user_preferences.json").write_text(json.dumps({
+        "communication": {"layer": "disabled", "mode": "caveman_full"},
+    }), encoding="utf-8")
+
+    path = ensure_repo_user_preferences(repo)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["updated_at"] == "2026-04-16"
+    assert payload["profile"]["preferred_language"] == "es"
+    assert payload["communication"]["layer"] == "disabled"
+    assert payload["communication"]["mode"] == "caveman_full"
+
+
 def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("aictx.adapters.ENGINE_HOME", tmp_path / ".ai_context_engine")
-    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_DIR", (tmp_path / ".ai_context_engine" / "adapters"))
-    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_REGISTRY_PATH", (tmp_path / ".ai_context_engine" / "adapters" / "registry.json"))
-    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_BIN_DIR", (tmp_path / ".ai_context_engine" / "adapters" / "bin"))
-    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_INSTALL_STATUS_PATH", (tmp_path / ".ai_context_engine" / "adapters" / "install_status.json"))
+    monkeypatch.setattr("aictx.adapters.ENGINE_HOME", tmp_path / ".aictx")
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_DIR", (tmp_path / ".aictx" / "adapters"))
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_REGISTRY_PATH", (tmp_path / ".aictx" / "adapters" / "registry.json"))
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_BIN_DIR", (tmp_path / ".aictx" / "adapters" / "bin"))
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_INSTALL_STATUS_PATH", (tmp_path / ".aictx" / "adapters" / "install_status.json"))
     created = install_global_adapters()
     assert any(path.name == "codex.json" for path in created)
     assert any(path.name == "claude.json" for path in created)
     assert any(path.name == "aictx-codex-auto" for path in created)
-    install_status = read_json(tmp_path / ".ai_context_engine" / "adapters" / "install_status.json", {})
+    install_status = read_json(tmp_path / ".aictx" / "adapters" / "install_status.json", {})
     assert install_status["status"] == "wrapper_ready"
     assert install_status["runtime_entrypoint"] == "aictx internal run-execution"
 
 
 def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     text = render_agent_runtime()
-    assert ".ai_context_engine/metrics/execution_logs.jsonl" in text
-    assert ".ai_context_engine/metrics/execution_feedback.jsonl" in text
-    assert ".ai_context_engine/strategy_memory/strategies.jsonl" in text
+    assert ".aictx/metrics/execution_logs.jsonl" in text
+    assert ".aictx/metrics/execution_feedback.jsonl" in text
+    assert ".aictx/strategy_memory/strategies.jsonl" in text
     assert "unknown" in text
     assert "## Communication mode" in text
     assert "## Execution middleware" in text
@@ -94,6 +132,17 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "caveman_lite" in text
     assert "caveman_full" in text
     assert "caveman_ultra" in text
+    assert "agent_summary_text" in text
+    assert "AICTX summary unavailable" in text
+    repo_block = render_repo_agents_block()
+    assert "agent_summary_text" in repo_block
+    assert "AICTX summary unavailable" in repo_block
+    claude_block = render_claude_md_block()
+    assert "agent_summary_text" in claude_block
+    assert "AICTX summary unavailable" in claude_block
+    prompt_hook = render_user_prompt_submit_script()
+    assert "append agent_summary_text verbatim" in prompt_hook
+    assert "AICTX summary unavailable" in prompt_hook
 
 
 def test_communication_policy_uses_disabled_template_default():
@@ -126,29 +175,54 @@ def test_resolve_workspace_root_prefers_deepest_match(tmp_path: Path):
 
 def test_init_repo_scaffold_creates_minimal_v1_structure(tmp_path: Path):
     repo = tmp_path / "repo"
-    (repo / ".ai_context_memory").mkdir(parents=True)
+    (repo / ".aictx_memory").mkdir(parents=True)
     (repo / ".context_metrics").mkdir(parents=True)
-    (repo / ".ai_context_engine" / "metrics").mkdir(parents=True)
-    (repo / ".ai_context_engine" / "strategy_memory").mkdir(parents=True)
-    (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").write_text('{"keep": "log"}\n', encoding="utf-8")
-    (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").write_text('{"keep": "feedback"}\n', encoding="utf-8")
-    (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").write_text('{"keep": "strategy"}\n', encoding="utf-8")
+    (repo / ".aictx" / "metrics").mkdir(parents=True)
+    (repo / ".aictx" / "strategy_memory").mkdir(parents=True)
+    (repo / ".aictx" / "metrics" / "execution_logs.jsonl").write_text('{"keep": "log"}\n', encoding="utf-8")
+    (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").write_text('{"keep": "feedback"}\n', encoding="utf-8")
+    (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").write_text('{"keep": "strategy"}\n', encoding="utf-8")
 
     init_repo_scaffold(repo, update_gitignore=False)
 
-    assert (repo / ".ai_context_memory").exists()
+    assert (repo / ".aictx_memory").exists()
     assert (repo / ".context_metrics").exists()
-    assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
-    assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").exists()
-    assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").exists()
-    assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8") == '{"keep": "log"}\n'
-    assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8") == '{"keep": "feedback"}\n'
-    assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8") == '{"keep": "strategy"}\n'
-    assert not (repo / ".ai_context_engine" / "memory_graph").exists()
-    assert not (repo / ".ai_context_engine" / "library").exists()
-    assert not (repo / ".ai_context_engine" / "adapters").exists()
-    assert not (repo / ".ai_context_engine" / "task_memory").exists()
-    assert (repo / ".ai_context_engine" / "failure_memory" / "failure_patterns.jsonl").exists()
+    assert (repo / ".aictx" / "metrics" / "execution_logs.jsonl").exists()
+    assert (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").exists()
+    assert (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").exists()
+    assert (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8") == '{"keep": "log"}\n'
+    assert (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8") == '{"keep": "feedback"}\n'
+    assert (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8") == '{"keep": "strategy"}\n'
+    assert not (repo / ".aictx" / "memory_graph").exists()
+    assert not (repo / ".aictx" / "library").exists()
+    assert not (repo / ".aictx" / "adapters").exists()
+    assert not (repo / ".aictx" / "task_memory").exists()
+    assert (repo / ".aictx" / "failure_memory" / "failure_patterns.jsonl").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "index.json").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "symptoms.json").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "protocol.md").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "common" / "user_working_preferences.md").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "projects" / repo.name / "overview.md").exists()
+
+
+def test_ensure_repo_memory_sources_imports_legacy_source_files(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / "common").mkdir(parents=True)
+    (repo / "projects" / "demo").mkdir(parents=True)
+    (repo / "common" / "user_working_preferences.md").write_text("# legacy common\n", encoding="utf-8")
+    (repo / "projects" / "demo" / "decisions.md").write_text("# legacy decisions\n", encoding="utf-8")
+    (repo / "index.json").write_text(json.dumps({"version": 1, "common": ["common/user_working_preferences.md"]}), encoding="utf-8")
+    (repo / "symptoms.json").write_text(json.dumps({"version": 1, "symptoms": {"broken": ["projects/demo/decisions.md"]}}), encoding="utf-8")
+    (repo / "protocol.md").write_text("# legacy protocol\n", encoding="utf-8")
+
+    created = ensure_repo_memory_sources(repo)
+
+    assert str(repo / ".aictx" / "memory" / "source" / "common" / "user_working_preferences.md") in created
+    assert (repo / ".aictx" / "memory" / "source" / "projects" / "demo" / "decisions.md").read_text(encoding="utf-8") == "# legacy decisions\n"
+    index_payload = json.loads((repo / ".aictx" / "memory" / "source" / "index.json").read_text(encoding="utf-8"))
+    assert index_payload["common"] == [".aictx/memory/source/common/user_working_preferences.md"]
+    symptoms_payload = json.loads((repo / ".aictx" / "memory" / "source" / "symptoms.json").read_text(encoding="utf-8"))
+    assert symptoms_payload["symptoms"]["broken"] == [".aictx/memory/source/projects/demo/decisions.md"]
 
 
 def test_prepare_execution_plain_mode_without_skill_metadata(tmp_path: Path):
@@ -275,16 +349,16 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
         },
     )
 
-    weekly = read_json(repo / ".ai_context_engine" / "metrics" / "weekly_summary.json", {})
-    workflow_rows = (repo / ".ai_context_engine" / "memory" / "workflow_learnings.jsonl").read_text(encoding="utf-8").splitlines()
-    status = read_json(repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json", {})
+    weekly = read_json(repo / ".aictx" / "metrics" / "weekly_summary.json", {})
+    workflow_rows = (repo / ".aictx" / "memory" / "workflow_learnings.jsonl").read_text(encoding="utf-8").splitlines()
+    status = read_json(repo / ".aictx" / "metrics" / "agent_execution_status.json", {})
     assert finalized["learning_persisted"]["record_id"] == "execution_learning::exec-finalize-1"
     assert weekly["tasks_sampled"] >= 1
     assert status["last_execution_mode"] == "plain"
     assert any("exec-finalize-1" in row for row in workflow_rows)
     assert finalized["strategy_persisted"]["task_id"] == "exec-finalize-1"
-    strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
-    feedback_rows = [json.loads(line) for line in (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    strategies = [json.loads(line) for line in (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    feedback_rows = [json.loads(line) for line in (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(strategies) == 1
     assert len(feedback_rows) == 1
     assert strategies[0]["task_id"] == "exec-finalize-1"
@@ -337,9 +411,9 @@ def test_finalize_execution_failure_persists_failure_strategy(tmp_path: Path):
         },
     )
 
-    log_lines = (repo / ".ai_context_engine" / "metrics" / "agent_execution_log.jsonl").read_text(encoding="utf-8").splitlines()
-    real_log_lines = (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
-    strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    log_lines = (repo / ".aictx" / "metrics" / "agent_execution_log.jsonl").read_text(encoding="utf-8").splitlines()
+    real_log_lines = (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
+    strategies = [json.loads(line) for line in (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert finalized["strategy_persisted"]["task_id"] == strategies[-1]["task_id"]
     assert any("\"execution_mode\": \"skill\"" in row for row in log_lines)
     assert any("\"success\": false" in row for row in real_log_lines)
@@ -615,7 +689,7 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
         },
     )
 
-    rows = [json.loads(line) for line in (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [json.loads(line) for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(rows) == 1
     row = rows[0]
     assert row["task_id"]
@@ -630,11 +704,11 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
     assert finalized["aictx_feedback"]["files_opened"] == 2
     assert finalized["aictx_feedback"]["reopened_files"] == 1
 
-    feedback_rows = [json.loads(line) for line in (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    feedback_rows = [json.loads(line) for line in (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert feedback_rows[-1]["aictx_feedback"]["files_opened"] == 2
     assert feedback_rows[-1]["aictx_feedback"]["reopened_files"] == 1
 
-    strategies = [json.loads(line) for line in (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    strategies = [json.loads(line) for line in (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert strategies[-1]["files_used"] == ["src/aictx/middleware.py", "src/aictx/cli.py"]
     assert strategies[-1]["entry_points"] == ["src/aictx/middleware.py", "src/aictx/cli.py"]
     assert strategies[-1]["primary_entry_point"] == "src/aictx/middleware.py"
@@ -692,7 +766,7 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
 
 def test_persist_repo_communication_mode_disabled(tmp_path: Path):
     repo = tmp_path / "repo"
-    prefs_path = repo / ".ai_context_engine" / "memory" / "user_preferences.json"
+    prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
     prefs_path.parent.mkdir(parents=True)
     prefs_path.write_text((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"), encoding="utf-8")
 
@@ -705,7 +779,7 @@ def test_persist_repo_communication_mode_disabled(tmp_path: Path):
 
 def test_persist_repo_communication_mode_enabled_mode(tmp_path: Path):
     repo = tmp_path / "repo"
-    prefs_path = repo / ".ai_context_engine" / "memory" / "user_preferences.json"
+    prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
     prefs_path.parent.mkdir(parents=True)
     prefs_path.write_text((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"), encoding="utf-8")
 
@@ -723,13 +797,13 @@ def test_cmd_init_interactive_sets_disabled_mode(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
-    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".ai_context_engine" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
     monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
 
     args = argparse.Namespace(repo=str(repo), no_gitignore=False, no_register=True, yes=False)
     assert cli.cmd_init(args) == 0
 
-    prefs = read_json(repo / ".ai_context_engine" / "memory" / "user_preferences.json", {})
+    prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
     assert prefs["communication"]["layer"] == "disabled"
     assert prefs["communication"]["mode"] == "caveman_full"
 
@@ -742,13 +816,13 @@ def test_cmd_init_interactive_sets_selected_caveman_mode(tmp_path: Path, monkeyp
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
-    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".ai_context_engine" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
     monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
 
     args = argparse.Namespace(repo=str(repo), no_gitignore=False, no_register=True, yes=False)
     assert cli.cmd_init(args) == 0
 
-    prefs = read_json(repo / ".ai_context_engine" / "memory" / "user_preferences.json", {})
+    prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
     assert prefs["communication"]["layer"] == "enabled"
     assert prefs["communication"]["mode"] == expected_mode
 
@@ -758,13 +832,13 @@ def test_cmd_init_yes_keeps_disabled_default(tmp_path: Path, monkeypatch):
     repo.mkdir()
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
-    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".ai_context_engine" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
     monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
 
     args = argparse.Namespace(repo=str(repo), no_gitignore=False, no_register=True, yes=True)
     assert cli.cmd_init(args) == 0
 
-    prefs = read_json(repo / ".ai_context_engine" / "memory" / "user_preferences.json", {})
+    prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
     assert prefs["communication"]["layer"] == "disabled"
     assert prefs["communication"]["mode"] == "caveman_full"
 
@@ -774,13 +848,13 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     repo.mkdir()
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
-    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".ai_context_engine" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
     monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
 
     args = argparse.Namespace(repo=str(repo), no_gitignore=False, no_register=True, yes=True)
     assert cli.cmd_init(args) == 0
 
-    state = read_json(repo / ".ai_context_engine" / "state.json", {})
+    state = read_json(repo / ".aictx" / "state.json", {})
     assert state["installed_version"] == package_version
     assert state["engine_capability_version"] >= 1
     assert state["installed_iteration"] == state["engine_capability_version"]
@@ -794,11 +868,12 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert state["runner_native_integrations"]["codex"]["status"] == "native_hardened"
     assert state["runner_native_integrations"]["claude"]["status"] == "native_hardened"
     assert state["communication_layer"] == "disabled"
-    assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
-    assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").exists()
-    assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").exists()
-    assert not (repo / ".ai_context_engine" / "cost" / "optimization_history.jsonl").exists()
-    assert (repo / "AGENTS.override.md").exists()
+    assert (repo / ".aictx" / "metrics" / "execution_logs.jsonl").exists()
+    assert (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").exists()
+    assert (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "index.json").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "projects" / repo.name / "overview.md").exists()
+    assert not (repo / ".aictx" / "cost" / "optimization_history.jsonl").exists()
     assert (repo / "CLAUDE.md").exists()
     assert (repo / ".claude" / "settings.json").exists()
     assert (repo / ".claude" / "hooks" / "aictx_session_start.py").exists()
@@ -879,7 +954,7 @@ def test_cli_suggest_uses_latest_strategy(tmp_path: Path, capsys):
 def test_cli_reflect_detects_looping_on_same_files(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
-    log_path = repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl"
+    log_path = repo / ".aictx" / "metrics" / "execution_logs.jsonl"
     log_path.write_text(json.dumps({
         "task_id": "t1",
         "timestamp": "2026-04-19T00:00:00Z",
@@ -904,7 +979,7 @@ def test_cli_reflect_detects_looping_on_same_files(tmp_path: Path, capsys):
 def test_cli_reflect_detects_too_much_exploration(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
-    log_path = repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl"
+    log_path = repo / ".aictx" / "metrics" / "execution_logs.jsonl"
     log_path.write_text(json.dumps({
         "task_id": "t1",
         "timestamp": "2026-04-19T00:00:00Z",
@@ -961,7 +1036,7 @@ def test_report_real_usage_returns_empty_metrics_without_history(tmp_path: Path,
 def test_report_real_usage_aggregates_real_logs_and_feedback(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
-    metrics_dir = repo / ".ai_context_engine" / "metrics"
+    metrics_dir = repo / ".aictx" / "metrics"
     (metrics_dir / "execution_logs.jsonl").write_text(
         "\n".join([
             json.dumps({
@@ -1105,7 +1180,7 @@ def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, 
     repo.mkdir()
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
-    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".ai_context_engine" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
     monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
     init_answers = iter(["", "", "1", ""])
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(init_answers))
@@ -1176,8 +1251,42 @@ def test_internal_run_execution_wraps_command_and_persists_status(tmp_path: Path
     assert payload["prepared"]["adapter_profile"]["adapter_id"] == "codex"
     assert payload["finalized"]["learning_persisted"]["record_id"] == "execution_learning::exec-wrap-1"
 
-    status = read_json(repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json", {})
+    status = read_json(repo / ".aictx" / "metrics" / "agent_execution_status.json", {})
     assert status["last_execution_id"] == "exec-wrap-1"
+
+
+def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+    parser = cli.build_parser()
+
+    args = parser.parse_args(
+        [
+            "internal",
+            "run-execution",
+            "--repo",
+            str(repo),
+            "--request",
+            "run wrapped command and show summary",
+            "--agent-id",
+            "codex",
+            "--execution-id",
+            "exec-wrap-summary",
+            "--validated-learning",
+            "--",
+            "python3",
+            "-c",
+            "print('wrapped ok')",
+        ]
+    )
+
+    assert args.func(args) == 0
+    output = capsys.readouterr().out
+    assert "wrapped ok" in output
+    assert "AICTX" in output
+    assert "- Reused strategy:" in output
+    assert "- New learning stored:" in output
 
 
 def test_runtime_capture_provenance_and_prepare_fields(tmp_path: Path):
@@ -1238,7 +1347,7 @@ def test_run_execution_captures_command_tests_errors_and_agent_summary(tmp_path:
     assert "AICTX" in finalized["agent_summary_text"]
     log_rows = [
         json.loads(line)
-        for line in (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
+        for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
     assert log_rows[-1]["commands_executed"]
@@ -1312,7 +1421,6 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     repo = tmp_path / "repo"
     repo.mkdir()
     created = install_repo_runner_integrations(repo)
-    assert repo / "AGENTS.override.md" in created
     assert repo / "CLAUDE.md" in created
     settings = read_json(repo / ".claude" / "settings.json", {})
     assert "SessionStart" in settings["hooks"]
@@ -1320,9 +1428,11 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert "PreToolUse" in settings["hooks"]
     assert (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").exists()
     assert (repo / ".claude" / "hooks" / "aictx_pre_tool_use.py").exists()
-    assert "aictx suggest --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
-    assert "aictx reflect --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
-    assert "aictx reuse --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
+    assert (repo / ".gitignore").exists()
+    gitignore = (repo / ".gitignore").read_text(encoding="utf-8")
+    assert CLAUDE_GITIGNORE_COMMENT in gitignore
+    assert CLAUDE_DIR_GITIGNORE_LINE in gitignore
+    assert CLAUDE_MD_GITIGNORE_LINE in gitignore
     assert "aictx suggest --repo ." in (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
 
@@ -1364,6 +1474,37 @@ def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tm
         for entry in settings["hooks"]["PreToolUse"]
         for hook in entry.get("hooks", [])
     )
+
+
+def test_install_repo_runner_integrations_does_not_add_gitignore_when_claude_preexists_and_unignored(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / ".claude").mkdir(parents=True)
+    install_repo_runner_integrations(repo)
+    gitignore = repo / ".gitignore"
+    assert gitignore.exists()
+    text = gitignore.read_text(encoding="utf-8")
+    assert CLAUDE_GITIGNORE_COMMENT in text
+    assert CLAUDE_DIR_GITIGNORE_LINE not in text
+    assert CLAUDE_MD_GITIGNORE_LINE in text
+
+
+def test_install_repo_runner_integrations_preserves_existing_claude_gitignore(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / ".claude").mkdir(parents=True)
+    (repo / ".gitignore").write_text(".claude/\n", encoding="utf-8")
+    install_repo_runner_integrations(repo)
+    text = (repo / ".gitignore").read_text(encoding="utf-8")
+    assert text == f".claude/\n\n{CLAUDE_GITIGNORE_COMMENT}\n{CLAUDE_MD_GITIGNORE_LINE}\n"
+
+
+def test_install_repo_runner_integrations_does_not_add_claude_md_gitignore_when_claude_md_preexists(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "CLAUDE.md").write_text("User Claude notes.\n", encoding="utf-8")
+    install_repo_runner_integrations(repo)
+    text = (repo / ".gitignore").read_text(encoding="utf-8")
+    assert CLAUDE_DIR_GITIGNORE_LINE in text
+    assert CLAUDE_MD_GITIGNORE_LINE not in text
 
 
 def test_cmd_install_default_does_not_touch_codex_global(tmp_path: Path, monkeypatch, capsys):
@@ -1441,12 +1582,17 @@ def test_install_codex_native_integration_writes_home_override(tmp_path: Path, m
     monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", tmp_path / ".codex")
     monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", tmp_path / ".codex" / "config.toml")
     created = install_codex_native_integration()
+    assert (tmp_path / ".codex" / "AICTX_Codex.md") in created
     assert (tmp_path / ".codex" / "AGENTS.override.md") in created
     assert (tmp_path / ".codex" / "config.toml") in created
+    instructions = (tmp_path / ".codex" / "AICTX_Codex.md").read_text(encoding="utf-8")
+    assert "Use AICTX in every Codex session" in instructions
+    assert "aictx suggest --repo ." in instructions
     text = (tmp_path / ".codex" / "AGENTS.override.md").read_text(encoding="utf-8")
     assert "AICTX Codex integration" in text
     config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
     assert 'project_doc_fallback_filenames = ["CLAUDE.md"]' in config
+    assert 'model_instructions_file = "' in config
 
 
 def test_claude_pre_tool_hook_blocks_generated_runtime_edits(tmp_path: Path):
@@ -1458,7 +1604,7 @@ def test_claude_pre_tool_hook_blocks_generated_runtime_edits(tmp_path: Path):
     write_payload = {
         "tool_name": "Write",
         "tool_input": {
-            "file_path": str(repo / ".ai_context_engine" / "memory" / "derived_boot_summary.json"),
+            "file_path": str(repo / ".aictx" / "memory" / "derived_boot_summary.json"),
         },
     }
     proc = subprocess.run(
@@ -1501,7 +1647,7 @@ def test_boot_prefers_repo_communication_policy_and_reports_mismatch(tmp_path: P
     init_repo_scaffold(repo, update_gitignore=False)
     cli.prepare_repo_runtime(repo)
 
-    state_path = repo / ".ai_context_engine" / "state.json"
+    state_path = repo / ".aictx" / "state.json"
     state = read_json(state_path, {})
     state["communication_layer"] = "enabled"
     state["communication_mode"] = "caveman_ultra"
@@ -1520,6 +1666,37 @@ def test_boot_prefers_repo_communication_policy_and_reports_mismatch(tmp_path: P
     assert prepared["communication_policy"]["layer"] == "disabled"
     assert boot["consistency_checks"]["status"] in {"warning", "not_initialized"}
     assert prepared["consistency_checks"]["status"] in {"warning", "not_initialized"}
+
+
+def test_boot_and_prepare_warn_when_native_runtime_files_are_missing(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+    install_repo_runner_integrations(repo)
+    upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
+
+    for path in [
+        repo / "CLAUDE.md",
+        repo / ".claude/settings.json",
+    ]:
+        path.unlink()
+
+    boot = core_runtime.bootstrap(str(repo))
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "review runtime contract health",
+            "agent_id": "agent-test",
+            "execution_id": "exec-runtime-contract-1",
+        }
+    )
+
+    for payload in [boot["consistency_checks"], prepared["consistency_checks"]]:
+        assert payload["status"] == "warning"
+        assert payload["repair_hint"] == "Run `aictx internal migrate` to restore missing AICTX repo runtime files."
+        checks = {issue["check"] for issue in payload["issues"]}
+        assert "native_runtime_contract_incomplete" in checks
+        assert "runner_integration_status_incorrect" in checks
 
 
 def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
@@ -1557,6 +1734,48 @@ def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
         check=False,
     )
     assert packet_proc.returncode == 0, packet_proc.stderr
+
+
+def test_migrate_repairs_repo_runtime_contract_files(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+
+    for path in [
+        repo / "CLAUDE.md",
+        repo / ".claude" / "settings.json",
+        repo / ".claude" / "hooks" / "aictx_session_start.py",
+        repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py",
+        repo / ".claude" / "hooks" / "aictx_pre_tool_use.py",
+    ]:
+        if path.exists():
+            path.unlink()
+    agents_path = repo / "AGENTS.md"
+    agents_path.write_text("# repo instructions\n", encoding="utf-8")
+
+    original_base = core_runtime.BASE
+    original_engine_state_dir = core_runtime.ENGINE_STATE_DIR
+    original_engine_state_path = core_runtime.ENGINE_STATE_PATH
+    try:
+        core_runtime.BASE = repo
+        core_runtime.ENGINE_STATE_DIR = repo / ".aictx"
+        core_runtime.ENGINE_STATE_PATH = repo / ".aictx" / "state.json"
+        payload = {"repo_runtime_repair": core_runtime.repair_repo_runtime_contract(repo)}
+    finally:
+        core_runtime.BASE = original_base
+        core_runtime.ENGINE_STATE_DIR = original_engine_state_dir
+        core_runtime.ENGINE_STATE_PATH = original_engine_state_path
+
+    repair = payload["repo_runtime_repair"]
+    assert repair["repaired"] is True
+    assert (repo / "CLAUDE.md").exists()
+    assert (repo / ".claude" / "settings.json").exists()
+    assert (repo / ".claude" / "hooks" / "aictx_session_start.py").exists()
+    assert (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").exists()
+    assert (repo / ".claude" / "hooks" / "aictx_pre_tool_use.py").exists()
+    assert "<!-- AICTX:START -->" in (repo / "AGENTS.md").read_text(encoding="utf-8")
 
     prepared_path = repo / "prepared.json"
     prepare_proc = subprocess.run(
@@ -1626,7 +1845,7 @@ def test_global_health_check_reports_runtime_consistency_warning(tmp_path: Path,
     init_repo_scaffold(repo, update_gitignore=False)
     cli.prepare_repo_runtime(repo)
 
-    state_path = repo / ".ai_context_engine" / "state.json"
+    state_path = repo / ".aictx" / "state.json"
     state = read_json(state_path, {})
     state["communication_layer"] = "enabled"
     state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -1766,7 +1985,7 @@ def test_repeated_task_reports_value_evidence(tmp_path: Path):
     )
     finalized = finalize_execution(second, {"success": True, "result_summary": "second", "validated_learning": False})
 
-    weekly = read_json(repo / ".ai_context_engine" / "metrics" / "weekly_summary.json", {})
+    weekly = read_json(repo / ".aictx" / "metrics" / "weekly_summary.json", {})
     assert finalized["value_evidence"]["repeated_context_request"] is True
     assert weekly["value_evidence"]["repeated_tasks_observed"] >= 1
     assert weekly["value_evidence"]["last_used_packet"] in {True, False}
@@ -1776,7 +1995,7 @@ def test_scaffold_status_files_include_version_contract(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
 
-    state = read_json(repo / ".ai_context_engine" / "state.json", {})
+    state = read_json(repo / ".aictx" / "state.json", {})
 
     assert state["installed_version"] == package_version
     assert state["engine_capability_version"] >= 1
@@ -1785,40 +2004,40 @@ def test_scaffold_status_files_include_version_contract(tmp_path: Path):
 
 def test_task_memory_writes_only_canonical_buckets(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(core_runtime, "BASE", tmp_path)
-    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
-    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".ai_context_engine" / "task_memory")
-    monkeypatch.setattr(core_runtime, "TASK_MEMORY_STATUS_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_memory_status.json")
-    monkeypatch.setattr(core_runtime, "TASK_MEMORY_TAXONOMY_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_taxonomy.json")
-    monkeypatch.setattr(core_runtime, "TASK_MEMORY_RULES_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_resolution_rules.md")
-    monkeypatch.setattr(core_runtime, "TASK_MEMORY_HISTORY_PATH", tmp_path / ".ai_context_engine" / "task_memory" / "task_memory_history.jsonl")
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".aictx")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".aictx" / "task_memory")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_STATUS_PATH", tmp_path / ".aictx" / "task_memory" / "task_memory_status.json")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_TAXONOMY_PATH", tmp_path / ".aictx" / "task_memory" / "task_taxonomy.json")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_RULES_PATH", tmp_path / ".aictx" / "task_memory" / "task_resolution_rules.md")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_HISTORY_PATH", tmp_path / ".aictx" / "task_memory" / "task_memory_history.jsonl")
 
     runtime_task_memory.build_task_memory_artifacts([
         {"id": "r1", "type": "task_pattern", "task_type": "testing", "title": "Run tests", "summary": "Use pytest", "project": "aictx"}
     ])
-    assert (tmp_path / ".ai_context_engine" / "task_memory" / "testing" / "summary.json").exists()
-    assert not (tmp_path / ".ai_context_engine" / "task_memory" / "tests" / "summary.json").exists()
-    assert not (tmp_path / ".ai_context_engine" / "task_memory" / "general" / "summary.json").exists()
+    assert (tmp_path / ".aictx" / "task_memory" / "testing" / "summary.json").exists()
+    assert not (tmp_path / ".aictx" / "task_memory" / "tests" / "summary.json").exists()
+    assert not (tmp_path / ".aictx" / "task_memory" / "general" / "summary.json").exists()
     assert runtime_task_memory.category_summary_path("tests").name == "summary.json"
 
 
 def test_runtime_knowledge_module_bootstrap_mod(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(core_runtime, "LIBRARY_DIR", tmp_path / ".ai_context_engine" / "library")
-    monkeypatch.setattr(core_runtime, "LIBRARY_REGISTRY_PATH", tmp_path / ".ai_context_engine" / "library" / "registry.json")
-    monkeypatch.setattr(core_runtime, "LIBRARY_RETRIEVAL_STATUS_PATH", tmp_path / ".ai_context_engine" / "library" / "retrieval_status.json")
+    monkeypatch.setattr(core_runtime, "LIBRARY_DIR", tmp_path / ".aictx" / "library")
+    monkeypatch.setattr(core_runtime, "LIBRARY_REGISTRY_PATH", tmp_path / ".aictx" / "library" / "registry.json")
+    monkeypatch.setattr(core_runtime, "LIBRARY_RETRIEVAL_STATUS_PATH", tmp_path / ".aictx" / "library" / "retrieval_status.json")
     manifest = runtime_knowledge.bootstrap_mod("ux", create_reference_stub=True)
     assert manifest["id"] == "ux"
-    assert (tmp_path / ".ai_context_engine" / "library" / "mods" / "ux" / "inbox" / "references.md").exists()
+    assert (tmp_path / ".aictx" / "library" / "mods" / "ux" / "inbox" / "references.md").exists()
 
 
 def test_runtime_cost_module_optimizer_roundtrip(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(core_runtime, "BASE", tmp_path)
-    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
-    monkeypatch.setattr(core_runtime, "COST_DIR", tmp_path / ".ai_context_engine" / "cost")
-    monkeypatch.setattr(core_runtime, "COST_CONFIG_PATH", tmp_path / ".ai_context_engine" / "cost" / "optimizer_config.yaml")
-    monkeypatch.setattr(core_runtime, "COST_RULES_PATH", tmp_path / ".ai_context_engine" / "cost" / "cost_estimation_rules.md")
-    monkeypatch.setattr(core_runtime, "COST_STATUS_PATH", tmp_path / ".ai_context_engine" / "cost" / "packet_budget_status.json")
-    monkeypatch.setattr(core_runtime, "COST_HISTORY_PATH", tmp_path / ".ai_context_engine" / "cost" / "optimization_history.jsonl")
-    monkeypatch.setattr(core_runtime, "COST_LATEST_REPORT_PATH", tmp_path / ".ai_context_engine" / "cost" / "latest_optimization_report.md")
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".aictx")
+    monkeypatch.setattr(core_runtime, "COST_DIR", tmp_path / ".aictx" / "cost")
+    monkeypatch.setattr(core_runtime, "COST_CONFIG_PATH", tmp_path / ".aictx" / "cost" / "optimizer_config.yaml")
+    monkeypatch.setattr(core_runtime, "COST_RULES_PATH", tmp_path / ".aictx" / "cost" / "cost_estimation_rules.md")
+    monkeypatch.setattr(core_runtime, "COST_STATUS_PATH", tmp_path / ".aictx" / "cost" / "packet_budget_status.json")
+    monkeypatch.setattr(core_runtime, "COST_HISTORY_PATH", tmp_path / ".aictx" / "cost" / "optimization_history.jsonl")
+    monkeypatch.setattr(core_runtime, "COST_LATEST_REPORT_PATH", tmp_path / ".aictx" / "cost" / "latest_optimization_report.md")
 
     payload = {
         "task": "debug failing integration",
@@ -1837,21 +2056,21 @@ def test_runtime_cost_module_optimizer_roundtrip(tmp_path: Path, monkeypatch):
 
 def test_runtime_failure_module_record_and_rank(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(core_runtime, "BASE", tmp_path)
-    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_DIR", tmp_path / ".ai_context_engine" / "failure_memory")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_RECORDS_DIR", tmp_path / ".ai_context_engine" / "failure_memory" / "failures")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_INDEX_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "index.json")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_STATUS_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "failure_memory_status.json")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_SUMMARY_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "summaries" / "common_patterns.md")
-    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".ai_context_engine" / "task_memory")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_DIR", tmp_path / ".ai_context_engine" / "memory_graph")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_NODES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "nodes" / "nodes.jsonl")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_EDGES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "edges" / "edges.jsonl")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_STATUS_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "graph_status.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_LABEL_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_label.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_TYPE_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_type.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_RELATION_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_relation.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_SNAPSHOT_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "snapshots" / "latest_graph_snapshot.json")
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".aictx")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_DIR", tmp_path / ".aictx" / "failure_memory")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_RECORDS_DIR", tmp_path / ".aictx" / "failure_memory" / "failures")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_INDEX_PATH", tmp_path / ".aictx" / "failure_memory" / "index.json")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_STATUS_PATH", tmp_path / ".aictx" / "failure_memory" / "failure_memory_status.json")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_SUMMARY_PATH", tmp_path / ".aictx" / "failure_memory" / "summaries" / "common_patterns.md")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".aictx" / "task_memory")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_DIR", tmp_path / ".aictx" / "memory_graph")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_NODES_PATH", tmp_path / ".aictx" / "memory_graph" / "nodes" / "nodes.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_EDGES_PATH", tmp_path / ".aictx" / "memory_graph" / "edges" / "edges.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_STATUS_PATH", tmp_path / ".aictx" / "memory_graph" / "graph_status.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_LABEL_INDEX_PATH", tmp_path / ".aictx" / "memory_graph" / "indexes" / "by_label.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_TYPE_INDEX_PATH", tmp_path / ".aictx" / "memory_graph" / "indexes" / "by_type.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_RELATION_INDEX_PATH", tmp_path / ".aictx" / "memory_graph" / "indexes" / "by_relation.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_SNAPSHOT_PATH", tmp_path / ".aictx" / "memory_graph" / "snapshots" / "latest_graph_snapshot.json")
 
     rec = runtime_failure.record_failure(
         failure_id="build-regression",
@@ -1870,19 +2089,19 @@ def test_runtime_failure_module_record_and_rank(tmp_path: Path, monkeypatch):
 
 def test_runtime_graph_module_expand_after_refresh(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(core_runtime, "BASE", tmp_path)
-    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".ai_context_engine")
-    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".ai_context_engine" / "task_memory")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_DIR", tmp_path / ".ai_context_engine" / "failure_memory")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_INDEX_PATH", tmp_path / ".ai_context_engine" / "failure_memory" / "index.json")
-    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_RECORDS_DIR", tmp_path / ".ai_context_engine" / "failure_memory" / "failures")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_DIR", tmp_path / ".ai_context_engine" / "memory_graph")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_NODES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "nodes" / "nodes.jsonl")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_EDGES_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "edges" / "edges.jsonl")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_STATUS_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "graph_status.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_LABEL_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_label.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_TYPE_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_type.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_RELATION_INDEX_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "indexes" / "by_relation.json")
-    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_SNAPSHOT_PATH", tmp_path / ".ai_context_engine" / "memory_graph" / "snapshots" / "latest_graph_snapshot.json")
+    monkeypatch.setattr(core_runtime, "ENGINE_STATE_DIR", tmp_path / ".aictx")
+    monkeypatch.setattr(core_runtime, "TASK_MEMORY_DIR", tmp_path / ".aictx" / "task_memory")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_DIR", tmp_path / ".aictx" / "failure_memory")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_INDEX_PATH", tmp_path / ".aictx" / "failure_memory" / "index.json")
+    monkeypatch.setattr(core_runtime, "FAILURE_MEMORY_RECORDS_DIR", tmp_path / ".aictx" / "failure_memory" / "failures")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_DIR", tmp_path / ".aictx" / "memory_graph")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_NODES_PATH", tmp_path / ".aictx" / "memory_graph" / "nodes" / "nodes.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_EDGES_PATH", tmp_path / ".aictx" / "memory_graph" / "edges" / "edges.jsonl")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_STATUS_PATH", tmp_path / ".aictx" / "memory_graph" / "graph_status.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_LABEL_INDEX_PATH", tmp_path / ".aictx" / "memory_graph" / "indexes" / "by_label.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_TYPE_INDEX_PATH", tmp_path / ".aictx" / "memory_graph" / "indexes" / "by_type.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_RELATION_INDEX_PATH", tmp_path / ".aictx" / "memory_graph" / "indexes" / "by_relation.json")
+    monkeypatch.setattr(core_runtime, "MEMORY_GRAPH_SNAPSHOT_PATH", tmp_path / ".aictx" / "memory_graph" / "snapshots" / "latest_graph_snapshot.json")
 
     runtime_graph.build_memory_graph_artifacts([
         {
@@ -1964,9 +2183,9 @@ def test_global_health_check_marks_not_initialized_repo_as_warning(tmp_path: Pat
 
 def test_global_metrics_reads_legacy_iteration_only_repo(tmp_path: Path):
     repo = tmp_path / "repo"
-    (repo / ".ai_context_engine").mkdir(parents=True)
-    (repo / "AGENTS.md").write_text("ai_context_engine enabled\n", encoding="utf-8")
-    (repo / ".ai_context_engine" / "state.json").write_text(json.dumps({"installed_iteration": 9}), encoding="utf-8")
+    (repo / ".aictx").mkdir(parents=True)
+    (repo / "AGENTS.md").write_text("aictx enabled\n", encoding="utf-8")
+    (repo / ".aictx" / "state.json").write_text(json.dumps({"installed_iteration": 9}), encoding="utf-8")
 
     import aictx.global_metrics as global_metrics
 
@@ -1986,29 +2205,33 @@ def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
     extra_claude_hook = repo / ".claude" / "hooks" / "custom.py"
     extra_claude_hook.parent.mkdir(parents=True, exist_ok=True)
     extra_claude_hook.write_text("print('keep')\n", encoding="utf-8")
+    legacy_refresh_hook = repo / ".claude" / "hooks" / "aictx_refresh_memory_graph.sh"
+    legacy_refresh_hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
 
     payload = cli.clean_repo_and_unregister(repo)
 
-    assert not (repo / ".ai_context_engine").exists()
+    assert not (repo / ".aictx").exists()
     assert not (repo / "AGENTS.override.md").exists()
     assert not (repo / "CLAUDE.md").exists()
+    assert not legacy_refresh_hook.exists()
     assert extra_claude_hook.exists()
     assert 'AICTX:START' not in (repo / 'AGENTS.md').read_text(encoding='utf-8')
     assert 'User note.' in (repo / 'AGENTS.md').read_text(encoding='utf-8')
-    assert '.ai_context_engine/' not in (repo / '.gitignore').read_text(encoding='utf-8')
+    assert '.aictx/' not in (repo / '.gitignore').read_text(encoding='utf-8')
+    assert 'CLAUDE.md' not in (repo / '.gitignore').read_text(encoding='utf-8')
     settings_path = repo / '.claude' / 'settings.json'
     assert not settings_path.exists()
-    assert any(item.endswith('.ai_context_engine') for item in payload['removed'])
+    assert any(item.endswith('.aictx') for item in payload['removed'])
 
 
 def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path: Path, monkeypatch):
-    engine_home = tmp_path / '.ai_context_engine_home'
+    engine_home = tmp_path / '.aictx_home'
     codex_home = tmp_path / '.codex'
     monkeypatch.setattr('aictx.state.ENGINE_HOME', engine_home)
     monkeypatch.setattr('aictx.state.CONFIG_PATH', engine_home / 'config.json')
     monkeypatch.setattr('aictx.state.PROJECTS_REGISTRY_PATH', engine_home / 'projects_registry.json')
     monkeypatch.setattr('aictx.state.WORKSPACES_DIR', engine_home / 'workspaces')
-    monkeypatch.setattr('aictx.state.GLOBAL_METRICS_DIR', engine_home / '.ai_context_global_metrics')
+    monkeypatch.setattr('aictx.state.GLOBAL_METRICS_DIR', engine_home / '.aictx_global_metrics')
     monkeypatch.setattr('aictx.cleanup.ENGINE_HOME', engine_home)
     monkeypatch.setattr('aictx.cleanup.PROJECTS_REGISTRY_PATH', engine_home / 'projects_registry.json')
     monkeypatch.setattr('aictx.cleanup.WORKSPACES_DIR', engine_home / 'workspaces')
@@ -2041,8 +2264,9 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     payload = cli.uninstall_all()
 
     assert not engine_home.exists()
-    assert not (repo / '.ai_context_engine').exists()
+    assert not (repo / '.aictx').exists()
     assert user_file.exists()
+    assert not (codex_home / 'AICTX_Codex.md').exists()
     codex_override = codex_home / 'AGENTS.override.md'
     assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
     assert str(repo) in payload['repos_cleaned']

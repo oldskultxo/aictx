@@ -18,7 +18,7 @@ from .middleware import cli_finalize_execution, cli_prepare_execution
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
-from .scaffold import TEMPLATES_DIR, init_repo_scaffold
+from .scaffold import TEMPLATES_DIR, ensure_repo_user_preferences, init_repo_scaffold
 from .report import build_real_usage_report
 from .cleanup import clean_repo_and_unregister, uninstall_all
 from .strategy_memory import select_strategy
@@ -105,6 +105,7 @@ def ask_choice(prompt: str, options: list[tuple[str, str]], default: str) -> str
 
 
 def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
+    ensure_repo_user_preferences(repo)
     prefs_path = repo / REPO_MEMORY_DIR / "user_preferences.json"
     prefs = read_json(prefs_path, {})
     communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
@@ -231,6 +232,7 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
 
 
 def prepare_repo_runtime(repo: Path) -> list[str]:
+    ensure_repo_user_preferences(repo)
     prefs = read_json(repo / REPO_MEMORY_DIR / "user_preferences.json", {})
     communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
     layer = "enabled" if str(communication.get("layer", "")).strip() == "enabled" else "disabled"
@@ -240,8 +242,8 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
     state.update(
         {
             "version": 1,
-            "engine_id": "ai_context_engine",
-            "engine_name": "ai_context_engine",
+            "engine_id": "aictx",
+            "engine_name": "aictx",
             "agent_adapter": str(state.get("agent_adapter") or "generic"),
             "adapter_id": str(state.get("adapter_id") or "generic"),
             "adapter_family": str(state.get("adapter_family") or "multi_llm"),
@@ -258,10 +260,11 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
             "runner_native_integrations": {
                 "codex": {
                     "status": "native_hardened",
-                    "mechanism": "repo AGENTS.override.md; optional global ~/.codex integration via aictx install --install-codex-global",
-                    "project_file": "AGENTS.override.md",
+                    "mechanism": "repo AGENTS.md + optional global ~/.codex model instructions via aictx install --install-codex-global",
+                    "project_file": "AGENTS.md",
                     "optional_global_files": [
                         "~/.codex/AGENTS.override.md",
+                        "~/.codex/AICTX_Codex.md",
                         "~/.codex/config.toml",
                     ],
                 },
@@ -289,8 +292,8 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
                 "no_intermediate_output_by_default": True,
             },
             "shared_layers": {
-                "telemetry_dir": ".ai_context_engine/metrics",
-                "strategy_memory_dir": ".ai_context_engine/strategy_memory",
+                "telemetry_dir": ".aictx/metrics",
+                "strategy_memory_dir": ".aictx/strategy_memory",
             },
             "supports": {
                 "always_on_middleware": True,
@@ -351,7 +354,11 @@ def cmd_install(args: argparse.Namespace) -> int:
             workspace_path(workspace_id),
         ]
         if install_codex_global:
-            planned.extend([Path.home() / ".codex" / "AGENTS.override.md", Path.home() / ".codex" / "config.toml"])
+            planned.extend([
+                Path.home() / ".codex" / "AGENTS.override.md",
+                Path.home() / ".codex" / "AICTX_Codex.md",
+                Path.home() / ".codex" / "config.toml",
+            ])
         print("Dry run. Would create/update:")
         for path in planned:
             print(f"- {path}")
@@ -562,7 +569,7 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     install.set_defaults(func=cmd_install)
 
-    init = sub.add_parser("init", help="Initialize repo-local .ai_context_* scaffold")
+    init = sub.add_parser("init", help="Initialize repo-local .aictx_* scaffold")
     init.add_argument("--repo", default=".", help="Repository path")
     init.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     init.add_argument("--no-gitignore", action="store_true", help="Do not modify .gitignore")

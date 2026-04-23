@@ -41,7 +41,7 @@ def ensure_task_memory_artifacts() -> None:
         '- Resolution order: explicit task type -> packet/runtime metadata -> heuristic task inference -> `unknown`.\n'
         '- Stable canonical task types: `bug_fixing`, `refactoring`, `testing`, `performance`, `architecture`, `feature_work`, `unknown`.\n'
         '- Alias task types remain supported in read/normalization only and are not written as standalone derived buckets.\n'
-        '- Existing markdown notes remain canonical; `.ai_context_engine/task_memory/` is derived from them.\n'
+        '- Existing markdown notes remain canonical; `.aictx/task_memory/` is derived from them.\n'
         '- Retrieval prefers the resolved task bucket first, then `unknown`, then deterministic fallback matches only when needed.\n'
         '- Ambiguous notes stay in `unknown` rather than being force-migrated.\n',
     )

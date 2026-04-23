@@ -1,8 +1,8 @@
-# Extraction roadmap from `ai_context_engine` to `aictx`
+# Extraction roadmap from `aictx` to `aictx`
 
 ## Goal
 
-Move the distributable installer, repo scaffold, and multi-LLM bootstrap contract into `aictx`, while leaving the canonical note corpus and current runtime evolution inside `ai_context_engine` until each subsystem is ported.
+Move the distributable installer, repo scaffold, and multi-LLM bootstrap contract into `aictx`, while leaving the canonical note corpus and current runtime evolution inside `aictx` until each subsystem is ported.
 
 ## Already extracted
 
@@ -12,7 +12,7 @@ Move the distributable installer, repo scaffold, and multi-LLM bootstrap contrac
   - `context_packet_schema.json`
   - `user_preferences.json`
   - `model_routing.json`
-- repo-local `.ai_context_*` contract generation
+- repo-local `.aictx_*` contract generation
 - native runner integration provisioning for Codex and Claude Code
 - wrapped execution entrypoint for generic automation
 
@@ -31,6 +31,6 @@ Move the distributable installer, repo scaffold, and multi-LLM bootstrap contrac
 
 - `aictx` owns distributable runtime, installer UX, and bundled templates.
 - `aictx` human-facing product surface should remain `install + init`.
-- `ai_context_engine` remains the current canonical lab/runtime until a slice is fully ported.
+- `aictx` remains the current canonical lab/runtime until a slice is fully ported.
 - no absolute machine paths in bundled templates.
 - no LLM-created filesystem artifacts; all scaffolding remains script-owned.

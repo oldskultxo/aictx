@@ -164,7 +164,7 @@ def load_bootstrap_sources(repo_root: Path) -> dict[str, Any]:
                 "version": 1,
                 "project": repo_root.name,
                 "repo_root": str(repo_root),
-                "engine_name": "ai_context_engine",
+                "engine_name": "aictx",
                 "bootstrap_required": True,
             },
         ),
@@ -181,7 +181,7 @@ def load_bootstrap_sources(repo_root: Path) -> dict[str, Any]:
                 "version": 1,
                 "project": repo_root.name,
                 "repo_root": str(repo_root),
-                "engine_name": "ai_context_engine",
+                "engine_name": "aictx",
             },
         ),
     }

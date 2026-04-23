@@ -30,12 +30,14 @@ aictx internal execution finalize \
   --result-summary "first run"
 ```
 
+The finalize output includes `agent_summary_text`; agents must append that summary to the final user response.
+
 Inspect artifacts:
 
 ```bash
-cat .ai_context_engine/metrics/execution_logs.jsonl
-cat .ai_context_engine/metrics/execution_feedback.jsonl
-cat .ai_context_engine/strategy_memory/strategies.jsonl
+cat .aictx/metrics/execution_logs.jsonl
+cat .aictx/metrics/execution_feedback.jsonl
+cat .aictx/strategy_memory/strategies.jsonl
 ```
 
 ## 3. Second execution
@@ -60,7 +62,20 @@ aictx internal execution finalize \
   --result-summary "second run"
 ```
 
-## 4. Report real usage
+## 4. Wrapped execution helper
+
+For wrapped automations, `run-execution` performs prepare + command + finalize. Without `--json`, it prints command output plus the AICTX summary:
+
+```bash
+aictx internal run-execution \
+  --repo . \
+  --request "run tests" \
+  --agent-id demo \
+  --validated-learning \
+  -- python -m pytest -q
+```
+
+## 5. Report real usage
 
 ```bash
 aictx report real-usage --repo .
@@ -73,7 +88,7 @@ This demo proves:
 - output comes from stored logs, feedback and strategy memory only
 
 
-## 5. Cleanup
+## 6. Cleanup
 
 ```bash
 aictx clean --repo .

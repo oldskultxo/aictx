@@ -79,13 +79,13 @@ The rest of the public commands are optional operational commands:
 
 ## What aictx does
 
-* records real execution in `.ai_context_engine/metrics/execution_logs.jsonl`
-* writes operational feedback in `.ai_context_engine/metrics/execution_feedback.jsonl`
-* stores successful and failed strategies in `.ai_context_engine/strategy_memory/strategies.jsonl`
+* records real execution in `.aictx/metrics/execution_logs.jsonl`
+* writes operational feedback in `.aictx/metrics/execution_feedback.jsonl`
+* stores successful and failed strategies in `.aictx/strategy_memory/strategies.jsonl`
 * captures available files, commands, tests, and errors with provenance instead of inventing data
 * stores repo-local failure patterns and area memory for later debugging/context
 * reuses only successful strategies during later executions
-* returns a concise `agent_summary` after finalize so runners can show AICTX value to users
+* returns `agent_summary` and `agent_summary_text` after finalize; agents must append `agent_summary_text` to final user responses for non-trivial tasks
 * exposes small JSON commands for runtime guidance
 
 ---
@@ -93,8 +93,8 @@ The rest of the public commands are optional operational commands:
 ## What AICTX modifies
 
 Repo-local:
-- `.ai_context_engine/`
-- AICTX-managed blocks in `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md`
+- `.aictx/`
+- AICTX-managed blocks in `AGENTS.md` and `CLAUDE.md`
 - `.claude/settings.json` merged AICTX hook entries
 - `.claude/hooks/aictx_*.py`
 - `.gitignore` entries for AICTX runtime paths
@@ -110,7 +110,7 @@ Global Codex files are only updated when `--install-codex-global` is passed.
 ## Idempotency guarantees
 
 - `aictx init` is non-destructive for existing AICTX execution logs and strategy memory
-- existing `.ai_context_engine/metrics/*.jsonl` and `.ai_context_engine/strategy_memory/*.jsonl` files are preserved
+- existing `.aictx/metrics/*.jsonl` and `.aictx/strategy_memory/*.jsonl` files are preserved
 - `.claude/settings.json` is merged, not overwritten
 - AICTX-managed Markdown blocks and hooks are idempotent
 - `aictx init` does not delete legacy non-AICTX paths
@@ -144,15 +144,16 @@ It makes past executions observable and reusable.
 
 1. `prepare_execution()` loads prior successful strategies and may attach `execution_hint`
 2. the agent executes
-3. `finalize_execution()` records logs, feedback, and strategy memory
-4. the next execution can reuse successful strategies and ignore failed ones
+3. `finalize_execution()` records logs, feedback, strategy memory, and `agent_summary_text`
+4. the agent appends `agent_summary_text` to the final user response; if unavailable, it says `AICTX summary unavailable`
+5. the next execution can reuse successful strategies and ignore failed ones
 
 ---
 
 ## Main runtime artifacts
 
 ```text
-.ai_context_engine/
+.aictx/
   metrics/
     execution_logs.jsonl
     execution_feedback.jsonl
@@ -166,14 +167,14 @@ It makes past executions observable and reusable.
 
 * repo-local artifacts are the source of truth; execution history and strategy memory stay inspectable inside the repository
 * failed strategies are stored, but they are excluded from reuse by default
-* public command outputs are deterministic and machine-readable JSON
+* public operational command outputs are deterministic and machine-readable JSON; internal `run-execution` without `--json` also prints the user-facing AICTX summary
 * AICTX-managed changes can be removed cleanly with `aictx clean` and `aictx uninstall`
 
 ---
 
 ## Notes
 
-* file tracking depends on explicit input from the agent/runtime
+* file tracking depends on explicit input from the agent/runtime; wrapped execution can capture commands, tests, errors, and edited files best-effort
 * strategy reuse is heuristic: matching task type, prompt similarity, overlapping files, primary entry point, commands/tests/errors, and area are preferred, with recency as a secondary signal
 * task typing uses explicit metadata first, then deterministic keyword/path inference, then `unknown`
 * capture provenance distinguishes explicit, runtime-observed, heuristic, and unknown signals
@@ -185,8 +186,8 @@ It makes past executions observable and reusable.
 
 ## Cleanup
 
-* `aictx clean` removes only AICTX-managed content from the current repository: the `.ai_context_engine/` scaffold, AICTX blocks in `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`, AICTX Claude hooks/settings, and the `.gitignore` entry added by AICTX
-* `aictx uninstall` removes AICTX-managed content from all registered repositories and removes global AICTX state under `~/.ai_context_engine`, plus AICTX-managed Codex global instructions/config lines
+* `aictx clean` removes only AICTX-managed content from the current repository: the `.aictx/` scaffold, AICTX blocks in `AGENTS.md` / `CLAUDE.md`, legacy AICTX content in `AGENTS.override.md` when present, AICTX Claude hooks/settings, and the `.gitignore` entry added by AICTX
+* `aictx uninstall` removes AICTX-managed content from all registered repositories and removes global AICTX state under `~/.aictx`, plus AICTX-managed Codex global instructions/config lines
 * both commands are conservative: they only remove content that AICTX created or marked as AICTX-managed
 
 ---
@@ -198,7 +199,7 @@ The current v1 keeps strategy memory intentionally simple.
 Possible future work, based on real usage:
 
 * better file access capture from agent/runtime integrations
-* more precise strategy matching beyond task type
+* broader runner-native signal capture where supported
 * clearer comparison across repeated task categories
 * stronger runner-native automation where supported
 * richer repo-level reporting built only from real execution history

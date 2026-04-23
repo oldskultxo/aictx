@@ -11,7 +11,7 @@
 - richer explainable strategy ranking
 - repo-local failure memory with resolution linkage
 - deterministic repo-area memory
-- `agent_summary` and `agent_summary_text` in finalize output
+- `agent_summary` and `agent_summary_text` in finalize output; current runtime instructions require agents to append `agent_summary_text` to final user responses
 - extended `report real-usage` capture, failure, area, and hygiene fields
 
 No release publishing is implied by this metadata update.
@@ -24,6 +24,7 @@ No release publishing is implied by this metadata update.
 
 - `aictx install` no longer modifies global Codex configuration by default.
 - Use `aictx install --install-codex-global` to update `~/.codex/AGENTS.override.md` and `~/.codex/config.toml`.
+- `aictx init` now consolidates repo-local Codex guidance into `AGENTS.md`; it no longer creates `AGENTS.override.md` for new repos.
 - `aictx init` no longer performs legacy ad hoc migration/deletion of old memory directories.
 
 ### Re-running init
