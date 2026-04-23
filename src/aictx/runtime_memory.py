@@ -244,7 +244,7 @@ def rebuild_memory_store() -> dict[str, Any]:
     adapter_contract = cr.default_adapter_contract()
     boot_summary_payload = {
         'version': 1,
-        'engine_name': 'ai_context_engine',
+        'engine_name': 'aictx',
         **adapter_contract,
         'default_behavior': {
             'memory_first': True,
@@ -309,7 +309,7 @@ def rebuild_memory_store() -> dict[str, Any]:
     )
     append_if_missing(
         cr.LOGS_MAINTENANCE_PATH,
-        f"- {date.today().isoformat()} | rebuilt store/indexes/boot artifacts from current ai_context_engine notes and preferences.\n",
+        f"- {date.today().isoformat()} | rebuilt store/indexes/boot artifacts from current aictx notes and preferences.\n",
     )
     cr.write_json(
         cr.ROOT_COMPACTION_REPORT_PATH,

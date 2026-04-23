@@ -61,9 +61,9 @@ The agent then executes normally.
 The main real-data files are:
 
 ```text
-.ai_context_engine/metrics/execution_logs.jsonl
-.ai_context_engine/metrics/execution_feedback.jsonl
-.ai_context_engine/strategy_memory/strategies.jsonl
+.aictx/metrics/execution_logs.jsonl
+.aictx/metrics/execution_feedback.jsonl
+.aictx/strategy_memory/strategies.jsonl
 ```
 
 ### Execution logs
@@ -144,7 +144,7 @@ Repo guidance is written into:
 
 - `AGENTS.md`
 - `AGENTS.override.md`
-- `.ai_context_engine/agent_runtime.md`
+- `.aictx/agent_runtime.md`
 
 ### Claude
 

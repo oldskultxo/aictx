@@ -31,7 +31,7 @@
   "workflow": {
     "result_delivery_mode": "final_only",
     "default_response_style": "concise",
-    "memory_system": "ai_context_standard"
+    "memory_system": "aictx_standard"
   },
   "quality_gates": {
     "run_tests": "auto",

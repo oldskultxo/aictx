@@ -3,7 +3,7 @@
   "lookup_order": ["projects", "common"],
   "projects": {
     "aictx": {
-      "summary": "Distributable multi-LLM installer and runtime for eager .ai_context scaffolding.",
+      "summary": "Distributable multi-LLM installer and runtime for eager .aictx scaffolding.",
       "subprojects": {
         "shared": [
           "projects/aictx/decisions.md",

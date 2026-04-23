@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-ENGINE_HOME = Path.home() / ".ai_context_engine"
+ENGINE_HOME = Path.home() / ".aictx"
 CONFIG_PATH = ENGINE_HOME / "config.json"
 PROJECTS_REGISTRY_PATH = ENGINE_HOME / "projects_registry.json"
 WORKSPACES_DIR = ENGINE_HOME / "workspaces"
-GLOBAL_METRICS_DIR = ENGINE_HOME / ".ai_context_global_metrics"
+GLOBAL_METRICS_DIR = ENGINE_HOME / ".aictx_global_metrics"
 
-REPO_ENGINE_DIR = ".ai_context_engine"
-REPO_COMPAT_DIR = ".ai_context_engine/memory"
+REPO_ENGINE_DIR = ".aictx"
+REPO_COMPAT_DIR = ".aictx/memory"
 REPO_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "memory"
 REPO_COST_DIR = Path(REPO_ENGINE_DIR) / "cost"
 REPO_TASK_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "task_memory"
@@ -25,12 +25,12 @@ REPO_METRICS_DIR = Path(REPO_ENGINE_DIR) / "metrics"
 REPO_ADAPTERS_DIR = Path(REPO_ENGINE_DIR) / "adapters"
 REPO_STATE_PATH = Path(REPO_ENGINE_DIR) / "state.json"
 LEGACY_REPO_DIRS = [
-    ".ai_context_memory",
-    ".ai_context_cost",
-    ".ai_context_task_memory",
-    ".ai_context_failure_memory",
-    ".ai_context_memory_graph",
-    ".ai_context_library",
+    ".aictx_memory",
+    ".aictx_cost",
+    ".aictx_task_memory",
+    ".aictx_failure_memory",
+    ".aictx_memory_graph",
+    ".aictx_library",
     ".context_metrics",
 ]
 

@@ -22,7 +22,7 @@ def ensure_repo_compat_readme(compat_dir: Path) -> None:
     readme = compat_dir / 'README.md'
     if not readme.exists():
         readme.write_text(
-            '# .ai_context_engine/memory\n\n'
+            '# .aictx/memory\n\n'
             'Generated compatibility bootstrap layer for repo-local agent startup.\n\n'
             '- Canonical runtime state lives under sibling subsystem directories.\n'
             '- This directory is intentionally minimal and bootstrap-focused.\n',
@@ -48,7 +48,7 @@ def sync_repo_compat_layers(*, project_rows: dict[str, list[dict[str, Any]]], gl
             'generated_at': date.today().isoformat(),
             'project': project,
             'repo_root': repo_root.as_posix(),
-            'engine_name': 'ai_context_engine',
+            'engine_name': 'aictx',
             **adapter_contract,
             'summary': project_info.get('summary', ''),
             'lookup_order': project_registry.get('lookup_order', []),
@@ -62,7 +62,7 @@ def sync_repo_compat_layers(*, project_rows: dict[str, list[dict[str, Any]]], gl
             'generated_at': date.today().isoformat(),
             'project': project,
             'repo_root': repo_root.as_posix(),
-            'engine_name': boot_summary_payload.get('engine_name', 'ai_context_engine'),
+            'engine_name': boot_summary_payload.get('engine_name', 'aictx'),
             'agent_adapter': boot_summary_payload.get('agent_adapter', cr.DEFAULT_AGENT_ADAPTER),
             'adapter_id': boot_summary_payload.get('adapter_id', cr.DEFAULT_ADAPTER_ID),
             'adapter_family': boot_summary_payload.get('adapter_family', cr.DEFAULT_ADAPTER_FAMILY),
@@ -73,10 +73,10 @@ def sync_repo_compat_layers(*, project_rows: dict[str, list[dict[str, Any]]], gl
                 f'load {cr.REPO_COMPAT_DIRNAME}/derived_boot_summary.json',
                 f'load {cr.REPO_COMPAT_DIRNAME}/user_preferences.json',
                 f'load {cr.REPO_COMPAT_DIRNAME}/project_bootstrap.json',
-                'load smallest relevant project note from canonical ai_context_engine',
+                'load smallest relevant project note from canonical aictx',
                 'apply preferences as runtime defaults',
             ],
-            'fallback_order': [cr.REPO_COMPAT_DIRNAME, 'ai_context_engine', 'normal_repo_analysis'],
+            'fallback_order': [cr.REPO_COMPAT_DIRNAME, 'aictx', 'normal_repo_analysis'],
             'preference_precedence': boot_summary_payload.get('preference_precedence', []),
             'default_behavior': boot_summary_payload.get('default_behavior', {}),
             'preferred_output_patterns': boot_summary_payload.get('preferred_output_patterns', []),
@@ -90,11 +90,11 @@ def sync_repo_compat_layers(*, project_rows: dict[str, list[dict[str, Any]]], gl
             'generated_at': date.today().isoformat(),
             'mode': 'bootstrap_compat_minimal',
             'canonical_runtime_roots': {
-                'cost': '.ai_context_engine/cost',
-                'task_memory': '.ai_context_engine/task_memory',
-                'failure_memory': '.ai_context_engine/failure_memory',
-                'memory_graph': '.ai_context_engine/memory_graph',
-                'metrics': '.ai_context_engine/metrics',
+                'cost': '.aictx/cost',
+                'task_memory': '.aictx/task_memory',
+                'failure_memory': '.aictx/failure_memory',
+                'memory_graph': '.aictx/memory_graph',
+                'metrics': '.aictx/metrics',
             },
             'artifacts': compat_artifacts_manifest(),
         }

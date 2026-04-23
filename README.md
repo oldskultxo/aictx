@@ -79,9 +79,9 @@ The rest of the public commands are optional operational commands:
 
 ## What aictx does
 
-* records real execution in `.ai_context_engine/metrics/execution_logs.jsonl`
-* writes operational feedback in `.ai_context_engine/metrics/execution_feedback.jsonl`
-* stores successful and failed strategies in `.ai_context_engine/strategy_memory/strategies.jsonl`
+* records real execution in `.aictx/metrics/execution_logs.jsonl`
+* writes operational feedback in `.aictx/metrics/execution_feedback.jsonl`
+* stores successful and failed strategies in `.aictx/strategy_memory/strategies.jsonl`
 * captures available files, commands, tests, and errors with provenance instead of inventing data
 * stores repo-local failure patterns and area memory for later debugging/context
 * reuses only successful strategies during later executions
@@ -93,7 +93,7 @@ The rest of the public commands are optional operational commands:
 ## What AICTX modifies
 
 Repo-local:
-- `.ai_context_engine/`
+- `.aictx/`
 - AICTX-managed blocks in `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md`
 - `.claude/settings.json` merged AICTX hook entries
 - `.claude/hooks/aictx_*.py`
@@ -110,7 +110,7 @@ Global Codex files are only updated when `--install-codex-global` is passed.
 ## Idempotency guarantees
 
 - `aictx init` is non-destructive for existing AICTX execution logs and strategy memory
-- existing `.ai_context_engine/metrics/*.jsonl` and `.ai_context_engine/strategy_memory/*.jsonl` files are preserved
+- existing `.aictx/metrics/*.jsonl` and `.aictx/strategy_memory/*.jsonl` files are preserved
 - `.claude/settings.json` is merged, not overwritten
 - AICTX-managed Markdown blocks and hooks are idempotent
 - `aictx init` does not delete legacy non-AICTX paths
@@ -153,7 +153,7 @@ It makes past executions observable and reusable.
 ## Main runtime artifacts
 
 ```text
-.ai_context_engine/
+.aictx/
   metrics/
     execution_logs.jsonl
     execution_feedback.jsonl
@@ -186,8 +186,8 @@ It makes past executions observable and reusable.
 
 ## Cleanup
 
-* `aictx clean` removes only AICTX-managed content from the current repository: the `.ai_context_engine/` scaffold, AICTX blocks in `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`, AICTX Claude hooks/settings, and the `.gitignore` entry added by AICTX
-* `aictx uninstall` removes AICTX-managed content from all registered repositories and removes global AICTX state under `~/.ai_context_engine`, plus AICTX-managed Codex global instructions/config lines
+* `aictx clean` removes only AICTX-managed content from the current repository: the `.aictx/` scaffold, AICTX blocks in `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`, AICTX Claude hooks/settings, and the `.gitignore` entry added by AICTX
+* `aictx uninstall` removes AICTX-managed content from all registered repositories and removes global AICTX state under `~/.aictx`, plus AICTX-managed Codex global instructions/config lines
 * both commands are conservative: they only remove content that AICTX created or marked as AICTX-managed
 
 ---

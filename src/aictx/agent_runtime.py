@@ -11,7 +11,7 @@ AGENTS_START = "<!-- AICTX:START -->"
 AGENTS_END = "<!-- AICTX:END -->"
 GLOBAL_RUNTIME_PATH = ENGINE_HOME / "agent_runtime.md"
 GLOBAL_RUNTIME_MANIFEST_PATH = ENGINE_HOME / "agent_runtime_manifest.json"
-LOCAL_RUNTIME_PATH = Path('.ai_context_engine') / 'agent_runtime.md'
+LOCAL_RUNTIME_PATH = Path('.aictx') / 'agent_runtime.md'
 
 
 def orchestrate_execution_prepare(payload: dict[str, Any]) -> dict[str, Any]:
@@ -38,9 +38,9 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Execution middleware
 - Enter the runtime for every execution in initialized repos.
-- Read `.ai_context_engine/metrics/execution_logs.jsonl` for real execution history.
-- Read `.ai_context_engine/metrics/execution_feedback.jsonl` for real feedback.
-- Read `.ai_context_engine/strategy_memory/strategies.jsonl` for reusable successful patterns.
+- Read `.aictx/metrics/execution_logs.jsonl` for real execution history.
+- Read `.aictx/metrics/execution_feedback.jsonl` for real feedback.
+- Read `.aictx/strategy_memory/strategies.jsonl` for reusable successful patterns.
 - Report missing data as `unknown` instead of inventing values.
 - Final responses for non-trivial tasks must include the AICTX summary from finalize.
 
@@ -56,9 +56,9 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Explicit current-user instruction overrides persisted defaults.
 
 ## Sources of truth
-- `.ai_context_engine/metrics/execution_logs.jsonl`
-- `.ai_context_engine/metrics/execution_feedback.jsonl`
-- `.ai_context_engine/strategy_memory/strategies.jsonl`
+- `.aictx/metrics/execution_logs.jsonl`
+- `.aictx/metrics/execution_feedback.jsonl`
+- `.aictx/strategy_memory/strategies.jsonl`
 """
 
 
@@ -73,14 +73,14 @@ Agent rules:
 - After finalize, append `agent_summary_text` verbatim to the final user response.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - Use repo-local execution history and strategy memory before deeper repo analysis.
-- Do not hand-edit generated `.ai_context_*` artifacts.
+- Do not hand-edit generated `.aictx_*` artifacts.
 - Before opening more than 3 files: run `aictx suggest --repo .`
 - If you reopen the same file: run `aictx reflect --repo .`
 - If the task seems similar to a previous one: run `aictx reuse --repo .`
 - If you are unsure about the next step: run `aictx suggest --repo .`
 
 Detailed runtime instructions:
-- `.ai_context_engine/agent_runtime.md`
+- `.aictx/agent_runtime.md`
 {AGENTS_END}
 """
 
@@ -90,7 +90,7 @@ def render_workspace_agents_block() -> str:
 ## AI Context Engine Workspace
 
 Workspace rules:
-- Repositories initialized with `aictx` may expose `.ai_context_*` artifacts.
+- Repositories initialized with `aictx` may expose `.aictx_*` artifacts.
 - Prefer repo-local execution history first.
 - Cross-project reporting must use registered workspace repos or roots.
 {AGENTS_END}

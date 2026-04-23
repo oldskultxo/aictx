@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "tasks_sampled": 1,
+  "repeated_tasks": 0,
+  "last_execution_id": "ignore-delta-20260423",
+  "last_execution_success": true,
+  "last_execution_time_ms": 474,
+  "value_evidence": {
+    "last_task_fingerprint": "aictx_maintenance_ignore_delta_and_remove_it_from_version_control",
+    "last_execution_time_ms": 474,
+    "last_used_packet": false,
+    "files_opened": [
+      ".gitignore",
+      "src/aictx/core_runtime.py"
+    ],
+    "files_edited": [
+      ".gitignore"
+    ],
+    "files_reopened": [],
+    "commands_executed": [
+      "git ls-files delta",
+      "git rm --cached -r -- delta",
+      "git status --short delta .gitignore"
+    ],
+    "tests_executed": [],
+    "repeated_tasks_observed": 0
+  }
+}

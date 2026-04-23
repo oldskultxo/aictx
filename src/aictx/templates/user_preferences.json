@@ -64,7 +64,7 @@
     "default_response_style": "concise",
     "build_command": "make build",
     "autonomy_mode": "yolo",
-    "memory_system": "ai_context_standard"
+    "memory_system": "aictx_standard"
   },
   "quality_gates": {
     "run_tests": "auto",

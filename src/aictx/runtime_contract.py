@@ -5,7 +5,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-REPO_ENGINE_DIR = Path('.ai_context_engine')
+REPO_ENGINE_DIR = Path('.aictx')
 REPO_MEMORY_DIR = REPO_ENGINE_DIR / 'memory'
 REPO_STATE_PATH = REPO_ENGINE_DIR / 'state.json'
 DEFAULT_GLOBAL_PREFERENCES_PATH = Path(__file__).resolve().parents[2] / 'user_preferences.json'

@@ -35,9 +35,9 @@ The finalize output includes `agent_summary_text`; agents must append that summa
 Inspect artifacts:
 
 ```bash
-cat .ai_context_engine/metrics/execution_logs.jsonl
-cat .ai_context_engine/metrics/execution_feedback.jsonl
-cat .ai_context_engine/strategy_memory/strategies.jsonl
+cat .aictx/metrics/execution_logs.jsonl
+cat .aictx/metrics/execution_feedback.jsonl
+cat .aictx/strategy_memory/strategies.jsonl
 ```
 
 ## 3. Second execution

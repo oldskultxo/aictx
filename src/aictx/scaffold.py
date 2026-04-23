@@ -31,8 +31,8 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
     write_json(
         repo / REPO_STATE_PATH,
         {
-            "engine_id": "ai_context_engine",
-            "engine_name": "ai_context_engine",
+            "engine_id": "aictx",
+            "engine_name": "aictx",
             "adapter_id": "generic",
             "adapter_family": "multi_llm",
             "provider_capabilities": ["chat_completion", "tool_use", "structured_output", "long_context"],
@@ -45,7 +45,7 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         strategy_dir / "strategies.jsonl",
         metrics_dir / "execution_logs.jsonl",
         metrics_dir / "execution_feedback.jsonl",
-        repo / ".ai_context_engine" / "failure_memory" / "failure_patterns.jsonl",
+        repo / ".aictx" / "failure_memory" / "failure_patterns.jsonl",
     ]:
         if ensure_file(path):
             created.append(str(path))
@@ -59,7 +59,7 @@ def ensure_gitignore(repo: Path) -> None:
     path = repo / ".gitignore"
     desired = [
         ".DS_Store",
-        ".ai_context_engine/",
+        ".aictx/",
     ]
     existing = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
     merged = list(existing)

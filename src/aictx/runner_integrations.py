@@ -25,9 +25,9 @@ def render_codex_home_block() -> str:
 
 When Codex is running inside a repository initialized with `aictx`:
 - prefer repo-local execution history and strategy memory before broad repo scanning
-- read repo-local `AGENTS.override.md`, `AGENTS.md`, and `.ai_context_engine/agent_runtime.md` when present
+- read repo-local `AGENTS.override.md`, `AGENTS.md`, and `.aictx/agent_runtime.md` when present
 - treat `CLAUDE.md` as an additional high-signal project instruction file when available
-- do not hand-edit generated `.ai_context_engine/*` artifacts
+- do not hand-edit generated `.aictx/*` artifacts
 - if the repository exposes `aictx internal run-execution`, treat it as the preferred middleware entrypoint for wrapped automations
 - final responses for non-trivial tasks must include the AICTX `agent_summary_text` from finalize; if unavailable, say `AICTX summary unavailable`
 {AICTX_END}
@@ -38,11 +38,11 @@ def render_codex_repo_override_block() -> str:
     return f"""{AICTX_START}
 ## AICTX repo-native Codex instructions
 
-- This repository is initialized with `aictx`; prefer `.ai_context_engine/` as the first runtime layer.
-- Read `.ai_context_engine/agent_runtime.md` before deep repo analysis when the task is non-trivial.
+- This repository is initialized with `aictx`; prefer `.aictx/` as the first runtime layer.
+- Read `.aictx/agent_runtime.md` before deep repo analysis when the task is non-trivial.
 - Read `CLAUDE.md` too when it exists; it is part of the repo-level AICTX runtime contract.
-- Use `.ai_context_engine/metrics/` and `.ai_context_engine/strategy_memory/` as the source of truth.
-- Do not hand-edit generated `.ai_context_engine/*` artifacts.
+- Use `.aictx/metrics/` and `.aictx/strategy_memory/` as the source of truth.
+- Do not hand-edit generated `.aictx/*` artifacts.
 - Do not recreate parallel memory folders.
 - When running wrapped automations, prefer `aictx internal run-execution` as the middleware entrypoint.
 - Persist learnings through the engine flow rather than inventing parallel memory files.
@@ -144,8 +144,8 @@ import json
 
 summary = [
     "AICTX runtime loaded for this Claude session.",
-    "Prefer .ai_context_engine/metrics/execution_logs.jsonl as real execution history.",
-    "Prefer .ai_context_engine/strategy_memory/strategies.jsonl for reusable patterns.",
+    "Prefer .aictx/metrics/execution_logs.jsonl as real execution history.",
+    "Prefer .aictx/strategy_memory/strategies.jsonl for reusable patterns.",
     "Use aictx suggest/reuse/reflect when needed.",
 ]
 
@@ -222,15 +222,15 @@ from pathlib import Path
 
 
 GENERATED_PREFIXES = [
-    ".ai_context_engine/",
+    ".aictx/",
 ]
 LEGACY_MEMORY_DIRS = {
-    ".ai_context_memory",
-    ".ai_context_cost",
-    ".ai_context_task_memory",
-    ".ai_context_failure_memory",
-    ".ai_context_memory_graph",
-    ".ai_context_library",
+    ".aictx_memory",
+    ".aictx_cost",
+    ".aictx_task_memory",
+    ".aictx_failure_memory",
+    ".aictx_memory_graph",
+    ".aictx_library",
     ".context_metrics",
 }
 WRITE_TOOL_NAMES = {"Write", "Edit", "MultiEdit"}
@@ -276,7 +276,7 @@ if tool_name == "Bash":
     command = str(tool_input.get("command") or "")
     lowered = command.lower()
     risky_tokens = ["rm ", "mv ", "cp ", "sed ", "perl ", "python ", "python3 ", "cat >", "> ", ">> ", "tee "]
-    mentions_generated = ".ai_context_engine/" in command or any(name in command for name in LEGACY_MEMORY_DIRS)
+    mentions_generated = ".aictx/" in command or any(name in command for name in LEGACY_MEMORY_DIRS)
     if mentions_generated and any(token in lowered for token in risky_tokens):
         deny(
             "AICTX policy: do not mutate generated runtime artifacts or legacy memory folders from Bash. "

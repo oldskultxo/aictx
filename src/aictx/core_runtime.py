@@ -32,7 +32,7 @@ DELTA_DIR = BASE / "delta"
 LAST_PACKETS_DIR = DELTA_DIR / "last_packets"
 MIGRATION_DIR = BASE / "migration"
 LOGS_DIR = BASE / "logs"
-ENGINE_STATE_DIR = BASE / ".ai_context_engine"
+ENGINE_STATE_DIR = BASE / ".aictx"
 COST_DIR = ENGINE_STATE_DIR / "cost"
 TASK_MEMORY_DIR = ENGINE_STATE_DIR / "task_memory"
 FAILURE_MEMORY_DIR = ENGINE_STATE_DIR / "failure_memory"
@@ -67,7 +67,7 @@ MIGRATION_REPORT_PATH = MIGRATION_DIR / "legacy_memory_migration_report.md"
 MIGRATION_IMPORT_MAP_PATH = MIGRATION_DIR / "legacy_memory_import_map.json"
 LOGS_CHANGE_JOURNAL_PATH = LOGS_DIR / "change_journal.md"
 LOGS_MAINTENANCE_PATH = LOGS_DIR / "maintenance_log.md"
-REPO_COMPAT_DIRNAME = ".ai_context_engine/memory"
+REPO_COMPAT_DIRNAME = ".aictx/memory"
 ROOT_COMPACTION_REPORT_PATH = BASE / "compaction_report.json"
 COST_CONFIG_PATH = COST_DIR / "optimizer_config.yaml"
 COST_RULES_PATH = COST_DIR / "cost_estimation_rules.md"
@@ -452,7 +452,7 @@ def note_paths() -> list[Path]:
     paths = []
     for path in sorted(BASE.rglob("*.md")):
         rel = path.relative_to(BASE).as_posix()
-        if rel.startswith(".ai_context_"):
+        if rel.startswith(".aictx_"):
             continue
         if rel.startswith("metrics/"):
             continue
@@ -754,7 +754,7 @@ def note_to_record(note: NoteInfo) -> dict[str, Any]:
         "priority": note.meta.get("priority", "reference"),
         "confidence": note.meta.get("confidence", "medium"),
         "last_verified": note.meta.get("last_verified", date.today().isoformat()),
-        "source": "migrated_from_ai_context_engine_note",
+        "source": "migrated_from_aictx_note",
         "summary": summary,
         "sections": sections,
         "relevance_score": 0.75 if note.record_type in {"architecture_decision", "workflow_rule", "validation_recipe"} else 0.65,
@@ -1280,8 +1280,8 @@ def ensure_library_artifacts() -> None:
     if not readme.exists():
         write_text(
             readme,
-            "# .ai_context_engine/library\n\n"
-            "Local knowledge library for ai_context_engine.\n\n"
+            "# .aictx/library\n\n"
+            "Local knowledge library for aictx.\n\n"
             "- `mods/` contains domain workspaces.\n"
             "- `inbox/` is the raw drop zone.\n"
             "- `notes/`, `summaries/`, `indices/`, and `manifests/` are derived artifacts.\n",
@@ -1463,8 +1463,8 @@ def ensure_engine_state() -> None:
         write_json(
             ENGINE_STATE_PATH,
             {
-                "engine_id": "ai_context_engine",
-                "engine_name": "ai_context_engine",
+                "engine_id": "aictx",
+                "engine_name": "aictx",
                 **adapter_contract,
                 **compat_version_payload(),
                 "install_mode": "in_repo",
@@ -1490,8 +1490,8 @@ def refresh_engine_state() -> dict[str, Any]:
     adapter_contract = default_adapter_contract()
     state.update(
         {
-            "engine_id": "ai_context_engine",
-            "engine_name": "ai_context_engine",
+            "engine_id": "aictx",
+            "engine_name": "aictx",
             "agent_adapter": str(state.get("agent_adapter") or adapter_contract["agent_adapter"]),
             "adapter_id": str(state.get("adapter_id") or adapter_contract["adapter_id"]),
             "adapter_family": str(state.get("adapter_family") or adapter_contract["adapter_family"]),
@@ -1511,14 +1511,14 @@ def refresh_engine_state() -> dict[str, Any]:
             },
             "last_upgrade_at": now_iso(),
             "shared_layers": {
-                "memory_dir": ".ai_context_engine/memory",
-                "telemetry_dir": ".ai_context_engine/metrics",
-                "global_metrics_dir": ".ai_context_global_metrics",
-                "cost_dir": ".ai_context_engine/cost",
-                "task_memory_dir": ".ai_context_engine/task_memory",
-                "failure_memory_dir": ".ai_context_engine/failure_memory",
-                "memory_graph_dir": ".ai_context_engine/memory_graph",
-                "library_dir": ".ai_context_engine/library",
+                "memory_dir": ".aictx/memory",
+                "telemetry_dir": ".aictx/metrics",
+                "global_metrics_dir": ".aictx_global_metrics",
+                "cost_dir": ".aictx/cost",
+                "task_memory_dir": ".aictx/task_memory",
+                "failure_memory_dir": ".aictx/failure_memory",
+                "memory_graph_dir": ".aictx/memory_graph",
+                "library_dir": ".aictx/library",
             },
             "supports": {
                 "granular_telemetry": True,
@@ -1635,8 +1635,8 @@ def bootstrap(repo_path: str | None = None) -> dict[str, Any]:
         rebuild_memory_store()
     repo = Path(repo_path).resolve() if repo_path else None
     repo_name = repo.name if repo else "unknown"
-    repo_memory_dir = repo / ".ai_context_engine" / "memory" if repo else None
-    repo_state_path = repo / ".ai_context_engine" / "state.json" if repo else None
+    repo_memory_dir = repo / ".aictx" / "memory" if repo else None
+    repo_state_path = repo / ".aictx" / "state.json" if repo else None
     resolved_preferences = resolve_effective_preferences(repo, global_defaults_path=ROOT_PREFS_PATH)
     consistency = runtime_consistency_report(repo, global_defaults_path=ROOT_PREFS_PATH)
     repo_exists = bool(repo_memory_dir and repo_memory_dir.exists())
@@ -1674,9 +1674,9 @@ def ensure_gitignore(target_repo: str) -> dict[str, Any]:
     repo = Path(target_repo).resolve()
     gitignore = repo / ".gitignore"
     desired = [
-        ".ai_context_engine/",
-        ".ai_context_global_metrics/",
-        ".ai_context_planner/",
+        ".aictx/",
+        ".aictx_global_metrics/",
+        ".aictx_planner/",
         "CONTEXT_SAVINGS.md",
     ]
     try:

@@ -807,7 +807,7 @@ def fetch_remote_payload_bytes(url: str) -> tuple[bytes, int, dict[str, str]]:
     except urllib_error.URLError as exc:
         if not shutil.which('curl'):
             raise
-        with tempfile.TemporaryDirectory(prefix='ai_context_engine_fetch_') as temp_dir:
+        with tempfile.TemporaryDirectory(prefix='aictx_fetch_') as temp_dir:
             headers_path = Path(temp_dir) / 'headers.txt'
             body_path = Path(temp_dir) / 'body.bin'
             result = subprocess.run(

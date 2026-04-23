@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "areas": {
+    "gitignore": {
+      "area_id": "gitignore",
+      "files": {
+        ".gitignore": 1,
+        "src/aictx/core_runtime.py": 1
+      },
+      "tests": {},
+      "strategy_count": 1,
+      "failure_count": 0,
+      "executions": 1,
+      "related_files": [
+        ".gitignore",
+        "src/aictx/core_runtime.py"
+      ],
+      "related_tests": []
+    }
+  }
+}

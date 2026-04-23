@@ -240,8 +240,8 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
     state.update(
         {
             "version": 1,
-            "engine_id": "ai_context_engine",
-            "engine_name": "ai_context_engine",
+            "engine_id": "aictx",
+            "engine_name": "aictx",
             "agent_adapter": str(state.get("agent_adapter") or "generic"),
             "adapter_id": str(state.get("adapter_id") or "generic"),
             "adapter_family": str(state.get("adapter_family") or "multi_llm"),
@@ -289,8 +289,8 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
                 "no_intermediate_output_by_default": True,
             },
             "shared_layers": {
-                "telemetry_dir": ".ai_context_engine/metrics",
-                "strategy_memory_dir": ".ai_context_engine/strategy_memory",
+                "telemetry_dir": ".aictx/metrics",
+                "strategy_memory_dir": ".aictx/strategy_memory",
             },
             "supports": {
                 "always_on_middleware": True,
@@ -562,7 +562,7 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     install.set_defaults(func=cmd_install)
 
-    init = sub.add_parser("init", help="Initialize repo-local .ai_context_* scaffold")
+    init = sub.add_parser("init", help="Initialize repo-local .aictx_* scaffold")
     init.add_argument("--repo", default=".", help="Repository path")
     init.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     init.add_argument("--no-gitignore", action="store_true", help="Do not modify .gitignore")

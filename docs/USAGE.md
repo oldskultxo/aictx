@@ -44,12 +44,12 @@ This applies in particular to:
 - `uninstall`
 
 ## `aictx suggest`
-Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
+Source: `.aictx/strategy_memory/strategies.jsonl`
 
 Returns deterministic guidance from the selected reusable successful strategy.
 
 ## `aictx reflect`
-Source: `.ai_context_engine/metrics/execution_logs.jsonl`
+Source: `.aictx/metrics/execution_logs.jsonl`
 
 Rules:
 - if `len(files_reopened) > 2` -> `looping_on_same_files`
@@ -57,7 +57,7 @@ Rules:
 - else -> `none`
 
 ## `aictx reuse`
-Source: `.ai_context_engine/strategy_memory/strategies.jsonl`
+Source: `.aictx/strategy_memory/strategies.jsonl`
 
 Returns the selected reusable successful strategy. Failed strategies are not reused.
 
@@ -72,8 +72,8 @@ Current behavior:
 
 ## `aictx report real-usage`
 Sources:
-- `.ai_context_engine/metrics/execution_logs.jsonl`
-- `.ai_context_engine/metrics/execution_feedback.jsonl`
+- `.aictx/metrics/execution_logs.jsonl`
+- `.aictx/metrics/execution_feedback.jsonl`
 
 Returns aggregated real usage only.
 
@@ -98,10 +98,10 @@ aictx clean --repo .
 ```
 
 Removes only AICTX-managed repository content:
-- `.ai_context_engine/`
+- `.aictx/`
 - AICTX blocks inside `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md`
 - AICTX Claude hook files and matching entries in `.claude/settings.json`
-- the `.gitignore` line for `.ai_context_engine/`
+- the `.gitignore` line for `.aictx/`
 
 ### Uninstall globally
 
@@ -110,7 +110,7 @@ aictx uninstall
 ```
 
 Removes only AICTX-managed global content:
-- `~/.ai_context_engine/`
+- `~/.aictx/`
 - AICTX block in `~/.codex/AGENTS.override.md`
 - AICTX-managed fallback line in `~/.codex/config.toml`
 - AICTX-managed content from registered repositories

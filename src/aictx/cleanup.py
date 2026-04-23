@@ -20,7 +20,8 @@ REPO_OPTIONAL_FILES = [
     Path('AGENTS.md'),
 ]
 AICTX_GITIGNORE_LINES = {
-    '.ai_context_engine/',
+    '.aictx/',
+    '.aictx/',
 }
 CODEX_MANAGED_COMMENT = '# AICTX managed fallback docs for stronger repo instruction loading'
 CODEX_MANAGED_LINE = 'project_doc_fallback_filenames = ["CLAUDE.md"]'
@@ -168,7 +169,7 @@ def clean_repo(repo: Path) -> dict[str, Any]:
     removed: list[str] = []
     updated: list[str] = []
 
-    engine_dir = repo / '.ai_context_engine'
+    engine_dir = repo / '.aictx'
     if engine_dir.exists():
         _safe_rmtree(engine_dir, removed)
 
