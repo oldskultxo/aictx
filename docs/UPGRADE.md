@@ -1,6 +1,25 @@
 # Upgrade guide
 
 
+## 3.0.0
+
+3.0.0 introduces a breaking restructure of repo-local knowledge sources.
+
+### Breaking changes
+
+- `.aictx/memory/source/` is now the canonical editable source-knowledge layer.
+- Legacy source locations like `common/`, `projects/`, root `index.json`, root `symptoms.json`, and root `protocol.md` are no longer the canonical layout.
+- `aictx init` scaffolds source knowledge under `.aictx/memory/source/`.
+- Only `.aictx/memory/source/` should be edited directly; `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders remain generated.
+
+### Migration notes
+
+- Existing legacy source files are migrated into `.aictx/memory/source/` by repo scaffolding/migration flows.
+- Queries, bootstrap generation, and project knowledge ingestion now read from `.aictx/memory/source/`.
+- `aictx internal new-note` now writes into `.aictx/memory/source/projects/<repo>/...` by default.
+
+No release publishing is implied by this metadata update.
+
 ## 2.2.0
 
 2.2.0 is additive and keeps the 2.0 safety contract.

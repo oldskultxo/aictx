@@ -1,6 +1,17 @@
 # Changelog
 
-## 2.2.0 - Unreleased
+## 3.0.0 - Unreleased
+
+### Breaking
+- `.aictx/memory/source/` is now the canonical repo-local source-knowledge layer
+- `common/`, `projects/`, root `index.json`, root `symptoms.json`, and root `protocol.md` are no longer the canonical source layout
+- `aictx init` now scaffolds source knowledge inside `.aictx/memory/source/`
+- editing guidance now treats `.aictx/memory/source/` as user-editable while `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders remain generated
+
+### Changed
+- repo knowledge ingestion now reads from `.aictx/memory/source/` and preserves legacy-path migration compatibility
+- `new-note` now writes into `.aictx/memory/source/projects/<repo>/...` by default
+- repo cleanup and repo-native scaffolding now align with the new v3 source/derived split
 
 ### Added
 - structured execution signal capture with explicit/runtime/heuristic/unknown provenance
