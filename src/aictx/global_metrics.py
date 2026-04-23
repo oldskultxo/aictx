@@ -15,7 +15,7 @@ from .runtime_versioning import normalize_engine_capability_version, normalize_i
 BASE = Path(__file__).resolve().parents[2]
 PROJECTS_ROOT = BASE.parent
 CANONICAL_SCOPE = BASE.name
-GLOBAL_DIR = BASE / ".aictx_global_metrics"
+GLOBAL_DIR = BASE / ".aictx" / "global_metrics"
 PROJECTS_INDEX_PATH = GLOBAL_DIR / "projects_index.json"
 CONTEXT_SAVINGS_PATH = GLOBAL_DIR / "global_context_savings.json"
 TOKEN_SAVINGS_PATH = GLOBAL_DIR / "global_token_savings.json"
@@ -286,7 +286,7 @@ def load_project_telemetry(repo: Path) -> ProjectTelemetry:
         measurement_basis = str(payload.get("measurement_basis", "execution_logs"))
         return ProjectTelemetry(
             context_range=context_range,
-            context_point=context.get("point"),
+            context_point=None,
             token_range=token_range,
             latency_range=latency_range,
             cost_range=cost_range,
@@ -611,17 +611,17 @@ def run_health_check() -> dict[str, Any]:
 
     canonical_checks = {
         "boot_files": [
-            BASE / "boot" / "boot_summary.json",
-            BASE / "boot" / "user_defaults.json",
-            BASE / "boot" / "project_registry.json",
+            BASE / ".aictx" / "boot" / "boot_summary.json",
+            BASE / ".aictx" / "boot" / "user_defaults.json",
+            BASE / ".aictx" / "boot" / "project_registry.json",
         ],
         "memory_files": [
             BASE / "user_preferences.json",
-            BASE / "store" / "global_records.jsonl",
-            BASE / "indexes" / "by_project.json",
+            BASE / ".aictx" / "store" / "global_records.jsonl",
+            BASE / ".aictx" / "indexes" / "by_project.json",
         ],
         "compaction": [
-            BASE / "compaction_report.json",
+            BASE / ".aictx" / "compaction_report.json",
             BASE / "scripts" / "compact.py",
         ],
         "cost_optimizer": [

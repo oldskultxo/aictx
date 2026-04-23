@@ -1,1 +1,0 @@
-{"id": "execution_learning::ignore-delta-20260423", "title": "ignore delta and remove it from version control", "summary": "Ignored delta/ and removed tracked delta artifacts from version control.", "task_type": "maintenance", "execution_mode": "plain", "created_at": "2026-04-23T16:06:09Z", "skill_metadata": {}}

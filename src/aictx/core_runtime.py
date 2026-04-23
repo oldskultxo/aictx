@@ -23,16 +23,16 @@ from .runtime_versioning import (
 )
 
 BASE = Path(__file__).resolve().parents[2]
-BOOT_DIR = BASE / "boot"
-STORE_DIR = BASE / "store"
+ENGINE_STATE_DIR = BASE / ".aictx"
+BOOT_DIR = ENGINE_STATE_DIR / "boot"
+STORE_DIR = ENGINE_STATE_DIR / "store"
 PROJECT_RECORDS_DIR = STORE_DIR / "project_records"
 NOTES_STORE_DIR = STORE_DIR / "notes"
-INDEXES_DIR = BASE / "indexes"
-DELTA_DIR = BASE / "delta"
+INDEXES_DIR = ENGINE_STATE_DIR / "indexes"
+DELTA_DIR = ENGINE_STATE_DIR / "delta"
 LAST_PACKETS_DIR = DELTA_DIR / "last_packets"
-MIGRATION_DIR = BASE / "migration"
-LOGS_DIR = BASE / "logs"
-ENGINE_STATE_DIR = BASE / ".aictx"
+MIGRATION_DIR = ENGINE_STATE_DIR / "migration"
+LOGS_DIR = ENGINE_STATE_DIR / "logs"
 COST_DIR = ENGINE_STATE_DIR / "cost"
 TASK_MEMORY_DIR = ENGINE_STATE_DIR / "task_memory"
 FAILURE_MEMORY_DIR = ENGINE_STATE_DIR / "failure_memory"
@@ -68,7 +68,7 @@ MIGRATION_IMPORT_MAP_PATH = MIGRATION_DIR / "legacy_memory_import_map.json"
 LOGS_CHANGE_JOURNAL_PATH = LOGS_DIR / "change_journal.md"
 LOGS_MAINTENANCE_PATH = LOGS_DIR / "maintenance_log.md"
 REPO_COMPAT_DIRNAME = ".aictx/memory"
-ROOT_COMPACTION_REPORT_PATH = BASE / "compaction_report.json"
+ROOT_COMPACTION_REPORT_PATH = ENGINE_STATE_DIR / "compaction_report.json"
 COST_CONFIG_PATH = COST_DIR / "optimizer_config.yaml"
 COST_RULES_PATH = COST_DIR / "cost_estimation_rules.md"
 COST_LATEST_REPORT_PATH = COST_DIR / "latest_optimization_report.md"
@@ -452,11 +452,7 @@ def note_paths() -> list[Path]:
     paths = []
     for path in sorted(BASE.rglob("*.md")):
         rel = path.relative_to(BASE).as_posix()
-        if rel.startswith(".aictx_"):
-            continue
-        if rel.startswith("metrics/"):
-            continue
-        if rel.startswith("store/") or rel.startswith("migration/") or rel.startswith("logs/"):
+        if rel.startswith(".aictx/") or rel.startswith(".aictx_"):
             continue
         if path.name in NOTE_SKIP_NAMES:
             continue
@@ -1513,7 +1509,7 @@ def refresh_engine_state() -> dict[str, Any]:
             "shared_layers": {
                 "memory_dir": ".aictx/memory",
                 "telemetry_dir": ".aictx/metrics",
-                "global_metrics_dir": ".aictx_global_metrics",
+                "global_metrics_dir": ".aictx/global_metrics",
                 "cost_dir": ".aictx/cost",
                 "task_memory_dir": ".aictx/task_memory",
                 "failure_memory_dir": ".aictx/failure_memory",
@@ -1675,20 +1671,9 @@ def ensure_gitignore(target_repo: str) -> dict[str, Any]:
     gitignore = repo / ".gitignore"
     desired = [
         ".aictx/",
-        ".aictx_global_metrics/",
         ".aictx_planner/",
         "CONTEXT_SAVINGS.md",
     ]
-    try:
-        memory_rel = BASE.relative_to(repo)
-        desired.extend(
-            [
-                f"{memory_rel.as_posix()}/delta/last_packets/",
-                f"{memory_rel.as_posix()}/logs/maintenance_log.md",
-            ]
-        )
-    except ValueError:
-        pass
     existing = gitignore.read_text().splitlines() if gitignore.exists() else []
     changed = False
     for entry in desired:
