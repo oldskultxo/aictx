@@ -21,7 +21,7 @@ from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, init_repo_scaffold
 from .report import build_real_usage_report
 from .cleanup import clean_repo_and_unregister, uninstall_all
-from .strategy_memory import latest_strategy
+from .strategy_memory import select_strategy
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
@@ -132,17 +132,21 @@ def read_jsonl_rows(path: Path) -> list[dict]:
 
 def cmd_suggest(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    strategy = latest_strategy(repo, args.task_type)
+    strategy = select_strategy(repo, args.task_type)
     payload = {
         "suggested_entry_points": [],
         "suggested_files": [],
         "source": "none",
+        "selection_reason": "",
+        "matched_signals": [],
     }
     if strategy:
         payload = {
             "suggested_entry_points": list(strategy.get("entry_points", [])) if isinstance(strategy.get("entry_points"), list) else [],
             "suggested_files": list(strategy.get("files_used", [])) if isinstance(strategy.get("files_used"), list) else [],
             "source": "strategy_memory",
+            "selection_reason": str(strategy.get("selection_reason") or "recency"),
+            "matched_signals": list(strategy.get("matched_signals", [])) if isinstance(strategy.get("matched_signals"), list) else [],
         }
     print(__import__("json").dumps(payload, ensure_ascii=False))
     return 0
@@ -150,12 +154,14 @@ def cmd_suggest(args: argparse.Namespace) -> int:
 
 def cmd_reuse(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    strategy = latest_strategy(repo, args.task_type)
+    strategy = select_strategy(repo, args.task_type)
     payload = {
         "task_type": "",
         "entry_points": [],
         "files_used": [],
         "source": "none",
+        "selection_reason": "",
+        "matched_signals": [],
     }
     if strategy:
         payload = {
@@ -163,6 +169,8 @@ def cmd_reuse(args: argparse.Namespace) -> int:
             "entry_points": list(strategy.get("entry_points", [])) if isinstance(strategy.get("entry_points"), list) else [],
             "files_used": list(strategy.get("files_used", [])) if isinstance(strategy.get("files_used"), list) else [],
             "source": "previous_successful_execution",
+            "selection_reason": str(strategy.get("selection_reason") or "recency"),
+            "matched_signals": list(strategy.get("matched_signals", [])) if isinstance(strategy.get("matched_signals"), list) else [],
         }
     print(__import__("json").dumps(payload, ensure_ascii=False))
     return 0
@@ -234,9 +242,9 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
             "runner_native_integrations": {
                 "codex": {
                     "status": "native_hardened",
-                    "mechanism": "AGENTS.override.md + ~/.codex/config.toml fallback docs",
+                    "mechanism": "repo AGENTS.override.md; optional global ~/.codex integration via aictx install --install-codex-global",
                     "project_file": "AGENTS.override.md",
-                    "global_files": [
+                    "optional_global_files": [
                         "~/.codex/AGENTS.override.md",
                         "~/.codex/config.toml",
                     ],
@@ -299,6 +307,8 @@ def cmd_install(args: argparse.Namespace) -> int:
     workspace_root = args.workspace_root
     global_metrics_enabled = not args.disable_global_metrics
     cross_project_mode = args.cross_project_mode or "workspace"
+    install_codex_global = bool(getattr(args, "install_codex_global", False))
+    dry_run = bool(getattr(args, "dry_run", False))
 
     if not args.yes:
         print("aictx install")
@@ -306,13 +316,33 @@ def cmd_install(args: argparse.Namespace) -> int:
         print("This will:")
         print("- create the global AICTX runtime home")
         print("- configure workspace discovery")
-        print("- install runner integration artifacts")
+        print("- install engine runtime artifacts")
         print("- prepare repos to work after a single `aictx init`")
+        if install_codex_global:
+            print("- WARNING: update global Codex files under ~/.codex because --install-codex-global was passed")
         print()
         workspace_id = ask_text("Default workspace name", workspace_id)
         if not workspace_root and ask_yes_no("Add a workspace root now?", True):
             workspace_root = ask_text("Workspace root", str(Path("~/projects").expanduser()))
         global_metrics_enabled = ask_yes_no("Enable global metrics aggregation?", global_metrics_enabled)
+
+    if dry_run:
+        planned = [
+            ENGINE_HOME,
+            CONFIG_PATH,
+            PROJECTS_REGISTRY_PATH,
+            GLOBAL_METRICS_DIR,
+            workspace_path(workspace_id),
+        ]
+        if install_codex_global:
+            planned.extend([Path.home() / ".codex" / "AGENTS.override.md", Path.home() / ".codex" / "config.toml"])
+        print("Dry run. Would create/update:")
+        for path in planned:
+            print(f"- {path}")
+        if workspace_root:
+            print("Would register workspace root:")
+            print(f"- {str(Path(workspace_root).expanduser().resolve())}")
+        return 0
 
     ensure_global_home()
     config = read_json(CONFIG_PATH, default_global_config())
@@ -341,7 +371,10 @@ def cmd_install(args: argparse.Namespace) -> int:
     write_json(workspace_path(workspace_id), ws)
     runtime_paths = install_global_agent_runtime(write_json)
     adapter_paths = install_global_adapters()
-    native_runner_paths = install_codex_native_integration()
+    native_runner_paths = []
+    if install_codex_global:
+        print("WARNING: updating global Codex files under ~/.codex because --install-codex-global was passed.")
+        native_runner_paths = install_codex_native_integration()
 
     print("Created:")
     print(f"- {ENGINE_HOME}")
@@ -355,6 +388,8 @@ def cmd_install(args: argparse.Namespace) -> int:
         print(f"- {path}")
     for path in native_runner_paths:
         print(f"- {path}")
+    if not install_codex_global:
+        print("Skipped global Codex integration. Use --install-codex-global to update ~/.codex files.")
     if workspace_root:
         print("Registered workspace root:")
         print(f"- {str(Path(workspace_root).expanduser().resolve())}")
@@ -506,6 +541,8 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--workspace-id", help="Workspace id", default="default")
     install.add_argument("--cross-project-mode", choices=["workspace", "explicit", "disabled"], help="Cross-project discovery mode")
     install.add_argument("--disable-global-metrics", action="store_true", help="Disable global metrics aggregation")
+    install.add_argument("--install-codex-global", action="store_true", help="Opt in to global Codex ~/.codex integration")
+    install.add_argument("--dry-run", action="store_true", help="Show planned install writes without mutating files")
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     install.set_defaults(func=cmd_install)
 

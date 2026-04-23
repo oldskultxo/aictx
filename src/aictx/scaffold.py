@@ -8,42 +8,24 @@ from .state import REPO_ENGINE_DIR, REPO_METRICS_DIR, REPO_STATE_PATH, REPO_STRA
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 
-def migrate_legacy_repo_layout(repo: Path) -> list[str]:
-    cleaned: list[str] = []
-    for legacy_name in [
-        ".ai_context_memory",
-        ".ai_context_cost",
-        ".ai_context_task_memory",
-        ".ai_context_failure_memory",
-        ".ai_context_memory_graph",
-        ".ai_context_library",
-        ".context_metrics",
-    ]:
-        source = repo / legacy_name
-        if not source.exists():
-            continue
-        if source.is_dir():
-            for child in sorted(source.rglob("*"), reverse=True):
-                if child.is_file() or child.is_symlink():
-                    child.unlink()
-                elif child.is_dir():
-                    child.rmdir()
-            source.rmdir()
-        else:
-            source.unlink()
-        cleaned.append(str(source))
-    return cleaned
+def ensure_file(path: Path, content: str = "") -> bool:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        return False
+    path.write_text(content, encoding="utf-8")
+    return True
 
 
 def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
-    created = migrate_legacy_repo_layout(repo)
+    created: list[str] = []
 
     engine_dir = repo / REPO_ENGINE_DIR
     metrics_dir = repo / REPO_METRICS_DIR
     strategy_dir = repo / REPO_STRATEGY_MEMORY_DIR
     for path in [engine_dir, metrics_dir, strategy_dir]:
+        existed = path.exists()
         path.mkdir(parents=True, exist_ok=True)
-        if str(path) not in created:
+        if not existed:
             created.append(str(path))
 
     write_json(
@@ -59,9 +41,13 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         },
     )
 
-    (strategy_dir / "strategies.jsonl").write_text("", encoding="utf-8")
-    (metrics_dir / "execution_logs.jsonl").write_text("", encoding="utf-8")
-    (metrics_dir / "execution_feedback.jsonl").write_text("", encoding="utf-8")
+    for path in [
+        strategy_dir / "strategies.jsonl",
+        metrics_dir / "execution_logs.jsonl",
+        metrics_dir / "execution_feedback.jsonl",
+    ]:
+        if ensure_file(path):
+            created.append(str(path))
 
     if update_gitignore:
         ensure_gitignore(repo)

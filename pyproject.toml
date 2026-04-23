@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aictx"
-version = "1.0.0"
+version = "2.0.0"
 description = "Repo-local execution memory for coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,7 +16,7 @@ keywords = ["ai", "llm", "coding-agents", "developer-tools", "execution-memory",
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Development Status :: 5 - Production/Stable"
+  "Development Status :: 4 - Beta"
 ]
 dependencies = []
 

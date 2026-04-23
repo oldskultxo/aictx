@@ -15,7 +15,7 @@ from .runtime_io import slugify
 from .runtime_memory import rank_records
 from .runtime_tasks import resolve_task_type
 from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, read_json, write_json
-from .strategy_memory import build_strategy_entry, get_strategies_by_task_type, persist_strategy
+from .strategy_memory import build_strategy_entry, persist_strategy, select_strategy
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
 REAL_EXECUTION_LOG_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
@@ -190,7 +190,11 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
     if not (repo_root / REPO_MEMORY_DIR / "user_preferences.json").exists():
         communication_policy = {"layer": "disabled", "mode": "caveman_full"}
-    task_resolution = resolve_task_type(envelope["user_request"], explicit_task_type=envelope.get("declared_task_type"))
+    task_resolution = resolve_task_type(
+        envelope["user_request"],
+        explicit_task_type=envelope.get("declared_task_type"),
+        touched_files=list(envelope.get("files_opened", [])),
+    )
     retrieval_matches = [
         row for row in rank_records(envelope["user_request"], project=repo_root.name)[:5]
         if row.get("type") != "user_preference"
@@ -204,8 +208,12 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "repo_scope_count": 0,
     }
     task_fingerprint = slugify(f"{repo_root.name}:{task_resolution['task_type']}:{envelope['user_request']}")[:80]
-    strategies = get_strategies_by_task_type(repo_root, task_resolution["task_type"], include_failures=False)
-    selected_strategy = strategies[-1] if strategies else None
+    selected_strategy = select_strategy(
+        repo_root,
+        task_resolution["task_type"],
+        files=list(envelope.get("files_opened", [])),
+        primary_entry_point=(list(envelope.get("files_opened", [])) or [None])[0],
+    )
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),
         "execution_logs": (repo_root / REAL_EXECUTION_LOG_PATH).as_posix(),
@@ -255,6 +263,8 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "primary_entry_point": str(selected_strategy.get("primary_entry_point") or "") or None,
             "files_used": list(selected_strategy.get("files_used", [])) if isinstance(selected_strategy.get("files_used"), list) else [],
             "based_on": "previous_successful_execution",
+            "selection_reason": str(selected_strategy.get("selection_reason") or "recency"),
+            "matched_signals": list(selected_strategy.get("matched_signals", [])) if isinstance(selected_strategy.get("matched_signals"), list) else [],
         }
     if execution["execution_mode"] == "skill":
         prepared["skill_context"] = {

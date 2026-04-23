@@ -125,14 +125,22 @@ def test_init_repo_scaffold_creates_minimal_v1_structure(tmp_path: Path):
     repo = tmp_path / "repo"
     (repo / ".ai_context_memory").mkdir(parents=True)
     (repo / ".context_metrics").mkdir(parents=True)
+    (repo / ".ai_context_engine" / "metrics").mkdir(parents=True)
+    (repo / ".ai_context_engine" / "strategy_memory").mkdir(parents=True)
+    (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").write_text('{"keep": "log"}\n', encoding="utf-8")
+    (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").write_text('{"keep": "feedback"}\n', encoding="utf-8")
+    (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").write_text('{"keep": "strategy"}\n', encoding="utf-8")
 
     init_repo_scaffold(repo, update_gitignore=False)
 
-    assert not (repo / ".ai_context_memory").exists()
-    assert not (repo / ".context_metrics").exists()
+    assert (repo / ".ai_context_memory").exists()
+    assert (repo / ".context_metrics").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").exists()
     assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").exists()
     assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").exists()
+    assert (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8") == '{"keep": "log"}\n'
+    assert (repo / ".ai_context_engine" / "metrics" / "execution_feedback.jsonl").read_text(encoding="utf-8") == '{"keep": "feedback"}\n'
+    assert (repo / ".ai_context_engine" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8") == '{"keep": "strategy"}\n'
     assert not (repo / ".ai_context_engine" / "memory_graph").exists()
     assert not (repo / ".ai_context_engine" / "library").exists()
     assert not (repo / ".ai_context_engine" / "adapters").exists()
@@ -432,12 +440,18 @@ def test_prepare_execution_includes_execution_hint_from_latest_strategy(tmp_path
         }
     )
 
-    assert second["execution_hint"] == {
+    assert second["execution_hint"]["entry_points"] == []
+    assert second["execution_hint"]["primary_entry_point"] is None
+    assert second["execution_hint"]["files_used"] == []
+    assert second["execution_hint"]["based_on"] == "previous_successful_execution"
+    assert second["execution_hint"]["selection_reason"]
+    assert isinstance(second["execution_hint"]["matched_signals"], list)
+    assert {
         "entry_points": [],
         "primary_entry_point": None,
         "files_used": [],
         "based_on": "previous_successful_execution",
-    }
+    }.items() <= second["execution_hint"].items()
     assert second["execution_observation"]["used_strategy"] is True
 
 
@@ -478,6 +492,43 @@ def test_strategy_memory_load_and_filter(tmp_path: Path):
     assert len(all_rows) == 1
     assert len(filtered) == 1
     assert filtered[0]["task_id"] == "exec-strategy-1"
+
+
+def test_strategy_selection_prefers_file_overlap_over_newer_recency(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "older-overlap",
+            "task_type": "feature_work",
+            "entry_points": ["src/aictx/runner_integrations.py"],
+            "primary_entry_point": "src/aictx/runner_integrations.py",
+            "files_used": ["src/aictx/runner_integrations.py"],
+            "success": True,
+            "is_failure": False,
+            "timestamp": "2026-04-19T00:00:00Z",
+        },
+    )
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "newer-no-overlap",
+            "task_type": "feature_work",
+            "entry_points": ["src/aictx/cli.py"],
+            "primary_entry_point": "src/aictx/cli.py",
+            "files_used": ["src/aictx/cli.py"],
+            "success": True,
+            "is_failure": False,
+            "timestamp": "2026-04-19T00:01:00Z",
+        },
+    )
+
+    selected = strategy_memory.select_strategy(repo, "feature_work", files=["src/aictx/runner_integrations.py"])
+
+    assert selected is not None
+    assert selected["task_id"] == "older-overlap"
+    assert "file_overlap:src/aictx/runner_integrations.py" in selected["selection_reason"]
 
 
 def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
@@ -704,6 +755,8 @@ def test_cli_suggest_returns_empty_json_without_history(tmp_path: Path, capsys):
         "suggested_entry_points": [],
         "suggested_files": [],
         "source": "none",
+        "selection_reason": "",
+        "matched_signals": [],
     }
 
 
@@ -728,6 +781,8 @@ def test_cli_reuse_returns_latest_strategy(tmp_path: Path, capsys):
     assert payload["entry_points"] == []
     assert payload["files_used"] == []
     assert payload["source"] == "previous_successful_execution"
+    assert payload["selection_reason"]
+    assert isinstance(payload["matched_signals"], list)
 
 
 
@@ -751,6 +806,8 @@ def test_cli_suggest_uses_latest_strategy(tmp_path: Path, capsys):
         "suggested_entry_points": [],
         "suggested_files": [],
         "source": "strategy_memory",
+        "selection_reason": "task_type:feature_work",
+        "matched_signals": ["task_type:feature_work"],
     }
 
 
@@ -975,7 +1032,9 @@ def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, 
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     assert cli.cmd_install(install_args) == 0
     install_out = capsys.readouterr().out
+    assert "install engine runtime artifacts" in install_out
     assert "prepare repos to work after a single `aictx init`" in install_out
+    assert "Skipped global Codex integration" in install_out
     assert "Next: run `aictx init` inside a repository." in install_out
 
     repo = tmp_path / "repo"
@@ -1073,6 +1132,117 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert "aictx reflect --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
     assert "aictx reuse --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
     assert "aictx suggest --repo ." in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+
+
+def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tmp_path: Path):
+    repo = tmp_path / "repo"
+    settings_path = repo / ".claude" / "settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "permissions": {"allow": ["Bash(pytest)"]},
+                "hooks": {
+                    "PreToolUse": [
+                        {"matcher": "Write", "hooks": [{"type": "command", "command": "custom.py", "timeout": 5}]}
+                    ],
+                    "Stop": [{"hooks": [{"type": "command", "command": "stop.py"}]}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    install_repo_runner_integrations(repo)
+    first = settings_path.read_text(encoding="utf-8")
+    install_repo_runner_integrations(repo)
+    second = settings_path.read_text(encoding="utf-8")
+    settings = json.loads(second)
+
+    assert first == second
+    assert settings["permissions"] == {"allow": ["Bash(pytest)"]}
+    assert settings["hooks"]["Stop"] == [{"hooks": [{"type": "command", "command": "stop.py"}]}]
+    assert any(
+        hook.get("command") == "custom.py"
+        for entry in settings["hooks"]["PreToolUse"]
+        for hook in entry.get("hooks", [])
+    )
+    assert any(
+        "aictx_pre_tool_use.py" in str(hook.get("command"))
+        for entry in settings["hooks"]["PreToolUse"]
+        for hook in entry.get("hooks", [])
+    )
+
+
+def test_cmd_install_default_does_not_touch_codex_global(tmp_path: Path, monkeypatch, capsys):
+    codex_home = tmp_path / ".codex"
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
+    monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
+    monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", codex_home)
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", codex_home / "config.toml")
+
+    args = argparse.Namespace(
+        workspace_id="default",
+        workspace_root=None,
+        disable_global_metrics=False,
+        cross_project_mode="workspace",
+        install_codex_global=False,
+        dry_run=False,
+        yes=True,
+    )
+    assert cli.cmd_install(args) == 0
+    assert not codex_home.exists()
+    assert "Skipped global Codex integration" in capsys.readouterr().out
+
+
+def test_cmd_install_codex_global_opt_in_touches_codex_global(tmp_path: Path, monkeypatch, capsys):
+    codex_home = tmp_path / ".codex"
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
+    monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
+    monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", codex_home)
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", codex_home / "config.toml")
+
+    args = argparse.Namespace(
+        workspace_id="default",
+        workspace_root=None,
+        disable_global_metrics=False,
+        cross_project_mode="workspace",
+        install_codex_global=True,
+        dry_run=False,
+        yes=True,
+    )
+    assert cli.cmd_install(args) == 0
+    assert (codex_home / "AGENTS.override.md").exists()
+    assert (codex_home / "config.toml").exists()
+    assert "WARNING: updating global Codex files" in capsys.readouterr().out
+
+
+def test_cmd_install_dry_run_does_not_mutate(tmp_path: Path, monkeypatch, capsys):
+    called = {"ensure": False}
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: called.__setitem__("ensure", True))
+    monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+
+    args = argparse.Namespace(
+        workspace_id="default",
+        workspace_root=str(tmp_path / "ws"),
+        disable_global_metrics=False,
+        cross_project_mode="workspace",
+        install_codex_global=True,
+        dry_run=True,
+        yes=True,
+    )
+    assert cli.cmd_install(args) == 0
+    out = capsys.readouterr().out
+    assert "Dry run. Would create/update:" in out
+    assert called["ensure"] is False
 
 
 def test_install_codex_native_integration_writes_home_override(tmp_path: Path, monkeypatch):
@@ -1311,10 +1481,31 @@ def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
 
     packet = runtime_tasks.packet_for_task("debug failing integration")
     assert packet["description"] == "debug failing integration"
-    assert packet["task_type"] == "unknown"
+    assert packet["task_type"] == "bug_fixing"
     assert packet["context"] == {}
     assert "selection_report" not in packet
     assert "communication_policy" not in packet
+
+
+@pytest.mark.parametrize(
+    ("user_request", "files", "expected"),
+    [
+        ("fix failing login error", [], "bug_fixing"),
+        ("add pytest coverage", ["tests/test_cli.py"], "testing"),
+        ("improve benchmark latency", ["benchmarks/perf.py"], "performance"),
+        ("document architecture decision", ["docs/architecture.md"], "architecture"),
+        ("implement new install flag", ["src/aictx/cli.py"], "feature_work"),
+        ("summarize repository", [], "unknown"),
+    ],
+)
+def test_resolve_task_type_heuristics(user_request: str, files: list[str], expected: str):
+    resolved = runtime_tasks.resolve_task_type(user_request, touched_files=files)
+    assert resolved["task_type"] == expected
+    if expected == "unknown":
+        assert resolved["source"] == "unknown_fallback"
+    else:
+        assert resolved["source"] == "heuristic"
+        assert resolved["evidence"]
 
 
 def test_rank_records_returns_score_breakdown(tmp_path: Path):

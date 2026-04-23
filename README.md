@@ -27,6 +27,14 @@ A repo-local execution memory layer for coding agents that records real executio
 
 ---
 
+## Safety model
+
+AICTX modifies repository files and can optionally install runner integrations.
+By default it creates repo-local runtime artifacts only during repo setup, and `aictx install` does not modify global Codex files.
+Global Codex integration requires `aictx install --install-codex-global`.
+
+---
+
 ## Quick start
 
 ```bash
@@ -74,6 +82,33 @@ The rest of the public commands are optional operational commands:
 * stores successful and failed strategies in `.ai_context_engine/strategy_memory/strategies.jsonl`
 * reuses only successful strategies during later executions
 * exposes small JSON commands for runtime guidance
+
+---
+
+## What AICTX modifies
+
+Repo-local:
+- `.ai_context_engine/`
+- AICTX-managed blocks in `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md`
+- `.claude/settings.json` merged AICTX hook entries
+- `.claude/hooks/aictx_*.py`
+- `.gitignore` entries for AICTX runtime paths
+
+Optional global:
+- `~/.codex/AGENTS.override.md`
+- `~/.codex/config.toml`
+
+Global Codex files are only updated when `--install-codex-global` is passed.
+
+---
+
+## Idempotency guarantees
+
+- `aictx init` is non-destructive for existing AICTX execution logs and strategy memory
+- existing `.ai_context_engine/metrics/*.jsonl` and `.ai_context_engine/strategy_memory/*.jsonl` files are preserved
+- `.claude/settings.json` is merged, not overwritten
+- AICTX-managed Markdown blocks and hooks are idempotent
+- `aictx init` does not delete legacy non-AICTX paths
 
 ---
 
@@ -134,7 +169,9 @@ It makes past executions observable and reusable.
 ## Notes
 
 * file tracking depends on explicit input from the agent/runtime
-* strategy reuse is intentionally simple: latest successful strategy by task type
+* strategy reuse is heuristic: matching task type and overlapping files are preferred, with recency as a secondary signal
+* task typing uses explicit metadata first, then deterministic keyword/path inference, then `unknown`
+* middleware packet generation is not active in the default runtime path
 * failed strategies are stored but never reused as hints
 * no synthetic benchmarks or estimated improvements are reported
 
@@ -173,3 +210,5 @@ Not part of the current product contract:
 * [Usage](docs/USAGE.md)
 * [Demo](docs/DEMO.md)
 * [Limitations](docs/LIMITATIONS.md)
+* [Safety](docs/SAFETY.md)
+* [Upgrade](docs/UPGRADE.md)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import stat
 from pathlib import Path
+from typing import Any
 
 from .agent_runtime import upsert_marked_block
 
@@ -87,6 +88,49 @@ def render_claude_settings() -> dict:
             ],
         }
     }
+
+
+def _json_key(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def merge_claude_settings(existing: dict[str, Any], desired: dict[str, Any] | None = None) -> dict[str, Any]:
+    merged: dict[str, Any] = dict(existing) if isinstance(existing, dict) else {}
+    desired_payload = desired or render_claude_settings()
+    existing_hooks = merged.get("hooks")
+    if not isinstance(existing_hooks, dict):
+        existing_hooks = {}
+    merged_hooks: dict[str, Any] = dict(existing_hooks)
+    desired_hooks = desired_payload.get("hooks", {}) if isinstance(desired_payload, dict) else {}
+    for event_name, desired_entries in desired_hooks.items():
+        if not isinstance(desired_entries, list):
+            continue
+        current_entries = merged_hooks.get(event_name)
+        if not isinstance(current_entries, list):
+            current_entries = []
+        updated_entries = list(current_entries)
+        seen = {_json_key(entry) for entry in updated_entries}
+        for entry in desired_entries:
+            key = _json_key(entry)
+            if key not in seen:
+                updated_entries.append(entry)
+                seen.add(key)
+        merged_hooks[event_name] = updated_entries
+    merged["hooks"] = merged_hooks
+    return merged
+
+
+def write_merged_claude_settings(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict[str, Any] = {}
+    if path.exists():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                existing = payload
+        except json.JSONDecodeError:
+            existing = {}
+    path.write_text(json.dumps(merge_claude_settings(existing), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def render_session_start_script() -> str:
@@ -271,8 +315,7 @@ def install_repo_runner_integrations(repo: Path) -> list[Path]:
     created.append(claude_md)
 
     claude_settings = repo / ".claude" / "settings.json"
-    claude_settings.parent.mkdir(parents=True, exist_ok=True)
-    claude_settings.write_text(json.dumps(render_claude_settings(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_merged_claude_settings(claude_settings)
     created.append(claude_settings)
 
     session_start = repo / ".claude" / "hooks" / "aictx_session_start.py"

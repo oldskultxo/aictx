@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.0 - Unreleased
+
+### Breaking
+- `aictx install` no longer modifies global Codex configuration unless `--install-codex-global` is passed
+- `aictx init` no longer removes legacy ad hoc memory directories
+
+### Fixed
+- `aictx init` preserves existing execution logs, feedback, and strategy memory on re-init
+- `.claude/settings.json` is merged instead of overwritten
+
+### Improved
+- added dry-run install support
+- added deterministic task type inference and explainable strategy ranking
+- documented safety, upgrade, and optional global integration behavior
+
 ## 1.0.0 - 2026-04-19
 
 - aligned public package metadata with the v1 product scope
