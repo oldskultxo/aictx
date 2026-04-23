@@ -20,7 +20,7 @@ from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, ensure_repo_user_preferences, init_repo_scaffold
 from .report import build_real_usage_report
-from .cleanup import clean_repo_and_unregister, uninstall_all
+from .cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
 from .strategy_memory import select_strategy
 from .state import (
     CONFIG_PATH,
@@ -452,6 +452,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     prepared = prepare_repo_runtime(repo)
     runner_integrations = install_repo_runner_integrations(repo)
     upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
+    legacy_override = repo / "AGENTS.override.md"
+    remove_marked_block(legacy_override)
     ws = load_active_workspace()
     repo_str = str(repo)
     if register_repo and repo_str not in ws.repos:

@@ -1,6 +1,11 @@
 # Changelog
 
-## 3.0.0 - Unreleased
+## 3.0.1 - 2026-04-23
+
+### Fixed
+- `aictx init` now removes legacy repo-local `AGENTS.override.md` managed content instead of leaving stale override files behind after upgrade
+
+## 3.0.0 - 2026-04-23
 
 ### Breaking
 - `.aictx/memory/source/` is now the canonical repo-local source-knowledge layer

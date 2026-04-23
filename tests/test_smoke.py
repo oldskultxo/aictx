@@ -2136,6 +2136,24 @@ def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
     assert any(item.endswith('.aictx') for item in payload['removed'])
 
 
+def test_cmd_init_removes_legacy_repo_agents_override_block(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "AGENTS.override.md").write_text(
+        "<!-- AICTX:START -->\nlegacy\n<!-- AICTX:END -->\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
+
+    args = argparse.Namespace(repo=str(repo), no_gitignore=False, no_register=True, yes=True)
+    assert cli.cmd_init(args) == 0
+    assert not (repo / "AGENTS.override.md").exists()
+
+
 def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path: Path, monkeypatch):
     engine_home = tmp_path / '.aictx_home'
     codex_home = tmp_path / '.codex'
