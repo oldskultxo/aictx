@@ -39,11 +39,18 @@ FAILURE_MEMORY_DIR = ENGINE_STATE_DIR / "failure_memory"
 MEMORY_GRAPH_DIR = ENGINE_STATE_DIR / "memory_graph"
 CONTEXT_METRICS_DIR = ENGINE_STATE_DIR / "metrics"
 LIBRARY_DIR = ENGINE_STATE_DIR / "library"
+MEMORY_SOURCE_DIR = ENGINE_STATE_DIR / "memory" / "source"
+MEMORY_SOURCE_COMMON_DIR = MEMORY_SOURCE_DIR / "common"
+MEMORY_SOURCE_PROJECTS_DIR = MEMORY_SOURCE_DIR / "projects"
 
-ROOT_INDEX_PATH = BASE / "index.json"
-ROOT_PREFS_PATH = BASE / "user_preferences.json"
+LEGACY_ROOT_INDEX_PATH = BASE / "index.json"
+ROOT_INDEX_PATH = MEMORY_SOURCE_DIR / "index.json"
+ROOT_PREFS_PATH = BASE / ".aictx" / "memory" / "user_preferences.json"
 ROOT_FAST_LOOKUP_PATH = BASE / "fast_lookup.json"
-ROOT_SYMPTOMS_PATH = BASE / "symptoms.json"
+LEGACY_ROOT_SYMPTOMS_PATH = BASE / "symptoms.json"
+ROOT_SYMPTOMS_PATH = MEMORY_SOURCE_DIR / "symptoms.json"
+LEGACY_ROOT_PROTOCOL_PATH = BASE / "protocol.md"
+ROOT_PROTOCOL_PATH = MEMORY_SOURCE_DIR / "protocol.md"
 ROOT_CHANGE_JOURNAL_PATH = BASE / "change_journal.md"
 
 BOOT_SUMMARY_PATH = BOOT_DIR / "boot_summary.json"
@@ -215,6 +222,9 @@ def ensure_dirs() -> None:
         PROJECT_RECORDS_DIR,
         NOTES_STORE_DIR / "common",
         NOTES_STORE_DIR / "projects",
+        MEMORY_SOURCE_DIR,
+        MEMORY_SOURCE_COMMON_DIR,
+        MEMORY_SOURCE_PROJECTS_DIR,
         INDEXES_DIR,
         LAST_PACKETS_DIR,
         MIGRATION_DIR,
@@ -449,12 +459,23 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
 
 
 def note_paths() -> list[Path]:
-    paths = []
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for path in sorted(MEMORY_SOURCE_DIR.rglob("*.md")):
+        rel = path.relative_to(BASE).as_posix()
+        if path.name in NOTE_SKIP_NAMES:
+            continue
+        paths.append(path)
+        seen.add(rel)
     for path in sorted(BASE.rglob("*.md")):
         rel = path.relative_to(BASE).as_posix()
         if rel.startswith(".aictx/") or rel.startswith(".aictx_"):
             continue
+        if MEMORY_SOURCE_DIR.exists() and (rel.startswith("common/") or rel.startswith("projects/")):
+            continue
         if path.name in NOTE_SKIP_NAMES:
+            continue
+        if rel in seen:
             continue
         paths.append(path)
     return paths
@@ -685,7 +706,12 @@ def classify_note(path: Path) -> NoteInfo:
     project = None
     subproject = None
     scope = "global"
-    if parts and parts[0] == "projects":
+    if len(parts) >= 5 and parts[:4] == (".aictx", "memory", "source", "projects"):
+        scope = "project"
+        project = parts[4]
+        if len(parts) > 6:
+            subproject = parts[5]
+    elif parts and parts[0] == "projects":
         scope = "project"
         if len(parts) > 1:
             project = parts[1]
@@ -858,7 +884,8 @@ def write_indexes(rows: list[dict[str, Any]]) -> None:
     by_project: dict[str, list[str]] = defaultdict(list)
     by_path: dict[str, dict[str, Any]] = {}
     by_preference: dict[str, dict[str, Any]] = {}
-    symptoms = read_json(ROOT_SYMPTOMS_PATH, {"symptoms": {}}).get("symptoms", {})
+    symptoms_path = ROOT_SYMPTOMS_PATH if ROOT_SYMPTOMS_PATH.exists() else LEGACY_ROOT_SYMPTOMS_PATH
+    symptoms = read_json(symptoms_path, {"symptoms": {}}).get("symptoms", {})
     by_symptom = {key: value for key, value in symptoms.items()}
 
     for row in rows:
@@ -1530,6 +1557,47 @@ def refresh_engine_state() -> dict[str, Any]:
     return state
 
 
+def repair_repo_runtime_contract(repo: Path | None = None) -> dict[str, Any]:
+    target_repo = (repo or BASE).resolve()
+    state_path = target_repo / ".aictx" / "state.json"
+    if not state_path.exists():
+        return {"repo": target_repo.as_posix(), "repaired": False, "reason": "not_initialized", "created": [], "updated": []}
+    from .agent_runtime import render_repo_agents_block, upsert_marked_block, write_local_agent_runtime
+    from .runner_integrations import install_repo_runner_integrations
+
+    created: list[str] = []
+    updated: list[str] = []
+
+    runtime_path = write_local_agent_runtime(target_repo)
+    if runtime_path.exists():
+        updated.append(runtime_path.as_posix())
+
+    runner_paths = install_repo_runner_integrations(target_repo)
+    for path in runner_paths:
+        path_str = path.as_posix()
+        if path.exists():
+            updated.append(path_str)
+        else:
+            created.append(path_str)
+
+    agents_path = target_repo / "AGENTS.md"
+    before = agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
+    upsert_marked_block(agents_path, render_repo_agents_block())
+    after = agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
+    if after != before:
+        if before:
+            updated.append(agents_path.as_posix())
+        else:
+            created.append(agents_path.as_posix())
+
+    return {
+        "repo": target_repo.as_posix(),
+        "repaired": True,
+        "created": sorted(dict.fromkeys(created)),
+        "updated": sorted(dict.fromkeys(updated)),
+    }
+
+
 def truncate_words(text: str, max_words: int) -> str:
     from .runtime_io import truncate_words as _impl
     return _impl(text, max_words)
@@ -1712,7 +1780,17 @@ def touch_records(paths: list[str]) -> dict[str, Any]:
 
 
 def new_note(path: str, title: str, tags: list[str] | None = None, task_type: str | None = None) -> dict[str, Any]:
-    note_path = BASE / path
+    raw_path = Path(path)
+    if raw_path.is_absolute():
+        note_path = raw_path
+    else:
+        rel = raw_path.as_posix().lstrip("./")
+        if rel.startswith(".aictx/"):
+            note_path = BASE / rel
+        elif rel.startswith("projects/") or rel.startswith("common/"):
+            note_path = BASE / ".aictx" / "memory" / "source" / rel
+        else:
+            note_path = BASE / ".aictx" / "memory" / "source" / "projects" / BASE.name / rel
     note_path.parent.mkdir(parents=True, exist_ok=True)
     tag_list = ", ".join(tags or [])
     normalized_task_type = normalize_task_type(task_type) if task_type else None
@@ -1775,7 +1853,12 @@ def cli_route(args: argparse.Namespace) -> int:
 
 
 def cli_migrate(_: argparse.Namespace) -> int:
+    from .scaffold import ensure_repo_memory_sources, ensure_repo_user_preferences
+    ensure_repo_user_preferences(BASE)
+    ensure_repo_memory_sources(BASE)
+    repair = repair_repo_runtime_contract(BASE)
     summary = rebuild_memory_store()
+    summary["repo_runtime_repair"] = repair
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
 

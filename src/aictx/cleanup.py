@@ -6,13 +6,23 @@ from pathlib import Path
 from typing import Any
 
 from .agent_runtime import AGENTS_END, AGENTS_START
-from .runner_integrations import AICTX_END, AICTX_START, CODEX_CONFIG_PATH, CODEX_HOME
+from .runner_integrations import (
+    AICTX_END,
+    AICTX_START,
+    CLAUDE_GITIGNORE_COMMENT,
+    CLAUDE_DIR_GITIGNORE_LINE,
+    CLAUDE_MD_GITIGNORE_LINE,
+    CODEX_CONFIG_PATH,
+    CODEX_HOME,
+    codex_instructions_path,
+)
 from .state import ENGINE_HOME, PROJECTS_REGISTRY_PATH, WORKSPACES_DIR, read_json, write_json
 
 REPO_HOOK_FILES = [
     Path('.claude/hooks/aictx_session_start.py'),
     Path('.claude/hooks/aictx_user_prompt_submit.py'),
     Path('.claude/hooks/aictx_pre_tool_use.py'),
+    Path('.claude/hooks/aictx_refresh_memory_graph.sh'),
 ]
 REPO_OPTIONAL_FILES = [
     Path('AGENTS.override.md'),
@@ -23,8 +33,13 @@ AICTX_GITIGNORE_LINES = {
     '.aictx/',
     '.aictx/',
 }
+CLAUDE_GITIGNORE_LINES = {
+    CLAUDE_DIR_GITIGNORE_LINE,
+    CLAUDE_MD_GITIGNORE_LINE,
+}
 CODEX_MANAGED_COMMENT = '# AICTX managed fallback docs for stronger repo instruction loading'
 CODEX_MANAGED_LINE = 'project_doc_fallback_filenames = ["CLAUDE.md"]'
+CODEX_INSTRUCTIONS_COMMENT = '# AICTX managed mandatory Codex developer instructions'
 
 
 def _safe_unlink(path: Path, removed: list[str]) -> None:
@@ -79,8 +94,25 @@ def remove_gitignore_aictx_entries(path: Path) -> bool:
     if not path.exists():
         return False
     lines = path.read_text(encoding='utf-8').splitlines()
-    filtered = [line for line in lines if line.strip() not in AICTX_GITIGNORE_LINES]
-    if filtered == lines:
+    filtered: list[str] = []
+    skip_claude_managed_lines = False
+    changed = False
+    for line in lines:
+        stripped = line.strip()
+        if skip_claude_managed_lines:
+            if stripped in CLAUDE_GITIGNORE_LINES:
+                changed = True
+                continue
+            skip_claude_managed_lines = False
+        if stripped in AICTX_GITIGNORE_LINES:
+            changed = True
+            continue
+        if stripped == CLAUDE_GITIGNORE_COMMENT:
+            skip_claude_managed_lines = True
+            changed = True
+            continue
+        filtered.append(line)
+    if not changed and filtered == lines:
         return False
     if filtered:
         path.write_text('\n'.join(filtered).rstrip() + '\n', encoding='utf-8')
@@ -151,8 +183,15 @@ def remove_claude_settings_aictx_entries(path: Path) -> bool:
 def remove_codex_config_aictx_entries(path: Path = CODEX_CONFIG_PATH) -> bool:
     if not path.exists():
         return False
+    instructions_path = codex_instructions_path()
     lines = path.read_text(encoding='utf-8').splitlines()
-    filtered = [line for line in lines if line.strip() not in {CODEX_MANAGED_COMMENT, CODEX_MANAGED_LINE}]
+    managed_lines = {
+        CODEX_MANAGED_COMMENT,
+        CODEX_MANAGED_LINE,
+        CODEX_INSTRUCTIONS_COMMENT,
+        f'model_instructions_file = "{instructions_path.as_posix()}"',
+    }
+    filtered = [line for line in lines if line.strip() not in managed_lines]
     if filtered == lines:
         return False
     while filtered and not filtered[-1].strip():
@@ -287,12 +326,15 @@ def uninstall_all() -> dict[str, Any]:
     for workspace_file in _workspace_files():
         updated.extend(_clean_workspace_file(workspace_file, target_repo=None))
 
-    for file_path in [CODEX_HOME / 'AGENTS.override.md']:
+    instructions_path = codex_instructions_path()
+    for file_path in [CODEX_HOME / 'AGENTS.override.md', instructions_path]:
         if remove_marked_block(file_path, AICTX_START, AICTX_END):
             if file_path.exists():
                 updated.append(str(file_path))
             else:
                 removed.append(str(file_path))
+        elif file_path == instructions_path and file_path.exists():
+            _safe_unlink(file_path, removed)
 
     if remove_codex_config_aictx_entries(CODEX_CONFIG_PATH):
         if CODEX_CONFIG_PATH.exists():

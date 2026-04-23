@@ -11,6 +11,9 @@ AICTX_START = "<!-- AICTX:START -->"
 AICTX_END = "<!-- AICTX:END -->"
 CODEX_HOME = Path.home() / ".codex"
 CODEX_CONFIG_PATH = CODEX_HOME / "config.toml"
+CLAUDE_GITIGNORE_COMMENT = "# AICTX managed Claude repo integration"
+CLAUDE_DIR_GITIGNORE_LINE = ".claude/"
+CLAUDE_MD_GITIGNORE_LINE = "CLAUDE.md"
 
 
 def write_executable(path: Path, content: str) -> None:
@@ -19,43 +22,40 @@ def write_executable(path: Path, content: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def codex_instructions_path() -> Path:
+    return CODEX_HOME / "AICTX_Codex.md"
+
+
 def render_codex_home_block() -> str:
     return f"""{AICTX_START}
 ## AICTX Codex integration
 
 When Codex is running inside a repository initialized with `aictx`:
 - prefer repo-local execution history and strategy memory before broad repo scanning
-- read repo-local `AGENTS.override.md`, `AGENTS.md`, and `.aictx/agent_runtime.md` when present
+- read repo-local `AGENTS.md`, `CLAUDE.md`, and `.aictx/agent_runtime.md` when present
 - treat `CLAUDE.md` as an additional high-signal project instruction file when available
-- do not hand-edit generated `.aictx/*` artifacts
+- `.aictx/memory/source/` is editable source knowledge; avoid hand-editing generated `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar derived artifacts
 - if the repository exposes `aictx internal run-execution`, treat it as the preferred middleware entrypoint for wrapped automations
 - final responses for non-trivial tasks must include the AICTX `agent_summary_text` from finalize; if unavailable, say `AICTX summary unavailable`
 {AICTX_END}
 """
 
 
-def render_codex_repo_override_block() -> str:
-    return f"""{AICTX_START}
-## AICTX repo-native Codex instructions
+def render_codex_global_instructions() -> str:
+    return """# AICTX Codex global developer instructions
 
-- This repository is initialized with `aictx`; prefer `.aictx/` as the first runtime layer.
-- Read `.aictx/agent_runtime.md` before deep repo analysis when the task is non-trivial.
-- Read `CLAUDE.md` too when it exists; it is part of the repo-level AICTX runtime contract.
-- Use `.aictx/metrics/` and `.aictx/strategy_memory/` as the source of truth.
-- Do not hand-edit generated `.aictx/*` artifacts.
-- Do not recreate parallel memory folders.
-- When running wrapped automations, prefer `aictx internal run-execution` as the middleware entrypoint.
-- Persist learnings through the engine flow rather than inventing parallel memory files.
-- After finalize, append `agent_summary_text` verbatim to the final user response.
-- If no finalize output exists, say `AICTX summary unavailable`.
+Use AICTX in every Codex session for repositories initialized with `aictx`.
 
-## aictx usage rules
-
-- Before opening more than 3 files: run `aictx suggest --repo .`
-- If you reopen the same file: run `aictx reflect --repo .`
-- If the task seems similar to a previous one: run `aictx reuse --repo .`
-- If you are unsure about the next step: run `aictx suggest --repo .`
-{AICTX_END}
+Required behavior:
+- Do not decide whether AICTX applies. If the repository contains `.aictx/`, use it.
+- At the start of non-trivial work, immediately run `aictx suggest --repo .`.
+- If the task seems similar to prior work, run `aictx reuse --repo .`.
+- If you reopen the same file, run `aictx reflect --repo .`.
+- Read `.aictx/agent_runtime.md` before deep repo analysis in initialized repositories.
+- Read `CLAUDE.md` too when it exists.
+- Prefer `aictx internal run-execution` as the execution middleware entrypoint when available.
+- Final responses for non-trivial tasks must append `agent_summary_text` verbatim after finalize.
+- If finalize output is unavailable, say exactly `AICTX summary unavailable`.
 """
 
 
@@ -136,6 +136,30 @@ def write_merged_claude_settings(path: Path) -> None:
         except json.JSONDecodeError:
             existing = {}
     path.write_text(json.dumps(merge_claude_settings(existing), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def ensure_gitignore_claude_if_created(
+    repo: Path,
+    *,
+    claude_dir_preexisted: bool,
+    claude_md_preexisted: bool,
+) -> Path | None:
+    gitignore_path = repo / ".gitignore"
+    existing = gitignore_path.read_text(encoding="utf-8").splitlines() if gitignore_path.exists() else []
+    existing_stripped = [line.strip() for line in existing]
+    desired_lines: list[str] = []
+    if not claude_dir_preexisted and CLAUDE_DIR_GITIGNORE_LINE not in existing_stripped:
+        desired_lines.append(CLAUDE_DIR_GITIGNORE_LINE)
+    if not claude_md_preexisted and CLAUDE_MD_GITIGNORE_LINE not in existing_stripped:
+        desired_lines.append(CLAUDE_MD_GITIGNORE_LINE)
+    if not desired_lines:
+        return None
+    if existing and existing[-1].strip():
+        existing.append("")
+    existing.append(CLAUDE_GITIGNORE_COMMENT)
+    existing.extend(desired_lines)
+    gitignore_path.write_text("\n".join(existing).rstrip() + "\n", encoding="utf-8")
+    return gitignore_path
 
 
 def render_session_start_script() -> str:
@@ -224,6 +248,9 @@ from pathlib import Path
 GENERATED_PREFIXES = [
     ".aictx/",
 ]
+EDITABLE_SOURCE_PREFIXES = [
+    ".aictx/memory/source/",
+]
 LEGACY_MEMORY_DIRS = {
     ".aictx_memory",
     ".aictx_cost",
@@ -252,6 +279,8 @@ def normalize_rel(path_str: str, repo_root: Path) -> str:
 
 
 def path_is_blocked(rel_path: str) -> bool:
+    if any(rel_path == prefix.rstrip("/") or rel_path.startswith(prefix) for prefix in EDITABLE_SOURCE_PREFIXES):
+        return False
     if any(rel_path == prefix.rstrip("/") or rel_path.startswith(prefix) for prefix in GENERATED_PREFIXES):
         return True
     first = rel_path.split("/", 1)[0]
@@ -269,7 +298,7 @@ if tool_name in WRITE_TOOL_NAMES:
     if path_is_blocked(rel_path):
         deny(
             "AICTX policy: generated runtime artifacts and legacy parallel memory directories must not be edited directly. "
-            "Update durable notes/rules instead and let aictx regenerate derived state."
+            "Edit durable notes in .aictx/memory/source/ instead and let aictx regenerate derived state."
         )
 
 if tool_name == "Bash":
@@ -289,35 +318,46 @@ raise SystemExit(0)
 
 def ensure_codex_config_hardening() -> list[Path]:
     CODEX_HOME.mkdir(parents=True, exist_ok=True)
+    instructions_path = codex_instructions_path()
     existing = CODEX_CONFIG_PATH.read_text(encoding="utf-8") if CODEX_CONFIG_PATH.exists() else ""
     managed_comment = "# AICTX managed fallback docs for stronger repo instruction loading"
     desired = 'project_doc_fallback_filenames = ["CLAUDE.md"]'
-    if "project_doc_fallback_filenames" in existing:
-        return [CODEX_CONFIG_PATH]
+    instructions_comment = "# AICTX managed mandatory Codex developer instructions"
+    instructions_line = f'model_instructions_file = "{instructions_path.as_posix()}"'
+    changed = False
     updated = existing.rstrip()
-    if updated:
-        updated += "\n\n"
-    updated += managed_comment + "\n" + desired + "\n"
-    CODEX_CONFIG_PATH.write_text(updated, encoding="utf-8")
+    if "project_doc_fallback_filenames" not in existing:
+        if updated:
+            updated += "\n\n"
+        updated += managed_comment + "\n" + desired
+        changed = True
+    if "model_instructions_file" not in existing:
+        if updated:
+            updated += "\n\n"
+        updated += instructions_comment + "\n" + instructions_line
+        changed = True
+    if changed:
+        CODEX_CONFIG_PATH.write_text(updated.rstrip() + "\n", encoding="utf-8")
     return [CODEX_CONFIG_PATH]
 
 
 def install_codex_native_integration() -> list[Path]:
+    instructions_path = codex_instructions_path()
+    write_executable(instructions_path, render_codex_global_instructions())
     path = CODEX_HOME / "AGENTS.override.md"
     upsert_marked_block(path, render_codex_home_block())
-    created = [path]
+    created = [instructions_path, path]
     created.extend(ensure_codex_config_hardening())
     return created
 
 
 def install_repo_runner_integrations(repo: Path) -> list[Path]:
     created: list[Path] = []
-
-    codex_override = repo / "AGENTS.override.md"
-    upsert_marked_block(codex_override, render_codex_repo_override_block())
-    created.append(codex_override)
+    claude_dir = repo / ".claude"
+    claude_dir_preexisted = claude_dir.exists()
 
     claude_md = repo / "CLAUDE.md"
+    claude_md_preexisted = claude_md.exists()
     upsert_marked_block(claude_md, render_claude_md_block())
     created.append(claude_md)
 
@@ -336,5 +376,13 @@ def install_repo_runner_integrations(repo: Path) -> list[Path]:
     pre_tool = repo / ".claude" / "hooks" / "aictx_pre_tool_use.py"
     write_executable(pre_tool, render_claude_pre_tool_use_script())
     created.append(pre_tool)
+
+    gitignore_path = ensure_gitignore_claude_if_created(
+        repo,
+        claude_dir_preexisted=claude_dir_preexisted,
+        claude_md_preexisted=claude_md_preexisted,
+    )
+    if gitignore_path:
+        created.append(gitignore_path)
 
     return created

@@ -73,7 +73,7 @@ Agent rules:
 - After finalize, append `agent_summary_text` verbatim to the final user response.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - Use repo-local execution history and strategy memory before deeper repo analysis.
-- Do not hand-edit generated `.aictx_*` artifacts.
+- `.aictx/memory/source/` is editable source knowledge; do not hand-edit generated derived artifacts under `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders.
 - Before opening more than 3 files: run `aictx suggest --repo .`
 - If you reopen the same file: run `aictx reflect --repo .`
 - If the task seems similar to a previous one: run `aictx reuse --repo .`
@@ -136,6 +136,13 @@ def copy_local_agent_runtime(repo: Path) -> Path:
     target = repo / LOCAL_RUNTIME_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, target)
+    return target
+
+
+def write_local_agent_runtime(repo: Path) -> Path:
+    target = repo / LOCAL_RUNTIME_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(render_agent_runtime(), encoding="utf-8")
     return target
 
 

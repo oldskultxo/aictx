@@ -143,7 +143,6 @@ The runtime does not claim ML-grade semantic retrieval or guaranteed optimizatio
 Repo guidance is written into:
 
 - `AGENTS.md`
-- `AGENTS.override.md`
 - `.aictx/agent_runtime.md`
 
 ### Claude

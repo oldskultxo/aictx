@@ -215,7 +215,8 @@ def rebuild_memory_store() -> dict[str, Any]:
     user_rows = preference_records()
     write_jsonl(cr.STORE_USER_PREFERENCES_PATH, user_rows)
 
-    index = cr.read_json(cr.ROOT_INDEX_PATH, {})
+    index_path = cr.ROOT_INDEX_PATH if cr.ROOT_INDEX_PATH.exists() else cr.LEGACY_ROOT_INDEX_PATH
+    index = cr.read_json(index_path, {})
     project_registry = {
         'version': 1,
         'lookup_order': index.get('lookup_order', []),

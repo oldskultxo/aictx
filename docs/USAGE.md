@@ -99,7 +99,8 @@ aictx clean --repo .
 
 Removes only AICTX-managed repository content:
 - `.aictx/`
-- AICTX blocks inside `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md`
+- AICTX blocks inside `AGENTS.md` and `CLAUDE.md`
+- legacy AICTX content inside `AGENTS.override.md` when present
 - AICTX Claude hook files and matching entries in `.claude/settings.json`
 - the `.gitignore` line for `.aictx/`
 

@@ -24,6 +24,7 @@ No release publishing is implied by this metadata update.
 
 - `aictx install` no longer modifies global Codex configuration by default.
 - Use `aictx install --install-codex-global` to update `~/.codex/AGENTS.override.md` and `~/.codex/config.toml`.
+- `aictx init` now consolidates repo-local Codex guidance into `AGENTS.md`; it no longer creates `AGENTS.override.md` for new repos.
 - `aictx init` no longer performs legacy ad hoc migration/deletion of old memory directories.
 
 ### Re-running init

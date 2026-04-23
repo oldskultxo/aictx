@@ -18,7 +18,7 @@ from .middleware import cli_finalize_execution, cli_prepare_execution
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
-from .scaffold import TEMPLATES_DIR, init_repo_scaffold
+from .scaffold import TEMPLATES_DIR, ensure_repo_user_preferences, init_repo_scaffold
 from .report import build_real_usage_report
 from .cleanup import clean_repo_and_unregister, uninstall_all
 from .strategy_memory import select_strategy
@@ -105,6 +105,7 @@ def ask_choice(prompt: str, options: list[tuple[str, str]], default: str) -> str
 
 
 def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
+    ensure_repo_user_preferences(repo)
     prefs_path = repo / REPO_MEMORY_DIR / "user_preferences.json"
     prefs = read_json(prefs_path, {})
     communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
@@ -231,6 +232,7 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
 
 
 def prepare_repo_runtime(repo: Path) -> list[str]:
+    ensure_repo_user_preferences(repo)
     prefs = read_json(repo / REPO_MEMORY_DIR / "user_preferences.json", {})
     communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
     layer = "enabled" if str(communication.get("layer", "")).strip() == "enabled" else "disabled"
@@ -258,10 +260,11 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
             "runner_native_integrations": {
                 "codex": {
                     "status": "native_hardened",
-                    "mechanism": "repo AGENTS.override.md; optional global ~/.codex integration via aictx install --install-codex-global",
-                    "project_file": "AGENTS.override.md",
+                    "mechanism": "repo AGENTS.md + optional global ~/.codex model instructions via aictx install --install-codex-global",
+                    "project_file": "AGENTS.md",
                     "optional_global_files": [
                         "~/.codex/AGENTS.override.md",
+                        "~/.codex/AICTX_Codex.md",
                         "~/.codex/config.toml",
                     ],
                 },
@@ -351,7 +354,11 @@ def cmd_install(args: argparse.Namespace) -> int:
             workspace_path(workspace_id),
         ]
         if install_codex_global:
-            planned.extend([Path.home() / ".codex" / "AGENTS.override.md", Path.home() / ".codex" / "config.toml"])
+            planned.extend([
+                Path.home() / ".codex" / "AGENTS.override.md",
+                Path.home() / ".codex" / "AICTX_Codex.md",
+                Path.home() / ".codex" / "config.toml",
+            ])
         print("Dry run. Would create/update:")
         for path in planned:
             print(f"- {path}")

@@ -10,7 +10,6 @@
 
 - `.aictx/`
 - `AGENTS.md` AICTX-managed block
-- `AGENTS.override.md` AICTX-managed block
 - `CLAUDE.md` AICTX-managed block
 - `.claude/settings.json` AICTX hook entries, merged with existing settings
 - `.claude/hooks/aictx_session_start.py`

@@ -39,13 +39,15 @@ from aictx.agent_runtime import (
 from aictx.core_runtime import communication_policy_from_defaults
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.runner_integrations import (
+    CLAUDE_GITIGNORE_COMMENT,
+    CLAUDE_DIR_GITIGNORE_LINE,
+    CLAUDE_MD_GITIGNORE_LINE,
     install_codex_native_integration,
     install_repo_runner_integrations,
     render_claude_md_block,
-    render_codex_repo_override_block,
     render_user_prompt_submit_script,
 )
-from aictx.scaffold import TEMPLATES_DIR, init_repo_scaffold
+from aictx.scaffold import TEMPLATES_DIR, ensure_repo_memory_sources, ensure_repo_user_preferences, init_repo_scaffold
 from aictx.state import Workspace, default_global_config, read_json
 
 
@@ -62,6 +64,39 @@ def test_templates_exist():
 
 def test_template_defaults_communication_layer_disabled():
     payload = json.loads((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"))
+    assert payload["communication"]["layer"] == "disabled"
+    assert payload["communication"]["mode"] == "caveman_full"
+
+
+def test_root_prefs_path_points_to_canonical_repo_local_preferences():
+    assert core_runtime.ROOT_PREFS_PATH.as_posix().endswith(".aictx/memory/user_preferences.json")
+
+
+def test_init_repo_scaffold_seeds_repo_preferences_from_template(tmp_path: Path):
+    repo = tmp_path / "repo"
+    created = init_repo_scaffold(repo, update_gitignore=False)
+    prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
+    assert str(prefs_path) in created
+    assert json.loads(prefs_path.read_text(encoding="utf-8")) == json.loads((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"))
+
+
+def test_ensure_repo_user_preferences_merges_legacy_root_without_losing_canonical_overrides(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / ".aictx" / "memory").mkdir(parents=True, exist_ok=True)
+    (repo / "user_preferences.json").write_text(json.dumps({
+        "updated_at": "2026-04-16",
+        "profile": {"preferred_language": "es"},
+        "communication": {"layer": "enabled"},
+    }), encoding="utf-8")
+    (repo / ".aictx" / "memory" / "user_preferences.json").write_text(json.dumps({
+        "communication": {"layer": "disabled", "mode": "caveman_full"},
+    }), encoding="utf-8")
+
+    path = ensure_repo_user_preferences(repo)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["updated_at"] == "2026-04-16"
+    assert payload["profile"]["preferred_language"] == "es"
     assert payload["communication"]["layer"] == "disabled"
     assert payload["communication"]["mode"] == "caveman_full"
 
@@ -102,9 +137,6 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     repo_block = render_repo_agents_block()
     assert "agent_summary_text" in repo_block
     assert "AICTX summary unavailable" in repo_block
-    codex_block = render_codex_repo_override_block()
-    assert "agent_summary_text" in codex_block
-    assert "AICTX summary unavailable" in codex_block
     claude_block = render_claude_md_block()
     assert "agent_summary_text" in claude_block
     assert "AICTX summary unavailable" in claude_block
@@ -166,6 +198,31 @@ def test_init_repo_scaffold_creates_minimal_v1_structure(tmp_path: Path):
     assert not (repo / ".aictx" / "adapters").exists()
     assert not (repo / ".aictx" / "task_memory").exists()
     assert (repo / ".aictx" / "failure_memory" / "failure_patterns.jsonl").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "index.json").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "symptoms.json").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "protocol.md").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "common" / "user_working_preferences.md").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "projects" / repo.name / "overview.md").exists()
+
+
+def test_ensure_repo_memory_sources_imports_legacy_source_files(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / "common").mkdir(parents=True)
+    (repo / "projects" / "demo").mkdir(parents=True)
+    (repo / "common" / "user_working_preferences.md").write_text("# legacy common\n", encoding="utf-8")
+    (repo / "projects" / "demo" / "decisions.md").write_text("# legacy decisions\n", encoding="utf-8")
+    (repo / "index.json").write_text(json.dumps({"version": 1, "common": ["common/user_working_preferences.md"]}), encoding="utf-8")
+    (repo / "symptoms.json").write_text(json.dumps({"version": 1, "symptoms": {"broken": ["projects/demo/decisions.md"]}}), encoding="utf-8")
+    (repo / "protocol.md").write_text("# legacy protocol\n", encoding="utf-8")
+
+    created = ensure_repo_memory_sources(repo)
+
+    assert str(repo / ".aictx" / "memory" / "source" / "common" / "user_working_preferences.md") in created
+    assert (repo / ".aictx" / "memory" / "source" / "projects" / "demo" / "decisions.md").read_text(encoding="utf-8") == "# legacy decisions\n"
+    index_payload = json.loads((repo / ".aictx" / "memory" / "source" / "index.json").read_text(encoding="utf-8"))
+    assert index_payload["common"] == [".aictx/memory/source/common/user_working_preferences.md"]
+    symptoms_payload = json.loads((repo / ".aictx" / "memory" / "source" / "symptoms.json").read_text(encoding="utf-8"))
+    assert symptoms_payload["symptoms"]["broken"] == [".aictx/memory/source/projects/demo/decisions.md"]
 
 
 def test_prepare_execution_plain_mode_without_skill_metadata(tmp_path: Path):
@@ -814,8 +871,9 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     assert (repo / ".aictx" / "metrics" / "execution_logs.jsonl").exists()
     assert (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").exists()
     assert (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "index.json").exists()
+    assert (repo / ".aictx" / "memory" / "source" / "projects" / repo.name / "overview.md").exists()
     assert not (repo / ".aictx" / "cost" / "optimization_history.jsonl").exists()
-    assert (repo / "AGENTS.override.md").exists()
     assert (repo / "CLAUDE.md").exists()
     assert (repo / ".claude" / "settings.json").exists()
     assert (repo / ".claude" / "hooks" / "aictx_session_start.py").exists()
@@ -1363,7 +1421,6 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     repo = tmp_path / "repo"
     repo.mkdir()
     created = install_repo_runner_integrations(repo)
-    assert repo / "AGENTS.override.md" in created
     assert repo / "CLAUDE.md" in created
     settings = read_json(repo / ".claude" / "settings.json", {})
     assert "SessionStart" in settings["hooks"]
@@ -1371,9 +1428,11 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert "PreToolUse" in settings["hooks"]
     assert (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").exists()
     assert (repo / ".claude" / "hooks" / "aictx_pre_tool_use.py").exists()
-    assert "aictx suggest --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
-    assert "aictx reflect --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
-    assert "aictx reuse --repo ." in (repo / "AGENTS.override.md").read_text(encoding="utf-8")
+    assert (repo / ".gitignore").exists()
+    gitignore = (repo / ".gitignore").read_text(encoding="utf-8")
+    assert CLAUDE_GITIGNORE_COMMENT in gitignore
+    assert CLAUDE_DIR_GITIGNORE_LINE in gitignore
+    assert CLAUDE_MD_GITIGNORE_LINE in gitignore
     assert "aictx suggest --repo ." in (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
 
@@ -1415,6 +1474,37 @@ def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tm
         for entry in settings["hooks"]["PreToolUse"]
         for hook in entry.get("hooks", [])
     )
+
+
+def test_install_repo_runner_integrations_does_not_add_gitignore_when_claude_preexists_and_unignored(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / ".claude").mkdir(parents=True)
+    install_repo_runner_integrations(repo)
+    gitignore = repo / ".gitignore"
+    assert gitignore.exists()
+    text = gitignore.read_text(encoding="utf-8")
+    assert CLAUDE_GITIGNORE_COMMENT in text
+    assert CLAUDE_DIR_GITIGNORE_LINE not in text
+    assert CLAUDE_MD_GITIGNORE_LINE in text
+
+
+def test_install_repo_runner_integrations_preserves_existing_claude_gitignore(tmp_path: Path):
+    repo = tmp_path / "repo"
+    (repo / ".claude").mkdir(parents=True)
+    (repo / ".gitignore").write_text(".claude/\n", encoding="utf-8")
+    install_repo_runner_integrations(repo)
+    text = (repo / ".gitignore").read_text(encoding="utf-8")
+    assert text == f".claude/\n\n{CLAUDE_GITIGNORE_COMMENT}\n{CLAUDE_MD_GITIGNORE_LINE}\n"
+
+
+def test_install_repo_runner_integrations_does_not_add_claude_md_gitignore_when_claude_md_preexists(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "CLAUDE.md").write_text("User Claude notes.\n", encoding="utf-8")
+    install_repo_runner_integrations(repo)
+    text = (repo / ".gitignore").read_text(encoding="utf-8")
+    assert CLAUDE_DIR_GITIGNORE_LINE in text
+    assert CLAUDE_MD_GITIGNORE_LINE not in text
 
 
 def test_cmd_install_default_does_not_touch_codex_global(tmp_path: Path, monkeypatch, capsys):
@@ -1492,12 +1582,17 @@ def test_install_codex_native_integration_writes_home_override(tmp_path: Path, m
     monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", tmp_path / ".codex")
     monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", tmp_path / ".codex" / "config.toml")
     created = install_codex_native_integration()
+    assert (tmp_path / ".codex" / "AICTX_Codex.md") in created
     assert (tmp_path / ".codex" / "AGENTS.override.md") in created
     assert (tmp_path / ".codex" / "config.toml") in created
+    instructions = (tmp_path / ".codex" / "AICTX_Codex.md").read_text(encoding="utf-8")
+    assert "Use AICTX in every Codex session" in instructions
+    assert "aictx suggest --repo ." in instructions
     text = (tmp_path / ".codex" / "AGENTS.override.md").read_text(encoding="utf-8")
     assert "AICTX Codex integration" in text
     config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
     assert 'project_doc_fallback_filenames = ["CLAUDE.md"]' in config
+    assert 'model_instructions_file = "' in config
 
 
 def test_claude_pre_tool_hook_blocks_generated_runtime_edits(tmp_path: Path):
@@ -1573,6 +1668,37 @@ def test_boot_prefers_repo_communication_policy_and_reports_mismatch(tmp_path: P
     assert prepared["consistency_checks"]["status"] in {"warning", "not_initialized"}
 
 
+def test_boot_and_prepare_warn_when_native_runtime_files_are_missing(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+    install_repo_runner_integrations(repo)
+    upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
+
+    for path in [
+        repo / "CLAUDE.md",
+        repo / ".claude/settings.json",
+    ]:
+        path.unlink()
+
+    boot = core_runtime.bootstrap(str(repo))
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "review runtime contract health",
+            "agent_id": "agent-test",
+            "execution_id": "exec-runtime-contract-1",
+        }
+    )
+
+    for payload in [boot["consistency_checks"], prepared["consistency_checks"]]:
+        assert payload["status"] == "warning"
+        assert payload["repair_hint"] == "Run `aictx internal migrate` to restore missing AICTX repo runtime files."
+        checks = {issue["check"] for issue in payload["issues"]}
+        assert "native_runtime_contract_incomplete" in checks
+        assert "runner_integration_status_incorrect" in checks
+
+
 def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -1608,6 +1734,48 @@ def test_cli_smoke_flow_runs_through_python_module(tmp_path: Path):
         check=False,
     )
     assert packet_proc.returncode == 0, packet_proc.stderr
+
+
+def test_migrate_repairs_repo_runtime_contract_files(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+
+    for path in [
+        repo / "CLAUDE.md",
+        repo / ".claude" / "settings.json",
+        repo / ".claude" / "hooks" / "aictx_session_start.py",
+        repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py",
+        repo / ".claude" / "hooks" / "aictx_pre_tool_use.py",
+    ]:
+        if path.exists():
+            path.unlink()
+    agents_path = repo / "AGENTS.md"
+    agents_path.write_text("# repo instructions\n", encoding="utf-8")
+
+    original_base = core_runtime.BASE
+    original_engine_state_dir = core_runtime.ENGINE_STATE_DIR
+    original_engine_state_path = core_runtime.ENGINE_STATE_PATH
+    try:
+        core_runtime.BASE = repo
+        core_runtime.ENGINE_STATE_DIR = repo / ".aictx"
+        core_runtime.ENGINE_STATE_PATH = repo / ".aictx" / "state.json"
+        payload = {"repo_runtime_repair": core_runtime.repair_repo_runtime_contract(repo)}
+    finally:
+        core_runtime.BASE = original_base
+        core_runtime.ENGINE_STATE_DIR = original_engine_state_dir
+        core_runtime.ENGINE_STATE_PATH = original_engine_state_path
+
+    repair = payload["repo_runtime_repair"]
+    assert repair["repaired"] is True
+    assert (repo / "CLAUDE.md").exists()
+    assert (repo / ".claude" / "settings.json").exists()
+    assert (repo / ".claude" / "hooks" / "aictx_session_start.py").exists()
+    assert (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").exists()
+    assert (repo / ".claude" / "hooks" / "aictx_pre_tool_use.py").exists()
+    assert "<!-- AICTX:START -->" in (repo / "AGENTS.md").read_text(encoding="utf-8")
 
     prepared_path = repo / "prepared.json"
     prepare_proc = subprocess.run(
@@ -2037,16 +2205,20 @@ def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
     extra_claude_hook = repo / ".claude" / "hooks" / "custom.py"
     extra_claude_hook.parent.mkdir(parents=True, exist_ok=True)
     extra_claude_hook.write_text("print('keep')\n", encoding="utf-8")
+    legacy_refresh_hook = repo / ".claude" / "hooks" / "aictx_refresh_memory_graph.sh"
+    legacy_refresh_hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
 
     payload = cli.clean_repo_and_unregister(repo)
 
     assert not (repo / ".aictx").exists()
     assert not (repo / "AGENTS.override.md").exists()
     assert not (repo / "CLAUDE.md").exists()
+    assert not legacy_refresh_hook.exists()
     assert extra_claude_hook.exists()
     assert 'AICTX:START' not in (repo / 'AGENTS.md').read_text(encoding='utf-8')
     assert 'User note.' in (repo / 'AGENTS.md').read_text(encoding='utf-8')
     assert '.aictx/' not in (repo / '.gitignore').read_text(encoding='utf-8')
+    assert 'CLAUDE.md' not in (repo / '.gitignore').read_text(encoding='utf-8')
     settings_path = repo / '.claude' / 'settings.json'
     assert not settings_path.exists()
     assert any(item.endswith('.aictx') for item in payload['removed'])
@@ -2094,6 +2266,7 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     assert not engine_home.exists()
     assert not (repo / '.aictx').exists()
     assert user_file.exists()
+    assert not (codex_home / 'AICTX_Codex.md').exists()
     codex_override = codex_home / 'AGENTS.override.md'
     assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
     assert str(repo) in payload['repos_cleaned']

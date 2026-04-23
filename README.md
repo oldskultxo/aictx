@@ -94,7 +94,7 @@ The rest of the public commands are optional operational commands:
 
 Repo-local:
 - `.aictx/`
-- AICTX-managed blocks in `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md`
+- AICTX-managed blocks in `AGENTS.md` and `CLAUDE.md`
 - `.claude/settings.json` merged AICTX hook entries
 - `.claude/hooks/aictx_*.py`
 - `.gitignore` entries for AICTX runtime paths
@@ -186,7 +186,7 @@ It makes past executions observable and reusable.
 
 ## Cleanup
 
-* `aictx clean` removes only AICTX-managed content from the current repository: the `.aictx/` scaffold, AICTX blocks in `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`, AICTX Claude hooks/settings, and the `.gitignore` entry added by AICTX
+* `aictx clean` removes only AICTX-managed content from the current repository: the `.aictx/` scaffold, AICTX blocks in `AGENTS.md` / `CLAUDE.md`, legacy AICTX content in `AGENTS.override.md` when present, AICTX Claude hooks/settings, and the `.gitignore` entry added by AICTX
 * `aictx uninstall` removes AICTX-managed content from all registered repositories and removes global AICTX state under `~/.aictx`, plus AICTX-managed Codex global instructions/config lines
 * both commands are conservative: they only remove content that AICTX created or marked as AICTX-managed
 

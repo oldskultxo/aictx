@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+.venv-test/
 dist/
 build/
 *.egg-info/
@@ -26,3 +27,5 @@ README.es.md
 .tmp/
 /.vscode
 .aictx/
+.claude/
+CLAUDE.md

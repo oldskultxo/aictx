@@ -616,7 +616,7 @@ def run_health_check() -> dict[str, Any]:
             BASE / ".aictx" / "boot" / "project_registry.json",
         ],
         "memory_files": [
-            BASE / "user_preferences.json",
+            BASE / ".aictx" / "memory" / "user_preferences.json",
             BASE / ".aictx" / "store" / "global_records.jsonl",
             BASE / ".aictx" / "indexes" / "by_project.json",
         ],
@@ -713,8 +713,6 @@ def run_health_check() -> dict[str, Any]:
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Runner integration status is not ready"))
             if not str(state.get("auto_execution_entrypoint", "") or "").strip():
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing auto execution entrypoint in runtime state"))
-            if not (repo / "AGENTS.override.md").exists():
-                repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Codex native repo file AGENTS.override.md"))
             if not (repo / "CLAUDE.md").exists():
                 repo_issues.append(issue("warning", row["name"], "runtime_integration", "Missing Claude native repo file CLAUDE.md"))
             if not (repo / ".claude" / "settings.json").exists():
