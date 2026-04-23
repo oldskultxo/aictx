@@ -1,5 +1,21 @@
 # Upgrade guide
 
+
+## 2.2.0
+
+2.2.0 is additive and keeps the 2.0 safety contract.
+
+### Added
+
+- structured execution signal capture with provenance
+- richer explainable strategy ranking
+- repo-local failure memory with resolution linkage
+- deterministic repo-area memory
+- `agent_summary` and `agent_summary_text` in finalize output
+- extended `report real-usage` capture, failure, area, and hygiene fields
+
+No release publishing is implied by this metadata update.
+
 ## 2.0.0
 
 2.0.0 changes AICTX defaults toward non-destructive setup.

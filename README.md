@@ -23,7 +23,9 @@ A repo-local execution memory layer for coding agents that records real executio
 - repo-local execution memory
 - real execution logging
 - reusable strategy memory
-- lightweight runtime guidance for coding agents
+- structured execution signal capture with provenance
+- failure and repo-area memory
+- lightweight runtime guidance and post-task summaries for coding agents
 
 ---
 
@@ -80,7 +82,10 @@ The rest of the public commands are optional operational commands:
 * records real execution in `.ai_context_engine/metrics/execution_logs.jsonl`
 * writes operational feedback in `.ai_context_engine/metrics/execution_feedback.jsonl`
 * stores successful and failed strategies in `.ai_context_engine/strategy_memory/strategies.jsonl`
+* captures available files, commands, tests, and errors with provenance instead of inventing data
+* stores repo-local failure patterns and area memory for later debugging/context
 * reuses only successful strategies during later executions
+* returns a concise `agent_summary` after finalize so runners can show AICTX value to users
 * exposes small JSON commands for runtime guidance
 
 ---
@@ -169,8 +174,9 @@ It makes past executions observable and reusable.
 ## Notes
 
 * file tracking depends on explicit input from the agent/runtime
-* strategy reuse is heuristic: matching task type and overlapping files are preferred, with recency as a secondary signal
+* strategy reuse is heuristic: matching task type, prompt similarity, overlapping files, primary entry point, commands/tests/errors, and area are preferred, with recency as a secondary signal
 * task typing uses explicit metadata first, then deterministic keyword/path inference, then `unknown`
+* capture provenance distinguishes explicit, runtime-observed, heuristic, and unknown signals
 * middleware packet generation is not active in the default runtime path
 * failed strategies are stored but never reused as hints
 * no synthetic benchmarks or estimated improvements are reported
@@ -212,3 +218,6 @@ Not part of the current product contract:
 * [Limitations](docs/LIMITATIONS.md)
 * [Safety](docs/SAFETY.md)
 * [Upgrade](docs/UPGRADE.md)
+* [Execution summary](docs/EXECUTION_SUMMARY.md)
+* [Failure memory](docs/FAILURE_MEMORY.md)
+* [Area memory](docs/AREA_MEMORY.md)

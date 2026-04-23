@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .middleware import finalize_execution, prepare_execution
+from .runtime_capture import changed_files_between, command_text, git_status_files, infer_tests_from_commands, notable_errors_from_output
 
 
 def now_stamp() -> str:
@@ -49,6 +50,7 @@ def run_execution(payload: dict[str, Any], command: list[str], validated_learnin
         raise ValueError("command is required after --")
     prepared = prepare_execution(payload)
     repo_root = Path(prepared["envelope"]["repo_root"]).resolve()
+    before_status = git_status_files(repo_root)
     try:
         completed = subprocess.run(
             normalized_command,
@@ -69,6 +71,22 @@ def run_execution(payload: dict[str, Any], command: list[str], validated_learnin
         "result_summary": summarize_command_result(normalized_command, exit_code, stdout, stderr),
         "validated_learning": bool(validated_learning and exit_code == 0),
     }
+    after_status = git_status_files(repo_root)
+    observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
+    observed_command = command_text(normalized_command)
+    observation["commands_executed"] = [observed_command] if observed_command else []
+    observation["tests_executed"] = infer_tests_from_commands(observation["commands_executed"])
+    observation["notable_errors"] = notable_errors_from_output(exit_code, stdout, stderr)
+    edited = changed_files_between(before_status, after_status)
+    if edited:
+        observation["files_edited"] = edited
+    provenance = dict(observation.get("capture_provenance", {})) if isinstance(observation.get("capture_provenance"), dict) else {}
+    provenance["commands_executed"] = "runtime_observed"
+    provenance["tests_executed"] = "heuristic" if observation["tests_executed"] else "unknown"
+    provenance["notable_errors"] = "runtime_observed" if observation["notable_errors"] else "unknown"
+    provenance["files_edited"] = "runtime_observed" if edited else provenance.get("files_edited", "unknown")
+    observation["capture_provenance"] = provenance
+    prepared["execution_observation"] = observation
     finalized = finalize_execution(prepared, result)
     return {
         "execution_id": prepared["envelope"]["execution_id"],
@@ -91,7 +109,11 @@ def cli_run_execution(args: argparse.Namespace) -> int:
         "declared_task_type": args.task_type,
         "execution_mode": args.execution_mode or "plain",
         "files_opened": list(args.files_opened or []),
+        "files_edited": list(args.files_edited or []),
         "files_reopened": list(args.files_reopened or []),
+        "commands_executed": list(args.commands_executed or []),
+        "tests_executed": list(args.tests_executed or []),
+        "notable_errors": list(args.notable_errors or []),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,

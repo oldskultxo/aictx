@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from . import core_runtime
+from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
+from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
+from .runtime_capture import SIGNAL_FIELDS, build_capture
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
 from .runtime_io import slugify
 from .runtime_memory import rank_records
@@ -144,7 +147,11 @@ def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
         "skill_metadata": payload.get("skill_metadata", {}),
         "invocation_context": payload.get("invocation_context", {}),
         "files_opened": [str(item) for item in payload.get("files_opened", []) if str(item).strip()] if isinstance(payload.get("files_opened"), list) else [],
+        "files_edited": [str(item) for item in payload.get("files_edited", []) if str(item).strip()] if isinstance(payload.get("files_edited"), list) else [],
         "files_reopened": [str(item) for item in payload.get("files_reopened", []) if str(item).strip()] if isinstance(payload.get("files_reopened"), list) else [],
+        "commands_executed": [str(item) for item in payload.get("commands_executed", []) if str(item).strip()] if isinstance(payload.get("commands_executed"), list) else [],
+        "tests_executed": [str(item) for item in payload.get("tests_executed", []) if str(item).strip()] if isinstance(payload.get("tests_executed"), list) else [],
+        "notable_errors": [str(item) for item in payload.get("notable_errors", []) if str(item).strip()] if isinstance(payload.get("notable_errors"), list) else [],
     }
 
 
@@ -190,10 +197,12 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
     if not (repo_root / REPO_MEMORY_DIR / "user_preferences.json").exists():
         communication_policy = {"layer": "disabled", "mode": "caveman_full"}
+    capture = build_capture(envelope)
+    area_id = derive_area_id(capture["files_opened"] + capture["files_edited"] + capture["tests_executed"])
     task_resolution = resolve_task_type(
         envelope["user_request"],
         explicit_task_type=envelope.get("declared_task_type"),
-        touched_files=list(envelope.get("files_opened", [])),
+        touched_files=list(capture.get("files_opened", [])) + list(capture.get("files_edited", [])),
     )
     retrieval_matches = [
         row for row in rank_records(envelope["user_request"], project=repo_root.name)[:5]
@@ -211,9 +220,22 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     selected_strategy = select_strategy(
         repo_root,
         task_resolution["task_type"],
-        files=list(envelope.get("files_opened", [])),
-        primary_entry_point=(list(envelope.get("files_opened", [])) or [None])[0],
+        files=list(capture.get("files_opened", [])) + list(capture.get("files_edited", [])),
+        primary_entry_point=(list(capture.get("files_opened", [])) or [None])[0],
+        request_text=envelope["user_request"],
+        commands=list(capture.get("commands_executed", [])),
+        tests=list(capture.get("tests_executed", [])),
+        errors=list(capture.get("notable_errors", [])),
+        area_id=area_id,
     )
+    related_failures = lookup_failures(
+        repo_root,
+        task_type=task_resolution["task_type"],
+        text=envelope["user_request"],
+        files=list(capture.get("files_opened", [])) + list(capture.get("files_edited", [])),
+        area_id=area_id,
+    )
+    hints = area_hints(repo_root, area_id)
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),
         "execution_logs": (repo_root / REAL_EXECUTION_LOG_PATH).as_posix(),
@@ -229,6 +251,10 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "resolved_task_type": task_resolution["task_type"],
         "task_resolution": task_resolution,
         "task_fingerprint": task_fingerprint,
+        "execution_signal_capture": capture,
+        "area_id": area_id,
+        "area_hints": hints,
+        "related_failures": related_failures,
         "communication_policy": communication_policy,
         "communication_sources": resolved_preferences.get("sources", {}).get("communication", {}),
         "effective_preferences": resolved_preferences.get("effective_preferences", {}),
@@ -249,8 +275,14 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "timestamp": now_iso(),
             "start_time_ms": int(time.time() * 1000),
             "task_type": task_resolution["task_type"],
-            "files_opened": list(envelope.get("files_opened", [])),
-            "files_reopened": list(envelope.get("files_reopened", [])),
+            "files_opened": list(capture.get("files_opened", [])),
+            "files_edited": list(capture.get("files_edited", [])),
+            "files_reopened": list(capture.get("files_reopened", [])),
+            "commands_executed": list(capture.get("commands_executed", [])),
+            "tests_executed": list(capture.get("tests_executed", [])),
+            "notable_errors": list(capture.get("notable_errors", [])),
+            "capture_provenance": dict(capture.get("provenance", {})),
+            "area_id": area_id,
             "execution_time_ms": None,
             "success": None,
             "used_packet": False,
@@ -265,6 +297,10 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "based_on": "previous_successful_execution",
             "selection_reason": str(selected_strategy.get("selection_reason") or "recency"),
             "matched_signals": list(selected_strategy.get("matched_signals", [])) if isinstance(selected_strategy.get("matched_signals"), list) else [],
+            "similarity_breakdown": dict(selected_strategy.get("similarity_breakdown", {})) if isinstance(selected_strategy.get("similarity_breakdown"), dict) else {},
+            "overlapping_files": list(selected_strategy.get("overlapping_files", [])) if isinstance(selected_strategy.get("overlapping_files"), list) else [],
+            "related_commands": list(selected_strategy.get("related_commands", [])) if isinstance(selected_strategy.get("related_commands"), list) else [],
+            "related_tests": list(selected_strategy.get("related_tests", [])) if isinstance(selected_strategy.get("related_tests"), list) else [],
         }
     if execution["execution_mode"] == "skill":
         prepared["skill_context"] = {
@@ -311,7 +347,13 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "timestamp": str(observation.get("timestamp") or prepared.get("prepared_at") or now_iso()),
         "task_type": prepared["resolved_task_type"],
         "files_opened": list(observation.get("files_opened", [])) if isinstance(observation.get("files_opened"), list) else [],
+        "files_edited": list(observation.get("files_edited", [])) if isinstance(observation.get("files_edited"), list) else [],
         "files_reopened": list(observation.get("files_reopened", [])) if isinstance(observation.get("files_reopened"), list) else [],
+        "commands_executed": list(observation.get("commands_executed", [])) if isinstance(observation.get("commands_executed"), list) else [],
+        "tests_executed": list(observation.get("tests_executed", [])) if isinstance(observation.get("tests_executed"), list) else [],
+        "notable_errors": list(observation.get("notable_errors", [])) if isinstance(observation.get("notable_errors"), list) else [],
+        "capture_provenance": dict(observation.get("capture_provenance", {})) if isinstance(observation.get("capture_provenance"), dict) else {},
+        "area_id": str(observation.get("area_id") or prepared.get("area_id") or "unknown"),
         "execution_time_ms": execution_time_ms,
         "success": bool(result.get("success")),
         "used_packet": False,
@@ -344,7 +386,10 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "last_execution_time_ms": execution_time_ms,
         "last_used_packet": False,
         "files_opened": real_entry["files_opened"],
+        "files_edited": real_entry["files_edited"],
         "files_reopened": real_entry["files_reopened"],
+        "commands_executed": real_entry["commands_executed"],
+        "tests_executed": real_entry["tests_executed"],
         "repeated_tasks_observed": weekly["repeated_tasks"],
     }
     write_json(weekly_path, weekly)
@@ -390,6 +435,8 @@ def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, An
     execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
     files_opened = list(execution_log.get("files_opened", [])) if isinstance(execution_log.get("files_opened"), list) else []
     files_reopened = list(execution_log.get("files_reopened", [])) if isinstance(execution_log.get("files_reopened"), list) else []
+    tests_executed = list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else []
+    commands_executed = list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else []
     used_strategy = bool(prepared.get("execution_hint")) or bool(telemetry_entry.get("used_strategy"))
     files_opened_count = len(files_opened)
     files_reopened_count = len(files_reopened)
@@ -400,10 +447,12 @@ def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, An
         "used_packet": False,
         "possible_redundant_exploration": bool(files_reopened_count > 2 or files_opened_count > 8),
         "previous_strategy_reused": used_strategy,
+        "commands_observed": len(commands_executed),
+        "tests_observed": len(tests_executed),
     }
 
 
-def persist_execution_feedback(repo_root: Path, prepared: dict[str, Any], feedback: dict[str, Any]) -> dict[str, Any]:
+def persist_execution_feedback(repo_root: Path, prepared: dict[str, Any], feedback: dict[str, Any], agent_summary: dict[str, Any] | None = None) -> dict[str, Any]:
     path = repo_root / EXECUTION_FEEDBACK_PATH
     payload = {
         "task_id": str(prepared.get("execution_observation", {}).get("task_id") or prepared.get("envelope", {}).get("execution_id") or ""),
@@ -411,8 +460,51 @@ def persist_execution_feedback(repo_root: Path, prepared: dict[str, Any], feedba
         "timestamp": now_iso(),
         "aictx_feedback": feedback,
     }
+    if agent_summary:
+        payload["agent_summary"] = agent_summary
     append_jsonl(path, payload)
     return payload
+
+
+def render_agent_summary(summary: dict[str, Any]) -> str:
+    lines = ["AICTX"]
+    lines.append(f"- Reused strategy: {'yes' if summary.get('strategy_reused') else 'no'}")
+    if summary.get("selection_reason"):
+        lines.append(f"- Why: {summary['selection_reason']}")
+    lines.append(f"- New learning stored: {'yes' if summary.get('learning_persisted') else 'no'}")
+    lines.append(f"- New strategy stored: {'yes' if summary.get('strategy_persisted') else 'no'}")
+    lines.append(f"- Failure recorded: {'yes' if summary.get('failure_recorded') else 'no'}")
+    if summary.get("files_opened"):
+        lines.append(f"- Files observed: {summary['files_opened']}")
+    if summary.get("reopened_files"):
+        lines.append(f"- Reopened files: {summary['reopened_files']}")
+    tests = summary.get("tests_observed") if isinstance(summary.get("tests_observed"), list) else []
+    if tests:
+        lines.append("- Tests observed: " + ", ".join(f"`{item}`" for item in tests[:3]))
+    return "\n".join(lines)
+
+
+def build_agent_summary(
+    prepared: dict[str, Any],
+    learning: dict[str, Any] | None,
+    strategy: dict[str, Any] | None,
+    failure: dict[str, Any] | None,
+) -> dict[str, Any]:
+    execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
+    hint = prepared.get("execution_hint", {}) if isinstance(prepared.get("execution_hint"), dict) else {}
+    summary = {
+        "strategy_reused": bool(hint),
+        "selection_reason": str(hint.get("selection_reason") or ""),
+        "learning_persisted": bool(learning),
+        "strategy_persisted": bool(strategy),
+        "failure_recorded": bool(failure),
+        "files_opened": len(execution_log.get("files_opened", [])) if isinstance(execution_log.get("files_opened"), list) else 0,
+        "files_edited": len(execution_log.get("files_edited", [])) if isinstance(execution_log.get("files_edited"), list) else 0,
+        "reopened_files": len(execution_log.get("files_reopened", [])) if isinstance(execution_log.get("files_reopened"), list) else 0,
+        "commands_observed": list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else [],
+        "tests_observed": list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else [],
+    }
+    return {"structured": summary, "rendered": render_agent_summary(summary)}
 
 
 def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
@@ -425,16 +517,29 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
     strategy = persist_strategy_memory(repo_root, prepared, normalized_result)
+    failure = None
+    resolved_failures: list[str] = []
+    execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
+    if normalized_result["success"]:
+        resolved_failures = link_resolved_failures(repo_root, prepared, execution_log)
+    else:
+        failure = persist_failure_pattern(repo_root, prepared, execution_log, normalized_result)
+    update_area_memory(repo_root, execution_log, strategy_stored=bool(strategy), failure_recorded=bool(failure))
     aictx_feedback = build_aictx_feedback(prepared, telemetry_entry)
-    persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback)
+    agent_summary = build_agent_summary(prepared, learning, strategy, failure)
+    persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     return {
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
         "telemetry_entry": telemetry_entry,
         "learning_persisted": learning,
         "strategy_persisted": strategy,
+        "failure_persisted": failure,
+        "resolved_failures": resolved_failures,
         "aictx_feedback": aictx_feedback,
         "feedback_persisted": persisted_feedback,
+        "agent_summary": agent_summary["structured"],
+        "agent_summary_text": agent_summary["rendered"],
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),
             "repeated_context_request": bool(telemetry_entry.get("repeated_context_request")),
@@ -442,7 +547,10 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "used_packet": False,
             "used_strategy": bool(telemetry_entry.get("used_strategy")),
             "files_opened": list(prepared.get("last_execution_log", {}).get("files_opened", [])) if isinstance(prepared.get("last_execution_log", {}).get("files_opened"), list) else [],
+            "files_edited": list(prepared.get("last_execution_log", {}).get("files_edited", [])) if isinstance(prepared.get("last_execution_log", {}).get("files_edited"), list) else [],
             "files_reopened": list(prepared.get("last_execution_log", {}).get("files_reopened", [])) if isinstance(prepared.get("last_execution_log", {}).get("files_reopened"), list) else [],
+            "commands_executed": list(prepared.get("last_execution_log", {}).get("commands_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("commands_executed"), list) else [],
+            "tests_executed": list(prepared.get("last_execution_log", {}).get("tests_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("tests_executed"), list) else [],
         },
         "finalized_at": now_iso(),
     }
@@ -459,7 +567,11 @@ def cli_prepare_execution(args: argparse.Namespace) -> int:
         "declared_task_type": args.task_type,
         "execution_mode": args.execution_mode or "plain",
         "files_opened": list(args.files_opened or []),
+        "files_edited": list(args.files_edited or []),
         "files_reopened": list(args.files_reopened or []),
+        "commands_executed": list(args.commands_executed or []),
+        "tests_executed": list(args.tests_executed or []),
+        "notable_errors": list(args.notable_errors or []),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,
@@ -474,8 +586,9 @@ def cli_prepare_execution(args: argparse.Namespace) -> int:
 def cli_finalize_execution(args: argparse.Namespace) -> int:
     prepared = read_json(Path(args.prepared), {})
     observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
-    observation["files_opened"] = list(args.files_opened or observation.get("files_opened", []) or [])
-    observation["files_reopened"] = list(args.files_reopened or observation.get("files_reopened", []) or [])
+    for field in SIGNAL_FIELDS:
+        cli_value = list(getattr(args, field, []) or [])
+        observation[field] = cli_value or list(observation.get(field, []) or [])
     prepared["execution_observation"] = observation
     result = {
         "success": bool(args.success),

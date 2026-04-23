@@ -25,6 +25,9 @@ import aictx.runtime_metrics as runtime_metrics
 import aictx.global_metrics as global_metrics
 import aictx.strategy_memory as strategy_memory
 import aictx.report as report_module
+from aictx.area_memory import derive_area_id
+from aictx.failure_memory import load_failures, lookup_failures
+from aictx.runtime_capture import build_capture
 from aictx.agent_runtime import (
     AGENTS_END,
     AGENTS_START,
@@ -145,7 +148,7 @@ def test_init_repo_scaffold_creates_minimal_v1_structure(tmp_path: Path):
     assert not (repo / ".ai_context_engine" / "library").exists()
     assert not (repo / ".ai_context_engine" / "adapters").exists()
     assert not (repo / ".ai_context_engine" / "task_memory").exists()
-    assert not (repo / ".ai_context_engine" / "failure_memory").exists()
+    assert (repo / ".ai_context_engine" / "failure_memory" / "failure_patterns.jsonl").exists()
 
 
 def test_prepare_execution_plain_mode_without_skill_metadata(tmp_path: Path):
@@ -297,6 +300,8 @@ def test_finalize_execution_persists_learning_and_telemetry(tmp_path: Path):
         "used_packet": bool(prepared["retrieval_summary"]["packet_built"]),
         "possible_redundant_exploration": False,
         "previous_strategy_reused": False,
+        "commands_observed": 0,
+        "tests_observed": 0,
     }
     assert feedback_rows[0]["execution_id"] == "exec-finalize-1"
     assert feedback_rows[0]["aictx_feedback"] == finalized["aictx_feedback"]
@@ -531,6 +536,62 @@ def test_strategy_selection_prefers_file_overlap_over_newer_recency(tmp_path: Pa
     assert "file_overlap:src/aictx/runner_integrations.py" in selected["selection_reason"]
 
 
+def test_strategy_selection_uses_prompt_primary_command_test_and_area_signals(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "generic-new",
+            "task_text": "generic feature work",
+            "task_type": "feature_work",
+            "area_id": "src/other",
+            "entry_points": ["src/other/tool.py"],
+            "primary_entry_point": "src/other/tool.py",
+            "files_used": ["src/other/tool.py"],
+            "commands_executed": ["python -m pytest tests/test_other.py"],
+            "tests_executed": ["tests/test_other.py"],
+            "success": True,
+            "is_failure": False,
+            "timestamp": "2026-04-19T00:01:00Z",
+        },
+    )
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "specific-old",
+            "task_text": "improve Claude settings merge safety",
+            "task_type": "feature_work",
+            "area_id": "src/aictx",
+            "entry_points": ["src/aictx/runner_integrations.py"],
+            "primary_entry_point": "src/aictx/runner_integrations.py",
+            "files_used": ["src/aictx/runner_integrations.py"],
+            "commands_executed": ["python -m pytest tests/test_smoke.py"],
+            "tests_executed": ["tests/test_smoke.py"],
+            "success": True,
+            "is_failure": False,
+            "timestamp": "2026-04-19T00:00:00Z",
+        },
+    )
+
+    selected = strategy_memory.select_strategy(
+        repo,
+        "feature_work",
+        files=["src/aictx/runner_integrations.py"],
+        primary_entry_point="src/aictx/runner_integrations.py",
+        request_text="improve Claude settings merge safety",
+        commands=["python -m pytest tests/test_smoke.py"],
+        tests=["tests/test_smoke.py"],
+        area_id="src/aictx",
+    )
+
+    assert selected is not None
+    assert selected["task_id"] == "specific-old"
+    assert selected["similarity_breakdown"]["primary_entry_point"] == 5000
+    assert selected["related_commands"] == ["python -m pytest tests/test_smoke.py"]
+    assert selected["related_tests"] == ["tests/test_smoke.py"]
+
+
 def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -757,6 +818,10 @@ def test_cli_suggest_returns_empty_json_without_history(tmp_path: Path, capsys):
         "source": "none",
         "selection_reason": "",
         "matched_signals": [],
+        "similarity_breakdown": {},
+        "overlapping_files": [],
+        "related_commands": [],
+        "related_tests": [],
     }
 
 
@@ -802,13 +867,12 @@ def test_cli_suggest_uses_latest_strategy(tmp_path: Path, capsys):
     args = parser.parse_args(["suggest", "--repo", str(repo), "--task-type", "feature_work"])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload == {
-        "suggested_entry_points": [],
-        "suggested_files": [],
-        "source": "strategy_memory",
-        "selection_reason": "task_type:feature_work",
-        "matched_signals": ["task_type:feature_work"],
-    }
+    assert payload["suggested_entry_points"] == []
+    assert payload["suggested_files"] == []
+    assert payload["source"] == "strategy_memory"
+    assert payload["selection_reason"] == "task_type:feature_work"
+    assert payload["matched_signals"] == ["task_type:feature_work"]
+    assert payload["similarity_breakdown"]["task_type"] == 1000
 
 
 
@@ -882,15 +946,15 @@ def test_report_real_usage_returns_empty_metrics_without_history(tmp_path: Path,
     args = parser.parse_args(["report", "real-usage", "--repo", str(repo)])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload == {
-        "total_executions": 0,
-        "avg_execution_time_ms": None,
-        "avg_files_opened": None,
-        "avg_reopened_files": None,
-        "strategy_usage": 0,
-        "packet_usage": 0,
-        "redundant_exploration_cases": 0,
-    }
+    assert payload["total_executions"] == 0
+    assert payload["avg_execution_time_ms"] is None
+    assert payload["avg_files_opened"] is None
+    assert payload["avg_reopened_files"] is None
+    assert payload["strategy_usage"] == 0
+    assert payload["packet_usage"] == 0
+    assert payload["redundant_exploration_cases"] == 0
+    assert payload["capture_coverage"]["commands_executed"] == 0
+    assert payload["failure_pattern_count"] == 0
 
 
 
@@ -958,15 +1022,15 @@ def test_report_real_usage_aggregates_real_logs_and_feedback(tmp_path: Path, cap
     args = parser.parse_args(["report", "real-usage", "--repo", str(repo)])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload == {
-        "total_executions": 2,
-        "avg_execution_time_ms": 1500,
-        "avg_files_opened": 3,
-        "avg_reopened_files": 0,
-        "strategy_usage": 1,
-        "packet_usage": 2,
-        "redundant_exploration_cases": 1,
-    }
+    assert payload["total_executions"] == 2
+    assert payload["avg_execution_time_ms"] == 1500
+    assert payload["avg_files_opened"] == 3
+    assert payload["avg_reopened_files"] == 0
+    assert payload["strategy_usage"] == 1
+    assert payload["packet_usage"] == 2
+    assert payload["redundant_exploration_cases"] == 1
+    assert payload["strategy_reuse_rate"] == 0.5
+    assert payload["capture_coverage"]["files_opened"] == 2
 
 
 
@@ -1114,6 +1178,134 @@ def test_internal_run_execution_wraps_command_and_persists_status(tmp_path: Path
 
     status = read_json(repo / ".ai_context_engine" / "metrics" / "agent_execution_status.json", {})
     assert status["last_execution_id"] == "exec-wrap-1"
+
+
+def test_runtime_capture_provenance_and_prepare_fields(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    capture = build_capture({"files_opened": ["src/aictx/cli.py"], "commands_executed": ["python -m pytest tests/test_smoke.py"]})
+    assert capture["provenance"]["files_opened"] == "explicit"
+    assert capture["provenance"]["tests_executed"] == "heuristic"
+    assert capture["tests_executed"] == ["python -m pytest tests/test_smoke.py"]
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix cli test",
+            "agent_id": "agent-test",
+            "execution_id": "capture-1",
+            "files_opened": ["src/aictx/cli.py"],
+            "commands_executed": ["python -m pytest tests/test_smoke.py"],
+        }
+    )
+    assert prepared["execution_signal_capture"]["provenance"]["files_opened"] == "explicit"
+    assert prepared["execution_observation"]["tests_executed"] == ["python -m pytest tests/test_smoke.py"]
+    assert prepared["area_id"] == "src/aictx"
+
+
+def test_run_execution_captures_command_tests_errors_and_agent_summary(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    cli.prepare_repo_runtime(repo)
+    parser = cli.build_parser()
+
+    args = parser.parse_args(
+        [
+            "internal",
+            "run-execution",
+            "--repo",
+            str(repo),
+            "--request",
+            "run failing pytest command",
+            "--agent-id",
+            "codex",
+            "--execution-id",
+            "exec-wrap-fail",
+            "--json",
+            "--",
+            "python3",
+            "-c",
+            "import sys; print('pytest failed assertion', file=sys.stderr); sys.exit(1)",
+        ]
+    )
+
+    assert args.func(args) == 1
+    payload = json.loads(capsys.readouterr().out)
+    finalized = payload["finalized"]
+    assert finalized["failure_persisted"]["failure_id"]
+    assert finalized["agent_summary"]["failure_recorded"] is True
+    assert "AICTX" in finalized["agent_summary_text"]
+    log_rows = [
+        json.loads(line)
+        for line in (repo / ".ai_context_engine" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert log_rows[-1]["commands_executed"]
+    assert log_rows[-1]["notable_errors"]
+
+
+def test_failure_memory_lookup_and_resolution_link(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    failed = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix failing cli test",
+            "agent_id": "agent-test",
+            "execution_id": "failure-1",
+            "declared_task_type": "bug_fixing",
+            "files_opened": ["src/aictx/cli.py"],
+            "commands_executed": ["pytest tests/test_cli.py"],
+            "notable_errors": ["AssertionError: cli failed"],
+        }
+    )
+    finalize_execution(failed, {"success": False, "result_summary": "AssertionError: cli failed", "validated_learning": False})
+    assert load_failures(repo)
+    assert lookup_failures(repo, task_type="bug_fixing", text="cli failed", files=["src/aictx/cli.py"], area_id="src/aictx")
+
+    fixed = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix cli failed assertion",
+            "agent_id": "agent-test",
+            "execution_id": "failure-2",
+            "declared_task_type": "bug_fixing",
+            "files_opened": ["src/aictx/cli.py"],
+        }
+    )
+    finalized = finalize_execution(fixed, {"success": True, "result_summary": "fixed cli assertion", "validated_learning": True})
+    assert finalized["resolved_failures"]
+
+
+def test_area_memory_hints_are_stable_and_reported(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    assert derive_area_id(["src/aictx/middleware.py", "src/aictx/cli.py"]) == "src/aictx"
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "document area memory",
+            "agent_id": "agent-test",
+            "execution_id": "area-1",
+            "declared_task_type": "feature_work",
+            "files_opened": ["src/aictx/middleware.py"],
+            "tests_executed": ["tests/test_smoke.py"],
+        }
+    )
+    finalize_execution(prepared, {"success": True, "result_summary": "ok", "validated_learning": True})
+    next_prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "more area work",
+            "agent_id": "agent-test",
+            "execution_id": "area-2",
+            "declared_task_type": "feature_work",
+            "files_opened": ["src/aictx/cli.py"],
+        }
+    )
+    assert next_prepared["area_hints"]["area_id"] == "src/aictx"
+    assert "src/aictx/middleware.py" in next_prepared["area_hints"]["related_files"]
 
 
 def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(tmp_path: Path):

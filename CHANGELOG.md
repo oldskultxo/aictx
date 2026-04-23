@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.0 - Unreleased
+
+### Added
+- structured execution signal capture with explicit/runtime/heuristic/unknown provenance
+- richer explainable strategy ranking across task text, files, entry points, commands, tests, errors, area, and recency
+- repo-local failure memory and deterministic area memory
+- finalize `agent_summary` and Markdown-friendly `agent_summary_text`
+- extended real-usage reporting and non-destructive memory hygiene signals
+
 ## 2.0.0 - Unreleased
 
 ### Breaking

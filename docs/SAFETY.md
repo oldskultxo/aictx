@@ -17,6 +17,9 @@
 - `.claude/hooks/aictx_user_prompt_submit.py`
 - `.claude/hooks/aictx_pre_tool_use.py`
 - `.gitignore` entries for AICTX runtime paths
+- `.ai_context_engine/failure_memory/` failure patterns
+- `.ai_context_engine/area_memory/` area hints
+- `.ai_context_engine/metrics/memory_hygiene.json` non-destructive hygiene report
 
 ## Optional global files
 
@@ -35,7 +38,7 @@ Markdown integrations are bounded by:
 <!-- AICTX:END -->
 ```
 
-Cleanup removes only these managed blocks and AICTX-owned hook/config entries.
+Cleanup removes only these managed blocks and AICTX-owned hook/config entries. Memory hygiene reports mark duplicate/stale candidates only; they do not delete data.
 
 ## What AICTX will not delete during init
 

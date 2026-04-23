@@ -45,6 +45,7 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         strategy_dir / "strategies.jsonl",
         metrics_dir / "execution_logs.jsonl",
         metrics_dir / "execution_feedback.jsonl",
+        repo / ".ai_context_engine" / "failure_memory" / "failure_patterns.jsonl",
     ]:
         if ensure_file(path):
             created.append(str(path))

@@ -139,6 +139,10 @@ def cmd_suggest(args: argparse.Namespace) -> int:
         "source": "none",
         "selection_reason": "",
         "matched_signals": [],
+        "similarity_breakdown": {},
+        "overlapping_files": [],
+        "related_commands": [],
+        "related_tests": [],
     }
     if strategy:
         payload = {
@@ -147,6 +151,10 @@ def cmd_suggest(args: argparse.Namespace) -> int:
             "source": "strategy_memory",
             "selection_reason": str(strategy.get("selection_reason") or "recency"),
             "matched_signals": list(strategy.get("matched_signals", [])) if isinstance(strategy.get("matched_signals"), list) else [],
+            "similarity_breakdown": dict(strategy.get("similarity_breakdown", {})) if isinstance(strategy.get("similarity_breakdown"), dict) else {},
+            "overlapping_files": list(strategy.get("overlapping_files", [])) if isinstance(strategy.get("overlapping_files"), list) else [],
+            "related_commands": list(strategy.get("related_commands", [])) if isinstance(strategy.get("related_commands"), list) else [],
+            "related_tests": list(strategy.get("related_tests", [])) if isinstance(strategy.get("related_tests"), list) else [],
         }
     print(__import__("json").dumps(payload, ensure_ascii=False))
     return 0
@@ -162,6 +170,10 @@ def cmd_reuse(args: argparse.Namespace) -> int:
         "source": "none",
         "selection_reason": "",
         "matched_signals": [],
+        "similarity_breakdown": {},
+        "overlapping_files": [],
+        "related_commands": [],
+        "related_tests": [],
     }
     if strategy:
         payload = {
@@ -171,6 +183,10 @@ def cmd_reuse(args: argparse.Namespace) -> int:
             "source": "previous_successful_execution",
             "selection_reason": str(strategy.get("selection_reason") or "recency"),
             "matched_signals": list(strategy.get("matched_signals", [])) if isinstance(strategy.get("matched_signals"), list) else [],
+            "similarity_breakdown": dict(strategy.get("similarity_breakdown", {})) if isinstance(strategy.get("similarity_breakdown"), dict) else {},
+            "overlapping_files": list(strategy.get("overlapping_files", [])) if isinstance(strategy.get("overlapping_files"), list) else [],
+            "related_commands": list(strategy.get("related_commands", [])) if isinstance(strategy.get("related_commands"), list) else [],
+            "related_tests": list(strategy.get("related_tests", [])) if isinstance(strategy.get("related_tests"), list) else [],
         }
     print(__import__("json").dumps(payload, ensure_ascii=False))
     return 0
@@ -714,7 +730,11 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--skill-path", default="", help="Optional skill path.")
     prepare.add_argument("--skill-source", default="", help="Optional skill source.")
     prepare.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
+    prepare.add_argument("--files-edited", nargs="*", default=[], help="Explicit files edited during execution")
     prepare.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
+    prepare.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
+    prepare.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
+    prepare.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
     prepare.set_defaults(func=cli_prepare_execution)
 
     finalize = execution_sub.add_parser("finalize", help=argparse.SUPPRESS)
@@ -723,7 +743,11 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--result-summary", default="", help="Execution result summary.")
     finalize.add_argument("--validated-learning", action="store_true", help="Persist validated learning when successful.")
     finalize.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
+    finalize.add_argument("--files-edited", nargs="*", default=[], help="Explicit files edited during execution")
     finalize.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
+    finalize.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
+    finalize.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
+    finalize.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
     finalize.set_defaults(func=cli_finalize_execution)
 
     run_execution = internal_sub.add_parser("run-execution", help=argparse.SUPPRESS)
@@ -741,7 +765,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_execution.add_argument("--validated-learning", action="store_true", help="Persist validated learning when the wrapped command succeeds.")
     run_execution.add_argument("--json", action="store_true", help="Print full JSON outcome instead of only command output.")
     run_execution.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
+    run_execution.add_argument("--files-edited", nargs="*", default=[], help="Explicit files edited during execution")
     run_execution.add_argument("--files-reopened", nargs="*", default=[], help="Explicit files reopened during execution")
+    run_execution.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
+    run_execution.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
+    run_execution.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
     run_execution.add_argument("command", nargs=argparse.REMAINDER, help="Wrapped command after --.")
     run_execution.set_defaults(func=cli_run_execution)
 
