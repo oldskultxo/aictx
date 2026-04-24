@@ -4,6 +4,18 @@
 
 No unreleased changes.
 
+## 4.1.0 - 2026-04-25
+
+### Added
+- Added visible-session continuity UX improvements with startup banner handling and handoff history snapshots in `.aictx/continuity/handoffs.jsonl`.
+- Added richer finalize reporting with compact `agent_summary_text` plus detailed execution output in `.aictx/continuity/last_execution_summary.md`.
+- Added structured runtime text policies in execution payloads (`runtime_text_policy`, `startup_banner_policy`, `agent_summary_policy`) to guide localized/enriched runner output without inventing facts.
+
+### Changed
+- Updated runtime contract and runner integrations to propagate localization/enrichment policy metadata through prepare/finalize flows.
+- Expanded smoke/continuity/session tests to cover policy exposure and runtime-summary output expectations.
+- Updated README and execution-summary docs to reflect the `4.1.0` runtime contract language.
+
 ## 4.0.1 - 2026-04-24
 
 ### Fixed
