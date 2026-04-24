@@ -21,11 +21,12 @@ The summary reports only observed or persisted facts:
 
 AICTX does not claim quality or speed improvements from this summary.
 
-The summary belongs to the current `3.1.0` continuity runtime contract:
+The summary belongs to the current `4.0.0` continuity runtime contract:
 
 - it is generated after repo-local continuity persistence
 - it reports continuity reuse and stored artifacts from the current execution
 - it is conservative: it reports observed/persisted facts, not estimated productivity gains
+- it may be paired with a startup banner that is shown once per visible session when the runtime indicates it
 
 Related continuity artifacts that may be reflected indirectly in the summary:
 

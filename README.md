@@ -4,7 +4,7 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It helps each new session behave like the same repo-native engineer continuing prior work.
 
-Current documented implementation: `3.1.0`
+Current documented implementation: `4.0.0`
 
 ---
 
@@ -97,7 +97,7 @@ The rest of the public commands are optional operational commands:
 * reuses only successful strategies during later executions
 * returns `agent_summary` and `agent_summary_text` after finalize; agents must append `agent_summary_text` to final user responses for non-trivial tasks
 * exposes small JSON commands for runtime guidance
-* does not scaffold knowledge mods or cross-repo/global metrics in v3
+* does not rely on hidden model memory or opaque cross-repo state
 
 ---
 
@@ -164,7 +164,7 @@ It makes past executions observable and reusable.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `3.1.0` is:
+The stable repo-local continuity artifact contract in `4.0.0` is:
 
 ```text
 .aictx/continuity/session.json
@@ -184,6 +184,8 @@ Behavior expectations:
 
 - continuity artifacts are repo-local and inspectable
 - startup loads only bounded, deterministic continuity context
+- startup banner behavior is visible-session aware and shown at most once per visible session
+- packet/context middleware may be built for non-trivial work and remains inspectable when present
 - failed strategies remain in history but are excluded from positive reuse
 - maintenance and staleness files mark or summarize; they do not imply hidden ML or automatic repair
 
@@ -223,7 +225,7 @@ Behavior expectations:
 * continuity loading is layered: session identity, handoff, recent decisions, failure patterns, semantic repo memory, procedural reuse, maintenance hygiene, staleness filtering, and aggregate continuity metrics
 * task typing uses explicit metadata first, then deterministic keyword/path inference, then `unknown`
 * capture provenance distinguishes explicit, runtime-observed, heuristic, and unknown signals
-* middleware packet generation is not active in the default runtime path
+* middleware packet generation is conservative and task-dependent, not unconditional for every execution
 * failed strategies are stored but never reused as hints
 * no synthetic benchmarks or estimated improvements are reported
 
@@ -239,7 +241,7 @@ Behavior expectations:
 
 ## Possible evolution
 
-The current `3.1.0` runtime keeps strategy memory and continuity heuristics intentionally simple.
+The current `4.0.0` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
 
 Possible future work, based on real usage:
 
@@ -248,11 +250,12 @@ Possible future work, based on real usage:
 * clearer comparison across repeated task categories
 * stronger runner-native automation where supported
 * richer repo-level reporting built only from real execution history
+* additional visible-session integration support across runners
 
 Not part of the current product contract:
 
-* synthetic benchmarks
-* heuristic scores
+* hidden cross-session model state
+* autonomous repo repair
 * guaranteed optimization claims
 
 ---

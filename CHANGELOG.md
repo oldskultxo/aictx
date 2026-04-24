@@ -2,13 +2,22 @@
 
 ## Unreleased
 
+No unreleased changes.
+
+## 4.0.0 - 2026-04-24
+
 ### Changed
-- Documented AICTX v4 as a repo-local continuity runtime for coding agents.
-- Updated README and docs to describe continuity layers, repo-local artifact paths, runner/agent cooperation requirements, and the public vs internal command boundary.
-- Added continuity metrics to the documented real-usage reporting surface.
+- Promoted AICTX from the `3.1.x` execution-memory line to the `4.0.0` repo-local continuity runtime contract.
+- Standardized continuity artifacts under `.aictx/continuity/` for session identity, handoff, decisions, semantic repo state, staleness, dedupe, and continuity metrics.
+- Strengthened continuity loading and reuse with handoff memory, decision memory, semantic repo memory, cross-memory reuse, staleness handling, and truthful continuity summaries.
+- Added visible startup banner behavior with show-once-per-visible-session semantics.
+- Activated conservative packet/context middleware for non-trivial work and propagated real packet usage through runtime telemetry.
+- Improved failure learning, failure-aware startup context, and real-usage reporting for debugging-oriented workflows.
+- Improved deterministic `suggest`, `reflect`, and `reuse` guidance with richer signals and better entry-point selection.
 
 ### Clarified
-- AICTX does not promise magical memory, autonomous semantic understanding, or guaranteed productivity improvement.
+- AICTX does not promise hidden state continuity, magical memory, or guaranteed productivity gains.
+- Reuse and reporting remain deterministic and evidence-based, using only repo-local stored artifacts and observed execution signals.
 
 ## 3.1.0 - 2026-04-24
 
