@@ -956,6 +956,68 @@ def test_cli_suggest_uses_latest_strategy(tmp_path: Path, capsys):
     assert payload["similarity_breakdown"]["task_type"] == 1000
 
 
+def test_cli_suggest_accepts_contextual_ranking_signals(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "old-strong",
+            "task_text": "unrelated",
+            "task_type": "testing",
+            "entry_points": ["src/aictx/middleware.py"],
+            "primary_entry_point": "src/aictx/middleware.py",
+            "files_used": ["src/aictx/middleware.py"],
+            "commands_executed": ["python -m pytest tests/test_smoke.py"],
+            "tests_executed": ["tests/test_smoke.py"],
+            "notable_errors": ["AssertionError startup summary missing"],
+            "success": True,
+            "is_failure": False,
+            "timestamp": "2026-04-24T00:00:00Z",
+        },
+    )
+    strategy_memory.persist_strategy(
+        repo,
+        {
+            "task_id": "new-weak",
+            "task_text": "startup summary",
+            "task_type": "testing",
+            "entry_points": ["src/other.py"],
+            "primary_entry_point": "src/other.py",
+            "files_used": ["src/other.py"],
+            "commands_executed": [],
+            "tests_executed": [],
+            "notable_errors": [],
+            "success": True,
+            "is_failure": False,
+            "timestamp": "2026-04-24T00:01:00Z",
+        },
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args([
+        "suggest",
+        "--repo",
+        str(repo),
+        "--task-type",
+        "testing",
+        "--request",
+        "fix startup summary assertion",
+        "--files-opened",
+        "src/aictx/middleware.py",
+        "--commands-executed",
+        "python -m pytest tests/test_smoke.py",
+        "--tests-executed",
+        "tests/test_smoke.py",
+        "--notable-errors",
+        "AssertionError startup summary missing",
+    ])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["suggested_entry_points"] == ["src/aictx/middleware.py"]
+    assert "file_overlap:src/aictx/middleware.py" in payload["matched_signals"]
+    assert "test_overlap:tests/test_smoke.py" in payload["matched_signals"]
+
+
 
 def test_cli_reflect_detects_looping_on_same_files(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
@@ -975,10 +1037,12 @@ def test_cli_reflect_detects_looping_on_same_files(tmp_path: Path, capsys):
     args = parser.parse_args(["reflect", "--repo", str(repo)])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload == {
-        "reopened_files": ["a.py", "b.py", "c.py"],
-        "possible_issue": "looping_on_same_files",
-    }
+    assert payload["reopened_files"] == ["a.py", "b.py", "c.py"]
+    assert payload["possible_issue"] == "looping_on_same_files"
+    assert payload["opened_files_count"] == 2
+    assert payload["suggested_next_action"]
+    assert payload["recommended_entry_points"] == ["a.py", "b.py"]
+    assert "reopened" in payload["reason"]
 
 
 
@@ -1000,10 +1064,11 @@ def test_cli_reflect_detects_too_much_exploration(tmp_path: Path, capsys):
     args = parser.parse_args(["reflect", "--repo", str(repo)])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload == {
-        "reopened_files": [],
-        "possible_issue": "too_much_exploration",
-    }
+    assert payload["reopened_files"] == []
+    assert payload["possible_issue"] == "too_much_exploration"
+    assert payload["opened_files_count"] == 9
+    assert payload["recommended_entry_points"] == ["1.py", "2.py", "3.py", "4.py", "5.py"]
+    assert "Narrow".lower() in payload["suggested_next_action"].lower()
 
 
 
@@ -1014,10 +1079,10 @@ def test_cli_reflect_returns_none_without_history(tmp_path: Path, capsys):
     args = parser.parse_args(["reflect", "--repo", str(repo)])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload == {
-        "reopened_files": [],
-        "possible_issue": "none",
-    }
+    assert payload["reopened_files"] == []
+    assert payload["possible_issue"] == "none"
+    assert payload["opened_files_count"] == 0
+    assert payload["suggested_next_action"] == "continue"
 
 
 def test_report_real_usage_returns_empty_metrics_without_history(tmp_path: Path, capsys):
@@ -1036,6 +1101,8 @@ def test_report_real_usage_returns_empty_metrics_without_history(tmp_path: Path,
     assert payload["redundant_exploration_cases"] == 0
     assert payload["capture_coverage"]["commands_executed"] == 0
     assert payload["failure_pattern_count"] == 0
+    assert payload["error_capture"]["notable_error_count"] == 0
+    assert payload["failure_patterns"]["open"] == 0
 
 
 
@@ -1062,8 +1129,9 @@ def test_report_real_usage_aggregates_real_logs_and_feedback(tmp_path: Path, cap
                 "files_opened": ["c.py", "d.py", "e.py", "f.py"],
                 "files_reopened": [],
                 "execution_time_ms": 2000,
-                "success": True,
+                "success": False,
                 "used_packet": False,
+                "notable_errors": ["AssertionError: cli failed"],
             }),
         ]) + "\n",
         encoding="utf-8",
@@ -1112,6 +1180,9 @@ def test_report_real_usage_aggregates_real_logs_and_feedback(tmp_path: Path, cap
     assert payload["redundant_exploration_cases"] == 1
     assert payload["strategy_reuse_rate"] == 0.5
     assert payload["capture_coverage"]["files_opened"] == 2
+    assert payload["capture_coverage"]["notable_errors"] == 1
+    assert payload["error_capture"]["notable_error_count"] == 1
+    assert payload["error_capture"]["failed_executions"] == 1
 
 
 
@@ -1380,6 +1451,43 @@ def test_failure_memory_lookup_and_resolution_link(tmp_path: Path):
     )
     finalized = finalize_execution(fixed, {"success": True, "result_summary": "fixed cli assertion", "validated_learning": True})
     assert finalized["resolved_failures"]
+
+
+def test_failed_finalize_derives_failure_pattern_from_summary_without_notable_errors(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "debug failed startup",
+            "agent_id": "agent-test",
+            "execution_id": "failure-summary",
+            "declared_task_type": "bug_fixing",
+            "commands_executed": ["python -m aictx internal boot"],
+        }
+    )
+    finalized = finalize_execution(prepared, {"success": False, "result_summary": "RuntimeError: startup failed", "validated_learning": False})
+    failures = load_failures(repo)
+    assert finalized["failure_persisted"]["failure_id"]
+    assert failures[-1]["symptoms"] == ["RuntimeError: startup failed"]
+    assert failures[-1]["failed_command"] == "python -m aictx internal boot"
+
+
+def test_failed_finalize_without_failure_signals_does_not_invent_pattern(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "attempt unknown task",
+            "agent_id": "agent-test",
+            "execution_id": "failure-empty",
+            "declared_task_type": "bug_fixing",
+        }
+    )
+    finalized = finalize_execution(prepared, {"success": False, "result_summary": "", "validated_learning": False})
+    assert finalized["failure_persisted"] is None
+    assert load_failures(repo) == []
 
 
 def test_area_memory_hints_are_stable_and_reported(tmp_path: Path):
@@ -1923,6 +2031,59 @@ def test_finalize_execution_feedback_marks_strategy_reuse(tmp_path: Path):
     assert finalized["aictx_feedback"]["used_strategy"] is True
     assert finalized["aictx_feedback"]["previous_strategy_reused"] is True
     assert finalized["aictx_feedback"]["used_packet"] in {True, False}
+
+
+def test_prepare_execution_builds_packet_for_debug_but_not_trivial_tasks(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    debug_prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "debug failing integration test",
+            "agent_id": "agent-test",
+            "execution_id": "packet-debug",
+            "declared_task_type": "bug_fixing",
+        }
+    )
+    assert debug_prepared["retrieval_summary"]["packet_built"] is True
+    assert debug_prepared["execution_observation"]["used_packet"] is True
+    assert debug_prepared["packet"]["task_type"] == "bug_fixing"
+    assert Path(debug_prepared["packet_path"]).exists()
+
+    trivial_prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "say hello",
+            "agent_id": "agent-test",
+            "execution_id": "packet-trivial",
+        }
+    )
+    assert trivial_prepared["retrieval_summary"]["packet_built"] is False
+    assert trivial_prepared["packet"] == {}
+
+
+def test_finalize_telemetry_marks_used_packet_when_packet_built(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "debug failing integration test",
+            "agent_id": "agent-test",
+            "execution_id": "packet-telemetry",
+            "declared_task_type": "bug_fixing",
+        }
+    )
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "ok", "validated_learning": False})
+    assert finalized["aictx_feedback"]["used_packet"] is True
+    assert finalized["value_evidence"]["used_packet"] is True
+    rows = [
+        json.loads(line)
+        for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert rows[-1]["used_packet"] is True
 
 
 def test_repeated_task_reports_value_evidence(tmp_path: Path):

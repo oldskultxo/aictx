@@ -85,6 +85,20 @@ def _area_subsystem(area: str) -> str:
     return "/".join(parts[:2]) if len(parts) >= 2 else normalized
 
 
+def _dedupe(values: list[Any], *, limit: int = 0) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        cleaned.append(item)
+        seen.add(item)
+        if limit and len(cleaned) >= limit:
+            break
+    return cleaned
+
+
 def rank_strategy(
     strategy: dict[str, Any],
     *,
@@ -219,18 +233,21 @@ def select_strategy(
 
 
 def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any], timestamp: str, is_failure: bool) -> dict[str, Any]:
-    files_used = execution_log.get("files_opened", []) if isinstance(execution_log.get("files_opened"), list) else []
-    normalized_files = [str(path) for path in files_used if str(path).strip()]
-    primary_entry_point = normalized_files[0] if normalized_files else None
+    files_opened = execution_log.get("files_opened", []) if isinstance(execution_log.get("files_opened"), list) else []
+    files_edited = execution_log.get("files_edited", []) if isinstance(execution_log.get("files_edited"), list) else []
+    tests_executed = execution_log.get("tests_executed", []) if isinstance(execution_log.get("tests_executed"), list) else []
+    normalized_files = _dedupe(list(files_opened) + list(files_edited) + list(tests_executed))
+    entry_points = _dedupe(list(files_edited) + list(files_opened) + list(tests_executed), limit=3)
+    primary_entry_point = entry_points[0] if entry_points else None
     return {
         "task_id": str(execution_log.get("task_id") or prepared.get("envelope", {}).get("execution_id") or ""),
         "task_text": str(prepared.get("envelope", {}).get("user_request") or ""),
         "task_type": str(prepared.get("resolved_task_type") or execution_log.get("task_type") or "unknown"),
         "area_id": str(execution_log.get("area_id") or prepared.get("area_id") or "unknown"),
-        "entry_points": normalized_files[:3],
+        "entry_points": entry_points,
         "primary_entry_point": primary_entry_point,
         "files_used": normalized_files,
-        "files_edited": list(execution_log.get("files_edited", [])) if isinstance(execution_log.get("files_edited"), list) else [],
+        "files_edited": list(files_edited),
         "commands_executed": list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else [],
         "tests_executed": list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else [],
         "notable_errors": list(execution_log.get("notable_errors", [])) if isinstance(execution_log.get("notable_errors"), list) else [],

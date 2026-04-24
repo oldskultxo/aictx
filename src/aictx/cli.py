@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 from . import core_runtime
 from .adapters import install_global_adapters
+from .area_memory import derive_area_id
 from .agent_runtime import (
     copy_local_agent_runtime,
     install_global_agent_runtime,
@@ -22,6 +24,7 @@ from .scaffold import TEMPLATES_DIR, ensure_repo_user_preferences, init_repo_sca
 from .report import build_real_usage_report
 from .cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
 from .strategy_memory import select_strategy
+from .runtime_tasks import resolve_task_type
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
@@ -132,7 +135,8 @@ def read_jsonl_rows(path: Path) -> list[dict]:
 
 def cmd_suggest(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    strategy = select_strategy(repo, args.task_type)
+    context = _strategy_cli_context(args)
+    strategy = select_strategy(repo, context["task_type"], **context["signals"])
     payload = {
         "suggested_entry_points": [],
         "suggested_files": [],
@@ -162,7 +166,8 @@ def cmd_suggest(args: argparse.Namespace) -> int:
 
 def cmd_reuse(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    strategy = select_strategy(repo, args.task_type)
+    context = _strategy_cli_context(args)
+    strategy = select_strategy(repo, context["task_type"], **context["signals"])
     payload = {
         "task_type": "",
         "entry_points": [],
@@ -192,23 +197,81 @@ def cmd_reuse(args: argparse.Namespace) -> int:
     return 0
 
 
+def _list_arg(args: argparse.Namespace, key: str) -> list[str]:
+    value = getattr(args, key, []) or []
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def _strategy_cli_context(args: argparse.Namespace) -> dict[str, Any]:
+    request = str(getattr(args, "request", "") or "").strip()
+    files = _list_arg(args, "files_opened")
+    commands = _list_arg(args, "commands_executed")
+    tests = _list_arg(args, "tests_executed")
+    errors = _list_arg(args, "notable_errors")
+    explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
+    task_type = explicit_task_type
+    if not task_type and request:
+        task_type = str(resolve_task_type(request, touched_files=files).get("task_type") or "")
+        if task_type == "unknown":
+            task_type = ""
+    signals = {
+        "files": files,
+        "primary_entry_point": files[0] if files else None,
+        "request_text": request,
+        "commands": commands,
+        "tests": tests,
+        "errors": errors,
+        "area_id": derive_area_id(files + tests) if files or tests else None,
+    }
+    return {"task_type": task_type, "signals": signals}
+
+
 def cmd_reflect(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     rows = read_jsonl_rows(repo / REPO_METRICS_DIR / "execution_logs.jsonl")
     latest = rows[-1] if rows else {}
     reopened = list(latest.get("files_reopened", [])) if isinstance(latest.get("files_reopened"), list) else []
     opened = list(latest.get("files_opened", [])) if isinstance(latest.get("files_opened"), list) else []
+    edited = list(latest.get("files_edited", [])) if isinstance(latest.get("files_edited"), list) else []
+    tests = list(latest.get("tests_executed", [])) if isinstance(latest.get("tests_executed"), list) else []
+    recommended_entry_points = _dedupe_for_cli(edited + opened + tests, limit=5)
     issue = "none"
+    reason = "latest execution does not show repeated file loops or broad exploration"
+    action = "continue"
     if len(reopened) > 2:
         issue = "looping_on_same_files"
+        reason = f"{len(reopened)} files were reopened in the latest execution"
+        action = "stop reopening the same files; use recommended_entry_points and prior strategy context"
     elif len(opened) > 8:
         issue = "too_much_exploration"
+        reason = f"{len(opened)} files were opened in the latest execution"
+        action = "narrow scope before reading more files; start from recommended_entry_points"
     payload = {
         "reopened_files": reopened,
         "possible_issue": issue,
+        "opened_files_count": len(opened),
+        "suggested_next_action": action,
+        "recommended_entry_points": recommended_entry_points,
+        "reason": reason,
     }
     print(__import__("json").dumps(payload, ensure_ascii=False))
     return 0
+
+
+def _dedupe_for_cli(values: list[Any], *, limit: int) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        cleaned.append(item)
+        seen.add(item)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
 
 
 def cmd_report_real_usage(args: argparse.Namespace) -> int:
@@ -556,6 +619,11 @@ def build_parser() -> argparse.ArgumentParser:
     suggest = sub.add_parser("suggest", help="Get deterministic next-step guidance from strategy memory")
     suggest.add_argument("--repo", default=".", help="Repository root")
     suggest.add_argument("--task-type", default="", help="Optional task type filter")
+    suggest.add_argument("--request", default="", help="Optional request text for contextual ranking")
+    suggest.add_argument("--files-opened", nargs="*", default=[], help="Optional files already opened")
+    suggest.add_argument("--commands-executed", nargs="*", default=[], help="Optional commands already executed")
+    suggest.add_argument("--tests-executed", nargs="*", default=[], help="Optional tests already executed")
+    suggest.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     suggest.set_defaults(func=cmd_suggest)
 
     reflect = sub.add_parser("reflect", help="Reflect on recent exploration patterns from real execution logs")
@@ -565,6 +633,11 @@ def build_parser() -> argparse.ArgumentParser:
     reuse = sub.add_parser("reuse", help="Return the latest reusable successful strategy")
     reuse.add_argument("--repo", default=".", help="Repository root")
     reuse.add_argument("--task-type", default="", help="Optional task type filter")
+    reuse.add_argument("--request", default="", help="Optional request text for contextual ranking")
+    reuse.add_argument("--files-opened", nargs="*", default=[], help="Optional files already opened")
+    reuse.add_argument("--commands-executed", nargs="*", default=[], help="Optional commands already executed")
+    reuse.add_argument("--tests-executed", nargs="*", default=[], help="Optional tests already executed")
+    reuse.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     reuse.set_defaults(func=cmd_reuse)
 
     clean = sub.add_parser("clean", help="Remove AICTX content from the current repository")

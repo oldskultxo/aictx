@@ -86,7 +86,15 @@ def write_failure_index(repo_root: Path, rows: list[dict[str, Any]]) -> None:
 def persist_failure_pattern(repo_root: Path, prepared: dict[str, Any], execution_log: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
     errors = list(execution_log.get("notable_errors", [])) if isinstance(execution_log.get("notable_errors"), list) else []
     commands = list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else []
+    if not errors and not result.get("success"):
+        summary = str(result.get("result_summary") or "").strip()
+        if summary:
+            errors = [summary]
+        elif commands:
+            errors = [f"Command failed: {commands[0]}"]
     if not errors and result.get("success"):
+        return None
+    if not errors and not commands:
         return None
     signature = failure_signature(str(execution_log.get("task_type") or "unknown"), errors, commands[0] if commands else "")
     rows = load_failures(repo_root)
@@ -186,4 +194,3 @@ def link_resolved_failures(repo_root: Path, prepared: dict[str, Any], execution_
     path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in updated) + ("\n" if updated else ""), encoding="utf-8")
     write_failure_index(repo_root, updated)
     return sorted(resolved_ids)
-

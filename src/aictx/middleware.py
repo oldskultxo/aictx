@@ -127,7 +127,146 @@ def classify_execution(envelope: dict[str, Any]) -> dict[str, Any]:
 
 
 def should_prepare_packet(user_request: str, execution_mode: str, declared_task_type: str | None = None) -> bool:
-    return False
+    if str(execution_mode or "").strip().lower() == "skill":
+        return True
+    task_type = str(declared_task_type or "").strip()
+    if task_type in {"bug_fixing", "testing", "architecture", "performance"}:
+        return True
+    lowered = str(user_request or "").lower()
+    debug_signals = [
+        "debug",
+        "failing",
+        "failure",
+        "error",
+        "traceback",
+        "exception",
+        "assert",
+        "test",
+        "pytest",
+        "coverage",
+        "architecture",
+        "performance",
+        "packet",
+    ]
+    return any(signal in lowered for signal in debug_signals)
+
+
+def _clean_list(values: Any, *, limit: int = 0) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        cleaned.append(item)
+        seen.add(item)
+        if limit and len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def _packet_repo_scope(hints: dict[str, Any], selected_strategy: dict[str, Any] | None, related_failures: list[dict[str, Any]]) -> list[dict[str, str]]:
+    paths: list[str] = []
+    if selected_strategy:
+        paths.extend(_clean_list(selected_strategy.get("entry_points")))
+        paths.extend(_clean_list(selected_strategy.get("files_used")))
+    paths.extend(_clean_list(hints.get("related_files")))
+    for failure in related_failures:
+        if isinstance(failure, dict):
+            paths.extend(_clean_list(failure.get("related_paths")))
+            paths.extend(_clean_list(failure.get("files_involved")))
+    return [{"path": path} for path in _clean_list(paths, limit=12)]
+
+
+def _packet_path(repo_root: Path, execution_id: str) -> Path:
+    safe_id = slugify(execution_id or "execution")[:80] or "execution"
+    return repo_root / ".aictx" / "delta" / "last_packets" / f"{safe_id}.json"
+
+
+def build_context_packet(
+    repo_root: Path,
+    envelope: dict[str, Any],
+    task_resolution: dict[str, Any],
+    retrieval_matches: list[dict[str, Any]],
+    selected_strategy: dict[str, Any] | None,
+    continuity_context: dict[str, Any],
+    hints: dict[str, Any],
+    related_failures: list[dict[str, Any]],
+    communication_policy: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    task_text = str(envelope.get("user_request") or "")
+    task_id = str(envelope.get("execution_id") or slugify(task_text)[:80] or "task")
+    packet = {
+        "version": 1,
+        "task": task_text,
+        "task_summary": task_text[:240],
+        "task_id": task_id,
+        "task_type": str(task_resolution.get("task_type") or "unknown"),
+        "task_type_resolution": dict(task_resolution),
+        "project": repo_root.name,
+        "repo_scope": _packet_repo_scope(hints, selected_strategy, related_failures),
+        "user_preferences": [],
+        "constraints": [],
+        "architecture_rules": [],
+        "relevant_memory": [
+            {
+                "id": str(row.get("id") or row.get("title") or ""),
+                "title": str(row.get("title") or row.get("id") or ""),
+                "summary": str(row.get("summary") or row.get("text") or "")[:500],
+                "type": str(row.get("type") or ""),
+            }
+            for row in retrieval_matches[:5]
+            if isinstance(row, dict)
+        ],
+        "known_patterns": [],
+        "fallback_mode": bool(task_resolution.get("fallback")),
+        "task_memory": {
+            "task_specific_memory_used": bool(selected_strategy),
+            "selected_strategy_id": str((selected_strategy or {}).get("task_id") or ""),
+            "selection_reason": str((selected_strategy or {}).get("selection_reason") or ""),
+        },
+        "failure_memory": {
+            "failure_memory_used": bool(related_failures),
+            "related_failures": related_failures[:5],
+        },
+        "memory_graph": {
+            "graph_used": bool(continuity_context.get("semantic_repo")),
+            "seed_count": len(_packet_repo_scope(hints, selected_strategy, related_failures)),
+            "expansion_depth_used": 0,
+            "graph_hits": 0,
+        },
+        "telemetry_granularity": {
+            "phases": [
+                {"phase_name": "prepare_context", "notes": "packet built by prepare_execution"},
+                {"phase_name": "execute_task", "notes": "agent/runtime execution"},
+                {"phase_name": "finalize_learning", "notes": "finalize_execution telemetry and memory writes"},
+            ]
+        },
+        "context_budget": {"mode": "conservative", "max_repo_scope_items": 12, "max_relevant_memory_items": 5},
+        "optimization_report": {"status": "not_run"},
+        "communication_policy": communication_policy,
+        "strategy_hint": selected_strategy or {},
+        "area_hints": hints,
+        "relevant_failures": related_failures[:5],
+    }
+    packet["architecture_decisions"] = list(packet["architecture_rules"])
+    packet["relevant_paths"] = list(packet["repo_scope"])
+    packet["relevant_patterns"] = list(packet["known_patterns"])
+    packet["validation_recipes"] = []
+    packet["model_suggestion"] = ""
+    try:
+        optimized = core_runtime.optimize_packet(packet)
+        if isinstance(optimized, dict) and isinstance(optimized.get("packet"), dict):
+            packet = optimized["packet"]
+            if isinstance(optimized.get("report"), dict):
+                packet["optimization_report"] = optimized["report"]
+    except Exception as exc:
+        packet["optimization_report"] = {"status": "skipped", "reason": str(exc)[:200]}
+    path = _packet_path(repo_root, task_id)
+    write_json(path, packet)
+    return packet, path.as_posix()
 
 
 def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
@@ -255,6 +394,22 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     )
     related_failures = list(continuity_context.get("failures", []))
     hints = area_hints(repo_root, area_id)
+    packet: dict[str, Any] = {}
+    packet_path = ""
+    if should_prepare_packet(envelope["user_request"], envelope["execution_mode"], task_resolution["task_type"]):
+        packet, packet_path = build_context_packet(
+            repo_root,
+            envelope,
+            task_resolution,
+            retrieval_matches,
+            selected_strategy,
+            continuity_context,
+            hints,
+            [row for row in related_failures if isinstance(row, dict)],
+            communication_policy,
+        )
+        retrieval_summary["packet_built"] = True
+        retrieval_summary["repo_scope_count"] = len(packet.get("repo_scope", [])) if isinstance(packet.get("repo_scope"), list) else 0
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),
         "execution_logs": (repo_root / REAL_EXECUTION_LOG_PATH).as_posix(),
@@ -284,8 +439,8 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "project_bootstrap": boot_sources.get("project_bootstrap", {}),
             "user_preferences": boot_sources.get("user_preferences", {}),
         },
-        "packet_path": "",
-        "packet": {},
+        "packet_path": packet_path,
+        "packet": packet,
         "continuity_context": continuity_context,
         "startup_banner_text": str(continuity_context.get("startup_banner_text") or ""),
         "startup_banner_policy": {
@@ -312,7 +467,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "area_id": area_id,
             "execution_time_ms": None,
             "success": None,
-            "used_packet": False,
+            "used_packet": bool(packet),
             "used_strategy": bool(selected_strategy),
         },
     }
@@ -352,6 +507,7 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
     existing_same = [row for row in rows if row.get("task_fingerprint") == prepared.get("task_fingerprint")]
     prior_total = len(existing_same)
     observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
+    used_packet = bool(observation.get("used_packet")) or bool(prepared.get("retrieval_summary", {}).get("packet_built"))
     started_ms = observation.get("start_time_ms")
     finished_ms = int(time.time() * 1000)
     execution_time_ms = max(0, finished_ms - started_ms) if isinstance(started_ms, int) else None
@@ -366,6 +522,7 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "result_summary": str(result.get("result_summary", "") or ""),
         "execution_time_ms": execution_time_ms,
         "used_strategy": bool(observation.get("used_strategy")),
+        "used_packet": used_packet,
         "repeated_context_request": prior_total > 0,
         "recorded_at": now_iso(),
     }
@@ -383,7 +540,7 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "area_id": str(observation.get("area_id") or prepared.get("area_id") or "unknown"),
         "execution_time_ms": execution_time_ms,
         "success": bool(result.get("success")),
-        "used_packet": False,
+        "used_packet": used_packet,
     }
     rows.append(entry)
     write_jsonl(log_path, rows)
@@ -411,7 +568,7 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
     weekly["value_evidence"] = {
         "last_task_fingerprint": prepared.get("task_fingerprint", ""),
         "last_execution_time_ms": execution_time_ms,
-        "last_used_packet": False,
+        "last_used_packet": used_packet,
         "files_opened": real_entry["files_opened"],
         "files_edited": real_entry["files_edited"],
         "files_reopened": real_entry["files_reopened"],
@@ -465,13 +622,14 @@ def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, An
     tests_executed = list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else []
     commands_executed = list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else []
     used_strategy = bool(prepared.get("execution_hint")) or bool(telemetry_entry.get("used_strategy"))
+    used_packet = bool(execution_log.get("used_packet")) or bool(prepared.get("retrieval_summary", {}).get("packet_built"))
     files_opened_count = len(files_opened)
     files_reopened_count = len(files_reopened)
     return {
         "files_opened": files_opened_count,
         "reopened_files": files_reopened_count,
         "used_strategy": used_strategy,
-        "used_packet": False,
+        "used_packet": used_packet,
         "possible_redundant_exploration": bool(files_reopened_count > 2 or files_opened_count > 8),
         "previous_strategy_reused": used_strategy,
         "commands_observed": len(commands_executed),
@@ -669,6 +827,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         resolved_failures=resolved_failures,
     )
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
+    used_packet = bool(prepared.get("last_execution_log", {}).get("used_packet")) if isinstance(prepared.get("last_execution_log"), dict) else False
     return {
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
@@ -689,7 +848,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "task_fingerprint": prepared.get("task_fingerprint", ""),
             "repeated_context_request": bool(telemetry_entry.get("repeated_context_request")),
             "execution_time_ms": telemetry_entry.get("execution_time_ms"),
-            "used_packet": False,
+            "used_packet": used_packet,
             "used_strategy": bool(telemetry_entry.get("used_strategy")),
             "files_opened": list(prepared.get("last_execution_log", {}).get("files_opened", [])) if isinstance(prepared.get("last_execution_log", {}).get("files_opened"), list) else [],
             "files_edited": list(prepared.get("last_execution_log", {}).get("files_edited", [])) if isinstance(prepared.get("last_execution_log", {}).get("files_edited"), list) else [],

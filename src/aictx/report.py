@@ -75,7 +75,15 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         for field in capture_fields
     }
     area_memory = load_area_memory(repo_root)
-    failure_count = len(load_failures(repo_root))
+    failures = load_failures(repo_root)
+    failure_count = len(failures)
+    open_failures = [row for row in failures if row.get("status") != "resolved"]
+    resolved_failures = [row for row in failures if row.get("status") == "resolved"]
+    failed_logs = [row for row in logs if row.get("success") is False]
+    failure_execution_ids = {str(row.get("last_execution_id") or "") for row in failures if str(row.get("last_execution_id") or "")}
+    failed_with_pattern = sum(1 for row in failed_logs if str(row.get("task_id") or "") in failure_execution_ids)
+    notable_error_rows = [row for row in logs if isinstance(row.get("notable_errors"), list) and bool(row.get("notable_errors"))]
+    notable_error_count = sum(len(row.get("notable_errors", [])) for row in notable_error_rows)
     hygiene = build_memory_hygiene_report(repo_root)
     continuity_metrics = read_json(repo_root / CONTINUITY_METRICS_PATH, {})
 
@@ -89,7 +97,18 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         "packet_usage": packet_usage,
         "redundant_exploration_cases": redundant_exploration,
         "capture_coverage": capture_coverage,
+        "error_capture": {
+            "notable_error_count": notable_error_count,
+            "executions_with_notable_errors": len(notable_error_rows),
+            "failed_executions": len(failed_logs),
+            "failed_executions_with_failure_pattern": failed_with_pattern,
+            "failed_executions_without_failure_pattern": max(0, len(failed_logs) - failed_with_pattern),
+        },
         "failure_pattern_count": failure_count,
+        "failure_patterns": {
+            "open": len(open_failures),
+            "resolved": len(resolved_failures),
+        },
         "area_count": len(area_memory.get("areas", {})) if isinstance(area_memory.get("areas"), dict) else 0,
         "agent_summaries": summaries_available,
         "memory_hygiene": hygiene,
