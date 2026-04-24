@@ -5,21 +5,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .state import REPO_STRATEGY_MEMORY_DIR
+from .state import REPO_STRATEGY_MEMORY_DIR, read_jsonl
 
 STRATEGIES_PATH = REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl"
-
-
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        rows.append(json.loads(line))
-    return rows
 
 
 def append_jsonl(path: Path, row: dict[str, Any]) -> None:

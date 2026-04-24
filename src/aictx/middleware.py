@@ -11,6 +11,7 @@ from typing import Any
 from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
+from .continuity import load_continuity_context
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
 from .runtime_capture import SIGNAL_FIELDS, build_capture
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
@@ -234,13 +235,19 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         errors=list(capture.get("notable_errors", [])),
         area_id=area_id,
     )
-    related_failures = lookup_failures(
+    continuity_context = load_continuity_context(
         repo_root,
+        session_identity=session_identity,
         task_type=task_resolution["task_type"],
-        text=envelope["user_request"],
+        request_text=envelope["user_request"],
         files=list(capture.get("files_opened", [])) + list(capture.get("files_edited", [])),
+        primary_entry_point=(list(capture.get("files_opened", [])) or [None])[0],
+        commands=list(capture.get("commands_executed", [])),
+        tests=list(capture.get("tests_executed", [])),
+        errors=list(capture.get("notable_errors", [])),
         area_id=area_id,
     )
+    related_failures = list(continuity_context.get("failures", []))
     hints = area_hints(repo_root, area_id)
     telemetry_targets = {
         "execution_log": (repo_root / EXECUTION_LOG_PATH).as_posix(),
@@ -273,10 +280,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         },
         "packet_path": "",
         "packet": {},
-        "continuity_context": {
-            "session": dict(session_identity.get("session", {})) if isinstance(session_identity.get("session"), dict) else {},
-            "warnings": list(session_identity.get("warnings", [])) if isinstance(session_identity.get("warnings"), list) else [],
-        },
+        "continuity_context": continuity_context,
         "retrieval_summary": retrieval_summary,
         "telemetry_targets": telemetry_targets,
         "prepared_at": now_iso(),

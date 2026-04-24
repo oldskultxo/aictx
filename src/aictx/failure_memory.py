@@ -5,20 +5,10 @@ from pathlib import Path
 from typing import Any
 
 from .runtime_io import slugify
-from .state import REPO_FAILURE_MEMORY_DIR, read_json, write_json
+from .state import REPO_FAILURE_MEMORY_DIR, read_json, read_jsonl, write_json
 
 FAILURE_PATTERNS_PATH = REPO_FAILURE_MEMORY_DIR / "failure_patterns.jsonl"
 FAILURE_INDEX_PATH = REPO_FAILURE_MEMORY_DIR / "failure_index.json"
-
-
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
-    return rows
 
 
 def append_jsonl(path: Path, row: dict[str, Any]) -> None:
