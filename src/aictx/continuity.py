@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .failure_memory import lookup_failures
+from .failure_memory import FAILURE_PATTERNS_PATH, lookup_failures
 from .state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
@@ -19,6 +19,7 @@ from .strategy_memory import select_strategy
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 DECISIONS_PATH = REPO_CONTINUITY_DIR / "decisions.jsonl"
 SEMANTIC_REPO_PATH = REPO_CONTINUITY_DIR / "semantic_repo.json"
+DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
 
 
 def _read_optional_json(repo_root: Path, relative_path: Path, expected_type: type, warnings: list[str]) -> Any:
@@ -117,6 +118,70 @@ def _clean_string_list(values: Any, *, limit: int = 8) -> list[str]:
         if len(cleaned) >= limit:
             break
     return cleaned
+
+
+def _decision_signature(decision: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        str(decision.get("decision") or "").strip(),
+        str(decision.get("rationale") or "").strip(),
+        tuple(_clean_string_list(decision.get("alternatives"), limit=8)),
+        tuple(_clean_string_list(decision.get("constraints"), limit=8)),
+        tuple(_clean_string_list(decision.get("risks"), limit=8)),
+        tuple(_clean_string_list(decision.get("related_paths"), limit=8)),
+        str(decision.get("subsystem") or "").strip(),
+    )
+
+
+def _dedupe_exact_rows(rows: list[dict[str, Any]], *, signature_fn: Any) -> tuple[list[dict[str, Any]], int]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    removed = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        signature = signature_fn(row)
+        if signature in seen:
+            removed += 1
+            continue
+        seen.add(signature)
+        deduped.append(row)
+    return deduped, removed
+
+
+def _failure_signature_value(row: dict[str, Any]) -> str:
+    return str(row.get("failure_signature") or row.get("signature") or "").strip()
+
+
+def _merge_failure_group(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    ordered = [dict(row) for row in rows if isinstance(row, dict)]
+    ordered.sort(key=lambda row: str(row.get("timestamp") or ""))
+    base = ordered[0] if ordered else {}
+    merged = dict(base)
+    merged["symptoms"] = _merge_unique(*(row.get("symptoms") for row in ordered), limit=8)  # type: ignore[arg-type]
+    merged["failed_attempts"] = _merge_unique(*(row.get("failed_attempts") for row in ordered), limit=8)  # type: ignore[arg-type]
+    merged["ineffective_commands"] = _merge_unique(*(row.get("ineffective_commands") for row in ordered), limit=8)  # type: ignore[arg-type]
+    merged["related_paths"] = _merge_unique(*(row.get("related_paths") for row in ordered), limit=12)  # type: ignore[arg-type]
+    merged["files_involved"] = _merge_unique(*(row.get("files_involved") for row in ordered), limit=12)  # type: ignore[arg-type]
+    merged["occurrences"] = sum(int(row.get("occurrences", 1) or 1) for row in ordered)
+    latest = max(ordered, key=lambda row: str(row.get("timestamp") or ""))
+    merged["timestamp"] = str(latest.get("timestamp") or merged.get("timestamp") or "")
+    merged["last_execution_id"] = str(latest.get("last_execution_id") or merged.get("last_execution_id") or "")
+    if any(str(row.get("status") or "") == "resolved" for row in ordered):
+        resolved = max(
+            (row for row in ordered if str(row.get("status") or "") == "resolved"),
+            key=lambda row: str(row.get("timestamp") or ""),
+        )
+        merged["status"] = "resolved"
+        merged["resolved_by_execution_id"] = str(resolved.get("resolved_by_execution_id") or resolved.get("resolved_by") or "")
+        merged["resolved_by"] = str(resolved.get("resolved_by") or resolved.get("resolved_by_execution_id") or "")
+    return merged
+
+
+def _merge_unique(*value_groups: Any, limit: int = 12) -> list[str]:
+    combined: list[str] = []
+    for group in value_groups:
+        combined.extend(_clean_string_list(group, limit=limit))
+    return _clean_string_list(combined, limit=limit)
 
 
 def _observed_files(prepared: dict[str, Any]) -> list[str]:
@@ -248,10 +313,6 @@ def persist_decision_memory(
     return persisted
 
 
-def _merge_unique(existing: Any, incoming: Any, *, limit: int = 12) -> list[str]:
-    return _clean_string_list(_clean_string_list(existing, limit=limit) + _clean_string_list(incoming, limit=limit), limit=limit)
-
-
 def _normalize_subsystem_update(raw: dict[str, Any], observed_files: list[str], observed_tests: list[str]) -> dict[str, Any] | None:
     name = str(raw.get("name") or "").strip()
     if not name:
@@ -337,6 +398,112 @@ def persist_semantic_repo_memory(
     }
     write_json(path, payload)
     return {"path": path.as_posix(), "subsystems_updated": [item["name"] for item in updates], "semantic_repo": payload}
+
+
+def _write_jsonl_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + ("\n" if rows else ""),
+        encoding="utf-8",
+    )
+
+
+def maintain_continuity_hygiene(repo_root: Path) -> dict[str, Any]:
+    report = {
+        "handoff": {"canonical": True, "duplicates_removed": 0},
+        "decisions": {"before": 0, "after": 0, "duplicates_removed": 0},
+        "failure_patterns": {"before": 0, "after": 0, "merged_groups": 0, "duplicates_removed": 0},
+        "semantic_repo": {"subsystems_touched": 0, "strings_deduped": 0},
+    }
+
+    decisions = read_jsonl(repo_root / DECISIONS_PATH)
+    deduped_decisions, removed_decisions = _dedupe_exact_rows(decisions, signature_fn=_decision_signature)
+    report["decisions"] = {
+        "before": len(decisions),
+        "after": len(deduped_decisions),
+        "duplicates_removed": removed_decisions,
+    }
+    if removed_decisions:
+        _write_jsonl_rows(repo_root / DECISIONS_PATH, deduped_decisions)
+
+    failures = read_jsonl(repo_root / FAILURE_PATTERNS_PATH)
+    grouped_failures: dict[str, list[dict[str, Any]]] = {}
+    ordered_signatures: list[str] = []
+    passthrough_failures: list[dict[str, Any]] = []
+    for row in failures:
+        signature = _failure_signature_value(row)
+        if not signature:
+            passthrough_failures.append(row)
+            continue
+        if signature not in grouped_failures:
+            grouped_failures[signature] = []
+            ordered_signatures.append(signature)
+        grouped_failures[signature].append(row)
+    merged_failures = list(passthrough_failures)
+    merged_groups = 0
+    duplicates_removed = 0
+    for signature in ordered_signatures:
+        group = grouped_failures[signature]
+        if len(group) == 1:
+            merged_failures.append(group[0])
+            continue
+        merged_failures.append(_merge_failure_group(group))
+        merged_groups += 1
+        duplicates_removed += len(group) - 1
+    report["failure_patterns"] = {
+        "before": len(failures),
+        "after": len(merged_failures),
+        "merged_groups": merged_groups,
+        "duplicates_removed": duplicates_removed,
+    }
+    if merged_groups:
+        _write_jsonl_rows(repo_root / FAILURE_PATTERNS_PATH, merged_failures)
+
+    semantic_path = repo_root / SEMANTIC_REPO_PATH
+    semantic_payload = read_json(semantic_path, {})
+    if isinstance(semantic_payload, dict) and isinstance(semantic_payload.get("subsystems"), list):
+        touched = 0
+        strings_deduped = 0
+        normalized_subsystems: list[dict[str, Any]] = []
+        for raw in semantic_payload.get("subsystems", []):
+            if not isinstance(raw, dict):
+                continue
+            before_counts = {
+                "key_paths": len(raw.get("key_paths", [])) if isinstance(raw.get("key_paths"), list) else 0,
+                "entry_points": len(raw.get("entry_points", [])) if isinstance(raw.get("entry_points"), list) else 0,
+                "relevant_tests": len(raw.get("relevant_tests", [])) if isinstance(raw.get("relevant_tests"), list) else 0,
+                "fragile_areas": len(raw.get("fragile_areas", [])) if isinstance(raw.get("fragile_areas"), list) else 0,
+            }
+            normalized = {
+                "name": str(raw.get("name") or "").strip(),
+                "description": str(raw.get("description") or "").strip(),
+                "key_paths": _clean_string_list(raw.get("key_paths"), limit=12),
+                "entry_points": _clean_string_list(raw.get("entry_points"), limit=8),
+                "relevant_tests": _clean_string_list(raw.get("relevant_tests"), limit=12),
+                "fragile_areas": _clean_string_list(raw.get("fragile_areas"), limit=8),
+            }
+            after_counts = {
+                "key_paths": len(normalized["key_paths"]),
+                "entry_points": len(normalized["entry_points"]),
+                "relevant_tests": len(normalized["relevant_tests"]),
+                "fragile_areas": len(normalized["fragile_areas"]),
+            }
+            removed_here = sum(before_counts[key] - after_counts[key] for key in before_counts)
+            if removed_here:
+                touched += 1
+                strings_deduped += removed_here
+            normalized_subsystems.append(normalized)
+        if strings_deduped:
+            semantic_payload = dict(semantic_payload)
+            semantic_payload["subsystems"] = normalized_subsystems
+            write_json(semantic_path, semantic_payload)
+        report["semantic_repo"] = {
+            "subsystems_touched": touched,
+            "strings_deduped": strings_deduped,
+        }
+
+    write_json(repo_root / DEDUPE_REPORT_PATH, report)
+    return {"path": (repo_root / DEDUPE_REPORT_PATH).as_posix(), "report": report}
 
 
 def _load_semantic_repo(
