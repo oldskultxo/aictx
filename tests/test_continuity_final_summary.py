@@ -45,16 +45,16 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     )
 
     text = finalized["agent_summary_text"]
-    assert text.startswith("AICTX\n\nContinuity:")
-    assert "- strategy: previous_successful_execution" in text
-    assert "- handoff" in text
-    assert "- decisions" in text
-    assert "Stored:\n- handoff: yes\n- decision: yes\n- failure_pattern: no" in text
-    assert "Avoided:\n- none observed" in text
-    assert "Next session:\n- src/aictx/middleware.py" in text
-    assert "- Reused strategy: yes" in text
+    assert text.startswith("AICTX: reused a previous strategy, stored handoff, decision, observed 1 files and 0 tests.")
+    assert "Details: .aictx/continuity/last_execution_summary.md" in text
     assert finalized["agent_summary"]["handoff_stored"] is True
     assert finalized["agent_summary"]["decision_stored"] is True
+    detailed_path = repo / ".aictx" / "continuity" / "last_execution_summary.md"
+    assert detailed_path.exists()
+    detailed = detailed_path.read_text(encoding="utf-8")
+    assert "# AICTX Execution Summary" in detailed
+    assert "- Reused strategy: yes" in detailed
+    assert "- Handoff stored: yes" in detailed
 
 
 def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
@@ -68,8 +68,4 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
     )
 
     text = finalized["agent_summary_text"]
-    assert "Continuity:\n- No prior continuity context was reused" in text
-    assert "Stored:\n- handoff: no\n- decision: no\n- failure_pattern: no" in text
-    assert "Avoided:\n- none observed" in text
-    assert "Next session:\n- No specific handoff guidance stored" in text
-    assert "- Reused strategy: no" in text
+    assert text == "AICTX: no reusable execution context was recorded for this run."

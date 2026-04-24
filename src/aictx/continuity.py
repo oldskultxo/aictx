@@ -24,6 +24,7 @@ SEMANTIC_REPO_PATH = REPO_CONTINUITY_DIR / "semantic_repo.json"
 DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
 STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
 CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
+LAST_EXECUTION_SUMMARY_PATH = REPO_CONTINUITY_DIR / "last_execution_summary.md"
 
 
 def _read_optional_json(repo_root: Path, relative_path: Path, expected_type: type, warnings: list[str]) -> Any:
@@ -125,6 +126,64 @@ def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     starts = _clean_string_list(latest.get("recommended_starting_points"), limit=2)
     next_part = f" Next likely start: {', '.join(starts)}." if starts else ""
     return f"AICTX: {agent_label} session #{session_count} — last time we {status_text}: {summary}.{next_part}"
+
+
+def _summary_next_points(summary: dict[str, Any], *, limit: int = 2) -> list[str]:
+    handoff = summary.get("handoff_payload") if isinstance(summary.get("handoff_payload"), dict) else {}
+    points = handoff.get("recommended_starting_points")
+    if not isinstance(points, list):
+        points = handoff.get("next_steps", [])
+    return _clean_string_list(points, limit=limit)
+
+
+def render_last_execution_summary_markdown(summary: dict[str, Any]) -> str:
+    reused = "yes" if summary.get("strategy_reused") else "no"
+    reason = str(summary.get("selection_reason") or "").strip() or "none"
+    lines = [
+        "# AICTX Execution Summary",
+        "",
+        "## Continuity",
+        f"- Reused strategy: {reused}",
+        f"- Strategy reason: {reason}",
+        f"- Handoff stored: {'yes' if summary.get('handoff_stored') else 'no'}",
+        f"- Decision stored: {'yes' if summary.get('decision_stored') else 'no'}",
+        f"- Failure pattern recorded: {'yes' if summary.get('failure_recorded') else 'no'}",
+        "",
+        "## Observed execution",
+        f"- Files observed: {int(summary.get('files_opened', 0) or 0)}",
+        "- Tests observed:",
+    ]
+    tests = summary.get("tests_observed") if isinstance(summary.get("tests_observed"), list) else []
+    if tests:
+        lines.extend([f"  - {item}" for item in _clean_string_list(tests, limit=8)])
+    else:
+        lines.append("  - none")
+    lines.extend(["", "## Next session", "", "Recommended starting points:"])
+    points = _summary_next_points(summary, limit=5)
+    if points:
+        lines.extend([f"- {item}" for item in points])
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Raw details",
+            "",
+            f"- Learning stored: {'yes' if summary.get('learning_persisted') else 'no'}",
+            f"- Strategy stored: {'yes' if summary.get('strategy_persisted') else 'no'}",
+            f"- Commands observed: {len(summary.get('commands_observed', [])) if isinstance(summary.get('commands_observed'), list) else 0}",
+            f"- Reopened files: {int(summary.get('reopened_files', 0) or 0)}",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def write_last_execution_summary(repo_root: Path, summary: dict[str, Any]) -> dict[str, Any]:
+    path = repo_root / LAST_EXECUTION_SUMMARY_PATH
+    write_text = render_last_execution_summary_markdown(summary)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(write_text, encoding="utf-8")
+    return {"path": path.as_posix(), "bytes": len(write_text.encode("utf-8"))}
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:

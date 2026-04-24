@@ -17,6 +17,7 @@ from .continuity import (
     persist_handoff_memory,
     persist_semantic_repo_memory,
     update_continuity_metrics,
+    write_last_execution_summary,
 )
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
 from .runtime_capture import SIGNAL_FIELDS, build_capture
@@ -709,39 +710,52 @@ def _next_session_guidance(summary: dict[str, Any]) -> str:
 
 
 def render_agent_summary(summary: dict[str, Any]) -> str:
-    lines = ["AICTX", "", "Continuity:"]
-    lines.extend(f"- {item}" for item in _continuity_reuse_lines(summary))
-    lines.extend([
-        "",
-        "Stored:",
-        f"- handoff: {'yes' if summary.get('handoff_stored') else 'no'}",
-        f"- decision: {'yes' if summary.get('decision_stored') else 'no'}",
-        f"- failure_pattern: {'yes' if summary.get('failure_recorded') else 'no'}",
-        "",
-        "Avoided:",
-    ])
-    avoided = _compact_list(summary.get("avoided"), limit=2)
-    lines.extend(f"- {item}" for item in (avoided or ["none observed"]))
-    lines.extend([
-        "",
-        "Next session:",
-        f"- {_next_session_guidance(summary)}",
-        "",
-        f"- Reused strategy: {'yes' if summary.get('strategy_reused') else 'no'}",
-    ])
-    if summary.get("selection_reason"):
-        lines.append(f"- Why: {summary['selection_reason']}")
-    lines.append(f"- New learning stored: {'yes' if summary.get('learning_persisted') else 'no'}")
-    lines.append(f"- New strategy stored: {'yes' if summary.get('strategy_persisted') else 'no'}")
-    lines.append(f"- Failure recorded: {'yes' if summary.get('failure_recorded') else 'no'}")
-    if summary.get("files_opened"):
-        lines.append(f"- Files observed: {summary['files_opened']}")
-    if summary.get("reopened_files"):
-        lines.append(f"- Reopened files: {summary['reopened_files']}")
-    tests = summary.get("tests_observed") if isinstance(summary.get("tests_observed"), list) else []
-    if tests:
-        lines.append("- Tests observed: " + ", ".join(f"`{item}`" for item in tests[:3]))
-    return "\n".join(lines)
+    return render_compact_agent_summary(summary, details_path=".aictx/continuity/last_execution_summary.md")
+
+
+def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) -> str:
+    files_count = int(summary.get("files_opened", 0) or 0)
+    tests_count = len(summary.get("tests_observed", [])) if isinstance(summary.get("tests_observed"), list) else 0
+    meaningful_context = any(
+        [
+            summary.get("strategy_reused"),
+            summary.get("handoff_stored"),
+            summary.get("decision_stored"),
+            summary.get("failure_recorded"),
+            summary.get("learning_persisted"),
+            summary.get("strategy_persisted"),
+        ]
+    )
+    if not any(
+        [
+            meaningful_context,
+            files_count,
+            tests_count,
+        ]
+    ):
+        return "AICTX: no reusable execution context was recorded for this run."
+    if not meaningful_context and files_count <= 1 and tests_count == 0:
+        return "AICTX: no reusable execution context was recorded for this run."
+    if summary.get("failure_recorded"):
+        next_hint = _next_session_guidance(summary)
+        return f"AICTX: recorded a failure pattern for this run. Next likely start: {next_hint}. Details: {details_path}"
+    parts: list[str] = []
+    if summary.get("strategy_reused"):
+        parts.append("reused a previous strategy")
+    stored_parts: list[str] = []
+    if summary.get("handoff_stored"):
+        stored_parts.append("handoff")
+    if summary.get("strategy_persisted"):
+        stored_parts.append("strategy")
+    if summary.get("decision_stored"):
+        stored_parts.append("decision")
+    if summary.get("learning_persisted"):
+        stored_parts.append("learning")
+    if stored_parts:
+        parts.append("stored " + ", ".join(stored_parts))
+    parts.append(f"observed {files_count} files and {tests_count} tests")
+    message = ", ".join(parts)
+    return f"AICTX: {message}. Details: {details_path}"
 
 
 def build_agent_summary(
@@ -840,6 +854,16 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         decisions=decisions,
         resolved_failures=resolved_failures,
     )
+    details_summary = write_last_execution_summary(repo_root, agent_summary["structured"])
+    details_path = ".aictx/continuity/last_execution_summary.md"
+    if isinstance(details_summary, dict):
+        resolved_path = str(details_summary.get("path") or "")
+        if resolved_path:
+            try:
+                details_path = Path(resolved_path).relative_to(repo_root).as_posix()
+            except ValueError:
+                details_path = resolved_path
+    agent_summary_text = render_compact_agent_summary(agent_summary["structured"], details_path=details_path)
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     used_packet = bool(prepared.get("last_execution_log", {}).get("used_packet")) if isinstance(prepared.get("last_execution_log"), dict) else False
     return {
@@ -857,7 +881,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "semantic_repo_persisted": semantic_repo,
         "continuity_metrics_persisted": continuity_metrics,
         "agent_summary": agent_summary["structured"],
-        "agent_summary_text": agent_summary["rendered"],
+        "agent_summary_text": agent_summary_text,
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),
             "repeated_context_request": bool(telemetry_entry.get("repeated_context_request")),
