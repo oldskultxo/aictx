@@ -247,6 +247,97 @@ def persist_decision_memory(
         persisted.append(entry)
     return persisted
 
+
+def _merge_unique(existing: Any, incoming: Any, *, limit: int = 12) -> list[str]:
+    return _clean_string_list(_clean_string_list(existing, limit=limit) + _clean_string_list(incoming, limit=limit), limit=limit)
+
+
+def _normalize_subsystem_update(raw: dict[str, Any], observed_files: list[str], observed_tests: list[str]) -> dict[str, Any] | None:
+    name = str(raw.get("name") or "").strip()
+    if not name:
+        return None
+    key_paths = _merge_unique(raw.get("key_paths"), observed_files)
+    relevant_tests = _merge_unique(raw.get("relevant_tests"), observed_tests)
+    return {
+        "name": name,
+        "description": str(raw.get("description") or "").strip(),
+        "key_paths": key_paths,
+        "entry_points": _clean_string_list(raw.get("entry_points"), limit=8),
+        "relevant_tests": relevant_tests,
+        "fragile_areas": _clean_string_list(raw.get("fragile_areas"), limit=8),
+    }
+
+
+def _semantic_session(prepared: dict[str, Any]) -> int:
+    session = prepared.get("continuity_context", {}).get("session", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
+    try:
+        return int(session.get("session_count") or 0) if isinstance(session, dict) else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def persist_semantic_repo_memory(
+    repo_root: Path,
+    prepared: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    timestamp: str,
+) -> dict[str, Any] | None:
+    raw_updates = result.get("semantic_repo")
+    if not isinstance(raw_updates, list):
+        return None
+    observation = prepared.get("execution_observation") if isinstance(prepared.get("execution_observation"), dict) else {}
+    observed_files = _clean_string_list(
+        list(observation.get("files_edited", []) or []) + list(observation.get("files_opened", []) or []),
+        limit=12,
+    )
+    observed_tests = _clean_string_list(observation.get("tests_executed", []), limit=12)
+    updates = [item for item in (_normalize_subsystem_update(raw, observed_files, observed_tests) for raw in raw_updates if isinstance(raw, dict)) if item]
+    if not updates:
+        return None
+    path = repo_root / SEMANTIC_REPO_PATH
+    existing = read_json(path, {})
+    if not isinstance(existing, dict):
+        existing = {}
+    existing_subsystems = existing.get("subsystems") if isinstance(existing.get("subsystems"), list) else []
+    by_name: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for raw in existing_subsystems:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name:
+            continue
+        by_name[name] = {
+            "name": name,
+            "description": str(raw.get("description") or "").strip(),
+            "key_paths": _clean_string_list(raw.get("key_paths"), limit=12),
+            "entry_points": _clean_string_list(raw.get("entry_points"), limit=8),
+            "relevant_tests": _clean_string_list(raw.get("relevant_tests"), limit=12),
+            "fragile_areas": _clean_string_list(raw.get("fragile_areas"), limit=8),
+        }
+        order.append(name)
+    for update in updates:
+        name = update["name"]
+        current = by_name.get(name)
+        if current:
+            current["description"] = update["description"] or current.get("description", "")
+            current["key_paths"] = _merge_unique(current.get("key_paths"), update.get("key_paths"), limit=12)
+            current["entry_points"] = _merge_unique(current.get("entry_points"), update.get("entry_points"), limit=8)
+            current["relevant_tests"] = _merge_unique(current.get("relevant_tests"), update.get("relevant_tests"), limit=12)
+            current["fragile_areas"] = _merge_unique(current.get("fragile_areas"), update.get("fragile_areas"), limit=8)
+        else:
+            by_name[name] = update
+            order.append(name)
+    payload = {
+        "repo_id": str(existing.get("repo_id") or repo_root.name),
+        "subsystems": [by_name[name] for name in order if name in by_name],
+        "updated_at": timestamp,
+        "source_session": _semantic_session(prepared),
+    }
+    write_json(path, payload)
+    return {"path": path.as_posix(), "subsystems_updated": [item["name"] for item in updates], "semantic_repo": payload}
+
 def load_continuity_context(
     repo_root: Path,
     *,

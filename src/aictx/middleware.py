@@ -11,7 +11,7 @@ from typing import Any
 from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
-from .continuity import load_continuity_context, persist_decision_memory, persist_handoff_memory
+from .continuity import load_continuity_context, persist_decision_memory, persist_handoff_memory, persist_semantic_repo_memory
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
 from .runtime_capture import SIGNAL_FIELDS, build_capture
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
@@ -610,6 +610,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "result_summary": str(result.get("result_summary", "") or ""),
         "validated_learning": bool(result.get("validated_learning")),
         "decisions": list(result.get("decisions", [])) if isinstance(result.get("decisions"), list) else [],
+        "semantic_repo": list(result.get("semantic_repo", [])) if isinstance(result.get("semantic_repo"), list) else [],
     }
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
@@ -639,6 +640,12 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         failure_recorded=bool(failure),
         learning_stored=bool(learning),
     )
+    semantic_repo = persist_semantic_repo_memory(
+        repo_root,
+        prepared,
+        normalized_result,
+        timestamp=finalized_at,
+    )
     agent_summary = build_agent_summary(
         prepared,
         learning,
@@ -661,6 +668,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "feedback_persisted": persisted_feedback,
         "handoff_persisted": handoff,
         "decisions_persisted": decisions,
+        "semantic_repo_persisted": semantic_repo,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": agent_summary["rendered"],
         "value_evidence": {
@@ -721,11 +729,20 @@ def cli_finalize_execution(args: argparse.Namespace) -> int:
             continue
         if isinstance(payload, dict):
             decisions.append(payload)
+    semantic_repo = []
+    for raw_semantic in list(getattr(args, "semantic_json", []) or []):
+        try:
+            payload = json.loads(raw_semantic)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            semantic_repo.append(payload)
     result = {
         "success": bool(args.success),
         "result_summary": args.result_summary,
         "validated_learning": bool(args.validated_learning),
         "decisions": decisions,
+        "semantic_repo": semantic_repo,
     }
     print(json.dumps(finalize_execution(prepared, result), indent=2, ensure_ascii=False))
     return 0
