@@ -11,6 +11,7 @@ from .state import (
     REPO_MEMORY_DIR,
     read_json,
     read_jsonl,
+    write_json,
 )
 from .strategy_memory import select_strategy
 
@@ -100,6 +101,99 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
     ]
     return "\n".join(lines)
 
+
+def _clean_string_list(values: Any, *, limit: int = 8) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        cleaned.append(item)
+        seen.add(item)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def _observed_files(prepared: dict[str, Any]) -> list[str]:
+    log = prepared.get("last_execution_log") if isinstance(prepared.get("last_execution_log"), dict) else {}
+    observation = prepared.get("execution_observation") if isinstance(prepared.get("execution_observation"), dict) else {}
+    candidates: list[str] = []
+    for source in (log, observation):
+        for key in ("files_edited", "files_opened"):
+            value = source.get(key)
+            if isinstance(value, list):
+                candidates.extend(str(item) for item in value)
+    return _clean_string_list(candidates, limit=8)
+
+
+def _has_nonempty_list(payload: dict[str, Any], key: str) -> bool:
+    value = payload.get(key)
+    return isinstance(value, list) and any(str(item or "").strip() for item in value)
+
+
+def is_nontrivial_handoff_candidate(
+    prepared: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    strategy_stored: bool = False,
+    failure_recorded: bool = False,
+    learning_stored: bool = False,
+) -> bool:
+    log = prepared.get("last_execution_log") if isinstance(prepared.get("last_execution_log"), dict) else {}
+    observation = prepared.get("execution_observation") if isinstance(prepared.get("execution_observation"), dict) else {}
+    for payload in (log, observation):
+        if any(_has_nonempty_list(payload, key) for key in ("files_edited", "commands_executed", "tests_executed", "notable_errors")):
+            return True
+    if strategy_stored or failure_recorded or learning_stored:
+        return True
+    summary = str(result.get("result_summary") or "").strip()
+    return bool(summary)
+
+
+def persist_handoff_memory(
+    repo_root: Path,
+    prepared: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    timestamp: str,
+    strategy_stored: bool = False,
+    failure_recorded: bool = False,
+    learning_stored: bool = False,
+) -> dict[str, Any] | None:
+    if not is_nontrivial_handoff_candidate(
+        prepared,
+        result,
+        strategy_stored=strategy_stored,
+        failure_recorded=failure_recorded,
+        learning_stored=learning_stored,
+    ):
+        return None
+    summary = str(result.get("result_summary") or "").strip()
+    if not summary:
+        return None
+    session = prepared.get("continuity_context", {}).get("session", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
+    try:
+        source_session = int(session.get("session_count") or 0) if isinstance(session, dict) else 0
+    except (TypeError, ValueError):
+        source_session = 0
+    source_execution_id = str(prepared.get("envelope", {}).get("execution_id") or "") if isinstance(prepared.get("envelope"), dict) else ""
+    handoff = {
+        "summary": summary,
+        "completed": [summary],
+        "open_items": [],
+        "risks": [],
+        "next_steps": [],
+        "recommended_starting_points": _observed_files(prepared),
+        "updated_at": timestamp,
+        "source_session": source_session,
+        "source_execution_id": source_execution_id,
+    }
+    write_json(repo_root / HANDOFF_PATH, handoff)
+    return {"path": (repo_root / HANDOFF_PATH).as_posix(), "handoff": handoff}
 
 def load_continuity_context(
     repo_root: Path,

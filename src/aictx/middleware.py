@@ -11,7 +11,7 @@ from typing import Any
 from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
-from .continuity import load_continuity_context
+from .continuity import load_continuity_context, persist_handoff_memory
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
 from .runtime_capture import SIGNAL_FIELDS, build_capture
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
@@ -543,6 +543,16 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     aictx_feedback = build_aictx_feedback(prepared, telemetry_entry)
     agent_summary = build_agent_summary(prepared, learning, strategy, failure)
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
+    finalized_at = now_iso()
+    handoff = persist_handoff_memory(
+        repo_root,
+        prepared,
+        normalized_result,
+        timestamp=finalized_at,
+        strategy_stored=bool(strategy),
+        failure_recorded=bool(failure),
+        learning_stored=bool(learning),
+    )
     return {
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
@@ -553,6 +563,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "resolved_failures": resolved_failures,
         "aictx_feedback": aictx_feedback,
         "feedback_persisted": persisted_feedback,
+        "handoff_persisted": handoff,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": agent_summary["rendered"],
         "value_evidence": {
@@ -567,7 +578,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "commands_executed": list(prepared.get("last_execution_log", {}).get("commands_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("commands_executed"), list) else [],
             "tests_executed": list(prepared.get("last_execution_log", {}).get("tests_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("tests_executed"), list) else [],
         },
-        "finalized_at": now_iso(),
+        "finalized_at": finalized_at,
     }
 
 
