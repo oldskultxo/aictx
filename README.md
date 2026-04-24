@@ -87,11 +87,13 @@ The rest of the public commands are optional operational commands:
 * stores successful and failed strategies in `.aictx/strategy_memory/strategies.jsonl`
 * stores continuity artifacts in `.aictx/continuity/`
   * `handoff.json`
+  * `handoffs.jsonl` (rolling recent handoff history)
   * `decisions.jsonl`
   * `semantic_repo.json`
   * `dedupe_report.json`
   * `staleness.json`
   * `continuity_metrics.json`
+  * `last_execution_summary.md` (latest detailed finalize summary)
 * captures available files, commands, tests, and errors with provenance instead of inventing data
 * stores repo-local failure patterns and area memory for later debugging/context
 * reuses only successful strategies during later executions
@@ -190,17 +192,23 @@ Behavior expectations:
 - failed strategies remain in history but are excluded from positive reuse
 - maintenance and staleness files mark or summarize; they do not imply hidden ML or automatic repair
 
+Additional runtime continuity outputs may appear (not part of the stable contract set above), including:
+- `.aictx/continuity/handoffs.jsonl`
+- `.aictx/continuity/last_execution_summary.md`
+
 ## Main runtime artifacts
 
 ```text
 .aictx/
   continuity/
     handoff.json
+    handoffs.jsonl
     decisions.jsonl
     semantic_repo.json
     dedupe_report.json
     staleness.json
     continuity_metrics.json
+    last_execution_summary.md
   metrics/
     execution_logs.jsonl
     execution_feedback.jsonl
@@ -229,7 +237,7 @@ Behavior expectations:
 * middleware packet generation is conservative and task-dependent, not unconditional for every execution
 * `reflect` is intentionally small-scope: it only looks at the latest execution log, but it can now return issue classification, counts, suggested next action, and recommended entry points
 * `suggest` and `reuse` can rank with extra context such as request text, files, commands, tests, and notable errors when that context is provided
-* failed strategies are stored but never reused as positive hints; they may still inform failure-aware avoidance and debugging context
+* failed strategies are stored and excluded from positive reuse hints; they may still inform failure-aware avoidance and debugging context
 * no synthetic benchmarks or estimated improvements are reported
 
 ---

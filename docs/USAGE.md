@@ -125,6 +125,13 @@ Primary continuity paths are repo-local:
 .aictx/continuity/continuity_metrics.json
 ```
 
+Additional continuity runtime outputs may be created during normal executions:
+
+```text
+.aictx/continuity/handoffs.jsonl
+.aictx/continuity/last_execution_summary.md
+```
+
 Related runtime paths:
 
 ```text
@@ -144,6 +151,7 @@ Important runtime output behavior:
 - `aictx internal execution finalize` returns `agent_summary` and `agent_summary_text` in JSON.
 - agents must append `agent_summary_text` verbatim to the final user response after finalize.
 - if finalize output is unavailable, agents must say `AICTX summary unavailable`.
+- `agent_summary_text` is compact by default and points to `.aictx/continuity/last_execution_summary.md` for details.
 - `aictx internal run-execution --json` returns the full wrapped outcome as JSON.
 - `aictx internal run-execution` without `--json` prints the wrapped command output plus the AICTX summary text.
 - `prepare_execution` may return `startup_banner_text`, but visible-session semantics mean it should be shown once per visible session, not once per execution.

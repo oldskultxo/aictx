@@ -5,6 +5,16 @@ AICTX finalize output includes a deterministic user-facing summary payload:
 - `agent_summary`: structured fields for runner integration
 - `agent_summary_text`: compact Markdown that agents must append verbatim to the final user response after finalize
 
+Current UX shape:
+- `agent_summary_text` stays compact for chat readability.
+- A detailed deterministic summary is also written to:
+
+```text
+.aictx/continuity/last_execution_summary.md
+```
+
+- Compact summary lines can reference this file via `Details: .aictx/continuity/last_execution_summary.md`.
+
 If finalize output is unavailable, agents must say:
 
 ```text
@@ -32,8 +42,10 @@ Related continuity artifacts that may be reflected indirectly in the summary:
 
 ```text
 .aictx/continuity/handoff.json
+.aictx/continuity/handoffs.jsonl
 .aictx/continuity/decisions.jsonl
 .aictx/continuity/semantic_repo.json
 .aictx/continuity/staleness.json
 .aictx/continuity/continuity_metrics.json
+.aictx/continuity/last_execution_summary.md
 ```

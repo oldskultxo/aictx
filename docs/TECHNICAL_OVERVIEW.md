@@ -73,11 +73,13 @@ The main real-data files are:
 ```text
 .aictx/continuity/session.json
 .aictx/continuity/handoff.json
+.aictx/continuity/handoffs.jsonl
 .aictx/continuity/decisions.jsonl
 .aictx/continuity/semantic_repo.json
 .aictx/continuity/dedupe_report.json
 .aictx/continuity/staleness.json
 .aictx/continuity/continuity_metrics.json
+.aictx/continuity/last_execution_summary.md
 .aictx/metrics/execution_logs.jsonl
 .aictx/metrics/execution_feedback.jsonl
 .aictx/strategy_memory/strategies.jsonl
@@ -126,11 +128,13 @@ Continuity artifacts are repo-local and layered:
 
 - `session.json` -> visible-session identity plus execution counters and startup-banner state
 - `handoff.json` -> latest canonical continuation handoff
+- `handoffs.jsonl` -> rolling recent handoff history (compact)
 - `decisions.jsonl` -> append-only significant decisions
 - `semantic_repo.json` -> compact subsystem-level repo knowledge
 - `dedupe_report.json` -> non-destructive hygiene output
 - `staleness.json` -> markers used to down-rank or exclude stale memory
 - `continuity_metrics.json` -> aggregate counts of real continuity reuse/load events
+- `last_execution_summary.md` -> detailed summary of the latest finalized execution (paired with compact `agent_summary_text`)
 
 These artifacts help a new session continue prior work without claiming hidden semantic intelligence.
 
