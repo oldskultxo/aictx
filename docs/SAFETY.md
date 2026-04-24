@@ -9,6 +9,13 @@
 ## Repo-local files AICTX may create or update
 
 - `.aictx/`
+- `.aictx/continuity/session.json`
+- `.aictx/continuity/handoff.json`
+- `.aictx/continuity/decisions.jsonl`
+- `.aictx/continuity/semantic_repo.json`
+- `.aictx/continuity/dedupe_report.json`
+- `.aictx/continuity/staleness.json`
+- `.aictx/continuity/continuity_metrics.json`
 - `AGENTS.md` AICTX-managed block
 - `CLAUDE.md` AICTX-managed block
 - `.claude/settings.json` AICTX hook entries, merged with existing settings
@@ -37,12 +44,13 @@ Markdown integrations are bounded by:
 <!-- AICTX:END -->
 ```
 
-Cleanup removes only these managed blocks and AICTX-owned hook/config entries. Memory hygiene reports mark duplicate/stale candidates only; they do not delete data.
+Cleanup removes only these managed blocks and AICTX-owned hook/config entries. Memory hygiene and staleness reports mark duplicate/stale candidates only; they do not delete history by default.
 
 ## What AICTX will not delete during init
 
 - existing `.aictx/metrics/*.jsonl`
 - existing `.aictx/strategy_memory/*.jsonl`
+- existing `.aictx/continuity/*.json` and `.jsonl` history unless the user explicitly removes AICTX-managed runtime content with cleanup/uninstall
 - unrelated Claude settings or hooks
 - unrelated Codex config
 - legacy or ad hoc non-AICTX directories
@@ -52,3 +60,10 @@ Cleanup removes only these managed blocks and AICTX-owned hook/config entries. M
 - `aictx clean` removes AICTX-managed content from the current repo only.
 - `aictx uninstall` removes AICTX-managed global state and registered repo content.
 - Neither command should remove unrelated user files or unmarked config.
+
+## Safety posture
+
+- AICTX is a repo-local continuity runtime, not an autonomous repo brain.
+- It preserves inspectable artifacts instead of making hidden semantic claims.
+- It does not claim guaranteed productivity improvement.
+- Correct behavior depends on runner support and agent cooperation with the runtime contract.

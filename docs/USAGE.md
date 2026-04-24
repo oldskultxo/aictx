@@ -21,6 +21,16 @@ aictx clean
 aictx uninstall
 ```
 
+Public contract:
+- `install`, `init`, `suggest`, `reflect`, `reuse`, `report real-usage`, `clean`, `uninstall`
+- these are the supported user-facing commands
+- outputs are deterministic JSON where applicable
+
+Internal contract:
+- `aictx internal ...`
+- used by middleware, wrappers, hooks, and runner integrations
+- internal commands are runtime plumbing, not the main public UX
+
 After `aictx init`, manual `aictx` usage is optional. Agents are expected to follow the generated runtime instructions.
 
 Normal intended flow:
@@ -74,8 +84,34 @@ Current behavior:
 Sources:
 - `.aictx/metrics/execution_logs.jsonl`
 - `.aictx/metrics/execution_feedback.jsonl`
+- `.aictx/continuity/continuity_metrics.json` when present
 
 Returns aggregated real usage only.
+
+## Continuity artifacts
+
+Primary continuity paths are repo-local:
+
+```text
+.aictx/continuity/session.json
+.aictx/continuity/handoff.json
+.aictx/continuity/decisions.jsonl
+.aictx/continuity/semantic_repo.json
+.aictx/continuity/dedupe_report.json
+.aictx/continuity/staleness.json
+.aictx/continuity/continuity_metrics.json
+```
+
+Related runtime paths:
+
+```text
+.aictx/strategy_memory/strategies.jsonl
+.aictx/failure_memory/failure_patterns.jsonl
+.aictx/metrics/execution_logs.jsonl
+.aictx/metrics/execution_feedback.jsonl
+```
+
+These files stay inside the repository. Cross-project behavior must come from workspace registry/config, not hardcoded machine paths.
 
 ## Internal commands
 
@@ -87,6 +123,11 @@ Important runtime output behavior:
 - if finalize output is unavailable, agents must say `AICTX summary unavailable`.
 - `aictx internal run-execution --json` returns the full wrapped outcome as JSON.
 - `aictx internal run-execution` without `--json` prints the wrapped command output plus the AICTX summary text.
+
+Important boundary:
+- public docs should point users to the public CLI first
+- internal commands are for agent/runtime cooperation and integration authors
+- correctness still depends on the runner and agent actually calling prepare/finalize and respecting repo instructions
 
 
 ## Cleanup

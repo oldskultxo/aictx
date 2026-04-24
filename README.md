@@ -1,10 +1,8 @@
 # aictx
 
-Coding agents forget how they worked.
+AICTX is a repo-local continuity runtime for coding agents.
 
-aictx makes their past executions reusable.
-
-It records real execution, stores useful patterns, and reuses successful strategies in later executions inside the same repository.
+It helps each new session behave like the same repo-native engineer continuing prior work.
 
 ---
 
@@ -18,11 +16,14 @@ aictx allows them to reuse what already worked.
 
 ## What aictx is
 
-A repo-local execution memory layer for coding agents that records real execution and reuses successful strategies.
+A repo-local continuity runtime for coding agents.
 
-- repo-local execution memory
+It records real execution, preserves continuity artifacts inside the repository, and reuses successful strategies in later executions.
+
+- repo-local continuity runtime
 - real execution logging
 - reusable strategy memory
+- canonical handoff, decisions, semantic repo, staleness, and continuity metrics artifacts
 - structured execution signal capture with provenance
 - failure and repo-area memory
 - lightweight runtime guidance and post-task summaries for coding agents
@@ -82,6 +83,13 @@ The rest of the public commands are optional operational commands:
 * records real execution in `.aictx/metrics/execution_logs.jsonl`
 * writes operational feedback in `.aictx/metrics/execution_feedback.jsonl`
 * stores successful and failed strategies in `.aictx/strategy_memory/strategies.jsonl`
+* stores continuity artifacts in `.aictx/continuity/`
+  * `handoff.json`
+  * `decisions.jsonl`
+  * `semantic_repo.json`
+  * `dedupe_report.json`
+  * `staleness.json`
+  * `continuity_metrics.json`
 * captures available files, commands, tests, and errors with provenance instead of inventing data
 * stores repo-local failure patterns and area memory for later debugging/context
 * reuses only successful strategies during later executions
@@ -155,6 +163,13 @@ It makes past executions observable and reusable.
 
 ```text
 .aictx/
+  continuity/
+    handoff.json
+    decisions.jsonl
+    semantic_repo.json
+    dedupe_report.json
+    staleness.json
+    continuity_metrics.json
   metrics/
     execution_logs.jsonl
     execution_feedback.jsonl
@@ -177,6 +192,7 @@ It makes past executions observable and reusable.
 
 * file tracking depends on explicit input from the agent/runtime; wrapped execution can capture commands, tests, errors, and edited files best-effort
 * strategy reuse is heuristic: matching task type, prompt similarity, overlapping files, primary entry point, commands/tests/errors, and area are preferred, with recency as a secondary signal
+* continuity loading is layered: session identity, handoff, recent decisions, failure patterns, semantic repo memory, procedural reuse, maintenance hygiene, staleness filtering, and aggregate continuity metrics
 * task typing uses explicit metadata first, then deterministic keyword/path inference, then `unknown`
 * capture provenance distinguishes explicit, runtime-observed, heuristic, and unknown signals
 * middleware packet generation is not active in the default runtime path

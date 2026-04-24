@@ -2,7 +2,7 @@
 
 ## Product shape
 
-`aictx` is a repo-local runtime layer for coding agents.
+`aictx` is a repo-local continuity runtime for coding agents.
 
 The public surface is intentionally small:
 
@@ -16,7 +16,7 @@ The public surface is intentionally small:
 - `aictx uninstall`
 
 Under that surface, the runtime still contains internal commands and compatibility layers used by middleware and runner integrations.
-Legacy knowledge mods and global aggregation are intentionally not part of v3.
+Legacy knowledge mods and global aggregation are intentionally not part of the v4 continuity contract.
 
 ## Core runtime flow
 
@@ -37,7 +37,14 @@ The runtime is built around one simple loop:
 - resolves task type
 - loads repo bootstrap sources
 - may build packet-oriented context for non-trivial work
-- loads strategy memory by task type
+- loads continuity layers from repo-local artifacts
+  - session identity
+  - handoff
+  - recent decisions
+  - failure patterns
+  - semantic repo memory
+  - procedural reuse
+  - staleness markers
 - if a previous successful strategy exists, injects an `execution_hint`
 
 ### Execute
@@ -55,6 +62,8 @@ The agent then executes normally.
 - persists validated learning where enabled
 - persists strategy memory for successful validated runs
 - records failure events on unsuccessful runs
+- persists handoff / decisions / semantic continuity artifacts
+- updates aggregate continuity metrics
 - returns `agent_summary` and `agent_summary_text`
 
 ## Real data sources
@@ -62,9 +71,17 @@ The agent then executes normally.
 The main real-data files are:
 
 ```text
+.aictx/continuity/session.json
+.aictx/continuity/handoff.json
+.aictx/continuity/decisions.jsonl
+.aictx/continuity/semantic_repo.json
+.aictx/continuity/dedupe_report.json
+.aictx/continuity/staleness.json
+.aictx/continuity/continuity_metrics.json
 .aictx/metrics/execution_logs.jsonl
 .aictx/metrics/execution_feedback.jsonl
 .aictx/strategy_memory/strategies.jsonl
+.aictx/failure_memory/failure_patterns.jsonl
 ```
 
 ### Execution logs
@@ -102,6 +119,20 @@ Current schema stores observed execution signals such as task id/type, entry poi
 
 There is no ML layer or synthetic scoring. Reuse ranking is deterministic and explainable.
 
+### Continuity artifacts
+
+Continuity artifacts are repo-local and layered:
+
+- `session.json` -> stable repo/agent session identity
+- `handoff.json` -> latest canonical continuation handoff
+- `decisions.jsonl` -> append-only significant decisions
+- `semantic_repo.json` -> compact subsystem-level repo knowledge
+- `dedupe_report.json` -> non-destructive hygiene output
+- `staleness.json` -> markers used to down-rank or exclude stale memory
+- `continuity_metrics.json` -> aggregate counts of real continuity reuse/load events
+
+These artifacts help a new session continue prior work without claiming hidden semantic intelligence.
+
 ## Strategy reuse
 
 Strategy reuse is deliberately conservative.
@@ -135,6 +166,7 @@ The runtime does not claim ML-grade semantic retrieval or guaranteed optimizatio
 ### `aictx report real-usage`
 
 - source: execution logs + execution feedback
+- optional source: continuity metrics
 - returns: real aggregated runtime usage only
 
 ## Runner integration
@@ -156,6 +188,10 @@ Repo guidance is written into:
 
 The integrations make `aictx` discoverable, guide runtime usage, and require final responses for non-trivial tasks to include `agent_summary_text` after finalize. Enforcement still depends on runner support and agent cooperation.
 
+This dependency is part of the contract:
+- AICTX can only preserve continuity when the runner exposes repo instructions and the agent cooperates with prepare/finalize
+- if the runner ignores repo instructions or suppresses runtime steps, continuity quality degrades
+
 ## Design principles
 
 Current design choices are intentional:
@@ -169,5 +205,7 @@ Current design choices are intentional:
 
 - file tracking is still incomplete
 - strategy reuse is deterministic and heuristic, not ML-based
+- continuity quality depends on runner/agent cooperation and available observed signals
+- stale memory handling is conservative and may exclude clearly obsolete records while keeping history on disk
 - no baseline comparison is reported unless real baseline data exists
 - no claim of guaranteed speed or quality improvement is made

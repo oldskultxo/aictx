@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Documented AICTX v4 as a repo-local continuity runtime for coding agents.
+- Updated README and docs to describe continuity layers, repo-local artifact paths, runner/agent cooperation requirements, and the public vs internal command boundary.
+- Added continuity metrics to the documented real-usage reporting surface.
+
+### Clarified
+- AICTX does not promise magical memory, autonomous semantic understanding, or guaranteed productivity improvement.
+
 ## 3.1.0 - 2026-04-24
 
 ### Changed
