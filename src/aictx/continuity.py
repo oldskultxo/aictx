@@ -72,6 +72,35 @@ def _session_from_payload(session_identity: dict[str, Any] | None, repo_root: Pa
     return _read_optional_json(repo_root, REPO_CONTINUITY_SESSION_PATH, dict, warnings)
 
 
+def _session_summary_parts(session: dict[str, Any], repo_root: Path) -> tuple[str, int]:
+    runtime = str(session.get("runtime") or "agent").strip() or "agent"
+    repo_id = str(session.get("repo_id") or repo_root.name).strip() or repo_root.name
+    agent_label = str(session.get("agent_label") or f"{runtime}@{repo_id}").strip() or f"{runtime}@{repo_id}"
+    try:
+        session_count = int(session.get("session_count") or 0)
+    except (TypeError, ValueError):
+        session_count = 0
+    return agent_label, max(session_count, 0)
+
+
+def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
+    session = context.get("session") if isinstance(context.get("session"), dict) else {}
+    loaded = context.get("loaded") if isinstance(context.get("loaded"), dict) else {}
+    agent_label, session_count = _session_summary_parts(session, repo_root)
+    lines = [
+        f"{agent_label} (session #{session_count}) - awake",
+        "",
+        "Loaded:",
+        f"- handoff: {'yes' if loaded.get('handoff') else 'no'}",
+        f"- decisions: {'yes' if loaded.get('decisions') else 'no'}",
+        f"- failures: {'yes' if loaded.get('failures') else 'no'}",
+        f"- preferences: {'yes' if loaded.get('preferences') else 'no'}",
+        f"- semantic_repo: {'yes' if loaded.get('semantic_repo') else 'no'}",
+        f"- procedural_reuse: {'yes' if loaded.get('procedural_reuse') else 'no'}",
+    ]
+    return "\n".join(lines)
+
+
 def load_continuity_context(
     repo_root: Path,
     *,
@@ -120,7 +149,7 @@ def load_continuity_context(
         "semantic_repo": bool(semantic_repo),
         "procedural_reuse": bool(procedural_reuse),
     }
-    return {
+    context = {
         "agent_identity": session,
         "session": session,
         "loaded": loaded,
@@ -132,3 +161,5 @@ def load_continuity_context(
         "procedural_reuse": procedural_reuse,
         "warnings": warnings,
     }
+    context["continuity_summary_text"] = render_continuity_summary(context, repo_root)
+    return context

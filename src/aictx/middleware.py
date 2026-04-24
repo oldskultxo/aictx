@@ -281,6 +281,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_path": "",
         "packet": {},
         "continuity_context": continuity_context,
+        "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
         "retrieval_summary": retrieval_summary,
         "telemetry_targets": telemetry_targets,
         "prepared_at": now_iso(),
