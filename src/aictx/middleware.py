@@ -481,9 +481,70 @@ def persist_execution_feedback(repo_root: Path, prepared: dict[str, Any], feedba
     return payload
 
 
+def _compact_list(values: Any, *, limit: int = 3) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value or "").strip()
+        if not item or item in seen:
+            continue
+        cleaned.append(item)
+        seen.add(item)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def _continuity_reuse_lines(summary: dict[str, Any]) -> list[str]:
+    reused: list[str] = []
+    if summary.get("strategy_reused"):
+        reason = str(summary.get("selection_reason") or "previous successful execution").strip()
+        reused.append(f"strategy: {reason}")
+    loaded = summary.get("continuity_loaded") if isinstance(summary.get("continuity_loaded"), dict) else {}
+    if loaded.get("handoff"):
+        reused.append("handoff")
+    if loaded.get("decisions"):
+        reused.append("decisions")
+    if loaded.get("failures"):
+        reused.append("failure context")
+    if loaded.get("procedural_reuse") and not summary.get("strategy_reused"):
+        reused.append("procedural reuse")
+    return reused or ["No prior continuity context was reused"]
+
+
+def _next_session_guidance(summary: dict[str, Any]) -> str:
+    handoff = summary.get("handoff_payload") if isinstance(summary.get("handoff_payload"), dict) else {}
+    for key in ("next_steps", "recommended_starting_points", "open_items"):
+        values = _compact_list(handoff.get(key), limit=2)
+        if values:
+            return "; ".join(values)
+    text = str(handoff.get("summary") or "").strip()
+    return text or "No specific handoff guidance stored"
+
+
 def render_agent_summary(summary: dict[str, Any]) -> str:
-    lines = ["AICTX"]
-    lines.append(f"- Reused strategy: {'yes' if summary.get('strategy_reused') else 'no'}")
+    lines = ["AICTX", "", "Continuity:"]
+    lines.extend(f"- {item}" for item in _continuity_reuse_lines(summary))
+    lines.extend([
+        "",
+        "Stored:",
+        f"- handoff: {'yes' if summary.get('handoff_stored') else 'no'}",
+        f"- decision: {'yes' if summary.get('decision_stored') else 'no'}",
+        f"- failure_pattern: {'yes' if summary.get('failure_recorded') else 'no'}",
+        "",
+        "Avoided:",
+    ])
+    avoided = _compact_list(summary.get("avoided"), limit=2)
+    lines.extend(f"- {item}" for item in (avoided or ["none observed"]))
+    lines.extend([
+        "",
+        "Next session:",
+        f"- {_next_session_guidance(summary)}",
+        "",
+        f"- Reused strategy: {'yes' if summary.get('strategy_reused') else 'no'}",
+    ])
     if summary.get("selection_reason"):
         lines.append(f"- Why: {summary['selection_reason']}")
     lines.append(f"- New learning stored: {'yes' if summary.get('learning_persisted') else 'no'}")
@@ -504,15 +565,35 @@ def build_agent_summary(
     learning: dict[str, Any] | None,
     strategy: dict[str, Any] | None,
     failure: dict[str, Any] | None,
+    *,
+    handoff: dict[str, Any] | None = None,
+    decisions: list[dict[str, Any]] | None = None,
+    resolved_failures: list[str] | None = None,
 ) -> dict[str, Any]:
     execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
     hint = prepared.get("execution_hint", {}) if isinstance(prepared.get("execution_hint"), dict) else {}
+    continuity = prepared.get("continuity_context", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
+    loaded = continuity.get("loaded", {}) if isinstance(continuity.get("loaded"), dict) else {}
+    prior_failures = continuity.get("failures", []) if isinstance(continuity.get("failures"), list) else []
+    avoided: list[str] = []
+    if resolved_failures:
+        avoided.append("resolved prior failure: " + ", ".join(str(item) for item in resolved_failures[:2]))
+    elif prior_failures and not failure:
+        failure_ids = [str(row.get("failure_id") or row.get("signature") or "failure") for row in prior_failures if isinstance(row, dict)]
+        if failure_ids:
+            avoided.append("known failure considered: " + ", ".join(failure_ids[:2]))
+    handoff_payload = handoff.get("handoff", {}) if isinstance(handoff, dict) else {}
     summary = {
         "strategy_reused": bool(hint),
         "selection_reason": str(hint.get("selection_reason") or ""),
         "learning_persisted": bool(learning),
         "strategy_persisted": bool(strategy),
         "failure_recorded": bool(failure),
+        "handoff_stored": bool(handoff),
+        "decision_stored": bool(decisions),
+        "continuity_loaded": dict(loaded),
+        "handoff_payload": handoff_payload,
+        "avoided": avoided,
         "files_opened": len(execution_log.get("files_opened", [])) if isinstance(execution_log.get("files_opened"), list) else 0,
         "files_edited": len(execution_log.get("files_edited", [])) if isinstance(execution_log.get("files_edited"), list) else 0,
         "reopened_files": len(execution_log.get("files_reopened", [])) if isinstance(execution_log.get("files_reopened"), list) else 0,
@@ -542,8 +623,6 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         failure = persist_failure_pattern(repo_root, prepared, execution_log, normalized_result)
     update_area_memory(repo_root, execution_log, strategy_stored=bool(strategy), failure_recorded=bool(failure))
     aictx_feedback = build_aictx_feedback(prepared, telemetry_entry)
-    agent_summary = build_agent_summary(prepared, learning, strategy, failure)
-    persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     finalized_at = now_iso()
     decisions = persist_decision_memory(
         repo_root,
@@ -560,6 +639,16 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         failure_recorded=bool(failure),
         learning_stored=bool(learning),
     )
+    agent_summary = build_agent_summary(
+        prepared,
+        learning,
+        strategy,
+        failure,
+        handoff=handoff,
+        decisions=decisions,
+        resolved_failures=resolved_failures,
+    )
+    persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     return {
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
