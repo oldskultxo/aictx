@@ -37,6 +37,7 @@ When Codex is running inside a repository initialized with `aictx`:
 - `.aictx/memory/source/` is editable source knowledge; avoid hand-editing generated `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar derived artifacts
 - if the repository exposes `aictx internal run-execution`, treat it as the preferred middleware entrypoint for wrapped automations
 - if `prepare_execution` returns `startup_banner_text`, show it at the start of the first user-visible response for that execution
+- in the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime
 - final responses for non-trivial tasks must include the AICTX `agent_summary_text` from finalize; if unavailable, say `AICTX summary unavailable`
 {AICTX_END}
 """
@@ -58,6 +59,7 @@ Required behavior:
 - If `prepare_execution` returns `startup_banner_text`, place it at the start of the first user-visible response.
 - Final responses for non-trivial tasks must append `agent_summary_text` verbatim after finalize.
 - If finalize output is unavailable, say exactly `AICTX summary unavailable`.
+- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 """
 
 
@@ -74,6 +76,7 @@ This repository is initialized with `aictx`.
 - If `prepare_execution` returns `startup_banner_text`, show it at the start of the first user-visible response.
 - After finalize, append `agent_summary_text` verbatim to the final user response.
 - If no finalize output exists, say `AICTX summary unavailable`.
+- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 
 ## aictx usage rules
 
@@ -228,6 +231,7 @@ if files_used:
 summary.append("Before opening more than 3 files or when unsure, run: aictx suggest --repo .")
 summary.append("If you reopen the same file several times, run: aictx reflect --repo .")
 summary.append("If the task matches previous work, run: aictx reuse --repo .")
+summary.append("In the aictx source repository, prefer: PYTHONPATH=src .venv/bin/python -m aictx ...")
 summary.append("If prepare_execution returns startup_banner_text, place it at the start of the first user-visible response.")
 summary.append("After finalize, append agent_summary_text verbatim to the final user response.")
 summary.append("If no finalize output exists, say: AICTX summary unavailable.")
