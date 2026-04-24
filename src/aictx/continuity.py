@@ -338,6 +338,71 @@ def persist_semantic_repo_memory(
     write_json(path, payload)
     return {"path": path.as_posix(), "subsystems_updated": [item["name"] for item in updates], "semantic_repo": payload}
 
+
+def _load_semantic_repo(
+    repo_root: Path,
+    warnings: list[str],
+    *,
+    request_text: str,
+    files: list[str],
+    area_id: str,
+    max_full_subsystems: int = 4,
+    max_relevant_subsystems: int = 3,
+) -> dict[str, Any]:
+    payload = _read_optional_json(repo_root, SEMANTIC_REPO_PATH, dict, warnings)
+    if not payload:
+        return {}
+    subsystems = payload.get("subsystems") if isinstance(payload.get("subsystems"), list) else []
+    normalized: list[dict[str, Any]] = []
+    for raw in subsystems:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name:
+            continue
+        normalized.append({
+            "name": name,
+            "description": str(raw.get("description") or "").strip(),
+            "key_paths": _clean_string_list(raw.get("key_paths"), limit=12),
+            "entry_points": _clean_string_list(raw.get("entry_points"), limit=8),
+            "relevant_tests": _clean_string_list(raw.get("relevant_tests"), limit=12),
+            "fragile_areas": _clean_string_list(raw.get("fragile_areas"), limit=8),
+        })
+    compact = len(normalized) <= max_full_subsystems
+    if compact:
+        return {
+            "repo_id": str(payload.get("repo_id") or repo_root.name),
+            "subsystems": normalized,
+            "updated_at": str(payload.get("updated_at") or ""),
+            "source_session": payload.get("source_session"),
+        }
+    tokens = {token for token in str(request_text or "").lower().replace("/", " ").replace("_", " ").split() if len(token) > 2}
+    file_set = set(files or [])
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    for subsystem in normalized:
+        score = 0
+        name = subsystem["name"].lower()
+        description = subsystem["description"].lower()
+        score += len(tokens.intersection(set(name.replace("_", " ").split()))) * 3
+        score += len(tokens.intersection(set(description.replace("_", " ").split())))
+        key_paths = subsystem.get("key_paths", []) if isinstance(subsystem.get("key_paths"), list) else []
+        if file_set.intersection(set(key_paths)):
+            score += 4
+        if area_id and any(str(path).startswith(area_id) for path in key_paths):
+            score += 3
+        entry_points = subsystem.get("entry_points", []) if isinstance(subsystem.get("entry_points"), list) else []
+        score += len(tokens.intersection(set(" ".join(entry_points).lower().replace("_", " ").split())))
+        if score > 0:
+            ranked.append((score, subsystem))
+    ranked.sort(key=lambda item: (-item[0], item[1]["name"]))
+    selected = [subsystem for _, subsystem in ranked[:max_relevant_subsystems]]
+    return {
+        "repo_id": str(payload.get("repo_id") or repo_root.name),
+        "subsystems": selected,
+        "updated_at": str(payload.get("updated_at") or ""),
+        "source_session": payload.get("source_session"),
+    }
+
 def load_continuity_context(
     repo_root: Path,
     *,
@@ -358,7 +423,13 @@ def load_continuity_context(
     preferences = _read_optional_json(repo_root, REPO_MEMORY_DIR / "user_preferences.json", dict, warnings)
     handoff = _read_optional_json(repo_root, HANDOFF_PATH, dict, warnings)
     decisions = _read_optional_jsonl(repo_root, DECISIONS_PATH, warnings)[-max_decisions:]
-    semantic_repo = _read_optional_json(repo_root, SEMANTIC_REPO_PATH, dict, warnings)
+    semantic_repo = _load_semantic_repo(
+        repo_root,
+        warnings,
+        request_text=request_text,
+        files=list(files or []),
+        area_id=str(area_id or ""),
+    )
     failures = lookup_failures(
         repo_root,
         task_type=str(task_type or ""),
