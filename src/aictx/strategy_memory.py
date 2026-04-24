@@ -181,8 +181,12 @@ def select_strategy(
     tests: list[str] | None = None,
     errors: list[str] | None = None,
     area_id: str | None = None,
+    exclude_task_ids: list[str] | None = None,
 ) -> dict[str, Any] | None:
     rows = get_strategies_by_task_type(repo_root, task_type) if task_type else successful_strategies(repo_root)
+    excluded = {str(task_id) for task_id in (exclude_task_ids or []) if str(task_id).strip()}
+    if excluded:
+        rows = [row for row in rows if str(row.get("task_id") or "") not in excluded]
     if not rows:
         return None
     ranked: list[tuple[int, int, int, dict[str, Any], dict[str, Any]]] = []

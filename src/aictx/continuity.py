@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -14,12 +15,13 @@ from .state import (
     read_jsonl,
     write_json,
 )
-from .strategy_memory import select_strategy
+from .strategy_memory import load_strategies, select_strategy
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 DECISIONS_PATH = REPO_CONTINUITY_DIR / "decisions.jsonl"
 SEMANTIC_REPO_PATH = REPO_CONTINUITY_DIR / "semantic_repo.json"
 DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
+STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
 
 
 def _read_optional_json(repo_root: Path, relative_path: Path, expected_type: type, warnings: list[str]) -> Any:
@@ -182,6 +184,70 @@ def _merge_unique(*value_groups: Any, limit: int = 12) -> list[str]:
     for group in value_groups:
         combined.extend(_clean_string_list(group, limit=limit))
     return _clean_string_list(combined, limit=limit)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _age_days(value: Any, *, now: datetime) -> int | None:
+    timestamp = _parse_iso(value)
+    if not timestamp:
+        return None
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return max(0, int((now - timestamp).total_seconds() // 86400))
+
+
+def _path_exists(repo_root: Path, relative_path: str) -> bool:
+    path = str(relative_path or "").strip()
+    if not path:
+        return False
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate.exists()
+    return (repo_root / candidate).exists()
+
+
+def _missing_paths(repo_root: Path, paths: Any) -> list[str]:
+    return [path for path in _clean_string_list(paths, limit=16) if not _path_exists(repo_root, path)]
+
+
+def _decision_ref(decision: dict[str, Any], index: int) -> str:
+    execution_id = str(decision.get("execution_id") or "").strip()
+    decision_text = str(decision.get("decision") or "").strip()
+    return f"{execution_id}:{decision_text}" if execution_id or decision_text else f"index:{index}"
+
+
+def _stale_decision_refs(staleness: dict[str, Any]) -> set[str]:
+    rows = staleness.get("decisions") if isinstance(staleness.get("decisions"), list) else []
+    return {str(row.get("ref") or "") for row in rows if isinstance(row, dict) and bool(row.get("stale"))}
+
+
+def _stale_strategy_ids(staleness: dict[str, Any]) -> list[str]:
+    rows = staleness.get("strategies") if isinstance(staleness.get("strategies"), list) else []
+    return [str(row.get("task_id") or "") for row in rows if isinstance(row, dict) and bool(row.get("stale")) and str(row.get("task_id") or "").strip()]
+
+
+def _stale_subsystem_names(staleness: dict[str, Any]) -> set[str]:
+    semantic = staleness.get("semantic_repo") if isinstance(staleness.get("semantic_repo"), dict) else {}
+    rows = semantic.get("subsystems") if isinstance(semantic.get("subsystems"), list) else []
+    return {str(row.get("name") or "") for row in rows if isinstance(row, dict) and bool(row.get("stale"))}
+
+
+def _handoff_is_stale(staleness: dict[str, Any]) -> bool:
+    handoff = staleness.get("handoff") if isinstance(staleness.get("handoff"), dict) else {}
+    return bool(handoff.get("stale"))
 
 
 def _observed_files(prepared: dict[str, Any]) -> list[str]:
@@ -506,6 +572,97 @@ def maintain_continuity_hygiene(repo_root: Path) -> dict[str, Any]:
     return {"path": (repo_root / DEDUPE_REPORT_PATH).as_posix(), "report": report}
 
 
+def refresh_staleness(
+    repo_root: Path,
+    *,
+    now: datetime | None = None,
+    handoff_max_age_days: int = 14,
+    subsystem_max_age_days: int = 60,
+) -> dict[str, Any]:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    report: dict[str, Any] = {
+        "updated_at": current.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "handoff": {"stale": False, "reasons": []},
+        "decisions": [],
+        "semantic_repo": {"subsystems": []},
+        "strategies": [],
+    }
+
+    handoff = read_json(repo_root / HANDOFF_PATH, {})
+    if isinstance(handoff, dict) and handoff:
+        reasons: list[str] = []
+        missing = _missing_paths(repo_root, handoff.get("recommended_starting_points"))
+        if missing:
+            reasons.append("missing_paths:" + ",".join(missing[:5]))
+        age = _age_days(handoff.get("updated_at"), now=current)
+        if age is not None and age > handoff_max_age_days:
+            reasons.append(f"age_days:{age}")
+        report["handoff"] = {"stale": bool(reasons), "reasons": reasons}
+
+    decisions = read_jsonl(repo_root / DECISIONS_PATH)
+    latest_by_subsystem: dict[str, tuple[int, dict[str, Any]]] = {}
+    for index, decision in enumerate(decisions):
+        subsystem = str(decision.get("subsystem") or "").strip()
+        if not subsystem:
+            continue
+        latest_by_subsystem[subsystem] = (index, decision)
+    decision_rows: list[dict[str, Any]] = []
+    for index, decision in enumerate(decisions):
+        reasons = []
+        missing = _missing_paths(repo_root, decision.get("related_paths"))
+        if missing:
+            reasons.append("missing_paths:" + ",".join(missing[:5]))
+        subsystem = str(decision.get("subsystem") or "").strip()
+        latest = latest_by_subsystem.get(subsystem) if subsystem else None
+        if latest and latest[0] > index:
+            reasons.append(f"superseded_by:{_decision_ref(latest[1], latest[0])}")
+        if reasons:
+            decision_rows.append({
+                "ref": _decision_ref(decision, index),
+                "execution_id": str(decision.get("execution_id") or ""),
+                "subsystem": subsystem,
+                "stale": True,
+                "reasons": reasons,
+            })
+    report["decisions"] = decision_rows
+
+    semantic = read_json(repo_root / SEMANTIC_REPO_PATH, {})
+    if isinstance(semantic, dict) and isinstance(semantic.get("subsystems"), list):
+        subsystem_rows: list[dict[str, Any]] = []
+        for subsystem in semantic.get("subsystems", []):
+            if not isinstance(subsystem, dict):
+                continue
+            name = str(subsystem.get("name") or "").strip()
+            reasons = []
+            key_paths = _clean_string_list(subsystem.get("key_paths"), limit=12)
+            missing = _missing_paths(repo_root, key_paths)
+            if key_paths and len(missing) == len(key_paths):
+                reasons.append("all_key_paths_missing:" + ",".join(missing[:5]))
+            age = _age_days(semantic.get("updated_at"), now=current)
+            if age is not None and age > subsystem_max_age_days:
+                reasons.append(f"not_observed_days:{age}")
+            if reasons:
+                subsystem_rows.append({"name": name, "stale": True, "reasons": reasons})
+        report["semantic_repo"] = {"subsystems": subsystem_rows}
+
+    strategy_rows: list[dict[str, Any]] = []
+    for strategy in load_strategies(repo_root):
+        task_id = str(strategy.get("task_id") or "").strip()
+        paths = _clean_string_list(
+            list(strategy.get("files_used", []) or []) + list(strategy.get("entry_points", []) or []),
+            limit=16,
+        )
+        missing = _missing_paths(repo_root, paths)
+        if task_id and paths and len(missing) == len(paths):
+            strategy_rows.append({"task_id": task_id, "stale": True, "reasons": ["all_paths_missing:" + ",".join(missing[:5])]})
+    report["strategies"] = strategy_rows
+
+    write_json(repo_root / STALENESS_PATH, report)
+    return {"path": (repo_root / STALENESS_PATH).as_posix(), "staleness": report}
+
+
 def _load_semantic_repo(
     repo_root: Path,
     warnings: list[str],
@@ -513,6 +670,7 @@ def _load_semantic_repo(
     request_text: str,
     files: list[str],
     area_id: str,
+    stale_subsystems: set[str] | None = None,
     max_full_subsystems: int = 4,
     max_relevant_subsystems: int = 3,
 ) -> dict[str, Any]:
@@ -521,11 +679,14 @@ def _load_semantic_repo(
         return {}
     subsystems = payload.get("subsystems") if isinstance(payload.get("subsystems"), list) else []
     normalized: list[dict[str, Any]] = []
+    stale_names = stale_subsystems or set()
     for raw in subsystems:
         if not isinstance(raw, dict):
             continue
         name = str(raw.get("name") or "").strip()
         if not name:
+            continue
+        if name in stale_names:
             continue
         normalized.append({
             "name": name,
@@ -697,14 +858,24 @@ def load_continuity_context(
     warnings: list[str] = []
     session = _session_from_payload(session_identity, repo_root, warnings)
     preferences = _read_optional_json(repo_root, REPO_MEMORY_DIR / "user_preferences.json", dict, warnings)
+    staleness = _read_optional_json(repo_root, STALENESS_PATH, dict, warnings)
     handoff = _read_optional_json(repo_root, HANDOFF_PATH, dict, warnings)
-    decisions = _read_optional_jsonl(repo_root, DECISIONS_PATH, warnings)[-max_decisions:]
+    if _handoff_is_stale(staleness):
+        handoff = {}
+    stale_decisions = _stale_decision_refs(staleness)
+    raw_decisions = _read_optional_jsonl(repo_root, DECISIONS_PATH, warnings)
+    decisions = [
+        decision
+        for index, decision in enumerate(raw_decisions)
+        if _decision_ref(decision, index) not in stale_decisions
+    ][-max_decisions:]
     semantic_repo = _load_semantic_repo(
         repo_root,
         warnings,
         request_text=request_text,
         files=list(files or []),
         area_id=str(area_id or ""),
+        stale_subsystems=_stale_subsystem_names(staleness),
     )
     failures = lookup_failures(
         repo_root,
@@ -730,6 +901,7 @@ def load_continuity_context(
         tests=list(tests or []),
         errors=list(errors or []),
         area_id=area_id,
+        exclude_task_ids=_stale_strategy_ids(staleness),
     ) or {}
     procedural_reuse = _enrich_reuse_with_continuity(
         procedural_reuse,
@@ -757,6 +929,7 @@ def load_continuity_context(
         "semantic_repo": semantic_repo,
         "preferences": preferences,
         "procedural_reuse": procedural_reuse,
+        "staleness": staleness,
         "warnings": warnings,
     }
     context["continuity_summary_text"] = render_continuity_summary(context, repo_root)
