@@ -45,7 +45,10 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     )
 
     text = finalized["agent_summary_text"]
-    assert text.startswith("AICTX: reused a previous strategy, stored handoff, decision, observed 1 files and 0 tests.")
+    assert text.startswith(
+        "AICTX: we closed this run with useful continuity context: we reused a previously successful strategy; "
+        "we stored handoff, decision; we observed 1 files and 0 tests."
+    )
     assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in text
     assert finalized["agent_summary"]["handoff_stored"] is True
     assert finalized["agent_summary"]["decision_stored"] is True
@@ -68,4 +71,7 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
     )
 
     text = finalized["agent_summary_text"]
-    assert text == "AICTX: no reusable execution context was recorded for this run."
+    assert text == (
+        "AICTX: this was a lightweight run and did not add new continuity context, but it was recorded for reference. "
+        "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)"
+    )

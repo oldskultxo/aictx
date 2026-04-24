@@ -345,6 +345,8 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
     if not (repo_root / REPO_MEMORY_DIR / "user_preferences.json").exists():
         communication_policy = {"layer": "disabled", "mode": "caveman_full"}
+    preferred_language = str(resolved_preferences.get("effective_preferences", {}).get("preferred_language") or "unknown").strip() or "unknown"
+    preferred_language_source = str(resolved_preferences.get("sources", {}).get("preferred_language") or "unknown").strip() or "unknown"
     session_identity = touch_session_identity(
         repo_root,
         agent_id=str(envelope.get("agent_id") or ""),
@@ -443,6 +445,8 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "related_failures": related_failures,
         "communication_policy": communication_policy,
         "communication_sources": resolved_preferences.get("sources", {}).get("communication", {}),
+        "preferred_language": preferred_language,
+        "preferred_language_source": preferred_language_source,
         "effective_preferences": resolved_preferences.get("effective_preferences", {}),
         "consistency_checks": runtime_consistency_report(repo_root, global_defaults_path=core_runtime.ROOT_PREFS_PATH),
         "adapter_profile": adapter_profile,
@@ -462,8 +466,27 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "session_id": session_id,
             "position": "response_prefix",
             "text": startup_banner_text,
+            "render_in_user_language": True,
+            "target_language": "current_user_language",
+            "fallback_language": preferred_language,
+            "fallback_language_source": preferred_language_source,
+            "allow_enrichment": True,
+            "preserve_facts": True,
+            "do_not_invent": True,
+            "instruction": "Render the startup banner in the language used with the user for this visible session. Preserve factual content. You may enrich slightly for clarity if you do not invent facts.",
         },
         "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
+        "runtime_text_policy": {
+            "translate_to_user_language": True,
+            "target_language": "current_user_language",
+            "fallback_language": preferred_language,
+            "fallback_language_source": preferred_language_source,
+            "allow_enrichment": True,
+            "preserve_facts": True,
+            "do_not_invent": True,
+            "keep_compact_by_default": True,
+            "instruction": "Runtime-originated user-visible text should be presented in the language currently used with the user. Preserve all real facts from AICTX. Enrichment is allowed only when it adds clarity without inventing information.",
+        },
         "retrieval_summary": retrieval_summary,
         "telemetry_targets": telemetry_targets,
         "prepared_at": now_iso(),
@@ -733,15 +756,15 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
             tests_count,
         ]
     ):
-        return "AICTX: no reusable execution context was recorded for this run."
+        return f"AICTX: this run did not produce reusable context, but it was recorded for future sessions. Details: {_render_details_link(details_path)}"
     if not meaningful_context and files_count <= 1 and tests_count == 0:
-        return "AICTX: no reusable execution context was recorded for this run."
+        return f"AICTX: this was a lightweight run and did not add new continuity context, but it was recorded for reference. Details: {_render_details_link(details_path)}"
     if summary.get("failure_recorded"):
         next_hint = _next_session_guidance(summary)
-        return f"AICTX: recorded a failure pattern for this run. Next likely start: {next_hint}. Details: {_render_details_link(details_path)}"
+        return f"AICTX: we detected and recorded a failure pattern so the next session can resume with context. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
     parts: list[str] = []
     if summary.get("strategy_reused"):
-        parts.append("reused a previous strategy")
+        parts.append("we reused a previously successful strategy")
     stored_parts: list[str] = []
     if summary.get("handoff_stored"):
         stored_parts.append("handoff")
@@ -750,11 +773,11 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
     if summary.get("decision_stored"):
         stored_parts.append("decision")
     if summary.get("learning_persisted"):
-        stored_parts.append("learning")
+        stored_parts.append("validated learning")
     if stored_parts:
-        parts.append("stored " + ", ".join(stored_parts))
-    parts.append(f"observed {files_count} files and {tests_count} tests")
-    message = ", ".join(parts)
+        parts.append("we stored " + ", ".join(stored_parts))
+    core = "; ".join(parts) if parts else "we left useful continuity traceability"
+    message = f"we closed this run with useful continuity context: {core}; we observed {files_count} files and {tests_count} tests"
     return f"AICTX: {message}. Details: {_render_details_link(details_path)}"
 
 
@@ -889,6 +912,16 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "continuity_metrics_persisted": continuity_metrics,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": agent_summary_text,
+        "agent_summary_policy": {
+            "append_to_final_response": True,
+            "render_in_user_language": True,
+            "target_language": "current_user_language",
+            "fallback_language": str(prepared.get("preferred_language") or "unknown"),
+            "allow_enrichment": True,
+            "preserve_facts": True,
+            "do_not_invent": True,
+            "instruction": "Append the AICTX final summary in the language currently used with the user. Preserve all factual runtime details. You may enrich slightly for clarity using agent_summary and value_evidence when doing so does not invent facts.",
+        },
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),
             "repeated_context_request": bool(telemetry_entry.get("repeated_context_request")),

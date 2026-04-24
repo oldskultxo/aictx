@@ -30,7 +30,10 @@ def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_p
     assert first["continuity_context"]["session"]["execution_count"] == 1
     assert first["continuity_context"]["session"]["runtime"] == "codex"
     assert first["continuity_context"]["session"]["agent_label"] == f"codex@{repo.name}"
-    assert first["startup_banner_text"] == f"AICTX: codex@{repo.name} session #1 — no previous handoff yet."
+    assert first["startup_banner_text"] == (
+        f"AICTX: codex@{repo.name} session #1\n\n"
+        "In the previous session, there was no prior handoff to resume."
+    )
 
     second = prepare_execution(_payload(repo, "exec-2"))
     assert second["continuity_context"]["session"]["session_count"] == 1
@@ -59,7 +62,10 @@ def test_prepare_execution_increments_visible_session_when_session_id_changes(tm
     assert first["continuity_context"]["session"]["session_count"] == 1
     assert second["continuity_context"]["session"]["session_count"] == 2
     assert second["continuity_context"]["session"]["execution_count"] == 1
-    assert second["startup_banner_text"] == f"AICTX: codex@{repo.name} session #2 — no previous handoff yet."
+    assert second["startup_banner_text"] == (
+        f"AICTX: codex@{repo.name} session #2\n\n"
+        "In the previous session, there was no prior handoff to resume."
+    )
 
 
 def test_prepare_execution_recovers_from_malformed_session_file(tmp_path: Path):

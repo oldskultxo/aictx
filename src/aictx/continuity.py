@@ -112,33 +112,34 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
 def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     agent_label, session_count = _session_summary_parts(session, repo_root)
+    header = f"AICTX: {agent_label} session #{session_count}"
     recent = load_handoff_history(repo_root, limit=5)
     if recent:
         standup = _render_handoff_standup(recent)
         starts = _clean_string_list(recent[-1].get("recommended_starting_points"), limit=2)
-        next_part = f" Next likely start: {', '.join(starts)}." if starts else ""
-        return f"AICTX: {agent_label} session #{session_count} — recent progress: {standup}.{next_part}"
+        next_part = f" Next recommended focus: {', '.join(starts)}." if starts else ""
+        return f"{header}\n\nIn the previous session, we left this progress: {standup}.{next_part}"
     latest = latest_handoff_record(repo_root)
     if not latest:
-        return f"AICTX: {agent_label} session #{session_count} — no previous handoff yet."
-    summary = str(latest.get("summary") or "").strip() or "no previous handoff yet"
+        return f"{header}\n\nIn the previous session, there was no prior handoff to resume."
+    summary = str(latest.get("summary") or "").strip() or "there was no prior handoff"
     status = str(latest.get("status") or "").strip().lower()
     if status == "resolved":
-        status_text = "resolved"
+        status_text = "we left resolved"
     elif status in {"failed", "unresolved", "blocked"}:
-        status_text = "stopped while debugging"
+        status_text = "it remained blocked while debugging"
     else:
-        status_text = "worked on"
+        status_text = "we made progress on"
     starts = _clean_string_list(latest.get("recommended_starting_points"), limit=2)
-    next_part = f" Next likely start: {', '.join(starts)}." if starts else ""
-    return f"AICTX: {agent_label} session #{session_count} — last time we {status_text}: {summary}.{next_part}"
+    next_part = f" Next recommended focus: {', '.join(starts)}." if starts else ""
+    return f"{header}\n\nIn the previous session, {status_text}: {summary}.{next_part}"
 
 
 def _render_handoff_standup(rows: list[dict[str, Any]]) -> str:
     clauses = [_render_handoff_standup_clause(row) for row in rows if isinstance(row, dict)]
     compact = [item for item in clauses if item]
     if not compact:
-        return "no previous handoff yet"
+        return "there was no prior handoff"
     return "; ".join(compact)
 
 
@@ -150,8 +151,8 @@ def _render_handoff_standup_clause(row: dict[str, Any]) -> str:
     if status == "resolved":
         return summary
     if status in {"failed", "unresolved", "blocked"}:
-        return f"blocked on {summary}"
-    return f"worked on {summary}"
+        return f"it remained blocked on {summary}"
+    return f"we made progress on {summary}"
 
 
 def _compact_handoff_summary(text: str, *, max_len: int = 88) -> str:

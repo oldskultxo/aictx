@@ -133,22 +133,67 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "caveman_ultra" in text
     assert "agent_summary_text" in text
     assert "startup_banner_text" in text
+    assert "current user language" in text
+    assert "never invent data" in text
     assert "AICTX summary unavailable" in text
     repo_block = render_repo_agents_block()
     assert "agent_summary_text" in repo_block
     assert "startup_banner_text" in repo_block
+    assert "current user language" in repo_block
     assert "AICTX summary unavailable" in repo_block
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in repo_block
     claude_block = render_claude_md_block()
     assert "agent_summary_text" in claude_block
     assert "startup_banner_text" in claude_block
+    assert "current user language" in claude_block
     assert "AICTX summary unavailable" in claude_block
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in claude_block
     prompt_hook = render_user_prompt_submit_script()
-    assert "append agent_summary_text verbatim" in prompt_hook
+    assert "localized to the current user language" in prompt_hook
     assert "startup_banner_text" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in prompt_hook
+
+
+def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "explica el cambio",
+            "agent_id": "codex-cli",
+            "adapter_id": "codex-cli",
+            "execution_id": "exec-policy",
+            "declared_task_type": "architecture",
+            "execution_mode": "plain",
+        }
+    )
+
+    runtime_policy = prepared["runtime_text_policy"]
+    startup_policy = prepared["startup_banner_policy"]
+    assert runtime_policy["translate_to_user_language"] is True
+    assert runtime_policy["allow_enrichment"] is True
+    assert runtime_policy["preserve_facts"] is True
+    assert startup_policy["render_in_user_language"] is True
+    assert startup_policy["do_not_invent"] is True
+
+    finalized = finalize_execution(
+        prepared,
+        {
+            "success": True,
+            "result_summary": "done",
+            "validated_learning": False,
+            "decisions": [],
+            "semantic_repo": [],
+        },
+    )
+    summary_policy = finalized["agent_summary_policy"]
+    assert summary_policy["append_to_final_response"] is True
+    assert summary_policy["render_in_user_language"] is True
+    assert summary_policy["allow_enrichment"] is True
+    assert summary_policy["preserve_facts"] is True
 
 
 def test_communication_policy_uses_disabled_template_default():
@@ -1348,7 +1393,9 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
 
     assert args.func(args) == 0
     output = capsys.readouterr().out
-    assert output.startswith(f"AICTX: codex@{repo.name} session #1 — no previous handoff yet.\n")
+    assert output.startswith(
+        f"AICTX: codex@{repo.name} session #1\n\nIn the previous session, there was no prior handoff to resume.\n"
+    )
     assert "wrapped ok" in output
     assert "AICTX: " in output
     assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in output
