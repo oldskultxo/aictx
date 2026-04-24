@@ -403,6 +403,115 @@ def _load_semantic_repo(
         "source_session": payload.get("source_session"),
     }
 
+
+def _strategy_paths(strategy: dict[str, Any]) -> list[str]:
+    return _clean_string_list(
+        list(strategy.get("files_used", []) or [])
+        + list(strategy.get("entry_points", []) or [])
+        + list(strategy.get("files_edited", []) or []),
+        limit=16,
+    )
+
+
+def _continuity_reuse_files(
+    *,
+    files: list[str],
+    handoff: dict[str, Any],
+    decisions: list[dict[str, Any]],
+    semantic_repo: dict[str, Any],
+) -> list[str]:
+    candidates: list[str] = list(files)
+    candidates.extend(_clean_string_list(handoff.get("recommended_starting_points"), limit=8))
+    for decision in decisions:
+        candidates.extend(_clean_string_list(decision.get("related_paths"), limit=6))
+    for subsystem in semantic_repo.get("subsystems", []) if isinstance(semantic_repo.get("subsystems"), list) else []:
+        if not isinstance(subsystem, dict):
+            continue
+        candidates.extend(_clean_string_list(subsystem.get("key_paths"), limit=6))
+        candidates.extend(_clean_string_list(subsystem.get("entry_points"), limit=4))
+    return _clean_string_list(candidates, limit=20)
+
+
+def _append_signal(strategy: dict[str, Any], signal: str) -> None:
+    matched = strategy.get("matched_signals")
+    if not isinstance(matched, list):
+        matched = []
+    if signal not in matched:
+        matched.append(signal)
+    strategy["matched_signals"] = matched
+    strategy["selection_reason"] = "; ".join(str(item) for item in matched if str(item).strip())
+
+
+def _enrich_reuse_with_continuity(
+    strategy: dict[str, Any],
+    *,
+    handoff: dict[str, Any],
+    decisions: list[dict[str, Any]],
+    failures: list[dict[str, Any]],
+    semantic_repo: dict[str, Any],
+) -> dict[str, Any]:
+    if not strategy:
+        return strategy
+    enriched = dict(strategy)
+    strategy_paths = set(_strategy_paths(enriched))
+    breakdown = dict(enriched.get("similarity_breakdown") if isinstance(enriched.get("similarity_breakdown"), dict) else {})
+    flags = {
+        "handoff_match": False,
+        "recent_decision_support": False,
+        "known_failure_avoidance": False,
+        "semantic_subsystem_match": False,
+    }
+    avoidance_warnings: list[str] = []
+
+    handoff_paths = set(_clean_string_list(handoff.get("recommended_starting_points"), limit=12))
+    handoff_overlap = sorted(strategy_paths.intersection(handoff_paths))
+    if handoff_overlap:
+        flags["handoff_match"] = True
+        _append_signal(enriched, "handoff_match:" + ",".join(handoff_overlap[:3]))
+        breakdown["handoff_match"] = len(handoff_overlap)
+
+    for decision in decisions:
+        decision_paths = set(_clean_string_list(decision.get("related_paths"), limit=12))
+        if strategy_paths.intersection(decision_paths):
+            flags["recent_decision_support"] = True
+            decision_signal = str(decision.get("subsystem") or decision.get("execution_id") or "recent_decision").strip()
+            _append_signal(enriched, f"recent_decision_support:{decision_signal}")
+            breakdown["recent_decision_support"] = int(breakdown.get("recent_decision_support", 0) or 0) + 1
+            break
+
+    for subsystem in semantic_repo.get("subsystems", []) if isinstance(semantic_repo.get("subsystems"), list) else []:
+        if not isinstance(subsystem, dict):
+            continue
+        semantic_paths = set(
+            _clean_string_list(subsystem.get("key_paths"), limit=12)
+            + _clean_string_list(subsystem.get("entry_points"), limit=8)
+        )
+        if strategy_paths.intersection(semantic_paths):
+            flags["semantic_subsystem_match"] = True
+            _append_signal(enriched, f"semantic_subsystem_match:{subsystem.get('name')}")
+            breakdown["semantic_subsystem_match"] = int(breakdown.get("semantic_subsystem_match", 0) or 0) + 1
+            break
+
+    for failure in failures:
+        failure_paths = set(
+            _clean_string_list(failure.get("related_paths"), limit=12)
+            + _clean_string_list(failure.get("files_involved"), limit=12)
+        )
+        if strategy_paths.intersection(failure_paths):
+            flags["known_failure_avoidance"] = True
+            failure_id = str(failure.get("failure_id") or failure.get("failure_signature") or failure.get("signature") or "failure").strip()
+            _append_signal(enriched, f"known_failure_avoidance:{failure_id}")
+            avoidance_warnings.append(f"avoid_known_failure:{failure_id}")
+            break
+
+    if flags["known_failure_avoidance"]:
+        breakdown["known_failure_avoidance"] = 0
+    enriched["similarity_breakdown"] = breakdown
+    enriched["cross_memory_reuse"] = flags
+    enriched["avoidance_warnings"] = avoidance_warnings
+    return enriched
+
+
 def load_continuity_context(
     repo_root: Path,
     *,
@@ -438,10 +547,16 @@ def load_continuity_context(
         area_id=str(area_id or ""),
         limit=max_failures,
     )
+    reuse_files = _continuity_reuse_files(
+        files=list(files or []),
+        handoff=handoff,
+        decisions=decisions,
+        semantic_repo=semantic_repo,
+    )
     procedural_reuse = select_strategy(
         repo_root,
         str(task_type or "") or None,
-        files=list(files or []),
+        files=reuse_files,
         primary_entry_point=primary_entry_point,
         request_text=request_text,
         commands=list(commands or []),
@@ -449,6 +564,13 @@ def load_continuity_context(
         errors=list(errors or []),
         area_id=area_id,
     ) or {}
+    procedural_reuse = _enrich_reuse_with_continuity(
+        procedural_reuse,
+        handoff=handoff,
+        decisions=decisions,
+        failures=failures,
+        semantic_repo=semantic_repo,
+    )
     loaded = {
         "session": bool(session),
         "handoff": bool(handoff),
