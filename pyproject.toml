@@ -12,7 +12,7 @@ authors = [
   { name = "Santi Santamaria" }
 ]
 license = "MIT"
-keywords = ["ai", "llm", "coding-agents", "developer-tools", "execution-memory", "codex", "claude"]
+keywords = ["ai", "llm", "coding-agents", "continuity", "agent-memory", "repo-local", "developer-tools", "execution-memory", "codex", "claude"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
