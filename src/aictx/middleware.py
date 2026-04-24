@@ -287,6 +287,12 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_path": "",
         "packet": {},
         "continuity_context": continuity_context,
+        "startup_banner_text": str(continuity_context.get("startup_banner_text") or ""),
+        "startup_banner_policy": {
+            "show_in_first_user_visible_response": True,
+            "position": "response_prefix",
+            "text": str(continuity_context.get("startup_banner_text") or ""),
+        },
         "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
         "retrieval_summary": retrieval_summary,
         "telemetry_targets": telemetry_targets,

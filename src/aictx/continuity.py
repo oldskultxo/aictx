@@ -107,6 +107,12 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
     return "\n".join(lines)
 
 
+def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
+    session = context.get("session") if isinstance(context.get("session"), dict) else {}
+    agent_label, session_count = _session_summary_parts(session, repo_root)
+    return f"{agent_label} (session #{session_count}) - awake"
+
+
 def _clean_string_list(values: Any, *, limit: int = 8) -> list[str]:
     if not isinstance(values, list):
         return []
@@ -973,5 +979,6 @@ def load_continuity_context(
         "staleness": staleness,
         "warnings": warnings,
     }
+    context["startup_banner_text"] = render_startup_banner(context, repo_root)
     context["continuity_summary_text"] = render_continuity_summary(context, repo_root)
     return context

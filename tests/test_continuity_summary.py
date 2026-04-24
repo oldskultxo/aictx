@@ -39,6 +39,9 @@ def test_prepare_execution_reports_empty_continuity_summary(tmp_path: Path):
     )
     assert prepared["continuity_summary_text"] == expected
     assert prepared["continuity_context"]["continuity_summary_text"] == expected
+    assert prepared["startup_banner_text"] == f"codex@{repo.name} (session #1) - awake"
+    assert prepared["startup_banner_policy"]["show_in_first_user_visible_response"] is True
+    assert prepared["continuity_context"]["startup_banner_text"] == f"codex@{repo.name} (session #1) - awake"
 
 
 def test_prepare_execution_reports_rich_continuity_summary(tmp_path: Path):
@@ -95,6 +98,7 @@ def test_prepare_execution_reports_rich_continuity_summary(tmp_path: Path):
         "- procedural_reuse: yes"
     )
     assert prepared["continuity_summary_text"] == expected
+    assert prepared["startup_banner_text"] == f"codex@{repo.name} (session #1) - awake"
     assert prepared["continuity_context"]["loaded"] == {
         "session": True,
         "handoff": True,

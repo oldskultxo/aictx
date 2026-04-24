@@ -30,11 +30,12 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Runtime loop
 1. Run `prepare_execution` before non-trivial work.
-2. Execute the task.
-3. Run `finalize_execution` with the real outcome.
-4. Append `finalized.agent_summary_text` verbatim to the final user response.
-5. If no finalize output exists, say `AICTX summary unavailable`.
-6. Reuse previous successful strategies when available.
+2. If `prepared.startup_banner_text` exists, show it at the start of the first user-visible response for that execution.
+3. Execute the task.
+4. Run `finalize_execution` with the real outcome.
+5. Append `finalized.agent_summary_text` verbatim to the final user response.
+6. If no finalize output exists, say `AICTX summary unavailable`.
+7. Reuse previous successful strategies when available.
 
 ## Execution middleware
 - Enter the runtime for every execution in initialized repos.
@@ -42,6 +43,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Read `.aictx/metrics/execution_feedback.jsonl` for real feedback.
 - Read `.aictx/strategy_memory/strategies.jsonl` for reusable successful patterns.
 - Report missing data as `unknown` instead of inventing values.
+- If `startup_banner_text` is available, use it as a visible startup banner in the first response.
 - Final responses for non-trivial tasks must include the AICTX summary from finalize.
 
 ## aictx usage rules
@@ -70,6 +72,7 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
+- If `prepare_execution` returns `startup_banner_text`, show it at the start of the first user-visible response.
 - After finalize, append `agent_summary_text` verbatim to the final user response.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - Use repo-local execution history and strategy memory before deeper repo analysis.

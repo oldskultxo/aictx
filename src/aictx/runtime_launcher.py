@@ -125,6 +125,10 @@ def cli_run_execution(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(outcome, indent=2, ensure_ascii=False))
     else:
+        prepared = outcome.get("prepared", {}) if isinstance(outcome.get("prepared"), dict) else {}
+        startup_banner = str(prepared.get("startup_banner_text") or "").strip()
+        if startup_banner:
+            sys.stdout.write(startup_banner + "\n")
         if outcome["stdout"]:
             sys.stdout.write(outcome["stdout"])
         if outcome["stderr"]:

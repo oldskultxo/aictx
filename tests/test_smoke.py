@@ -131,15 +131,19 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "caveman_full" in text
     assert "caveman_ultra" in text
     assert "agent_summary_text" in text
+    assert "startup_banner_text" in text
     assert "AICTX summary unavailable" in text
     repo_block = render_repo_agents_block()
     assert "agent_summary_text" in repo_block
+    assert "startup_banner_text" in repo_block
     assert "AICTX summary unavailable" in repo_block
     claude_block = render_claude_md_block()
     assert "agent_summary_text" in claude_block
+    assert "startup_banner_text" in claude_block
     assert "AICTX summary unavailable" in claude_block
     prompt_hook = render_user_prompt_submit_script()
     assert "append agent_summary_text verbatim" in prompt_hook
+    assert "startup_banner_text" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
 
 
@@ -1269,6 +1273,7 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
 
     assert args.func(args) == 0
     output = capsys.readouterr().out
+    assert output.startswith(f"codex@{repo.name} (session #1) - awake\n")
     assert "wrapped ok" in output
     assert "AICTX" in output
     assert "- Reused strategy:" in output
