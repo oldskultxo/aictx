@@ -1351,7 +1351,7 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
     assert output.startswith(f"AICTX: codex@{repo.name} session #1 — no previous handoff yet.\n")
     assert "wrapped ok" in output
     assert "AICTX: " in output
-    assert "Details: .aictx/continuity/last_execution_summary.md" in output
+    assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in output
 
 
 def test_runtime_capture_provenance_and_prepare_fields(tmp_path: Path):

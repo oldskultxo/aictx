@@ -112,6 +112,85 @@ def test_prepare_execution_startup_banner_uses_latest_handoff_history(tmp_path: 
 
     prepared = prepare_execution(_payload(repo, "exec-from-history"))
     assert prepared["startup_banner_text"] == (
-        f"AICTX: codex@{repo.name} session #1 — last time we resolved: updated release metadata."
+        f"AICTX: codex@{repo.name} session #1 — recent progress: old summary; updated release metadata."
         " Next likely start: pyproject.toml, src/aictx/_version.py."
+    )
+
+
+def test_prepare_execution_startup_banner_summarizes_recent_handoff_history_compactly(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    history_path = repo / HANDOFFS_HISTORY_PATH
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "execution_id": "exec-1",
+                        "timestamp": "2026-04-24T08:00:00Z",
+                        "summary": "Phase 1 complete: laid down runtime middleware scaffolding and base continuity wiring.",
+                        "status": "resolved",
+                        "recommended_starting_points": ["src/aictx/runtime_launcher.py"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "execution_id": "exec-2",
+                        "timestamp": "2026-04-24T09:00:00Z",
+                        "summary": "Phase 2 complete: implemented handoff history and startup banner.",
+                        "status": "resolved",
+                        "recommended_starting_points": ["src/aictx/continuity.py"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "execution_id": "exec-3",
+                        "timestamp": "2026-04-24T10:00:00Z",
+                        "summary": "Phase 3 complete: added compact final summary and markdown details file.",
+                        "status": "resolved",
+                        "recommended_starting_points": ["src/aictx/middleware.py"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "execution_id": "exec-4",
+                        "timestamp": "2026-04-24T11:00:00Z",
+                        "summary": "Phase 4 completed: aligned docs and ran full validation.",
+                        "status": "resolved",
+                        "recommended_starting_points": ["README.md"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "execution_id": "exec-5",
+                        "timestamp": "2026-04-24T12:00:00Z",
+                        "summary": "Final phase executed: verified local init from source checkout and clean git status.",
+                        "status": "resolved",
+                        "recommended_starting_points": ["AGENTS.md", "CLAUDE.md"],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "execution_id": "exec-6",
+                        "timestamp": "2026-04-24T13:00:00Z",
+                        "summary": "Updated AICTX compact final summary details path to render as a clickable markdown link for IDE/chat surfaces.",
+                        "status": "resolved",
+                        "recommended_starting_points": ["src/aictx/middleware.py", "tests/test_smoke.py"],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepared = prepare_execution(_payload(repo, "exec-standup"))
+
+    assert prepared["startup_banner_text"] == (
+        f"AICTX: codex@{repo.name} session #1 — recent progress: implemented handoff history and startup banner; "
+        "added compact final summary and markdown details file; aligned docs and ran full validation; "
+        "verified local init from source checkout and clean git status; "
+        "Updated AICTX compact final summary details path to render as a clickable markdown…."
+        " Next likely start: src/aictx/middleware.py, tests/test_smoke.py."
     )

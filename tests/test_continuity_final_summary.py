@@ -46,7 +46,7 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
 
     text = finalized["agent_summary_text"]
     assert text.startswith("AICTX: reused a previous strategy, stored handoff, decision, observed 1 files and 0 tests.")
-    assert "Details: .aictx/continuity/last_execution_summary.md" in text
+    assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in text
     assert finalized["agent_summary"]["handoff_stored"] is True
     assert finalized["agent_summary"]["decision_stored"] is True
     detailed_path = repo / ".aictx" / "continuity" / "last_execution_summary.md"

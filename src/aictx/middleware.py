@@ -738,7 +738,7 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
         return "AICTX: no reusable execution context was recorded for this run."
     if summary.get("failure_recorded"):
         next_hint = _next_session_guidance(summary)
-        return f"AICTX: recorded a failure pattern for this run. Next likely start: {next_hint}. Details: {details_path}"
+        return f"AICTX: recorded a failure pattern for this run. Next likely start: {next_hint}. Details: {_render_details_link(details_path)}"
     parts: list[str] = []
     if summary.get("strategy_reused"):
         parts.append("reused a previous strategy")
@@ -755,7 +755,14 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
         parts.append("stored " + ", ".join(stored_parts))
     parts.append(f"observed {files_count} files and {tests_count} tests")
     message = ", ".join(parts)
-    return f"AICTX: {message}. Details: {details_path}"
+    return f"AICTX: {message}. Details: {_render_details_link(details_path)}"
+
+
+def _render_details_link(details_path: str) -> str:
+    path = str(details_path or "").strip()
+    if not path:
+        return ""
+    return f"[`{path}`]({path})"
 
 
 def build_agent_summary(

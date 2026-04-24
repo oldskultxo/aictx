@@ -112,6 +112,12 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
 def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     agent_label, session_count = _session_summary_parts(session, repo_root)
+    recent = load_handoff_history(repo_root, limit=5)
+    if recent:
+        standup = _render_handoff_standup(recent)
+        starts = _clean_string_list(recent[-1].get("recommended_starting_points"), limit=2)
+        next_part = f" Next likely start: {', '.join(starts)}." if starts else ""
+        return f"AICTX: {agent_label} session #{session_count} — recent progress: {standup}.{next_part}"
     latest = latest_handoff_record(repo_root)
     if not latest:
         return f"AICTX: {agent_label} session #{session_count} — no previous handoff yet."
@@ -126,6 +132,49 @@ def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     starts = _clean_string_list(latest.get("recommended_starting_points"), limit=2)
     next_part = f" Next likely start: {', '.join(starts)}." if starts else ""
     return f"AICTX: {agent_label} session #{session_count} — last time we {status_text}: {summary}.{next_part}"
+
+
+def _render_handoff_standup(rows: list[dict[str, Any]]) -> str:
+    clauses = [_render_handoff_standup_clause(row) for row in rows if isinstance(row, dict)]
+    compact = [item for item in clauses if item]
+    if not compact:
+        return "no previous handoff yet"
+    return "; ".join(compact)
+
+
+def _render_handoff_standup_clause(row: dict[str, Any]) -> str:
+    summary = _compact_handoff_summary(str(row.get("summary") or ""))
+    if not summary:
+        return ""
+    status = str(row.get("status") or "").strip().lower()
+    if status == "resolved":
+        return summary
+    if status in {"failed", "unresolved", "blocked"}:
+        return f"blocked on {summary}"
+    return f"worked on {summary}"
+
+
+def _compact_handoff_summary(text: str, *, max_len: int = 88) -> str:
+    summary = " ".join(str(text or "").strip().split())
+    for prefix in (
+        "Phase 1 complete:",
+        "Phase 1 completed:",
+        "Phase 2 complete:",
+        "Phase 2 completed:",
+        "Phase 3 complete:",
+        "Phase 3 completed:",
+        "Phase 4 complete:",
+        "Phase 4 completed:",
+        "Final phase executed:",
+    ):
+        if summary.startswith(prefix):
+            summary = summary[len(prefix):].strip()
+            break
+    summary = summary.rstrip(". ")
+    if len(summary) <= max_len:
+        return summary
+    shortened = summary[: max_len - 1].rsplit(" ", 1)[0].strip()
+    return (shortened or summary[: max_len - 1].strip()) + "…"
 
 
 def _summary_next_points(summary: dict[str, Any], *, limit: int = 2) -> list[str]:
