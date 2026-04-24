@@ -21,6 +21,7 @@ REPO_MEMORY_GRAPH_DIR = Path(REPO_ENGINE_DIR) / "memory_graph"
 REPO_STRATEGY_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "strategy_memory"
 REPO_METRICS_DIR = Path(REPO_ENGINE_DIR) / "metrics"
 REPO_ADAPTERS_DIR = Path(REPO_ENGINE_DIR) / "adapters"
+REPO_CONTINUITY_DIR = Path(REPO_ENGINE_DIR) / "continuity"
 REPO_STATE_PATH = Path(REPO_ENGINE_DIR) / "state.json"
 LEGACY_REPO_DIRS = [
     ".aictx_memory",
@@ -37,6 +38,7 @@ REPO_DIRS = [
     REPO_MEMORY_DIR.as_posix(),
     REPO_STRATEGY_MEMORY_DIR.as_posix(),
     REPO_METRICS_DIR.as_posix(),
+    REPO_CONTINUITY_DIR.as_posix(),
 ]
 
 TASK_TYPES = [
@@ -52,13 +54,43 @@ TASK_TYPES = [
 
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def read_json(path: Path, default: Any) -> Any:
     if not path.exists():
         return default
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return default
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            rows.append(payload)
+    return rows
+
+
+def append_jsonl(path: Path, row: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
 
 @dataclass
