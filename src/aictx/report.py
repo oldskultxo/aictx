@@ -6,13 +6,14 @@ from typing import Any
 
 from .area_memory import load_area_memory
 from .failure_memory import load_failures
-from .state import REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, write_json
+from .state import REPO_CONTINUITY_DIR, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, read_json, write_json
 
 
 EXECUTION_LOGS_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
 EXECUTION_FEEDBACK_PATH = REPO_METRICS_DIR / "execution_feedback.jsonl"
 STRATEGIES_PATH = REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl"
 MEMORY_HYGIENE_PATH = REPO_METRICS_DIR / "memory_hygiene.json"
+CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -76,6 +77,7 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
     area_memory = load_area_memory(repo_root)
     failure_count = len(load_failures(repo_root))
     hygiene = build_memory_hygiene_report(repo_root)
+    continuity_metrics = read_json(repo_root / CONTINUITY_METRICS_PATH, {})
 
     return {
         "total_executions": len(logs),
@@ -91,6 +93,7 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         "area_count": len(area_memory.get("areas", {})) if isinstance(area_memory.get("areas"), dict) else 0,
         "agent_summaries": summaries_available,
         "memory_hygiene": hygiene,
+        "continuity_metrics": continuity_metrics if isinstance(continuity_metrics, dict) else {},
     }
 
 

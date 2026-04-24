@@ -22,6 +22,7 @@ DECISIONS_PATH = REPO_CONTINUITY_DIR / "decisions.jsonl"
 SEMANTIC_REPO_PATH = REPO_CONTINUITY_DIR / "semantic_repo.json"
 DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
 STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
+CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
 
 
 def _read_optional_json(repo_root: Path, relative_path: Path, expected_type: type, warnings: list[str]) -> Any:
@@ -661,6 +662,46 @@ def refresh_staleness(
 
     write_json(repo_root / STALENESS_PATH, report)
     return {"path": (repo_root / STALENESS_PATH).as_posix(), "staleness": report}
+
+
+def update_continuity_metrics(
+    repo_root: Path,
+    prepared: dict[str, Any],
+    telemetry_entry: dict[str, Any],
+) -> dict[str, Any]:
+    existing = read_json(repo_root / CONTINUITY_METRICS_PATH, {})
+    if not isinstance(existing, dict):
+        existing = {}
+    continuity = prepared.get("continuity_context", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
+    loaded = continuity.get("loaded", {}) if isinstance(continuity.get("loaded"), dict) else {}
+    reuse = continuity.get("procedural_reuse", {}) if isinstance(continuity.get("procedural_reuse"), dict) else {}
+    cross_memory = reuse.get("cross_memory_reuse", {}) if isinstance(reuse.get("cross_memory_reuse"), dict) else {}
+    payload = {
+        "strategy_reuse_count": int(existing.get("strategy_reuse_count", 0) or 0),
+        "non_reuse_count": int(existing.get("non_reuse_count", 0) or 0),
+        "handoff_load_count": int(existing.get("handoff_load_count", 0) or 0),
+        "decision_load_count": int(existing.get("decision_load_count", 0) or 0),
+        "failure_match_count": int(existing.get("failure_match_count", 0) or 0),
+        "semantic_memory_load_count": int(existing.get("semantic_memory_load_count", 0) or 0),
+        "repeated_failure_avoidance_count": int(existing.get("repeated_failure_avoidance_count", 0) or 0),
+    }
+    if bool(telemetry_entry.get("used_strategy")):
+        payload["strategy_reuse_count"] += 1
+    else:
+        payload["non_reuse_count"] += 1
+    if bool(loaded.get("handoff")):
+        payload["handoff_load_count"] += 1
+    if bool(loaded.get("decisions")):
+        payload["decision_load_count"] += 1
+    if bool(loaded.get("failures")):
+        payload["failure_match_count"] += 1
+    if bool(loaded.get("semantic_repo")):
+        payload["semantic_memory_load_count"] += 1
+    if bool(cross_memory.get("known_failure_avoidance")):
+        payload["repeated_failure_avoidance_count"] += 1
+    payload["updated_at"] = _now_iso()
+    write_json(repo_root / CONTINUITY_METRICS_PATH, payload)
+    return {"path": (repo_root / CONTINUITY_METRICS_PATH).as_posix(), "metrics": payload}
 
 
 def _load_semantic_repo(

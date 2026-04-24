@@ -11,7 +11,13 @@ from typing import Any
 from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
-from .continuity import load_continuity_context, persist_decision_memory, persist_handoff_memory, persist_semantic_repo_memory
+from .continuity import (
+    load_continuity_context,
+    persist_decision_memory,
+    persist_handoff_memory,
+    persist_semantic_repo_memory,
+    update_continuity_metrics,
+)
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
 from .runtime_capture import SIGNAL_FIELDS, build_capture
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
@@ -646,6 +652,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         normalized_result,
         timestamp=finalized_at,
     )
+    continuity_metrics = update_continuity_metrics(repo_root, prepared, telemetry_entry)
     agent_summary = build_agent_summary(
         prepared,
         learning,
@@ -669,6 +676,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "handoff_persisted": handoff,
         "decisions_persisted": decisions,
         "semantic_repo_persisted": semantic_repo,
+        "continuity_metrics_persisted": continuity_metrics,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": agent_summary["rendered"],
         "value_evidence": {
