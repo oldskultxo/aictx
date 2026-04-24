@@ -58,6 +58,13 @@ Source: `.aictx/strategy_memory/strategies.jsonl`
 
 Returns deterministic guidance from the selected reusable successful strategy.
 
+It can also accept optional ranking context such as:
+- request text
+- files already opened
+- commands already executed
+- tests already executed
+- notable errors already observed
+
 ## `aictx reflect`
 Source: `.aictx/metrics/execution_logs.jsonl`
 
@@ -65,6 +72,14 @@ Rules:
 - if `len(files_reopened) > 2` -> `looping_on_same_files`
 - elif `len(files_opened) > 8` -> `too_much_exploration`
 - else -> `none`
+
+Current output is still deterministic JSON, but richer than the original minimal form:
+- `possible_issue`
+- `reopened_files`
+- `opened_files_count`
+- `suggested_next_action`
+- `recommended_entry_points`
+- `reason`
 
 ## `aictx reuse`
 Source: `.aictx/strategy_memory/strategies.jsonl`
@@ -87,6 +102,14 @@ Sources:
 - `.aictx/continuity/continuity_metrics.json` when present
 
 Returns aggregated real usage only.
+
+Current report may include:
+- strategy and packet usage
+- redundant exploration counts
+- capture coverage
+- failure pattern counts
+- error capture counters
+- continuity metrics when present
 
 ## Continuity artifacts
 
@@ -123,6 +146,7 @@ Important runtime output behavior:
 - if finalize output is unavailable, agents must say `AICTX summary unavailable`.
 - `aictx internal run-execution --json` returns the full wrapped outcome as JSON.
 - `aictx internal run-execution` without `--json` prints the wrapped command output plus the AICTX summary text.
+- `prepare_execution` may return `startup_banner_text`, but visible-session semantics mean it should be shown once per visible session, not once per execution.
 
 Important boundary:
 - public docs should point users to the public CLI first

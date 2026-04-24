@@ -4,7 +4,7 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It helps each new session behave like the same repo-native engineer continuing prior work.
 
-Current documented implementation: `4.0.0`
+Current documented implementation: `4.0.1`
 
 ---
 
@@ -155,16 +155,17 @@ It makes past executions observable and reusable.
 ## Runtime loop
 
 1. `prepare_execution()` loads prior successful strategies and may attach `execution_hint`
-2. the agent executes
-3. `finalize_execution()` records logs, feedback, strategy memory, and `agent_summary_text`
-4. the agent appends `agent_summary_text` to the final user response; if unavailable, it says `AICTX summary unavailable`
-5. the next execution can reuse successful strategies and ignore failed ones
+2. for non-trivial work it may also build a bounded packet/context payload and continuity summary
+3. the agent executes
+4. `finalize_execution()` records logs, feedback, strategy memory, and `agent_summary_text`
+5. the agent appends `agent_summary_text` to the final user response; if unavailable, it says `AICTX summary unavailable`
+6. the next execution can reuse successful strategies and ignore failed ones
 
 ---
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.0.0` is:
+The stable repo-local continuity artifact contract in `4.0.1` is:
 
 ```text
 .aictx/continuity/session.json
@@ -226,7 +227,9 @@ Behavior expectations:
 * task typing uses explicit metadata first, then deterministic keyword/path inference, then `unknown`
 * capture provenance distinguishes explicit, runtime-observed, heuristic, and unknown signals
 * middleware packet generation is conservative and task-dependent, not unconditional for every execution
-* failed strategies are stored but never reused as hints
+* `reflect` is intentionally small-scope: it only looks at the latest execution log, but it can now return issue classification, counts, suggested next action, and recommended entry points
+* `suggest` and `reuse` can rank with extra context such as request text, files, commands, tests, and notable errors when that context is provided
+* failed strategies are stored but never reused as positive hints; they may still inform failure-aware avoidance and debugging context
 * no synthetic benchmarks or estimated improvements are reported
 
 ---
@@ -241,7 +244,7 @@ Behavior expectations:
 
 ## Possible evolution
 
-The current `4.0.0` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
+The current `4.0.1` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
 
 Possible future work, based on real usage:
 

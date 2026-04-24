@@ -110,6 +110,7 @@ It summarizes real facts such as:
 - packet usage
 - strategy reuse
 - simple redundant exploration detection
+- whether packet/context was actually built and reused signals when observed
 
 ### Strategy memory
 
@@ -123,7 +124,7 @@ There is no ML layer or synthetic scoring. Reuse ranking is deterministic and ex
 
 Continuity artifacts are repo-local and layered:
 
-- `session.json` -> stable repo/agent session identity
+- `session.json` -> visible-session identity plus execution counters and startup-banner state
 - `handoff.json` -> latest canonical continuation handoff
 - `decisions.jsonl` -> append-only significant decisions
 - `semantic_repo.json` -> compact subsystem-level repo knowledge
@@ -152,22 +153,24 @@ The runtime does not claim ML-grade semantic retrieval or guaranteed optimizatio
 
 - source: strategy memory
 - returns: suggested entry points and files from the latest matching strategy
+- optional ranking context can improve matching: request text, files, commands, tests, and notable errors
 
 ### `aictx reflect`
 
 - source: latest execution log
-- returns: simple exploration warning from real reopened/opened file data
+- returns: exploration warning plus counts, recommended entry points, reason, and suggested next action
 
 ### `aictx reuse`
 
 - source: strategy memory
 - returns: latest reusable successful execution pattern
+- failed strategies are still stored, but they are never returned as reusable positive guidance
 
 ### `aictx report real-usage`
 
 - source: execution logs + execution feedback
 - optional source: continuity metrics
-- returns: real aggregated runtime usage only
+- returns: real aggregated runtime usage only, including failure/error coverage counters when observed
 
 ## Runner integration
 

@@ -4,6 +4,13 @@
 
 No unreleased changes.
 
+## 4.0.1 - 2026-04-24
+
+### Fixed
+- Corrected documentation to match the shipped runtime behavior more faithfully.
+- Clarified that failed strategies are not reused as positive execution hints, but failure-aware context can still influence debugging/avoidance behavior.
+- Updated usage and limitations docs to reflect the current packet middleware, enriched `reflect`, contextual `suggest`/`reuse`, and visible-session banner behavior.
+
 ## 4.0.0 - 2026-04-24
 
 ### Changed
