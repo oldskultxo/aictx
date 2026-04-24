@@ -17,7 +17,7 @@ from .runtime_contract import resolve_effective_preferences, runtime_consistency
 from .runtime_io import slugify
 from .runtime_memory import rank_records
 from .runtime_tasks import resolve_task_type
-from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, read_json, write_json
+from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, read_json, touch_session_identity, write_json
 from .strategy_memory import build_strategy_entry, persist_strategy, select_strategy
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
@@ -197,6 +197,12 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
     if not (repo_root / REPO_MEMORY_DIR / "user_preferences.json").exists():
         communication_policy = {"layer": "disabled", "mode": "caveman_full"}
+    session_identity = touch_session_identity(
+        repo_root,
+        agent_id=str(envelope.get("agent_id") or ""),
+        adapter_id=str(envelope.get("adapter_id") or ""),
+        timestamp=str(envelope.get("timestamp") or now_iso()),
+    )
     capture = build_capture(envelope)
     area_id = derive_area_id(capture["files_opened"] + capture["files_edited"] + capture["tests_executed"])
     task_resolution = resolve_task_type(
@@ -267,6 +273,10 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         },
         "packet_path": "",
         "packet": {},
+        "continuity_context": {
+            "session": dict(session_identity.get("session", {})) if isinstance(session_identity.get("session"), dict) else {},
+            "warnings": list(session_identity.get("warnings", [])) if isinstance(session_identity.get("warnings"), list) else [],
+        },
         "retrieval_summary": retrieval_summary,
         "telemetry_targets": telemetry_targets,
         "prepared_at": now_iso(),

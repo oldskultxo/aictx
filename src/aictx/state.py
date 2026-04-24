@@ -23,6 +23,7 @@ REPO_METRICS_DIR = Path(REPO_ENGINE_DIR) / "metrics"
 REPO_ADAPTERS_DIR = Path(REPO_ENGINE_DIR) / "adapters"
 REPO_CONTINUITY_DIR = Path(REPO_ENGINE_DIR) / "continuity"
 REPO_STATE_PATH = Path(REPO_ENGINE_DIR) / "state.json"
+REPO_CONTINUITY_SESSION_PATH = REPO_CONTINUITY_DIR / "session.json"
 LEGACY_REPO_DIRS = [
     ".aictx_memory",
     ".aictx_cost",
@@ -152,3 +153,51 @@ def load_active_workspace() -> Workspace:
 def save_workspace(workspace: Workspace) -> None:
     ensure_global_home()
     write_json(workspace_path(workspace.workspace_id), workspace.to_dict())
+
+
+def _stable_runtime_label(value: str) -> str:
+    lowered = str(value or "").strip().lower()
+    cleaned = "".join(ch if ch.isalnum() else "-" for ch in lowered).strip("-")
+    return cleaned or "generic"
+
+
+def derive_repo_id(repo_root: Path) -> str:
+    payload = read_json(repo_root / REPO_STATE_PATH, {})
+    for candidate in (payload.get("repo_id"), repo_root.name, payload.get("project"), payload.get("engine_name")):
+        text = str(candidate or "").strip()
+        if text:
+            return text
+    return repo_root.name or "repo"
+
+
+def derive_runtime(agent_id: str = "", adapter_id: str = "") -> str:
+    return _stable_runtime_label(adapter_id or agent_id or "generic")
+
+
+def touch_session_identity(repo_root: Path, agent_id: str = "", adapter_id: str = "", timestamp: str = "") -> dict[str, Any]:
+    runtime = derive_runtime(agent_id=agent_id, adapter_id=adapter_id)
+    repo_id = derive_repo_id(repo_root)
+    session_path = repo_root / REPO_CONTINUITY_SESSION_PATH
+    warnings: list[str] = []
+    current: dict[str, Any] = {}
+    if session_path.exists():
+        try:
+            payload = json.loads(session_path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                current = payload
+            else:
+                warnings.append("continuity_session_invalid_payload")
+        except (json.JSONDecodeError, OSError):
+            warnings.append("continuity_session_malformed")
+    previous_count = current.get("session_count")
+    count = int(previous_count) + 1 if isinstance(previous_count, int) and previous_count >= 1 else 1
+    last_session_at = str(timestamp or "").strip() or current.get("last_session_at") or ""
+    session = {
+        "repo_id": repo_id,
+        "runtime": runtime,
+        "agent_label": f"{runtime}@{repo_id}",
+        "session_count": count,
+        "last_session_at": last_session_at,
+    }
+    write_json(session_path, session)
+    return {"session": session, "warnings": warnings, "path": session_path.as_posix()}
