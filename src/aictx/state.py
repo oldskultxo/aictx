@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -174,9 +175,21 @@ def derive_runtime(agent_id: str = "", adapter_id: str = "") -> str:
     return _stable_runtime_label(adapter_id or agent_id or "generic")
 
 
-def touch_session_identity(repo_root: Path, agent_id: str = "", adapter_id: str = "", timestamp: str = "") -> dict[str, Any]:
+def derive_visible_session_id(agent_id: str = "", adapter_id: str = "", session_id: str = "") -> str:
+    explicit = str(session_id or "").strip()
+    if explicit:
+        return explicit
+    for env_key in ("AICTX_SESSION_ID", "CODEX_SESSION_ID", "CLAUDE_SESSION_ID", "TERM_SESSION_ID"):
+        env_value = str(os.environ.get(env_key, "") or "").strip()
+        if env_value:
+            return env_value
+    return f"{derive_runtime(agent_id=agent_id, adapter_id=adapter_id)}:default"
+
+
+def touch_session_identity(repo_root: Path, agent_id: str = "", adapter_id: str = "", timestamp: str = "", session_id: str = "") -> dict[str, Any]:
     runtime = derive_runtime(agent_id=agent_id, adapter_id=adapter_id)
     repo_id = derive_repo_id(repo_root)
+    visible_session_id = derive_visible_session_id(agent_id=agent_id, adapter_id=adapter_id, session_id=session_id)
     session_path = repo_root / REPO_CONTINUITY_SESSION_PATH
     warnings: list[str] = []
     current: dict[str, Any] = {}
@@ -189,15 +202,49 @@ def touch_session_identity(repo_root: Path, agent_id: str = "", adapter_id: str 
                 warnings.append("continuity_session_invalid_payload")
         except (json.JSONDecodeError, OSError):
             warnings.append("continuity_session_malformed")
-    previous_count = current.get("session_count")
-    count = int(previous_count) + 1 if isinstance(previous_count, int) and previous_count >= 1 else 1
-    last_session_at = str(timestamp or "").strip() or current.get("last_session_at") or ""
+    try:
+        previous_count = int(current.get("session_count") or 0)
+    except (TypeError, ValueError):
+        previous_count = 0
+    previous_session_id = str(current.get("session_id") or "").strip()
+    is_new_visible_session = not previous_session_id or previous_session_id != visible_session_id
+    count = previous_count + 1 if is_new_visible_session and previous_count >= 1 else (previous_count or 1)
+    if count < 1:
+        count = 1
+    event_at = str(timestamp or "").strip() or current.get("last_execution_at") or current.get("last_session_at") or ""
+    started_at = event_at if is_new_visible_session else str(current.get("started_at") or current.get("last_session_at") or event_at)
+    execution_count = 1
+    if not is_new_visible_session:
+        try:
+            execution_count = int(current.get("execution_count") or 0) + 1
+        except (TypeError, ValueError):
+            execution_count = 1
     session = {
         "repo_id": repo_id,
         "runtime": runtime,
         "agent_label": f"{runtime}@{repo_id}",
+        "session_id": visible_session_id,
         "session_count": count,
-        "last_session_at": last_session_at,
+        "started_at": started_at,
+        "last_session_at": started_at,
+        "last_execution_at": event_at,
+        "execution_count": execution_count,
+        "banner_shown_session_id": "" if is_new_visible_session else str(current.get("banner_shown_session_id") or ""),
+        "banner_shown_at": "" if is_new_visible_session else str(current.get("banner_shown_at") or ""),
     }
     write_json(session_path, session)
     return {"session": session, "warnings": warnings, "path": session_path.as_posix()}
+
+
+def mark_startup_banner_shown(repo_root: Path, session: dict[str, Any], timestamp: str = "") -> dict[str, Any]:
+    session_path = repo_root / REPO_CONTINUITY_SESSION_PATH
+    current = read_json(session_path, {}) if session_path.exists() else {}
+    if not isinstance(current, dict):
+        current = {}
+    active = dict(current or session)
+    session_id = str(active.get("session_id") or session.get("session_id") or "").strip()
+    shown_at = str(timestamp or "").strip() or str(active.get("last_execution_at") or active.get("started_at") or "")
+    active["banner_shown_session_id"] = session_id
+    active["banner_shown_at"] = shown_at
+    write_json(session_path, active)
+    return active

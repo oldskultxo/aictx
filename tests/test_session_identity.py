@@ -18,7 +18,7 @@ def _payload(repo: Path, execution_id: str) -> dict:
     }
 
 
-def test_prepare_execution_creates_and_increments_session_identity(tmp_path: Path):
+def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
 
@@ -27,17 +27,39 @@ def test_prepare_execution_creates_and_increments_session_identity(tmp_path: Pat
     assert session_path.exists()
     assert first["continuity_context"]["warnings"] == []
     assert first["continuity_context"]["session"]["session_count"] == 1
+    assert first["continuity_context"]["session"]["execution_count"] == 1
     assert first["continuity_context"]["session"]["runtime"] == "codex"
     assert first["continuity_context"]["session"]["agent_label"] == f"codex@{repo.name}"
+    assert first["startup_banner_text"] == f"codex@{repo.name} (session #1) - awake"
 
     second = prepare_execution(_payload(repo, "exec-2"))
-    assert second["continuity_context"]["session"]["session_count"] == 2
+    assert second["continuity_context"]["session"]["session_count"] == 1
+    assert second["continuity_context"]["session"]["execution_count"] == 2
     assert second["continuity_context"]["session"]["agent_label"] == first["continuity_context"]["session"]["agent_label"]
+    assert second["startup_banner_text"] == ""
+    assert second["startup_banner_policy"]["show_in_first_user_visible_response"] is False
+    assert second["startup_banner_policy"]["show_once_per_session"] is True
+    assert second["startup_banner_policy"]["already_shown"] is True
 
     on_disk = read_json(session_path, {})
-    assert on_disk["session_count"] == 2
+    assert on_disk["session_count"] == 1
+    assert on_disk["execution_count"] == 2
     assert on_disk["repo_id"] == repo.name
     assert on_disk["runtime"] == "codex"
+    assert on_disk["banner_shown_session_id"] == on_disk["session_id"]
+
+
+def test_prepare_execution_increments_visible_session_when_session_id_changes(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    first = prepare_execution({**_payload(repo, "exec-1"), "session_id": "visible-1"})
+    second = prepare_execution({**_payload(repo, "exec-2"), "session_id": "visible-2"})
+
+    assert first["continuity_context"]["session"]["session_count"] == 1
+    assert second["continuity_context"]["session"]["session_count"] == 2
+    assert second["continuity_context"]["session"]["execution_count"] == 1
+    assert second["startup_banner_text"] == f"codex@{repo.name} (session #2) - awake"
 
 
 def test_prepare_execution_recovers_from_malformed_session_file(tmp_path: Path):

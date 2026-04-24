@@ -24,7 +24,7 @@ from .runtime_contract import resolve_effective_preferences, runtime_consistency
 from .runtime_io import slugify
 from .runtime_memory import rank_records
 from .runtime_tasks import resolve_task_type
-from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, read_json, touch_session_identity, write_json
+from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, mark_startup_banner_shown, read_json, touch_session_identity, write_json
 from .strategy_memory import build_strategy_entry, persist_strategy, select_strategy
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
@@ -292,6 +292,7 @@ def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
         "execution_mode": str(payload.get("execution_mode") or "").strip().lower() or "plain",
         "skill_metadata": payload.get("skill_metadata", {}),
         "invocation_context": payload.get("invocation_context", {}),
+        "session_id": str(payload.get("session_id") or "").strip(),
         "files_opened": [str(item) for item in payload.get("files_opened", []) if str(item).strip()] if isinstance(payload.get("files_opened"), list) else [],
         "files_edited": [str(item) for item in payload.get("files_edited", []) if str(item).strip()] if isinstance(payload.get("files_edited"), list) else [],
         "files_reopened": [str(item) for item in payload.get("files_reopened", []) if str(item).strip()] if isinstance(payload.get("files_reopened"), list) else [],
@@ -348,6 +349,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         agent_id=str(envelope.get("agent_id") or ""),
         adapter_id=str(envelope.get("adapter_id") or ""),
         timestamp=str(envelope.get("timestamp") or now_iso()),
+        session_id=str((envelope.get("invocation_context") or {}).get("session_id") or envelope.get("session_id") or "") if isinstance(envelope.get("invocation_context"), dict) else str(envelope.get("session_id") or ""),
     )
     capture = build_capture(envelope)
     area_id = derive_area_id(capture["files_opened"] + capture["files_edited"] + capture["tests_executed"])
@@ -394,6 +396,15 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     )
     related_failures = list(continuity_context.get("failures", []))
     hints = area_hints(repo_root, area_id)
+    session = continuity_context.get("session", {}) if isinstance(continuity_context.get("session"), dict) else {}
+    session_id = str(session.get("session_id") or "")
+    banner_text = str(continuity_context.get("startup_banner_text") or "")
+    banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
+    startup_banner_text = "" if banner_already_shown else banner_text
+    if startup_banner_text:
+        updated_session = mark_startup_banner_shown(repo_root, session, timestamp=str(envelope.get("timestamp") or now_iso()))
+        continuity_context["session"] = updated_session
+        continuity_context["agent_identity"] = updated_session
     packet: dict[str, Any] = {}
     packet_path = ""
     if should_prepare_packet(envelope["user_request"], envelope["execution_mode"], task_resolution["task_type"]):
@@ -442,11 +453,14 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_path": packet_path,
         "packet": packet,
         "continuity_context": continuity_context,
-        "startup_banner_text": str(continuity_context.get("startup_banner_text") or ""),
+        "startup_banner_text": startup_banner_text,
         "startup_banner_policy": {
-            "show_in_first_user_visible_response": True,
+            "show_in_first_user_visible_response": bool(startup_banner_text),
+            "show_once_per_session": True,
+            "already_shown": banner_already_shown,
+            "session_id": session_id,
             "position": "response_prefix",
-            "text": str(continuity_context.get("startup_banner_text") or ""),
+            "text": startup_banner_text,
         },
         "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
         "retrieval_summary": retrieval_summary,

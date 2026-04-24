@@ -13,7 +13,7 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
-- If `prepare_execution` returns `startup_banner_text`, show it at the start of the first user-visible response.
+- If `prepare_execution` returns `startup_banner_text`, show it once at the start of the first user-visible response for the visible session.
 - After finalize, append `agent_summary_text` verbatim to the final user response.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.

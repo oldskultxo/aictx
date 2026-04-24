@@ -30,7 +30,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Runtime loop
 1. Run `prepare_execution` before non-trivial work.
-2. If `prepared.startup_banner_text` exists, show it at the start of the first user-visible response for that execution.
+2. If `prepared.startup_banner_text` exists, show it once at the start of the first user-visible response for the visible session.
 3. Execute the task.
 4. Run `finalize_execution` with the real outcome.
 5. Append `finalized.agent_summary_text` verbatim to the final user response.
@@ -43,7 +43,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Read `.aictx/metrics/execution_feedback.jsonl` for real feedback.
 - Read `.aictx/strategy_memory/strategies.jsonl` for reusable successful patterns.
 - Report missing data as `unknown` instead of inventing values.
-- If `startup_banner_text` is available, use it as a visible startup banner in the first response.
+- If `startup_banner_text` is available, use it as a visible startup banner only once per visible session.
 - Final responses for non-trivial tasks must include the AICTX summary from finalize.
 
 ## aictx usage rules
@@ -73,7 +73,7 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
-- If `prepare_execution` returns `startup_banner_text`, show it at the start of the first user-visible response.
+- If `prepare_execution` returns `startup_banner_text`, show it once at the start of the first user-visible response for the visible session.
 - After finalize, append `agent_summary_text` verbatim to the final user response.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
