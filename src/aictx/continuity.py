@@ -9,6 +9,7 @@ from .state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
     REPO_MEMORY_DIR,
+    append_jsonl,
     read_json,
     read_jsonl,
     write_json,
@@ -194,6 +195,57 @@ def persist_handoff_memory(
     }
     write_json(repo_root / HANDOFF_PATH, handoff)
     return {"path": (repo_root / HANDOFF_PATH).as_posix(), "handoff": handoff}
+
+
+def _significant_decision(decision: dict[str, Any]) -> bool:
+    if not str(decision.get("decision") or "").strip():
+        return False
+    if str(decision.get("rationale") or "").strip():
+        return True
+    return any(_clean_string_list(decision.get(key), limit=1) for key in ("alternatives", "constraints", "risks", "related_paths"))
+
+
+def _session_count_from_prepared(prepared: dict[str, Any]) -> int:
+    session = prepared.get("continuity_context", {}).get("session", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
+    try:
+        return int(session.get("session_count") or 0) if isinstance(session, dict) else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def persist_decision_memory(
+    repo_root: Path,
+    prepared: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    timestamp: str,
+) -> list[dict[str, Any]]:
+    raw_decisions = result.get("decisions")
+    if not isinstance(raw_decisions, list):
+        return []
+    session_count = _session_count_from_prepared(prepared)
+    execution_id = str(prepared.get("envelope", {}).get("execution_id") or "") if isinstance(prepared.get("envelope"), dict) else ""
+    persisted: list[dict[str, Any]] = []
+    for raw in raw_decisions:
+        if not isinstance(raw, dict):
+            continue
+        if not _significant_decision(raw):
+            continue
+        entry = {
+            "decision": str(raw.get("decision") or "").strip(),
+            "rationale": str(raw.get("rationale") or "").strip(),
+            "alternatives": _clean_string_list(raw.get("alternatives"), limit=8),
+            "constraints": _clean_string_list(raw.get("constraints"), limit=8),
+            "risks": _clean_string_list(raw.get("risks"), limit=8),
+            "related_paths": _clean_string_list(raw.get("related_paths"), limit=8),
+            "subsystem": str(raw.get("subsystem") or "").strip(),
+            "timestamp": timestamp,
+            "session": session_count,
+            "execution_id": execution_id,
+        }
+        append_jsonl(repo_root / DECISIONS_PATH, entry)
+        persisted.append(entry)
+    return persisted
 
 def load_continuity_context(
     repo_root: Path,

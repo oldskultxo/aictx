@@ -11,7 +11,7 @@ from typing import Any
 from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
-from .continuity import load_continuity_context, persist_handoff_memory
+from .continuity import load_continuity_context, persist_decision_memory, persist_handoff_memory
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
 from .runtime_capture import SIGNAL_FIELDS, build_capture
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
@@ -528,6 +528,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "success": bool(result.get("success")),
         "result_summary": str(result.get("result_summary", "") or ""),
         "validated_learning": bool(result.get("validated_learning")),
+        "decisions": list(result.get("decisions", [])) if isinstance(result.get("decisions"), list) else [],
     }
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
@@ -544,6 +545,12 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     agent_summary = build_agent_summary(prepared, learning, strategy, failure)
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     finalized_at = now_iso()
+    decisions = persist_decision_memory(
+        repo_root,
+        prepared,
+        normalized_result,
+        timestamp=finalized_at,
+    )
     handoff = persist_handoff_memory(
         repo_root,
         prepared,
@@ -564,6 +571,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "aictx_feedback": aictx_feedback,
         "feedback_persisted": persisted_feedback,
         "handoff_persisted": handoff,
+        "decisions_persisted": decisions,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": agent_summary["rendered"],
         "value_evidence": {
@@ -616,10 +624,19 @@ def cli_finalize_execution(args: argparse.Namespace) -> int:
         cli_value = list(getattr(args, field, []) or [])
         observation[field] = cli_value or list(observation.get(field, []) or [])
     prepared["execution_observation"] = observation
+    decisions = []
+    for raw_decision in list(getattr(args, "decision_json", []) or []):
+        try:
+            payload = json.loads(raw_decision)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            decisions.append(payload)
     result = {
         "success": bool(args.success),
         "result_summary": args.result_summary,
         "validated_learning": bool(args.validated_learning),
+        "decisions": decisions,
     }
     print(json.dumps(finalize_execution(prepared, result), indent=2, ensure_ascii=False))
     return 0

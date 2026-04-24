@@ -707,6 +707,7 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
     finalize.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
     finalize.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
+    finalize.add_argument("--decision-json", action="append", default=[], help="JSON object for a significant continuity decision")
     finalize.set_defaults(func=cli_finalize_execution)
 
     run_execution = internal_sub.add_parser("run-execution", help=argparse.SUPPRESS)
