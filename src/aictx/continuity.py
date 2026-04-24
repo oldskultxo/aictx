@@ -18,6 +18,7 @@ from .state import (
 from .strategy_memory import load_strategies, select_strategy
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
+HANDOFFS_HISTORY_PATH = REPO_CONTINUITY_DIR / "handoffs.jsonl"
 DECISIONS_PATH = REPO_CONTINUITY_DIR / "decisions.jsonl"
 SEMANTIC_REPO_PATH = REPO_CONTINUITY_DIR / "semantic_repo.json"
 DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
@@ -110,7 +111,76 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
 def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     agent_label, session_count = _session_summary_parts(session, repo_root)
-    return f"{agent_label} (session #{session_count}) - awake"
+    latest = latest_handoff_record(repo_root)
+    if not latest:
+        return f"AICTX: {agent_label} session #{session_count} — no previous handoff yet."
+    summary = str(latest.get("summary") or "").strip() or "no previous handoff yet"
+    status = str(latest.get("status") or "").strip().lower()
+    if status == "resolved":
+        status_text = "resolved"
+    elif status in {"failed", "unresolved", "blocked"}:
+        status_text = "stopped while debugging"
+    else:
+        status_text = "worked on"
+    starts = _clean_string_list(latest.get("recommended_starting_points"), limit=2)
+    next_part = f" Next likely start: {', '.join(starts)}." if starts else ""
+    return f"AICTX: {agent_label} session #{session_count} — last time we {status_text}: {summary}.{next_part}"
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    payload = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows if isinstance(row, dict))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text((payload + "\n") if payload else "", encoding="utf-8")
+
+
+def _normalize_handoff_history_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "execution_id": str(row.get("execution_id") or "").strip(),
+        "timestamp": str(row.get("timestamp") or "").strip(),
+        "summary": str(row.get("summary") or "").strip(),
+        "status": str(row.get("status") or "").strip(),
+        "reason": str(row.get("reason") or "").strip(),
+        "task_type": str(row.get("task_type") or "").strip(),
+        "recommended_starting_points": _clean_string_list(row.get("recommended_starting_points"), limit=5),
+        "files_observed": int(row.get("files_observed", 0) or 0),
+        "tests_observed": _clean_string_list(row.get("tests_observed"), limit=8),
+    }
+
+
+def load_handoff_history(repo_root: Path, limit: int = 10) -> list[dict[str, Any]]:
+    rows = read_jsonl(repo_root / HANDOFFS_HISTORY_PATH)
+    normalized = [_normalize_handoff_history_row(row) for row in rows if isinstance(row, dict)]
+    cap = max(0, int(limit or 0))
+    return normalized[-cap:] if cap else normalized
+
+
+def append_handoff_history(repo_root: Path, handoff_record: dict[str, Any], limit: int = 10) -> dict[str, Any]:
+    rows = load_handoff_history(repo_root, limit=0)
+    rows.append(_normalize_handoff_history_row(handoff_record))
+    cap = max(1, int(limit or 10))
+    capped = rows[-cap:]
+    _write_jsonl(repo_root / HANDOFFS_HISTORY_PATH, capped)
+    return {"path": (repo_root / HANDOFFS_HISTORY_PATH).as_posix(), "count": len(capped)}
+
+
+def latest_handoff_record(repo_root: Path) -> dict[str, Any]:
+    rows = load_handoff_history(repo_root, limit=1)
+    if rows:
+        return rows[-1]
+    fallback = read_json(repo_root / HANDOFF_PATH, {})
+    if not isinstance(fallback, dict) or not fallback:
+        return {}
+    return {
+        "execution_id": str(fallback.get("source_execution_id") or "").strip(),
+        "timestamp": str(fallback.get("updated_at") or "").strip(),
+        "summary": str(fallback.get("summary") or "").strip(),
+        "status": "resolved",
+        "reason": "",
+        "task_type": "",
+        "recommended_starting_points": _clean_string_list(fallback.get("recommended_starting_points"), limit=5),
+        "files_observed": 0,
+        "tests_observed": [],
+    }
 
 
 def _clean_string_list(values: Any, *, limit: int = 8) -> list[str]:
@@ -320,6 +390,16 @@ def persist_handoff_memory(
     except (TypeError, ValueError):
         source_session = 0
     source_execution_id = str(prepared.get("envelope", {}).get("execution_id") or "") if isinstance(prepared.get("envelope"), dict) else ""
+    tests_observed = _clean_string_list(
+        list(prepared.get("last_execution_log", {}).get("tests_executed", []))
+        if isinstance(prepared.get("last_execution_log"), dict) and isinstance(prepared.get("last_execution_log", {}).get("tests_executed"), list)
+        else [],
+        limit=8,
+    )
+    status = "resolved" if bool(result.get("success")) else ("failed" if failure_recorded else "unresolved")
+    task_type = str(prepared.get("resolved_task_type") or "")
+    reason = str(prepared.get("envelope", {}).get("user_request") or "") if isinstance(prepared.get("envelope"), dict) else ""
+    files_observed = len(_observed_files(prepared))
     handoff = {
         "summary": summary,
         "completed": [summary],
@@ -332,7 +412,22 @@ def persist_handoff_memory(
         "source_execution_id": source_execution_id,
     }
     write_json(repo_root / HANDOFF_PATH, handoff)
-    return {"path": (repo_root / HANDOFF_PATH).as_posix(), "handoff": handoff}
+    history = append_handoff_history(
+        repo_root,
+        {
+            "execution_id": source_execution_id,
+            "timestamp": timestamp,
+            "summary": summary,
+            "status": status,
+            "reason": reason,
+            "task_type": task_type,
+            "recommended_starting_points": handoff.get("recommended_starting_points", []),
+            "files_observed": files_observed,
+            "tests_observed": tests_observed,
+        },
+        limit=10,
+    )
+    return {"path": (repo_root / HANDOFF_PATH).as_posix(), "handoff": handoff, "history": history}
 
 
 def _significant_decision(decision: dict[str, Any]) -> bool:

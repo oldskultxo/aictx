@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from aictx.continuity import HANDOFF_PATH
+from aictx.continuity import HANDOFF_PATH, HANDOFFS_HISTORY_PATH, load_handoff_history
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import read_json
@@ -47,6 +47,13 @@ def test_finalize_nontrivial_task_writes_handoff_memory(tmp_path: Path):
     assert handoff["source_session"] == 1
     assert handoff["source_execution_id"] == "exec-handoff-1"
     assert handoff["updated_at"] == finalized["finalized_at"]
+    history = load_handoff_history(repo)
+    assert len(history) == 1
+    assert history[0]["execution_id"] == "exec-handoff-1"
+    assert history[0]["status"] == "resolved"
+    assert history[0]["task_type"] == "feature_work"
+    assert history[0]["reason"] == "implement handoff memory"
+    assert history[0]["recommended_starting_points"] == ["src/aictx/continuity.py", "src/aictx/middleware.py"]
 
 
 def test_finalize_trivial_task_does_not_write_handoff_noise(tmp_path: Path):
@@ -83,3 +90,23 @@ def test_second_handoff_replaces_first(tmp_path: Path):
     assert handoff["source_execution_id"] == "exec-second"
     assert handoff["recommended_starting_points"] == ["src/second.py"]
     assert finalized["handoff_persisted"]["handoff"] == handoff
+    history = load_handoff_history(repo)
+    assert len(history) == 2
+    assert history[-1]["execution_id"] == "exec-second"
+    assert history[-1]["summary"] == "Second handoff."
+
+
+def test_handoff_history_is_capped_to_latest_ten_records(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    for idx in range(12):
+        prepared = prepare_execution({
+            **_payload(repo, f"exec-{idx}"),
+            "files_opened": [f"src/file_{idx}.py"],
+        })
+        finalize_execution(prepared, {"success": True, "result_summary": f"handoff {idx}", "validated_learning": False})
+    history = load_handoff_history(repo)
+    assert len(history) == 10
+    assert history[0]["execution_id"] == "exec-2"
+    assert history[-1]["execution_id"] == "exec-11"
+    assert (repo / HANDOFFS_HISTORY_PATH).exists()
