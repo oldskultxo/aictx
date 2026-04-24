@@ -20,3 +20,19 @@ The summary reports only observed or persisted facts:
 - commands and tests captured when available
 
 AICTX does not claim quality or speed improvements from this summary.
+
+The summary belongs to the current `3.1.0` continuity runtime contract:
+
+- it is generated after repo-local continuity persistence
+- it reports continuity reuse and stored artifacts from the current execution
+- it is conservative: it reports observed/persisted facts, not estimated productivity gains
+
+Related continuity artifacts that may be reflected indirectly in the summary:
+
+```text
+.aictx/continuity/handoff.json
+.aictx/continuity/decisions.jsonl
+.aictx/continuity/semantic_repo.json
+.aictx/continuity/staleness.json
+.aictx/continuity/continuity_metrics.json
+```

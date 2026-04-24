@@ -4,6 +4,8 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It helps each new session behave like the same repo-native engineer continuing prior work.
 
+Current documented implementation: `3.1.0`
+
 ---
 
 ## Why this exists
@@ -110,6 +112,7 @@ Repo-local:
 
 Optional global:
 - `~/.codex/AGENTS.override.md`
+- `~/.codex/AICTX_Codex.md`
 - `~/.codex/config.toml`
 
 Global Codex files are only updated when `--install-codex-global` is passed.
@@ -158,6 +161,31 @@ It makes past executions observable and reusable.
 5. the next execution can reuse successful strategies and ignore failed ones
 
 ---
+
+## Artifact contract
+
+The stable repo-local continuity artifact contract in `3.1.0` is:
+
+```text
+.aictx/continuity/session.json
+.aictx/continuity/handoff.json
+.aictx/continuity/decisions.jsonl
+.aictx/continuity/semantic_repo.json
+.aictx/continuity/dedupe_report.json
+.aictx/continuity/staleness.json
+.aictx/continuity/continuity_metrics.json
+.aictx/strategy_memory/strategies.jsonl
+.aictx/failure_memory/failure_patterns.jsonl
+.aictx/metrics/execution_logs.jsonl
+.aictx/metrics/execution_feedback.jsonl
+```
+
+Behavior expectations:
+
+- continuity artifacts are repo-local and inspectable
+- startup loads only bounded, deterministic continuity context
+- failed strategies remain in history but are excluded from positive reuse
+- maintenance and staleness files mark or summarize; they do not imply hidden ML or automatic repair
 
 ## Main runtime artifacts
 
@@ -211,7 +239,7 @@ It makes past executions observable and reusable.
 
 ## Possible evolution
 
-The current v1 keeps strategy memory intentionally simple.
+The current `3.1.0` runtime keeps strategy memory and continuity heuristics intentionally simple.
 
 Possible future work, based on real usage:
 
