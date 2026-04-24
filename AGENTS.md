@@ -4,7 +4,7 @@
 - Local filesystem artifacts are created by scripting/runtime, never by the LLM.
 - Prefer eager scaffold semantics: structure exists immediately after `aictx init`.
 - Cross-project behavior must come from workspace registry/config, never hardcoded machine paths.
-- For subsystem changes, validate with `python3 -m aictx migrate`, `boot`, `query`, `packet`, `memory-graph --refresh`, and `global --refresh --health-check --json` when relevant.
+- For subsystem changes, validate with `python3 -m aictx internal migrate`, `internal boot`, `internal query`, `internal packet`, `internal memory-graph --refresh`, and `report real-usage --repo <repo>` when relevant.
 
 <!-- AICTX:START -->
 ## AI Context Engine
@@ -16,7 +16,7 @@ Agent rules:
 - After finalize, append `agent_summary_text` verbatim to the final user response.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - Use repo-local execution history and strategy memory before deeper repo analysis.
-- Do not hand-edit generated `.aictx_*` artifacts.
+- `.aictx/memory/source/` is editable source knowledge; do not hand-edit generated derived artifacts under `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders.
 - Before opening more than 3 files: run `aictx suggest --repo .`
 - If you reopen the same file: run `aictx reflect --repo .`
 - If the task seems similar to a previous one: run `aictx reuse --repo .`

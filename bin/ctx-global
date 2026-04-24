@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
 set -e
-if command -v aictx >/dev/null 2>&1; then
-  exec aictx global "$@"
-fi
-PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$PWD/src" exec python3 -m aictx global "$@"
+printf '%s\n' 'ctx-global is deprecated in aictx v3. Global metrics aggregation was removed; use `aictx report real-usage --repo <repo>` instead.' >&2
+exit 2

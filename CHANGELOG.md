@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.1.0 - 2026-04-24
+
+### Changed
+- Clarified and cleaned the v3 CLI/product surface.
+- Aligned legacy wrappers with the supported public/internal command layout.
+- Improved local development workflow around Python >=3.11.
+
+### Fixed
+- Fixed broken legacy wrapper entrypoints that referenced removed top-level commands.
+
+### Internal
+- Prepared the codebase for the continuity roadmap without changing the public runtime contract.
+
 ## 3.0.1 - 2026-04-23
 
 ### Fixed
