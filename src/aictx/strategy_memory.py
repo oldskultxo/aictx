@@ -41,7 +41,7 @@ def get_strategies_by_task_type(repo_root: Path, task_type: str, include_failure
     rows = [row for row in load_strategies(repo_root) if str(row.get("task_type") or "unknown") == target]
     if include_failures:
         return rows
-    return [row for row in rows if not bool(row.get("is_failure"))]
+    return [row for row in rows if not bool(row.get("is_failure")) and bool(row.get("success", True))]
 
 
 def _list_field(row: dict[str, Any], key: str) -> list[str]:
@@ -75,6 +75,16 @@ def _text_similarity(left: str, right: str) -> float:
     return round(len(a.intersection(b)) / len(a.union(b)), 4)
 
 
+def _area_subsystem(area: str) -> str:
+    normalized = str(area or "").strip().strip("/")
+    if not normalized:
+        return ""
+    if "/" not in normalized:
+        return normalized
+    parts = [part for part in normalized.split("/") if part]
+    return "/".join(parts[:2]) if len(parts) >= 2 else normalized
+
+
 def rank_strategy(
     strategy: dict[str, Any],
     *,
@@ -99,9 +109,13 @@ def rank_strategy(
     error_similarity = _text_similarity(" ".join(errors or []), " ".join(_list_field(strategy, "notable_errors")))
     strategy_area = str(strategy.get("area_id") or "")
     target_area = str(area_id or "")
-    score = recency_index
+    strategy_subsystem = str(strategy.get("subsystem") or _area_subsystem(strategy_area))
+    target_subsystem = _area_subsystem(target_area)
+    score = 0
     reasons: list[str] = []
     breakdown: dict[str, Any] = {"recency": recency_index}
+    if not bool(strategy.get("is_failure")) and bool(strategy.get("success", True)):
+        breakdown["success_status"] = "success"
     if target_task_type and str(strategy.get("task_type") or "unknown") == target_task_type:
         score += 1000
         reasons.append(f"task_type:{target_task_type}")
@@ -138,6 +152,10 @@ def rank_strategy(
         score += 800
         reasons.append(f"area:{target_area}")
         breakdown["area"] = 800
+    if target_subsystem and strategy_subsystem and strategy_subsystem == target_subsystem and strategy_area != target_area:
+        score += 600
+        reasons.append(f"subsystem:{target_subsystem}")
+        breakdown["subsystem"] = 600
     if not reasons:
         reasons.append("recency")
     breakdown["total"] = score
@@ -167,7 +185,7 @@ def select_strategy(
     rows = get_strategies_by_task_type(repo_root, task_type) if task_type else successful_strategies(repo_root)
     if not rows:
         return None
-    ranked: list[tuple[int, int, dict[str, Any], dict[str, Any]]] = []
+    ranked: list[tuple[int, int, int, dict[str, Any], dict[str, Any]]] = []
     for index, row in enumerate(rows):
         ranking = rank_strategy(
             row,
@@ -181,9 +199,12 @@ def select_strategy(
             area_id=area_id,
             recency_index=index,
         )
-        ranked.append((int(ranking["score"]), index, row, ranking))
-    _score, _index, selected, ranking = max(ranked, key=lambda item: (item[0], item[1]))
+        matched_signal_count = len([signal for signal in ranking["matched_signals"] if signal != "recency"])
+        ranked.append((int(ranking["score"]), matched_signal_count, index, row, ranking))
+    _score, _signal_count, _index, selected, ranking = max(ranked, key=lambda item: (item[0], item[1], item[2]))
     enriched = dict(selected)
+    enriched["reused_strategy"] = True
+    enriched["score"] = ranking["score"]
     enriched["selection_reason"] = ranking["selection_reason"]
     enriched["matched_signals"] = ranking["matched_signals"]
     enriched["similarity_breakdown"] = ranking["similarity_breakdown"]
