@@ -122,9 +122,12 @@ def persist_failure_pattern(repo_root: Path, prepared: dict[str, Any], execution
     return {"path": (repo_root / FAILURE_PATTERNS_PATH).as_posix(), "failure_id": record["failure_id"], "signature": signature}
 
 
-def lookup_failures(repo_root: Path, *, task_type: str = "", text: str = "", files: list[str] | None = None, area_id: str = "") -> list[dict[str, Any]]:
+GENERIC_FAILURE_TOKENS = {"fail", "failed", "failure", "error", "fix", "bug", "test", "tests"}
+
+
+def lookup_failures(repo_root: Path, *, task_type: str = "", text: str = "", files: list[str] | None = None, area_id: str = "", limit: int = 5) -> list[dict[str, Any]]:
     rows = [row for row in load_failures(repo_root) if row.get("status") != "resolved"]
-    tokens = {token for token in slugify(text).split("_") if len(token) > 2}
+    tokens = {token for token in slugify(text).split("_") if len(token) > 2 and token not in GENERIC_FAILURE_TOKENS}
     file_set = set(files or [])
     ranked: list[tuple[int, dict[str, Any]]] = []
     for row in rows:
@@ -133,6 +136,9 @@ def lookup_failures(repo_root: Path, *, task_type: str = "", text: str = "", fil
             score += 5
         if area_id and row.get("area_id") == area_id:
             score += 4
+        signature_text = " ".join([str(row.get("signature", "")), str(row.get("failure_signature", ""))])
+        signature_tokens = {token for token in slugify(signature_text).split("_") if len(token) > 2 and token not in GENERIC_FAILURE_TOKENS}
+        score += 2 * len(tokens.intersection(signature_tokens))
         row_files = set(_clean_string_list(row.get("files_involved", [])) + _clean_string_list(row.get("related_paths", [])))
         if file_set.intersection(row_files):
             score += 3
@@ -150,7 +156,8 @@ def lookup_failures(repo_root: Path, *, task_type: str = "", text: str = "", fil
         if score:
             ranked.append((score, row))
     ranked.sort(key=lambda item: (-item[0], str(item[1].get("failure_id", ""))))
-    return [{**row, "match_score": score} for score, row in ranked[:3]]
+    safe_limit = max(0, int(limit or 0))
+    return [{**row, "match_score": score} for score, row in ranked[:safe_limit]]
 
 
 def link_resolved_failures(repo_root: Path, prepared: dict[str, Any], execution_log: dict[str, Any]) -> list[str]:

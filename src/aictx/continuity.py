@@ -274,7 +274,8 @@ def load_continuity_context(
         text=str(request_text or ""),
         files=list(files or []),
         area_id=str(area_id or ""),
-    )[:max_failures]
+        limit=max_failures,
+    )
     procedural_reuse = select_strategy(
         repo_root,
         str(task_type or "") or None,
