@@ -56,7 +56,7 @@ def test_prepare_execution_reports_handoff_no_when_missing(tmp_path: Path):
     assert prepared["continuity_context"]["loaded"]["handoff"] is False
     assert "- handoff: no" in prepared["continuity_summary_text"]
     assert prepared["startup_banner_text"] == (
-        f"AICTX: codex@{repo.name} session #1\n\n"
+        f"codex@{repo.name} (session #1) - awake\n\n"
         "In the previous session, there was no prior handoff to resume."
     )
 
@@ -115,7 +115,7 @@ def test_prepare_execution_startup_banner_uses_latest_handoff_history(tmp_path: 
 
     prepared = prepare_execution(_payload(repo, "exec-from-history"))
     assert prepared["startup_banner_text"] == (
-        f"AICTX: codex@{repo.name} session #1\n\n"
+        f"codex@{repo.name} (session #1) - awake\n\n"
         "In the previous session, we left this progress: old summary; updated release metadata."
         " Next recommended focus: pyproject.toml, src/aictx/_version.py."
     )
@@ -192,7 +192,7 @@ def test_prepare_execution_startup_banner_summarizes_recent_handoff_history_comp
     prepared = prepare_execution(_payload(repo, "exec-standup"))
 
     assert prepared["startup_banner_text"] == (
-        f"AICTX: codex@{repo.name} session #1\n\n"
+        f"codex@{repo.name} (session #1) - awake\n\n"
         "In the previous session, we left this progress: implemented handoff history and startup banner; "
         "added compact final summary and markdown details file; aligned docs and ran full validation; "
         "verified local init from source checkout and clean git status; "

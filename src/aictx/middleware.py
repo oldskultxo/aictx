@@ -465,13 +465,14 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     hints = area_hints(repo_root, area_id)
     session = continuity_context.get("session", {}) if isinstance(continuity_context.get("session"), dict) else {}
     session_id = str(session.get("session_id") or "")
-    banner_text = str(continuity_context.get("startup_banner_text") or "")
+    banner_text = str(continuity_context.get("startup_banner_text") or "").strip()
     banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
-    startup_banner_text = "" if banner_already_shown else banner_text
+    startup_banner_text = banner_text or _fallback_startup_banner_text(repo_root, session)
     if startup_banner_text:
         updated_session = mark_startup_banner_shown(repo_root, session, timestamp=str(envelope.get("timestamp") or now_iso()))
         continuity_context["session"] = updated_session
         continuity_context["agent_identity"] = updated_session
+        session = updated_session
     packet: dict[str, Any] = {}
     packet_path = ""
     if should_prepare_packet(envelope["user_request"], envelope["execution_mode"], task_resolution["task_type"]):
@@ -524,10 +525,13 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet": packet,
         "continuity_context": continuity_context,
         "continuity_brief": continuity_context.get("continuity_brief", {}) if isinstance(continuity_context.get("continuity_brief"), dict) else {},
+        "agent_label": str(session.get("agent_label") or ""),
+        "session_count": int(session.get("session_count") or 0),
         "startup_banner_text": startup_banner_text,
         "startup_banner_policy": {
-            "show_in_first_user_visible_response": bool(startup_banner_text),
-            "show_once_per_session": True,
+            "show_in_first_user_visible_response": True,
+            "show_once_per_session": False,
+            "required": True,
             "already_shown": banner_already_shown,
             "session_id": session_id,
             "position": "response_prefix",
@@ -536,10 +540,10 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "target_language": "current_user_language",
             "fallback_language": preferred_language,
             "fallback_language_source": preferred_language_source,
-            "allow_enrichment": True,
+            "allow_enrichment": False,
             "preserve_facts": True,
             "do_not_invent": True,
-            "instruction": "Render the startup banner in the language used with the user for this visible session. Preserve factual content. You may enrich slightly for clarity if you do not invent facts.",
+            "instruction": "Always render this startup banner exactly as provided at the start of the first user-visible response for this execution. If text is unavailable, render '{agent_label} (session #{session_count}) - awake' from the prepared identity fields.",
         },
         "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
         "runtime_text_policy": {
@@ -601,6 +605,17 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "probable_skill_name": execution["skill_detection"].get("probable_skill_name", ""),
         }
     return prepared
+
+
+def _fallback_startup_banner_text(repo_root: Path, session: dict[str, Any]) -> str:
+    runtime = str(session.get("runtime") or "agent").strip() or "agent"
+    repo_id = str(session.get("repo_id") or repo_root.name).strip() or repo_root.name
+    agent_label = str(session.get("agent_label") or f"{runtime}@{repo_id}").strip() or f"{runtime}@{repo_id}"
+    try:
+        session_count = int(session.get("session_count") or 0)
+    except (TypeError, ValueError):
+        session_count = 0
+    return f"{agent_label} (session #{max(session_count, 0)}) - awake"
 
 
 def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:

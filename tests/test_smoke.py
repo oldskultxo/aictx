@@ -1394,7 +1394,7 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
     assert args.func(args) == 0
     output = capsys.readouterr().out
     assert output.startswith(
-        f"AICTX: codex@{repo.name} session #1\n\nIn the previous session, there was no prior handoff to resume.\n"
+        f"codex@{repo.name} (session #1) - awake\n\nIn the previous session, there was no prior handoff to resume.\n"
     )
     assert "wrapped ok" in output
     assert "AICTX: " in output

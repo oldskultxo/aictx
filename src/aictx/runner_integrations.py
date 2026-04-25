@@ -36,7 +36,7 @@ When Codex is running inside a repository initialized with `aictx`:
 - treat `CLAUDE.md` as an additional high-signal project instruction file when available
 - `.aictx/memory/source/` is editable source knowledge; avoid hand-editing generated `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar derived artifacts
 - if the repository exposes `aictx internal run-execution`, treat it as the preferred middleware entrypoint for wrapped automations
-- if `prepare_execution` returns `startup_banner_text`, show it once at the start of the first user-visible response for the visible session, localized to the current user language when possible
+- always show the startup banner at the start of the first user-visible response for each execution; if `prepare_execution` returns `startup_banner_text`, render it exactly; otherwise render `{{agent_label}} (session #{{session_count}}) - awake` from prepared identity fields
 - in the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime
 - final responses for non-trivial tasks must include the AICTX final summary from finalize, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving real facts; if unavailable, say `AICTX summary unavailable`
 {AICTX_END}
@@ -56,7 +56,7 @@ Required behavior:
 - Read `.aictx/agent_runtime.md` before deep repo analysis in initialized repositories.
 - Read `CLAUDE.md` too when it exists.
 - Prefer `aictx internal run-execution` as the execution middleware entrypoint when available.
-- If `prepare_execution` returns `startup_banner_text`, place it once at the start of the first user-visible response for the visible session and localize it to the current user language when possible.
+- Always place the startup banner at the start of the first user-visible response for each execution. If `prepare_execution` returns `startup_banner_text`, render it exactly; otherwise render `{{agent_label}} (session #{{session_count}}) - awake` from prepared identity fields.
 - Final responses for non-trivial tasks must append the AICTX final summary after finalize, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving real facts.
 - If finalize output is unavailable, say exactly `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
@@ -73,7 +73,7 @@ This repository is initialized with `aictx`.
 - Claude project hooks may inject runtime guidance automatically.
 - Pre-tool enforcement may block direct edits to generated runtime artifacts and legacy parallel memory paths.
 - Treat `aictx internal run-execution` as the preferred wrapped execution entrypoint when available.
-- If `prepare_execution` returns `startup_banner_text`, show it once at the start of the first user-visible response for the visible session, localized to the current user language when possible.
+- Always show the startup banner at the start of the first user-visible response for each execution. If `prepare_execution` returns `startup_banner_text`, render it exactly; otherwise render `{{agent_label}} (session #{{session_count}}) - awake` from prepared identity fields.
 - After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving factual runtime content.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
@@ -232,7 +232,7 @@ summary.append("Before opening more than 3 files or when unsure, run: aictx sugg
 summary.append("If you reopen the same file several times, run: aictx reflect --repo .")
 summary.append("If the task matches previous work, run: aictx reuse --repo .")
 summary.append("In the aictx source repository, prefer: PYTHONPATH=src .venv/bin/python -m aictx ...")
-summary.append("If prepare_execution returns startup_banner_text, place it once at the start of the first user-visible response for the visible session and localize it to the current user language when possible.")
+summary.append("Always place the startup banner at the start of the first user-visible response for each execution. If prepare_execution returns startup_banner_text, render it exactly; otherwise render {agent_label} (session #{session_count}) - awake from prepared identity fields.")
 summary.append("After finalize, append the AICTX final summary to the final user response, localized to the current user language while preserving factual runtime content.")
 summary.append("When available, follow prepared.runtime_text_policy, prepared.startup_banner_policy, and finalized.agent_summary_policy.")
 summary.append("If no finalize output exists, say: AICTX summary unavailable.")

@@ -112,7 +112,7 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
 def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     agent_label, session_count = _session_summary_parts(session, repo_root)
-    header = f"AICTX: {agent_label} session #{session_count}"
+    header = f"{agent_label} (session #{session_count}) - awake"
     recent = load_handoff_history(repo_root, limit=5)
     if recent:
         standup = _render_handoff_standup(recent)

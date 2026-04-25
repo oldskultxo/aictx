@@ -30,7 +30,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Runtime loop
 1. Run `prepare_execution` before non-trivial work.
-2. If `prepared.startup_banner_text` exists, show it once at the start of the first user-visible response for the visible session, rendered in the current user language when possible.
+2. Always show the startup banner at the start of the first user-visible response for each execution. If `prepared.startup_banner_text` exists, render it exactly; otherwise render `{{agent_label}} (session #{{session_count}}) - awake` from prepared identity fields.
 3. Execute the task.
 4. Run `finalize_execution` with the real outcome.
 5. Append the final AICTX summary to the final user response, using `finalized.agent_summary_text` as the factual source, rendered in the current user language while preserving all factual runtime content.
@@ -43,7 +43,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Read `.aictx/metrics/execution_feedback.jsonl` for real feedback.
 - Read `.aictx/strategy_memory/strategies.jsonl` for reusable successful patterns.
 - Report missing data as `unknown` instead of inventing values.
-- If `startup_banner_text` is available, use it as a visible startup banner only once per visible session and render it in the language currently used with the user when possible.
+- The startup banner is mandatory, not optional: render `prepared.startup_banner_text` exactly when available; if missing, render `{{agent_label}} (session #{{session_count}}) - awake` from prepared identity fields.
 - Final responses for non-trivial tasks must include the AICTX summary from finalize; treat `agent_summary_text` as the canonical compact source unless richer structured fields are available.
 - For AICTX-originated user-visible texts, prefer `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
 - Localize AICTX-originated user-visible texts to the current user language without hardcoding a fixed language list.
@@ -76,7 +76,7 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
-- If `prepare_execution` returns `startup_banner_text`, show it once at the start of the first user-visible response for the visible session, localized to the current user language when possible.
+- Always show the startup banner at the start of the first user-visible response for each execution. If `prepare_execution` returns `startup_banner_text`, render it exactly; otherwise render `{{agent_label}} (session #{{session_count}}) - awake` from prepared identity fields.
 - After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving all factual content.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
