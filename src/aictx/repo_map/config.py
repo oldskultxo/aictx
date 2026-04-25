@@ -5,7 +5,7 @@ from typing import Any
 
 from ..state import read_json, write_json
 from .models import normalize_repomap_config, normalize_repomap_status
-from .paths import repo_map_config_path, repo_map_status_path
+from .paths import repo_map_config_path, repo_map_index_path, repo_map_manifest_path, repo_map_status_path
 
 
 def load_repomap_config(repo_root: Path) -> dict[str, Any]:
@@ -32,3 +32,21 @@ def write_repomap_status(repo_root: Path, payload: dict[str, Any]) -> None:
 
 def is_repomap_enabled(repo_root: Path) -> bool:
     return bool(load_repomap_config(repo_root).get("enabled", False))
+
+
+def load_repomap_index(repo_root: Path) -> dict[str, Any]:
+    raw = read_json(repo_map_index_path(repo_root), {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def write_repomap_index(repo_root: Path, payload: dict[str, Any]) -> None:
+    write_json(repo_map_index_path(repo_root), payload)
+
+
+def load_repomap_manifest(repo_root: Path) -> dict[str, Any]:
+    raw = read_json(repo_map_manifest_path(repo_root), {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def write_repomap_manifest(repo_root: Path, payload: dict[str, Any]) -> None:
+    write_json(repo_map_manifest_path(repo_root), payload)
