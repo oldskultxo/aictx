@@ -295,8 +295,8 @@ def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any]
     return {
         "task_id": str(execution_log.get("task_id") or prepared.get("envelope", {}).get("execution_id") or ""),
         "task_text": str(prepared.get("envelope", {}).get("user_request") or ""),
-        "task_type": str(prepared.get("resolved_task_type") or execution_log.get("task_type") or "unknown"),
-        "area_id": str(execution_log.get("area_id") or prepared.get("area_id") or "unknown"),
+        "task_type": str(prepared.get("effective_task_type") or execution_log.get("task_type") or prepared.get("resolved_task_type") or "unknown"),
+        "area_id": str(prepared.get("effective_area_id") or execution_log.get("area_id") or prepared.get("area_id") or "unknown"),
         "entry_points": entry_points,
         "primary_entry_point": primary_entry_point,
         "files_used": normalized_files,

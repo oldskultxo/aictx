@@ -43,7 +43,7 @@ def test_load_continuity_context_loads_valid_handoff(tmp_path: Path):
 
     assert context["handoff"]["summary"] == "Continue middleware cleanup."
     assert context["loaded"]["handoff"] is True
-    assert "- handoff: yes" in context["continuity_summary_text"]
+    assert "- handoff: sí" in context["continuity_summary_text"]
 
 
 def test_prepare_execution_reports_handoff_no_when_missing(tmp_path: Path):
@@ -56,8 +56,8 @@ def test_prepare_execution_reports_handoff_no_when_missing(tmp_path: Path):
     assert prepared["continuity_context"]["loaded"]["handoff"] is False
     assert "- handoff: no" in prepared["continuity_summary_text"]
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "In the previous session, there was no prior handoff to resume."
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "En la sesión anterior no había handoff previo que retomar."
     )
 
 
@@ -115,9 +115,9 @@ def test_prepare_execution_startup_banner_uses_latest_handoff_history(tmp_path: 
 
     prepared = prepare_execution(_payload(repo, "exec-from-history"))
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "In the previous session, we left this progress: old summary; updated release metadata."
-        " Next recommended focus: pyproject.toml, src/aictx/_version.py."
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "En la sesión anterior dejamos este progreso: old summary; updated release metadata."
+        " Siguiente foco recomendado: pyproject.toml, src/aictx/_version.py."
     )
 
 
@@ -192,10 +192,10 @@ def test_prepare_execution_startup_banner_summarizes_recent_handoff_history_comp
     prepared = prepare_execution(_payload(repo, "exec-standup"))
 
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "In the previous session, we left this progress: implemented handoff history and startup banner; "
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "En la sesión anterior dejamos este progreso: implemented handoff history and startup banner; "
         "added compact final summary and markdown details file; aligned docs and ran full validation; "
         "verified local init from source checkout and clean git status; "
         "Updated AICTX compact final summary details path to render as a clickable markdown…."
-        " Next recommended focus: src/aictx/middleware.py, tests/test_smoke.py."
+        " Siguiente foco recomendado: src/aictx/middleware.py, tests/test_smoke.py."
     )

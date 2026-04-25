@@ -744,7 +744,8 @@ def test_finalize_execution_writes_real_execution_log(tmp_path: Path):
     assert len(rows) == 1
     row = rows[0]
     assert row["task_id"]
-    assert row["task_type"] == prepared["resolved_task_type"]
+    assert row["prepared_task_type"] == prepared["resolved_task_type"]
+    assert row["task_type"] == finalized["effective_task_type"]
     assert row["files_opened"] == ["src/aictx/middleware.py", "src/aictx/cli.py"]
     assert row["files_reopened"] == ["src/aictx/middleware.py"]
     assert row["success"] is True
@@ -1394,10 +1395,10 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
     assert args.func(args) == 0
     output = capsys.readouterr().out
     assert output.startswith(
-        f"codex@{repo.name} (session #1) - awake\n\nIn the previous session, there was no prior handoff to resume.\n"
+        f"codex@{repo.name} (session #1) - despierto\n\nEn la sesión anterior no había handoff previo que retomar.\n"
     )
     assert "wrapped ok" in output
-    assert "AICTX: " in output
+    assert "AICTX summary: " in output
     assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in output
 
 
@@ -1456,7 +1457,7 @@ def test_run_execution_captures_command_tests_errors_and_agent_summary(tmp_path:
     finalized = payload["finalized"]
     assert finalized["failure_persisted"]["failure_id"]
     assert finalized["agent_summary"]["failure_recorded"] is True
-    assert "AICTX" in finalized["agent_summary_text"]
+    assert "AICTX summary:" in finalized["agent_summary_text"]
     log_rows = [
         json.loads(line)
         for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
@@ -2024,6 +2025,7 @@ def test_runtime_memory_and_tasks_modules_work_with_scaffold(tmp_path: Path):
         ("improve benchmark latency", ["benchmarks/perf.py"], "performance"),
         ("document architecture decision", ["docs/architecture.md"], "architecture"),
         ("implement new install flag", ["src/aictx/cli.py"], "feature_work"),
+        ("mejorar output del summary", ["src/aictx/middleware.py"], "unknown"),
         ("summarize repository", [], "unknown"),
     ],
 )
@@ -2035,6 +2037,75 @@ def test_resolve_task_type_heuristics(user_request: str, files: list[str], expec
     else:
         assert resolved["source"] == "heuristic"
         assert resolved["evidence"]
+
+
+def test_finalize_execution_recalculates_final_task_type_and_area_from_observed_signals(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "mejorar output del summary",
+            "agent_id": "agent-test",
+            "execution_id": "exec-final-task-area",
+        }
+    )
+    assert prepared["prepared_task_type"] == "unknown"
+    assert prepared["prepared_area_id"] == "unknown"
+
+    prepared["execution_observation"]["files_opened"] = ["src/aictx/middleware.py", "tests/test_smoke.py"]
+    prepared["execution_observation"]["files_edited"] = ["src/aictx/middleware.py", "tests/test_smoke.py"]
+    prepared["execution_observation"]["tests_executed"] = ["python -m pytest tests/test_smoke.py"]
+    prepared["execution_observation"]["commands_executed"] = ["python -m pytest tests/test_smoke.py"]
+
+    finalized = finalize_execution(
+        prepared,
+        {
+            "success": True,
+            "result_summary": "Mejoré el render del summary y alineé la salida final.",
+            "validated_learning": True,
+        },
+    )
+
+    assert finalized["prepared_task_type"] == "unknown"
+    assert finalized["final_task_type"] == "refactoring"
+    assert finalized["effective_task_type"] == "refactoring"
+    assert finalized["prepared_area_id"] == "unknown"
+    assert finalized["final_area_id"] == "src/aictx"
+    assert finalized["effective_area_id"] == "src/aictx"
+    assert finalized["final_task_resolution"]["source"] == "observed_signals"
+    assert "clasificación final de tarea: refactoring" in finalized["agent_summary_text"]
+    assert "área final: src/aictx" in finalized["agent_summary_text"]
+
+    log_rows = [
+        json.loads(line)
+        for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert log_rows[-1]["task_type"] == "refactoring"
+    assert log_rows[-1]["final_task_type"] == "refactoring"
+    assert log_rows[-1]["area_id"] == "src/aictx"
+    assert log_rows[-1]["final_area_id"] == "src/aictx"
+
+
+def test_observed_task_type_does_not_overweight_validation_tests_for_implementation():
+    resolved = runtime_tasks.resolve_observed_task_type(
+        "implementar clasificación provisional/final/effective para task_type y area_id",
+        touched_files=[
+            "src/aictx/runtime_tasks.py",
+            "src/aictx/middleware.py",
+            "src/aictx/strategy_memory.py",
+            "src/aictx/continuity.py",
+            "tests/test_smoke.py",
+        ],
+        tests_executed=["PYTHONPATH=src .venv/bin/python -m pytest -q tests/test_smoke.py"],
+        commands_executed=["PYTHONPATH=src .venv/bin/python -m pytest -q tests/test_smoke.py"],
+        result_summary="Implementé clasificación provisional/final/effective para task_type y area_id.",
+    )
+
+    assert resolved["task_type"] in {"feature_work", "refactoring"}
+    assert resolved["task_type"] != "testing"
 
 
 def test_rank_records_returns_score_breakdown(tmp_path: Path):

@@ -28,6 +28,13 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     }
     prepared["continuity_context"]["loaded"]["handoff"] = True
     prepared["continuity_context"]["loaded"]["decisions"] = True
+    prepared["repo_map_status"] = {
+        "enabled": True,
+        "available": True,
+        "used": True,
+        "refresh_mode": "quick",
+        "refresh_status": "ok",
+    }
 
     finalized = finalize_execution(
         prepared,
@@ -45,10 +52,10 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     )
 
     text = finalized["agent_summary_text"]
-    assert text.startswith(
-        "AICTX: we closed this run with useful continuity context: we reused a previously successful strategy; "
-        "we stored handoff, decision; we observed 1 file."
-    )
+    assert text.startswith("AICTX summary: reusó la estrategia de src/aictx/middleware.py porque venía de una ejecución previa con éxito;")
+    assert "aictx aportó handoff, decisions, preferences; usó RepoMap (quick, ok)" in text
+    assert "guardó handoff, decision" in text
+    assert "observó 1 file" in text
     assert "0 tests" not in text
     assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in text
     assert finalized["agent_summary"]["handoff_stored"] is True
@@ -58,7 +65,10 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     detailed = detailed_path.read_text(encoding="utf-8")
     assert "# AICTX Execution Summary" in detailed
     assert "- Reused strategy: yes" in detailed
+    assert "- Strategy entry points: src/aictx/middleware.py" in detailed
     assert "- Handoff stored: yes" in detailed
+    assert "- AICTX value sources: handoff, decisions, preferences" in detailed
+    assert "- RepoMap: enabled=yes, used=yes, status=ok" in detailed
     assert "- Files observed: 1" in detailed
     assert "Tests observed" not in detailed
     assert "Commands observed: 0" not in detailed
@@ -77,6 +87,6 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
 
     text = finalized["agent_summary_text"]
     assert text == (
-        "AICTX: this was a lightweight run and did not add new continuity context, but it was recorded for reference. "
+        "AICTX summary: ejecución ligera; no añadió continuidad nueva, pero quedó registrada. "
         "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)"
     )

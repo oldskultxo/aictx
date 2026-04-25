@@ -24,7 +24,7 @@ from .runtime_capture import SIGNAL_FIELDS, build_capture
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
 from .runtime_io import slugify
 from .runtime_memory import rank_records
-from .runtime_tasks import resolve_task_type
+from .runtime_tasks import resolve_observed_task_type, resolve_task_type
 from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, mark_startup_banner_shown, read_json, touch_session_identity, write_json
 from .strategy_memory import build_strategy_entry, persist_strategy, select_strategy
 
@@ -503,11 +503,13 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "skill_metadata": execution["skill_metadata"],
         "skill_detection": execution["skill_detection"],
         "resolved_task_type": task_resolution["task_type"],
+        "prepared_task_type": task_resolution["task_type"],
         "task_resolution": task_resolution,
         "task_fingerprint": task_fingerprint,
         "execution_signal_capture": capture,
         "repo_map_status": repo_map_status,
         "area_id": area_id,
+        "prepared_area_id": area_id,
         "area_hints": hints,
         "related_failures": related_failures,
         "communication_policy": communication_policy,
@@ -619,6 +621,39 @@ def _fallback_startup_banner_text(repo_root: Path, session: dict[str, Any]) -> s
     return f"{agent_label} (session #{max(session_count, 0)}) - awake"
 
 
+def _final_area_id(prepared: dict[str, Any], observation: dict[str, Any]) -> str:
+    observed_paths: list[str] = []
+    for key in ("files_opened", "files_edited", "tests_executed"):
+        value = observation.get(key)
+        if isinstance(value, list):
+            observed_paths.extend(str(item) for item in value if str(item).strip())
+    derived = derive_area_id(observed_paths)
+    if derived and derived != "unknown":
+        return derived
+    return str(observation.get("area_id") or prepared.get("prepared_area_id") or prepared.get("area_id") or "unknown")
+
+
+def _final_task_resolution(prepared: dict[str, Any], observation: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    files_opened = list(observation.get("files_opened", [])) if isinstance(observation.get("files_opened"), list) else []
+    files_edited = list(observation.get("files_edited", [])) if isinstance(observation.get("files_edited"), list) else []
+    return resolve_observed_task_type(
+        str(prepared.get("envelope", {}).get("user_request") or ""),
+        explicit_task_type=prepared.get("envelope", {}).get("declared_task_type"),
+        touched_files=files_opened + files_edited,
+        tests_executed=list(observation.get("tests_executed", [])) if isinstance(observation.get("tests_executed"), list) else [],
+        commands_executed=list(observation.get("commands_executed", [])) if isinstance(observation.get("commands_executed"), list) else [],
+        notable_errors=list(observation.get("notable_errors", [])) if isinstance(observation.get("notable_errors"), list) else [],
+        result_summary=str(result.get("result_summary") or ""),
+    )
+
+
+def _effective_task_type(prepared: dict[str, Any], final_task_resolution: dict[str, Any]) -> str:
+    final_type = str(final_task_resolution.get("task_type") or "").strip()
+    if final_type and final_type != "unknown":
+        return final_type
+    return str(prepared.get("prepared_task_type") or prepared.get("resolved_task_type") or "unknown")
+
+
 def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     log_path = repo_root / EXECUTION_LOG_PATH
     real_log_path = repo_root / REAL_EXECUTION_LOG_PATH
@@ -628,6 +663,15 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
     existing_same = [row for row in rows if row.get("task_fingerprint") == prepared.get("task_fingerprint")]
     prior_total = len(existing_same)
     observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
+    final_task_resolution = _final_task_resolution(prepared, observation, result)
+    final_area_id = _final_area_id(prepared, observation)
+    effective_task_type = _effective_task_type(prepared, final_task_resolution)
+    effective_area_id = final_area_id if final_area_id != "unknown" else str(prepared.get("prepared_area_id") or prepared.get("area_id") or "unknown")
+    prepared["final_task_resolution"] = final_task_resolution
+    prepared["final_task_type"] = str(final_task_resolution.get("task_type") or "unknown")
+    prepared["final_area_id"] = final_area_id
+    prepared["effective_task_type"] = effective_task_type
+    prepared["effective_area_id"] = effective_area_id
     used_packet = bool(observation.get("used_packet")) or bool(prepared.get("retrieval_summary", {}).get("packet_built"))
     started_ms = observation.get("start_time_ms")
     finished_ms = int(time.time() * 1000)
@@ -636,7 +680,9 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "execution_id": prepared["envelope"]["execution_id"],
         "agent_id": prepared["envelope"]["agent_id"],
         "execution_mode": prepared["execution_mode"],
-        "resolved_task_type": prepared["resolved_task_type"],
+        "resolved_task_type": effective_task_type,
+        "prepared_task_type": str(prepared.get("prepared_task_type") or prepared.get("resolved_task_type") or "unknown"),
+        "final_task_type": str(final_task_resolution.get("task_type") or "unknown"),
         "task_fingerprint": prepared.get("task_fingerprint", ""),
         "success": bool(result.get("success")),
         "validated_learning": bool(result.get("validated_learning")),
@@ -650,7 +696,9 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
     real_entry = {
         "task_id": str(observation.get("task_id") or prepared["envelope"]["execution_id"]),
         "timestamp": str(observation.get("timestamp") or prepared.get("prepared_at") or now_iso()),
-        "task_type": prepared["resolved_task_type"],
+        "task_type": effective_task_type,
+        "prepared_task_type": str(prepared.get("prepared_task_type") or prepared.get("resolved_task_type") or "unknown"),
+        "final_task_type": str(final_task_resolution.get("task_type") or "unknown"),
         "files_opened": list(observation.get("files_opened", [])) if isinstance(observation.get("files_opened"), list) else [],
         "files_edited": list(observation.get("files_edited", [])) if isinstance(observation.get("files_edited"), list) else [],
         "files_reopened": list(observation.get("files_reopened", [])) if isinstance(observation.get("files_reopened"), list) else [],
@@ -658,7 +706,9 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "tests_executed": list(observation.get("tests_executed", [])) if isinstance(observation.get("tests_executed"), list) else [],
         "notable_errors": list(observation.get("notable_errors", [])) if isinstance(observation.get("notable_errors"), list) else [],
         "capture_provenance": dict(observation.get("capture_provenance", {})) if isinstance(observation.get("capture_provenance"), dict) else {},
-        "area_id": str(observation.get("area_id") or prepared.get("area_id") or "unknown"),
+        "area_id": effective_area_id,
+        "prepared_area_id": str(prepared.get("prepared_area_id") or prepared.get("area_id") or "unknown"),
+        "final_area_id": final_area_id,
         "execution_time_ms": execution_time_ms,
         "success": bool(result.get("success")),
         "used_packet": used_packet,
@@ -711,7 +761,7 @@ def persist_validated_learning(repo_root: Path, prepared: dict[str, Any], result
         "id": f"execution_learning::{prepared['envelope']['execution_id']}",
         "title": prepared["envelope"]["user_request"][:80],
         "summary": summary,
-        "task_type": prepared["resolved_task_type"],
+        "task_type": str(prepared.get("effective_task_type") or prepared.get("resolved_task_type") or "unknown"),
         "execution_mode": prepared["execution_mode"],
         "created_at": now_iso(),
         "skill_metadata": prepared.get("skill_metadata", {}) if prepared["execution_mode"] == "skill" else {},
@@ -843,6 +893,77 @@ def _compact_list(values: Any, *, limit: int = 3) -> list[str]:
     return cleaned
 
 
+def _humanize_selection_reason(reason: str, *, limit: int = 2) -> list[str]:
+    cleaned = str(reason or "").strip()
+    if not cleaned:
+        return []
+    parts: list[str] = []
+    for raw in cleaned.split(";"):
+        item = raw.strip()
+        if not item:
+            continue
+        if item == "previous_successful_execution":
+            parts.append("venía de una ejecución previa con éxito")
+        elif item == "recency":
+            parts.append("era la referencia más reciente")
+        elif item.startswith("task_type:"):
+            parts.append(f"coincidía el tipo de tarea ({item.split(':', 1)[1]})")
+        elif item.startswith("primary_entry_point:"):
+            parts.append(f"apuntaba al mismo punto de entrada ({item.split(':', 1)[1]})")
+        elif item.startswith("file_overlap:"):
+            parts.append(f"tocaba el mismo archivo ({item.split(':', 1)[1]})")
+        elif item.startswith("area:"):
+            parts.append(f"coincidía el área ({item.split(':', 1)[1]})")
+        elif item.startswith("execution_evidence:"):
+            parts.append(f"tenía evidencia real de uso ({item.split(':', 1)[1]})")
+        else:
+            parts.append(item.replace("_", " "))
+        if len(parts) >= limit:
+            break
+    return parts
+
+
+def _strategy_summary(summary: dict[str, Any]) -> str:
+    points = _compact_list(summary.get("strategy_entry_points"), limit=2)
+    reasons = _humanize_selection_reason(str(summary.get("selection_reason") or ""), limit=2)
+    if points and reasons:
+        return f"reusó la estrategia de {', '.join(points)} porque {', '.join(reasons)}"
+    if points:
+        return f"reusó la estrategia de {', '.join(points)}"
+    if reasons:
+        return f"reusó estrategia porque {', '.join(reasons)}"
+    if summary.get("strategy_reused"):
+        return "reusó una estrategia previa con éxito"
+    return ""
+
+
+def _aictx_value_summary(summary: dict[str, Any]) -> str:
+    continuity_value = summary.get("continuity_value") if isinstance(summary.get("continuity_value"), dict) else {}
+    loaded_sources = _compact_list(continuity_value.get("loaded_sources"), limit=3)
+    repo_map = summary.get("repo_map_status") if isinstance(summary.get("repo_map_status"), dict) else {}
+    value_parts: list[str] = []
+    if loaded_sources:
+        value_parts.append("aictx aportó " + ", ".join(loaded_sources))
+    if repo_map.get("used"):
+        mode = str(repo_map.get("refresh_mode") or "quick").strip()
+        status = str(repo_map.get("refresh_status") or "ok").strip()
+        value_parts.append(f"usó RepoMap ({mode}, {status})")
+    return "; ".join(value_parts)
+
+
+def _classification_summary(summary: dict[str, Any]) -> str:
+    prepared_task = str(summary.get("prepared_task_type") or "unknown")
+    final_task = str(summary.get("effective_task_type") or summary.get("final_task_type") or "unknown")
+    prepared_area = str(summary.get("prepared_area_id") or "unknown")
+    final_area = str(summary.get("effective_area_id") or summary.get("final_area_id") or "unknown")
+    parts: list[str] = []
+    if final_task != "unknown" and final_task != prepared_task:
+        parts.append(f"clasificación final de tarea: {final_task}")
+    if final_area != "unknown" and final_area != prepared_area:
+        parts.append(f"área final: {final_area}")
+    return "; ".join(parts)
+
+
 def _continuity_reuse_lines(summary: dict[str, Any]) -> list[str]:
     reused: list[str] = []
     if summary.get("strategy_reused"):
@@ -910,15 +1031,25 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
             tests_count,
         ]
     ):
-        return f"AICTX: this run did not produce reusable context, but it was recorded for future sessions. Details: {_render_details_link(details_path)}"
+        return f"AICTX summary: esta ejecución no dejó contexto reutilizable, pero quedó registrada. Details: {_render_details_link(details_path)}"
     if not meaningful_context and files_count <= 1 and tests_count == 0:
-        return f"AICTX: this was a lightweight run and did not add new continuity context, but it was recorded for reference. Details: {_render_details_link(details_path)}"
+        return f"AICTX summary: ejecución ligera; no añadió continuidad nueva, pero quedó registrada. Details: {_render_details_link(details_path)}"
     if summary.get("failure_recorded"):
         next_hint = _next_session_guidance(summary)
-        return f"AICTX: we detected and recorded a failure pattern so the next session can resume with context. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
+        return f"AICTX summary: registró un patrón de fallo para retomar con contexto. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
     parts: list[str] = []
-    if summary.get("strategy_reused"):
-        parts.append("we reused a previously successful strategy")
+    strategy_summary = _strategy_summary(summary)
+    if strategy_summary:
+        parts.append(strategy_summary)
+    value_summary = _aictx_value_summary(summary)
+    if value_summary:
+        parts.append(value_summary)
+    classification_summary = _classification_summary(summary)
+    if classification_summary:
+        parts.append(classification_summary)
+    avoided = _compact_list(summary.get("avoided"), limit=2)
+    if avoided:
+        parts.append("evitó " + "; ".join(avoided))
     stored_parts: list[str] = []
     if summary.get("handoff_stored"):
         stored_parts.append("handoff")
@@ -929,8 +1060,8 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
     if summary.get("learning_persisted"):
         stored_parts.append("validated learning")
     if stored_parts:
-        parts.append("we stored " + ", ".join(stored_parts))
-    core = "; ".join(parts) if parts else "we left useful continuity traceability"
+        parts.append("guardó " + ", ".join(stored_parts))
+    core = "; ".join(parts) if parts else "dejó continuidad útil"
     observed: list[str] = []
     if files_count:
         observed.append(_plural(files_count, "file"))
@@ -938,14 +1069,14 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
         observed.append(_plural(tests_count, "test"))
     suffixes: list[str] = []
     if observed:
-        suffixes.append("we observed " + " and ".join(observed))
+        suffixes.append("observó " + " y ".join(observed))
     next_hint = _compact_next_hint(summary)
     if next_hint:
-        suffixes.append(f"next: {next_hint}")
-    message = f"we closed this run with useful continuity context: {core}"
+        suffixes.append(f"siguiente: {next_hint}")
+    message = core
     if suffixes:
         message += "; " + "; ".join(suffixes)
-    return f"AICTX: {message}. Details: {_render_details_link(details_path)}"
+    return f"AICTX summary: {message}. Details: {_render_details_link(details_path)}"
 
 
 def _render_details_link(details_path: str) -> str:
@@ -978,9 +1109,18 @@ def build_agent_summary(
         if failure_ids:
             avoided.append("known failure considered: " + ", ".join(failure_ids[:2]))
     handoff_payload = handoff.get("handoff", {}) if isinstance(handoff, dict) else {}
+    final_task_resolution = prepared.get("final_task_resolution", {}) if isinstance(prepared.get("final_task_resolution"), dict) else {}
     summary = {
         "strategy_reused": bool(hint),
         "selection_reason": str(hint.get("selection_reason") or ""),
+        "strategy_entry_points": list(hint.get("entry_points", [])) if isinstance(hint.get("entry_points"), list) else [],
+        "prepared_task_type": str(prepared.get("prepared_task_type") or prepared.get("resolved_task_type") or "unknown"),
+        "final_task_type": str(prepared.get("final_task_type") or final_task_resolution.get("task_type") or "unknown"),
+        "effective_task_type": str(prepared.get("effective_task_type") or prepared.get("resolved_task_type") or "unknown"),
+        "prepared_area_id": str(prepared.get("prepared_area_id") or prepared.get("area_id") or "unknown"),
+        "final_area_id": str(prepared.get("final_area_id") or execution_log.get("final_area_id") or execution_log.get("area_id") or "unknown"),
+        "effective_area_id": str(prepared.get("effective_area_id") or execution_log.get("area_id") or prepared.get("area_id") or "unknown"),
+        "final_task_resolution": dict(final_task_resolution),
         "reuse_confidence": str(hint.get("reuse_confidence") or continuity.get("continuity_brief", {}).get("reuse_confidence") or "low"),
         "learning_persisted": bool(learning),
         "strategy_persisted": bool(strategy),
@@ -998,6 +1138,7 @@ def build_agent_summary(
         "next_guidance": dict(continuity.get("continuity_brief", {})) if isinstance(continuity.get("continuity_brief"), dict) else {},
         "continuity_value": build_continuity_value(prepared, execution_log, bool(handoff), bool(decisions), bool(failure)),
         "capture_quality": build_capture_quality(execution_log),
+        "repo_map_status": dict(prepared.get("repo_map_status", {})) if isinstance(prepared.get("repo_map_status"), dict) else {},
     }
     return {"structured": summary, "rendered": render_agent_summary(summary)}
 
@@ -1071,6 +1212,13 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     return {
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
+        "prepared_task_type": str(prepared.get("prepared_task_type") or prepared.get("resolved_task_type") or "unknown"),
+        "final_task_type": str(prepared.get("final_task_type") or "unknown"),
+        "effective_task_type": str(prepared.get("effective_task_type") or prepared.get("resolved_task_type") or "unknown"),
+        "prepared_area_id": str(prepared.get("prepared_area_id") or prepared.get("area_id") or "unknown"),
+        "final_area_id": str(prepared.get("final_area_id") or "unknown"),
+        "effective_area_id": str(prepared.get("effective_area_id") or prepared.get("area_id") or "unknown"),
+        "final_task_resolution": dict(prepared.get("final_task_resolution", {})) if isinstance(prepared.get("final_task_resolution"), dict) else {},
         "telemetry_entry": telemetry_entry,
         "learning_persisted": learning,
         "strategy_persisted": strategy,

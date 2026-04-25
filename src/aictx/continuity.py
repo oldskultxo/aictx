@@ -91,59 +91,101 @@ def _session_summary_parts(session: dict[str, Any], repo_root: Path) -> tuple[st
     return agent_label, max(session_count, 0)
 
 
+def _ui_language(context: dict[str, Any]) -> str:
+    preferences = context.get("preferences") if isinstance(context.get("preferences"), dict) else {}
+    preferred = str(
+        context.get("preferred_language")
+        or preferences.get("preferred_language")
+        or (preferences.get("profile", {}) if isinstance(preferences.get("profile"), dict) else {}).get("preferred_language")
+        or "en"
+    ).strip().lower()
+    return "es" if preferred.startswith("es") else "en"
+
+
+def _banner_header(agent_label: str, session_count: int, lang: str) -> str:
+    state = "despierto" if lang == "es" else "awake"
+    return f"{agent_label} (session #{session_count}) - {state}"
+
+
 def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     loaded = context.get("loaded") if isinstance(context.get("loaded"), dict) else {}
+    lang = _ui_language(context)
     agent_label, session_count = _session_summary_parts(session, repo_root)
     lines = [
-        f"{agent_label} (session #{session_count}) - awake",
+        _banner_header(agent_label, session_count, lang),
         "",
-        "Loaded:",
-        f"- handoff: {'yes' if loaded.get('handoff') else 'no'}",
-        f"- decisions: {'yes' if loaded.get('decisions') else 'no'}",
-        f"- failures: {'yes' if loaded.get('failures') else 'no'}",
-        f"- preferences: {'yes' if loaded.get('preferences') else 'no'}",
-        f"- semantic_repo: {'yes' if loaded.get('semantic_repo') else 'no'}",
-        f"- procedural_reuse: {'yes' if loaded.get('procedural_reuse') else 'no'}",
+        "Cargado:" if lang == "es" else "Loaded:",
+        f"- handoff: {'sí' if loaded.get('handoff') and lang == 'es' else 'yes' if loaded.get('handoff') else 'no'}",
+        f"- decisions: {'sí' if loaded.get('decisions') and lang == 'es' else 'yes' if loaded.get('decisions') else 'no'}",
+        f"- failures: {'sí' if loaded.get('failures') and lang == 'es' else 'yes' if loaded.get('failures') else 'no'}",
+        f"- preferences: {'sí' if loaded.get('preferences') and lang == 'es' else 'yes' if loaded.get('preferences') else 'no'}",
+        f"- semantic_repo: {'sí' if loaded.get('semantic_repo') and lang == 'es' else 'yes' if loaded.get('semantic_repo') else 'no'}",
+        f"- procedural_reuse: {'sí' if loaded.get('procedural_reuse') and lang == 'es' else 'yes' if loaded.get('procedural_reuse') else 'no'}",
     ]
     return "\n".join(lines)
 
 
 def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
+    lang = _ui_language(context)
     agent_label, session_count = _session_summary_parts(session, repo_root)
-    header = f"{agent_label} (session #{session_count}) - awake"
+    header = _banner_header(agent_label, session_count, lang)
     recent = load_handoff_history(repo_root, limit=5)
     if recent:
-        standup = _render_handoff_standup(recent)
+        standup = _render_handoff_standup(recent, lang=lang)
         starts = _clean_string_list(recent[-1].get("recommended_starting_points"), limit=2)
-        next_part = f" Next recommended focus: {', '.join(starts)}." if starts else ""
-        return f"{header}\n\nIn the previous session, we left this progress: {standup}.{next_part}"
+        next_part = (
+            f" Siguiente foco recomendado: {', '.join(starts)}."
+            if starts and lang == "es"
+            else f" Next recommended focus: {', '.join(starts)}."
+            if starts
+            else ""
+        )
+        return (
+            f"{header}\n\nEn la sesión anterior dejamos este progreso: {standup}.{next_part}"
+            if lang == "es"
+            else f"{header}\n\nIn the previous session, we left this progress: {standup}.{next_part}"
+        )
     latest = latest_handoff_record(repo_root)
     if not latest:
-        return f"{header}\n\nIn the previous session, there was no prior handoff to resume."
+        return (
+            f"{header}\n\nEn la sesión anterior no había handoff previo que retomar."
+            if lang == "es"
+            else f"{header}\n\nIn the previous session, there was no prior handoff to resume."
+        )
     summary = str(latest.get("summary") or "").strip() or "there was no prior handoff"
     status = str(latest.get("status") or "").strip().lower()
     if status == "resolved":
-        status_text = "we left resolved"
+        status_text = "lo dejamos resuelto" if lang == "es" else "we left resolved"
     elif status in {"failed", "unresolved", "blocked"}:
-        status_text = "it remained blocked while debugging"
+        status_text = "quedó bloqueado durante la depuración" if lang == "es" else "it remained blocked while debugging"
     else:
-        status_text = "we made progress on"
+        status_text = "avanzamos en" if lang == "es" else "we made progress on"
     starts = _clean_string_list(latest.get("recommended_starting_points"), limit=2)
-    next_part = f" Next recommended focus: {', '.join(starts)}." if starts else ""
-    return f"{header}\n\nIn the previous session, {status_text}: {summary}.{next_part}"
+    next_part = (
+        f" Siguiente foco recomendado: {', '.join(starts)}."
+        if starts and lang == "es"
+        else f" Next recommended focus: {', '.join(starts)}."
+        if starts
+        else ""
+    )
+    return (
+        f"{header}\n\nEn la sesión anterior, {status_text}: {summary}.{next_part}"
+        if lang == "es"
+        else f"{header}\n\nIn the previous session, {status_text}: {summary}.{next_part}"
+    )
 
 
-def _render_handoff_standup(rows: list[dict[str, Any]]) -> str:
-    clauses = [_render_handoff_standup_clause(row) for row in rows if isinstance(row, dict)]
+def _render_handoff_standup(rows: list[dict[str, Any]], *, lang: str = "en") -> str:
+    clauses = [_render_handoff_standup_clause(row, lang=lang) for row in rows if isinstance(row, dict)]
     compact = [item for item in clauses if item]
     if not compact:
         return "there was no prior handoff"
     return "; ".join(compact)
 
 
-def _render_handoff_standup_clause(row: dict[str, Any]) -> str:
+def _render_handoff_standup_clause(row: dict[str, Any], *, lang: str = "en") -> str:
     completed = _clean_string_list(row.get("completed"), limit=1)
     summary = _compact_handoff_summary(completed[0] if completed else str(row.get("summary") or ""))
     if not summary:
@@ -152,8 +194,8 @@ def _render_handoff_standup_clause(row: dict[str, Any]) -> str:
     if status == "resolved":
         return summary
     if status in {"failed", "unresolved", "blocked"}:
-        return f"it remained blocked on {summary}"
-    return f"we made progress on {summary}"
+        return f"quedó bloqueado en {summary}" if lang == "es" else f"it remained blocked on {summary}"
+    return f"avanzamos en {summary}" if lang == "es" else f"we made progress on {summary}"
 
 
 def _compact_handoff_summary(text: str, *, max_len: int = 88) -> str:
@@ -190,17 +232,38 @@ def _summary_next_points(summary: dict[str, Any], *, limit: int = 2) -> list[str
 def render_last_execution_summary_markdown(summary: dict[str, Any]) -> str:
     reused = "yes" if summary.get("strategy_reused") else "no"
     reason = str(summary.get("selection_reason") or "").strip() or "none"
+    strategy_points = summary.get("strategy_entry_points") if isinstance(summary.get("strategy_entry_points"), list) else []
+    avoided = summary.get("avoided") if isinstance(summary.get("avoided"), list) else []
+    continuity_value = summary.get("continuity_value") if isinstance(summary.get("continuity_value"), dict) else {}
+    repo_map = summary.get("repo_map_status") if isinstance(summary.get("repo_map_status"), dict) else {}
     lines = [
         "# AICTX Execution Summary",
         "",
         "## Continuity",
+        f"- Prepared task type: {str(summary.get('prepared_task_type') or 'unknown')}",
+        f"- Final task type: {str(summary.get('final_task_type') or 'unknown')}",
+        f"- Effective task type: {str(summary.get('effective_task_type') or 'unknown')}",
+        f"- Prepared area: {str(summary.get('prepared_area_id') or 'unknown')}",
+        f"- Final area: {str(summary.get('final_area_id') or 'unknown')}",
+        f"- Effective area: {str(summary.get('effective_area_id') or 'unknown')}",
         f"- Reused strategy: {reused}",
         f"- Strategy reason: {reason}",
+        f"- Strategy entry points: {', '.join(str(item) for item in strategy_points[:4]) if strategy_points else 'none'}",
         f"- Reuse confidence: {str(summary.get('reuse_confidence') or 'low')}",
         f"- Handoff stored: {'yes' if summary.get('handoff_stored') else 'no'}",
         f"- Decision stored: {'yes' if summary.get('decision_stored') else 'no'}",
         f"- Failure pattern recorded: {'yes' if summary.get('failure_recorded') else 'no'}",
     ]
+    if avoided:
+        lines.append(f"- Avoided issues: {', '.join(str(item) for item in avoided[:4])}")
+    if continuity_value:
+        loaded_sources = continuity_value.get("loaded_sources") if isinstance(continuity_value.get("loaded_sources"), list) else []
+        if loaded_sources:
+            lines.append(f"- AICTX value sources: {', '.join(str(item) for item in loaded_sources[:6])}")
+    if repo_map:
+        lines.append(
+            f"- RepoMap: enabled={'yes' if repo_map.get('enabled') else 'no'}, used={'yes' if repo_map.get('used') else 'no'}, status={str(repo_map.get('refresh_status') or 'unknown')}"
+        )
     next_guidance = summary.get("next_guidance") if isinstance(summary.get("next_guidance"), dict) else {}
     if next_guidance:
         lines.extend(["", "## AICTX next", ""])
@@ -520,7 +583,7 @@ def persist_handoff_memory(
         limit=8,
     )
     status = "resolved" if bool(result.get("success")) else ("failed" if failure_recorded else "unresolved")
-    task_type = str(prepared.get("resolved_task_type") or "")
+    task_type = str(prepared.get("effective_task_type") or prepared.get("resolved_task_type") or "")
     reason = str(prepared.get("envelope", {}).get("user_request") or "") if isinstance(prepared.get("envelope"), dict) else ""
     files_observed = len(_observed_files(prepared))
     completed = _clean_string_list(handoff_payload.get("completed"), limit=8) or [summary]

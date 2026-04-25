@@ -28,25 +28,25 @@ def test_prepare_execution_reports_empty_continuity_summary(tmp_path: Path):
     prepared = prepare_execution(_payload(repo, "exec-empty"))
 
     expected = (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "Loaded:\n"
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "Cargado:\n"
         "- handoff: no\n"
         "- decisions: no\n"
         "- failures: no\n"
-        "- preferences: yes\n"
+        "- preferences: sí\n"
         "- semantic_repo: no\n"
         "- procedural_reuse: no"
     )
     assert prepared["continuity_summary_text"] == expected
     assert prepared["continuity_context"]["continuity_summary_text"] == expected
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "In the previous session, there was no prior handoff to resume."
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "En la sesión anterior no había handoff previo que retomar."
     )
     assert prepared["startup_banner_policy"]["show_in_first_user_visible_response"] is True
     assert prepared["continuity_context"]["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "In the previous session, there was no prior handoff to resume."
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "En la sesión anterior no había handoff previo que retomar."
     )
 
 
@@ -94,19 +94,19 @@ def test_prepare_execution_reports_rich_continuity_summary(tmp_path: Path):
     )
 
     expected = (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "Loaded:\n"
-        "- handoff: yes\n"
-        "- decisions: yes\n"
-        "- failures: yes\n"
-        "- preferences: yes\n"
-        "- semantic_repo: yes\n"
-        "- procedural_reuse: yes"
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "Cargado:\n"
+        "- handoff: sí\n"
+        "- decisions: sí\n"
+        "- failures: sí\n"
+        "- preferences: sí\n"
+        "- semantic_repo: sí\n"
+        "- procedural_reuse: sí"
     )
     assert prepared["continuity_summary_text"] == expected
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "In the previous session, we left resolved: resume continuity task."
+        f"codex@{repo.name} (session #1) - despierto\n\n"
+        "En la sesión anterior, lo dejamos resuelto: resume continuity task."
     )
     assert prepared["continuity_context"]["loaded"] == {
         "session": True,
