@@ -29,6 +29,7 @@ It records real execution, preserves continuity artifacts inside the repository,
 - structured execution signal capture with provenance
 - failure and repo-area memory
 - lightweight runtime guidance and post-task summaries for coding agents
+- optional RepoMap structural lookup when Tree-sitter support is installed
 
 ---
 
