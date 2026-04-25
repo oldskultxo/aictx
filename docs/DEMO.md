@@ -1,12 +1,12 @@
 # Demo
 
-This demo shows two real executions and one real reuse.
+This demo shows one recorded execution and one later reuse.
 
 ## 1. Install and initialize
 
 ```bash
 pip install aictx
-aictx install
+aictx install --yes
 aictx init --repo . --yes --no-register
 ```
 
@@ -30,14 +30,13 @@ aictx internal execution finalize \
   --result-summary "first run"
 ```
 
-The finalize output includes `agent_summary_text`; agents must append that summary to the final user response.
-
-Inspect artifacts:
+What to inspect:
 
 ```bash
 cat .aictx/metrics/execution_logs.jsonl
 cat .aictx/metrics/execution_feedback.jsonl
 cat .aictx/strategy_memory/strategies.jsonl
+cat .aictx/continuity/last_execution_summary.md
 ```
 
 ## 3. Second execution
@@ -48,10 +47,9 @@ aictx internal execution prepare \
   --request "review middleware behavior again" \
   --agent-id demo \
   --execution-id demo-2 > prepared-2.json
-cat prepared-2.json
 ```
 
-If the first run produced a reusable successful strategy, `prepared-2.json` includes `execution_hint`.
+If the first run produced a reusable successful strategy, `prepared-2.json` can include `execution_hint`.
 
 Finalize it:
 
@@ -64,7 +62,8 @@ aictx internal execution finalize \
 
 ## 4. Wrapped execution helper
 
-For wrapped automations, `run-execution` performs prepare + command + finalize. Without `--json`, it prints command output plus the AICTX summary:
+For wrapped automations, `run-execution` performs prepare + command + finalize.
+Without `--json`, it prints command output plus the startup banner when required and the AICTX summary.
 
 ```bash
 aictx internal run-execution \
@@ -75,18 +74,20 @@ aictx internal run-execution \
   -- python -m pytest -q
 ```
 
-## 5. Report real usage
+## 5. Continuity inspection
 
 ```bash
+aictx next --repo .
+aictx reuse --repo .
 aictx report real-usage --repo .
 ```
 
 This demo proves:
+
 - run 1 records real execution
 - run 2 can reuse a real prior strategy
-- file tracking only appears when explicitly provided
-- output comes from stored logs, feedback and strategy memory only
-
+- prepare can classify provisionally, while finalize can classify from observed evidence
+- output comes from stored logs, feedback, continuity, and strategy memory only
 
 ## 6. Cleanup
 
@@ -94,7 +95,7 @@ This demo proves:
 aictx clean --repo .
 ```
 
-This removes only AICTX-managed repo content. To remove AICTX globally across registered repos and global config:
+To remove AICTX global state and registered repo content too:
 
 ```bash
 aictx uninstall

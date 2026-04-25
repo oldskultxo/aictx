@@ -2,26 +2,24 @@
 
 ## Release identity
 
-- [ ] target version is set (for example `0.4.0` for the current public beta release)
+- [ ] target version is intentionally set in `pyproject.toml`
 - [ ] tag format is `vX.Y.Z`
-- [ ] changelog entry is ready before tagging
-- [ ] breaking-change notes are reflected in `docs/UPGRADE.md`
+- [ ] `CHANGELOG.md` is updated before tagging
+- [ ] relevant upgrade notes are reflected in `docs/UPGRADE.md`
 
 ## Product trust
 
-- [ ] README, USAGE, and TECHNICAL_OVERVIEW describe the same product surface
-- [ ] README includes honest limitations and demo links
-- [ ] README and USAGE show the public `pip install aictx` flow
-- [ ] `LICENSE` exists
-- [ ] `CHANGELOG.md` is updated
-- [ ] version / compatibility policy is intentionally aligned with the release scope
+- [ ] README, `docs/USAGE.md`, and `docs/TECHNICAL_OVERVIEW.md` describe the same public surface
+- [ ] limitations are honest and current
+- [ ] continuity/runtime summary behavior documented in `docs/EXECUTION_SUMMARY.md` matches shipped behavior
+- [ ] optional RepoMap docs match current CLI flags and limits
 
 ## Runtime integrity
 
-- [ ] `aictx internal boot --repo <repo>` reports effective communication policy
-- [ ] `aictx internal execution prepare ...` reports the same communication policy for the same repo
-- [ ] contradictions between repo prefs and repo state surface as warnings
-- [ ] missing data is reported as `unknown` or `not_initialized`
+- [ ] `aictx internal boot --repo <repo>` succeeds
+- [ ] `aictx internal execution prepare ...` and `finalize ...` expose current classification/runtime fields
+- [ ] startup banner and final summary policies match runner instructions
+- [ ] missing data still surfaces as `unknown` / empty rather than invented values
 
 ## Validation commands
 
@@ -35,18 +33,13 @@
 - [ ] `aictx --help` works from the clean wheel install
 - [ ] `aictx init --repo <tmp> --yes --no-register` works from the clean wheel install
 - [ ] `aictx internal boot --repo <tmp>` works from the clean wheel install
+- [ ] optional RepoMap install path is validated when relevant
 
-## CI
+## CI and publish
 
-- [ ] GitHub Actions passes on supported Python versions
+- [ ] GitHub Actions pass on supported Python versions
 - [ ] editable install is exercised in CI
 - [ ] smoke flow passes in CI
 - [ ] package build passes in CI
-- [ ] clean-wheel install validation passes in CI
-
-## Publish
-
-- [ ] push tag `vX.Y.Z`
-- [ ] GitHub Release is created from the tag
-- [ ] PyPI publish workflow succeeds
-- [ ] `pip install aictx==X.Y.Z` works in a fresh venv
+- [ ] tag-triggered release/publish workflows are ready
+- [ ] `pip install aictx==X.Y.Z` works in a fresh venv after publish

@@ -47,14 +47,14 @@ Global Codex integration requires `aictx install --install-codex-global`.
 pip install aictx
 aictx install
 cd your-repo
-aictx init
+aictx init --repo .
 ```
 
 After `aictx init`, you can use your coding agent normally in that repo.
 
 Manual `aictx` commands after initialization are optional:
 - the intended flow is `install` + `init`, then agent-driven usage
-- `suggest`, `reflect`, `reuse`, and `report real-usage` remain available for inspection, debugging, or manual control
+- `suggest`, `reflect`, `reuse`, `next`, and `report real-usage` remain available for inspection, debugging, or manual control
 - Claude/Codex integration files and hooks added by `init` are there to help the agent use `aictx` automatically when the runner respects repo instructions
 
 ---
@@ -72,7 +72,7 @@ aictx map status
 aictx map refresh
 aictx map query "startup banner"
 aictx report real-usage
-aictx clean
+aictx clean --repo .
 aictx uninstall
 ```
 
@@ -97,7 +97,7 @@ Setup and usage:
 ```bash
 pip install "aictx[repomap]"
 aictx install --with-repomap
-aictx init
+aictx init --repo .
 aictx map status
 aictx map query "startup banner"
 ```
@@ -110,6 +110,7 @@ aictx map query "startup banner"
 * writes operational feedback in `.aictx/metrics/execution_feedback.jsonl`
 * stores successful and failed strategies in `.aictx/strategy_memory/strategies.jsonl`
 * stores continuity artifacts in `.aictx/continuity/`
+  * `session.json`
   * `handoff.json`
   * `handoffs.jsonl` (rolling recent handoff history)
   * `decisions.jsonl`
@@ -119,9 +120,10 @@ aictx map query "startup banner"
   * `continuity_metrics.json`
   * `last_execution_summary.md` (latest detailed finalize summary)
 * captures available files, commands, tests, and errors with provenance instead of inventing data
+* preserves provisional and observed classification for continuity traceability (`prepared_*`, `final_*`, `effective_*`)
 * stores repo-local failure patterns and area memory for later debugging/context
 * reuses only successful strategies during later executions
-* returns `agent_summary` and `agent_summary_text` after finalize; agents must append `agent_summary_text` to final user responses for non-trivial tasks
+* returns `agent_summary` and `agent_summary_text` after finalize; `agent_summary_text` is the canonical factual source for the final AICTX summary
 * exposes small JSON commands for runtime guidance
 * does not rely on hidden model memory or opaque cross-repo state
 
@@ -185,8 +187,9 @@ It makes past executions observable and reusable.
 3. for non-trivial work it may also build a bounded packet/context payload and continuity summary
 4. the agent executes
 5. `finalize_execution()` records logs, feedback, strategy memory, `continuity_value`, `capture_quality`, and `agent_summary_text`
-6. the agent appends `agent_summary_text` to the final user response; if unavailable, it says `AICTX summary unavailable`
-7. the next execution can reuse successful strategies and ignore failed ones
+6. `finalize_execution()` can also correct provisional task/area typing from observed execution evidence and expose `prepared_*`, `final_*`, and `effective_*`
+7. the agent uses `agent_summary_text` as the canonical factual source for the final AICTX summary; if finalize output is unavailable, it says `AICTX summary unavailable`
+8. the next execution can reuse successful strategies and ignore failed ones
 
 ---
 
@@ -197,6 +200,7 @@ The stable repo-local continuity artifact contract in `4.2.1` is:
 ```text
 .aictx/continuity/session.json
 .aictx/continuity/handoff.json
+.aictx/continuity/handoffs.jsonl
 .aictx/continuity/decisions.jsonl
 .aictx/continuity/semantic_repo.json
 .aictx/continuity/dedupe_report.json
@@ -217,8 +221,7 @@ Behavior expectations:
 - failed strategies remain in history but are excluded from positive reuse
 - maintenance and staleness files mark or summarize; they do not imply hidden ML or automatic repair
 
-Additional runtime continuity outputs may appear (not part of the stable contract set above), including:
-- `.aictx/continuity/handoffs.jsonl`
+Additional latest-run output:
 - `.aictx/continuity/last_execution_summary.md`
 
 ## Main runtime artifacts
@@ -256,6 +259,7 @@ Additional runtime continuity outputs may appear (not part of the stable contrac
 
 * file tracking depends on explicit input from the agent/runtime; wrapped execution can capture commands, tests, errors, and edited files best-effort
 * strategy reuse is heuristic: matching task type, prompt similarity, overlapping files, primary entry point, commands/tests/errors, and area are preferred, with recency as a secondary signal
+* `prepare` task/area typing is provisional; `finalize` can correct it from observed files, tests, commands, errors, and result summary
 * continuity loading is layered: session identity, handoff, recent decisions, failure patterns, semantic repo memory, procedural reuse, maintenance hygiene, staleness filtering, and aggregate continuity metrics
 * `continuity_brief` and `continuity_context.ranked_items` explain likely next paths, active decisions, known risks, recommended commands/tests, and why each memory source was loaded
 * `aictx next --repo .` renders the same continuity guidance as compact human-facing output, with `--json` available for integrations

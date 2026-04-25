@@ -1,52 +1,45 @@
 # Execution summary
 
-AICTX finalize output includes a deterministic user-facing summary payload:
+`finalize_execution()` returns a deterministic user-facing summary payload:
 
-- `agent_summary`: structured fields for runner integration
-- `agent_summary_text`: compact Markdown that agents must append verbatim to the final user response after finalize
+- `agent_summary`: structured facts for integrations
+- `agent_summary_text`: compact summary for the final user response
 
-Current UX shape:
-- `agent_summary_text` stays compact for chat readability.
-- A detailed deterministic summary is also written to:
+Current behavior:
+
+- `agent_summary_text` stays compact for chat readability
+- a detailed deterministic summary is also written to:
 
 ```text
 .aictx/continuity/last_execution_summary.md
 ```
 
-- Compact summary lines can reference this file via `Details: .aictx/continuity/last_execution_summary.md`.
-
-If finalize output is unavailable, agents must say:
+- compact summaries should reference that file with a clickable Markdown link when the surface supports it
+- if finalize output is unavailable, agents must say exactly:
 
 ```text
 AICTX summary unavailable
 ```
 
-The summary reports only observed or persisted facts:
+The summary reports only observed or persisted facts, for example:
 
-- whether a prior strategy was reused
-- why it was selected when available
-- whether learning, strategy memory, or failure memory was stored
-- observed file/reopen counts
-- commands and tests captured when available
-- `reuse_confidence`, `continuity_value`, and `capture_quality` when available from the finalized runtime payload
+- reused strategy and selection reason
+- loaded continuity value sources when relevant
+- stored artifacts such as handoff, decision, strategy, or validated learning
+- observed files/tests counts
+- next focus when continuity has one
+- prepared/final/effective task and area classification when that adds real value
 
-AICTX does not claim quality or speed improvements from this summary.
+The detailed file may also include:
 
-The summary belongs to the current `4.2.1` continuity runtime contract:
+- prepared/final/effective task type
+- prepared/final/effective area
+- RepoMap status used during prepare
+- AICTX value sources
+- next-session guidance
 
-- it is generated after repo-local continuity persistence
-- it reports continuity reuse and stored artifacts from the current execution
-- it is conservative: it reports observed/persisted facts, not estimated productivity gains
-- it may be paired with a startup banner that is shown once per visible session when the runtime indicates it
+Important contract detail:
 
-Related continuity artifacts that may be reflected indirectly in the summary:
-
-```text
-.aictx/continuity/handoff.json
-.aictx/continuity/handoffs.jsonl
-.aictx/continuity/decisions.jsonl
-.aictx/continuity/semantic_repo.json
-.aictx/continuity/staleness.json
-.aictx/continuity/continuity_metrics.json
-.aictx/continuity/last_execution_summary.md
-```
+- agents should use `agent_summary_text` as the canonical factual source
+- agents may localize or lightly humanize the final rendering when policy allows
+- agents must preserve real facts and must not invent missing data

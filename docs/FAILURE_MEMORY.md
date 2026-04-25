@@ -5,6 +5,22 @@ AICTX records failed executions as repo-local, inspectable failure patterns unde
 - `.aictx/failure_memory/failure_patterns.jsonl`
 - `.aictx/failure_memory/failure_index.json`
 
-Records include a deterministic signature, task type, area, error text, failed command, involved files, attempted summary, status, and optional resolution link.
+Records include deterministic fields such as:
 
-Failure records are not reused as positive strategy hints. They are exposed as related debugging context and can be linked to later successful executions when the same task/file/area signals recur.
+- failure signature
+- task type
+- area id
+- error text
+- failed command
+- involved files
+- attempted fix summary
+- status / resolution link
+
+Current behavior:
+
+- failed strategies are stored for history and debugging
+- they are not reused as positive strategy hints
+- related failure context can still be loaded for avoidance/debugging
+- successful later executions can resolve matching open failure records
+
+As with task/area typing elsewhere in AICTX, the stored failure task/area values now come from the effective observed classification when available.

@@ -1,10 +1,27 @@
 # Area memory
 
-AICTX derives lightweight repository areas from observed paths, for example:
+AICTX derives a lightweight `area_id` from observed paths.
+
+Current deterministic rules:
 
 - `src/aictx/middleware.py` -> `src/aictx`
-- `tests/test_smoke.py` -> `tests/test_smoke.py` parent bucket `tests/test_smoke.py` only when no broader known prefix applies
+- `tests/test_smoke.py` -> `tests/test_smoke.py`
+- `docs/USAGE.md` -> `docs/USAGE.md`
+- no observed paths -> `unknown`
 
-Area memory is stored in `.aictx/area_memory/areas.json` and tracks common files, tests, failures, and strategy counts per area.
+Area memory is stored in `.aictx/area_memory/areas.json`.
 
-Area hints are deterministic and local. They are used as one signal in strategy selection, not as an absolute routing rule.
+Each area tracks only repo-local observed facts, such as:
+
+- related files
+- related tests
+- executions count
+- strategy count
+- failure count
+
+Important behavior:
+
+- area hints are deterministic and local
+- they are one signal in continuity and strategy selection, not an absolute router
+- `prepare` can start with `prepared_area_id = unknown` when no files are known yet
+- `finalize` can recalculate `final_area_id` from observed files/tests and expose `effective_area_id`

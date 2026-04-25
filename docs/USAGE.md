@@ -5,7 +5,7 @@
 ```bash
 pip install aictx
 aictx install
-aictx init
+aictx init --repo .
 ```
 
 ## Public commands
@@ -21,64 +21,57 @@ aictx map status
 aictx map refresh
 aictx map query "startup banner"
 aictx report real-usage
-aictx clean
+aictx clean --repo .
 aictx uninstall
 ```
 
 Public contract:
-- `install`, `init`, `suggest`, `reflect`, `reuse`, `report real-usage`, `clean`, `uninstall`
-- `next`, `map status|refresh|query` are also public and optional operational commands
+
+- `install`, `init`, `suggest`, `reflect`, `reuse`, `next`, `map ...`, `report real-usage`, `clean`, `uninstall`
 - these are the supported user-facing commands
 - outputs are deterministic JSON where applicable
 
 Internal contract:
+
 - `aictx internal ...`
 - used by middleware, wrappers, hooks, and runner integrations
-- internal commands are runtime plumbing, not the main public UX
+- internal commands are runtime plumbing, not the main user UX
 
-After `aictx init`, manual `aictx` usage is optional. Agents are expected to follow the generated runtime instructions.
-
-Normal intended flow:
-- user runs `install` and `init`
-- agent works normally inside the repo
-- agent or user calls the other commands only when needed
+After `aictx init`, manual `aictx` usage is optional.
+Agents are expected to follow the generated runtime instructions.
 
 ## Output shape
 
-Public operational commands return deterministic JSON so they can be consumed safely by:
-- agents
-- scripts
-- CI/demo flows
+Operational commands are designed to be scriptable and deterministic.
+This is especially true for:
 
-This applies in particular to:
 - `suggest`
 - `reflect`
 - `reuse`
+- `next --json`
 - `report real-usage`
 - `clean`
 - `uninstall`
 
 ## `aictx suggest`
+
 Source: `.aictx/strategy_memory/strategies.jsonl`
 
 Returns deterministic guidance from the selected reusable successful strategy.
-
-It can also accept optional ranking context such as:
-- request text
-- files already opened
-- commands already executed
-- tests already executed
-- notable errors already observed
+Optional ranking context can include request text, files, commands, tests, and notable errors.
 
 ## `aictx reflect`
-Source: `.aictx/metrics/execution_logs.jsonl`
 
-Rules:
-- if `len(files_reopened) > 2` -> `looping_on_same_files`
-- elif `len(files_opened) > 8` -> `too_much_exploration`
-- else -> `none`
+Source: latest execution logs
 
-Current output is still deterministic JSON, but richer than the original minimal form:
+Current rules stay intentionally simple:
+
+- many reopened files -> possible loop
+- many opened files -> too much exploration
+- otherwise -> no issue
+
+Output includes fields such as:
+
 - `possible_issue`
 - `reopened_files`
 - `opened_files_count`
@@ -87,47 +80,62 @@ Current output is still deterministic JSON, but richer than the original minimal
 - `reason`
 
 ## `aictx reuse`
+
 Source: `.aictx/strategy_memory/strategies.jsonl`
 
-Returns the selected reusable successful strategy. Failed strategies are not reused.
+Returns the latest reusable successful strategy.
+Failed strategies are not reused.
 
-## Failure handling
+## `aictx next`
 
-Failed executions are persisted for history/debugging too.
+Shows compact actionable continuity guidance.
 
-Current behavior:
-- successful strategies can be reused
-- failed strategies stay visible in history
-- failed strategies are excluded from reuse by default
+Examples:
 
-## `aictx report real-usage`
-Sources:
-- `.aictx/metrics/execution_logs.jsonl`
-- `.aictx/metrics/execution_feedback.jsonl`
-- `.aictx/continuity/continuity_metrics.json` when present
+```bash
+aictx next --repo .
+aictx next --repo . --request "startup banner"
+aictx next --repo . --json
+```
 
-Returns aggregated real usage only.
+`--json` returns the structured continuity brief and `why_loaded` evidence.
 
-Current report may include:
-- strategy and packet usage
-- redundant exploration counts
-- capture coverage
-- failure pattern counts
-- error capture counters
-- continuity metrics when present
-- `repo_map` status snapshot (enabled/available/index counts/last refresh status)
+## `aictx map ...`
 
-## Optional RepoMap setup
+RepoMap is optional.
+
+Examples:
+
+```bash
+aictx map status --repo .
+aictx map refresh --repo .
+aictx map query --repo . "startup banner"
+```
+
+Optional setup:
 
 ```bash
 pip install "aictx[repomap]"
 aictx install --with-repomap
-aictx init
-aictx map status
-aictx map query "startup banner"
+aictx init --repo .
 ```
 
-RepoMap is optional and structural only; it does not guarantee speed or token savings.
+## `aictx report real-usage`
+
+Sources:
+
+- `.aictx/metrics/execution_logs.jsonl`
+- `.aictx/metrics/execution_feedback.jsonl`
+- `.aictx/continuity/continuity_metrics.json` when present
+
+Current report may include:
+
+- strategy and packet usage
+- redundant exploration counts
+- capture coverage
+- failure pattern counts
+- continuity health signals
+- RepoMap status snapshot
 
 ## Continuity artifacts
 
@@ -136,17 +144,12 @@ Primary continuity paths are repo-local:
 ```text
 .aictx/continuity/session.json
 .aictx/continuity/handoff.json
+.aictx/continuity/handoffs.jsonl
 .aictx/continuity/decisions.jsonl
 .aictx/continuity/semantic_repo.json
 .aictx/continuity/dedupe_report.json
 .aictx/continuity/staleness.json
 .aictx/continuity/continuity_metrics.json
-```
-
-Additional continuity runtime outputs may be created during normal executions:
-
-```text
-.aictx/continuity/handoffs.jsonl
 .aictx/continuity/last_execution_summary.md
 ```
 
@@ -155,30 +158,28 @@ Related runtime paths:
 ```text
 .aictx/strategy_memory/strategies.jsonl
 .aictx/failure_memory/failure_patterns.jsonl
+.aictx/area_memory/areas.json
 .aictx/metrics/execution_logs.jsonl
 .aictx/metrics/execution_feedback.jsonl
 ```
 
-These files stay inside the repository. Cross-project behavior must come from workspace registry/config, not hardcoded machine paths.
+These files stay inside the repository.
+Cross-project behavior must come from workspace registry/config, not hardcoded machine paths.
 
 ## Internal commands
 
 Internal runtime commands exist under `aictx internal ...`, including execution prepare/finalize and wrapped execution helpers.
 
-Important runtime output behavior:
-- `aictx internal execution finalize` returns `agent_summary` and `agent_summary_text` in JSON.
-- agents must append `agent_summary_text` verbatim to the final user response after finalize.
-- if finalize output is unavailable, agents must say `AICTX summary unavailable`.
-- `agent_summary_text` is compact by default and points to `.aictx/continuity/last_execution_summary.md` for details.
-- `aictx internal run-execution --json` returns the full wrapped outcome as JSON.
-- `aictx internal run-execution` without `--json` prints the wrapped command output plus the AICTX summary text.
-- `prepare_execution` may return `startup_banner_text`, but visible-session semantics mean it should be shown once per visible session, not once per execution.
+Important runtime behavior:
 
-Important boundary:
-- public docs should point users to the public CLI first
-- internal commands are for agent/runtime cooperation and integration authors
-- correctness still depends on the runner and agent actually calling prepare/finalize and respecting repo instructions
-
+- `aictx internal execution finalize` returns `agent_summary` and `agent_summary_text`
+- `agent_summary_text` is the canonical factual source for the final AICTX summary
+- agents may localize or lightly humanize that summary when policy allows, but must preserve facts
+- if finalize output is unavailable, agents must say `AICTX summary unavailable`
+- `prepare_execution` may return `startup_banner_text`, shown once per visible session when the runtime requires it
+- `finalize` can expose prepared/final/effective task and area classification values
+- `aictx internal run-execution --json` returns the full wrapped outcome as JSON
+- `aictx internal run-execution` without `--json` prints command output plus runtime banner/summary text when applicable
 
 ## Cleanup
 
@@ -188,12 +189,7 @@ Important boundary:
 aictx clean --repo .
 ```
 
-Removes only AICTX-managed repository content:
-- `.aictx/`
-- AICTX blocks inside `AGENTS.md` and `CLAUDE.md`
-- legacy AICTX content inside `AGENTS.override.md` when present
-- AICTX Claude hook files and matching entries in `.claude/settings.json`
-- the `.gitignore` line for `.aictx/`
+Removes AICTX-managed content from that repository only.
 
 ### Uninstall globally
 
@@ -201,10 +197,6 @@ Removes only AICTX-managed repository content:
 aictx uninstall
 ```
 
-Removes only AICTX-managed global content:
-- `~/.aictx/`
-- AICTX block in `~/.codex/AGENTS.override.md`
-- AICTX-managed fallback line in `~/.codex/config.toml`
-- AICTX-managed content from registered repositories
+Removes AICTX-managed global content and registered repo content.
 
-Both commands return JSON with the exact files they removed or updated.
+Both commands return JSON describing the exact files removed or updated.

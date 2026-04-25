@@ -1,75 +1,61 @@
 # Upgrade guide
 
+## Current line: 4.2.x
 
-## 3.0.0
+Current documented runtime: `4.2.1`.
 
-3.0.0 introduces a breaking restructure of repo-local knowledge sources.
+For users already on recent `4.x`, there is no special manual migration workflow beyond re-running the normal setup paths when needed:
 
-### Breaking changes
+```bash
+aictx install
+aictx init --repo .
+```
 
-- `.aictx/memory/source/` is now the canonical editable source-knowledge layer.
-- Legacy source locations like `common/`, `projects/`, root `index.json`, root `symptoms.json`, and root `protocol.md` are no longer the canonical layout.
-- `aictx init` scaffolds source knowledge under `.aictx/memory/source/`.
-- Only `.aictx/memory/source/` should be edited directly; `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders remain generated.
-- `aictx` no longer ships knowledge mods / `.aictx/library`.
-- `aictx` no longer ships global metrics aggregation or `--disable-global-metrics`.
+The important `4.x` changes are behavioral, not a new user-facing migration command.
 
-### Migration notes
-
-- Existing legacy source files are migrated into `.aictx/memory/source/` by repo scaffolding/migration flows.
-- Queries, bootstrap generation, and project knowledge ingestion now read from `.aictx/memory/source/`.
-- `aictx internal new-note` now writes into `.aictx/memory/source/projects/<repo>/...` by default.
-- Remove any legacy `.aictx/library/` and `.aictx/global_metrics/` expectations from local automation or docs.
-
-No release publishing is implied by this metadata update.
-
-## 2.2.0
-
-2.2.0 is additive and keeps the 2.0 safety contract.
+## 4.2.x
 
 ### Added
 
-- structured execution signal capture with provenance
-- richer explainable strategy ranking
-- repo-local failure memory with resolution linkage
-- deterministic repo-area memory
-- `agent_summary` and `agent_summary_text` in finalize output; current runtime instructions require agents to append `agent_summary_text` to final user responses
-- extended `report real-usage` capture, failure, area, and hygiene fields
+- public `aictx next`
+- structured continuity brief JSON for `next --json`
+- richer compact/final execution summaries
+- prepared/final/effective task and area classification for better continuity traceability
 
-No release publishing is implied by this metadata update.
+### Notes
 
-## 2.0.0
+- agents should treat `agent_summary_text` as the canonical factual summary source
+- `finalize` can now correct provisional task/area classification with observed execution evidence
 
-2.0.0 changes AICTX defaults toward non-destructive setup.
+## 4.0.0
 
 ### Breaking changes
 
-- `aictx install` no longer modifies global Codex configuration by default.
-- Use `aictx install --install-codex-global` to update `~/.codex/AGENTS.override.md` and `~/.codex/config.toml`.
-- `aictx init` now consolidates repo-local Codex guidance into `AGENTS.md`; it no longer creates `AGENTS.override.md` for new repos.
-- `aictx init` no longer performs legacy ad hoc migration/deletion of old memory directories.
+- AICTX moved to the repo-local continuity runtime contract
+- continuity artifacts were standardized under `.aictx/continuity/`
+- visible-session startup banner behavior became part of the runtime contract
+- packet/context middleware became conservative and task-dependent rather than universal
 
-### Re-running init
+### Migration notes
 
-It is safe to re-run:
+- re-run `aictx init` in initialized repositories
+- remove assumptions about legacy pre-4.0 layouts or broad hidden continuity behavior
 
-```bash
-aictx init
-```
+## 3.0.0
 
-Existing execution logs, feedback, and strategy memory are preserved.
-Claude project settings are merged instead of overwritten.
+### Breaking changes
 
-### Dry run
+- `.aictx/memory/source/` became the canonical editable source-knowledge layer
+- legacy source locations stopped being canonical
+- generated/runtime folders under `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar should not be hand-edited
+- AICTX no longer ships knowledge mods / `.aictx/library`
+- AICTX no longer ships global metrics aggregation
 
-Use:
+## 2.0.0
 
-```bash
-aictx install --dry-run
-```
+### Breaking changes
 
-This prints planned install writes without mutating files.
-
-### Cleanup compatibility
-
-`aictx clean` and `aictx uninstall` remove AICTX-managed blocks, hooks, and global state while preserving unrelated user config.
+- `aictx install` no longer modifies global Codex configuration by default
+- use `aictx install --install-codex-global` for global Codex files
+- `aictx init` consolidates repo-local Codex guidance into `AGENTS.md`
+- re-running `aictx init` preserves logs, feedback, and strategy memory

@@ -1,22 +1,17 @@
 # Limitations
 
-- file tracking depends on explicit input from the agent or runtime
-- task typing is deterministic but shallow: explicit runner metadata wins; otherwise AICTX uses keyword/path hints and falls back to `unknown`
-- strategy reuse is heuristic and conservative; task type, prompt similarity, file overlap, primary entry point, command/test/error similarity, and area can influence selection, with recency as a secondary signal
-- continuity artifacts are only as good as the real signals the runner and agent provide; missing prepare/finalize cooperation weakens handoff, decision, semantic, and metrics quality
-- handoff history (`.aictx/continuity/handoffs.jsonl`) is intentionally bounded to recent entries; it is continuity aid, not full audit history
-- middleware context packet generation is conservative and task-dependent; it does not run for every execution and still depends on the runtime path actually calling `prepare_execution`
-- RepoMap depends on an optional Tree-sitter provider; if dependency is unavailable, RepoMap remains disabled/unavailable
-- RepoMap quick refresh is bounded by time/file budgets and may preserve stale last-known records when partial
-- metadata-only files can appear in RepoMap artifacts and query results even when symbol parsing was skipped
-- there is no guaranteed improvement in speed, quality, or file exploration
-- the system depends on runner support and agent cooperation to call the runtime, use guidance, and include the required final AICTX summary
-- failed strategies are stored, and failure memory can provide avoidance context, but this is still deterministic and limited rather than rich semantic diagnosis
-- stale memory handling is conservative and may exclude clearly stale startup artifacts; it does not automatically repair missing paths or obsolete repo knowledge
-- continuity metrics are aggregate counts of observed events, not proof of productivity gain
-- `reflect` uses only the latest execution log and a small deterministic rule set; it is guidance, not diagnosis
-- automatic capture is best-effort and runner-dependent; missing data stays empty or null and is not invented
-- the detailed per-run summary file (`.aictx/continuity/last_execution_summary.md`) tracks only the latest finalized execution and is overwritten each run
-- public operational command outputs are deterministic JSON; internal wrapped execution may print command output plus the AICTX summary, and usefulness still depends on real stored execution data
-- current releases are safe for evaluation and cautious repo-local use, not a strong automation contract for broad team-wide rollout
-- `aictx uninstall` cleans registered repositories and AICTX global state; repositories unknown to AICTX are not auto-discovered
+- file tracking still depends on explicit input from the agent/runner or wrapped execution capture
+- task typing is deterministic and evidence-based, but still heuristic rather than semantic understanding
+- `prepare` classification is provisional; `finalize` can correct it with observed files/tests/commands/errors
+- even with observed reclassification, mixed implementation+validation work can still be borderline between `feature_work`, `refactoring`, and `testing`
+- continuity quality depends on runner support and agent cooperation with prepare/finalize
+- strategy reuse is deterministic and conservative; task type, prompt similarity, file overlap, entry point, commands/tests/errors, area, and recency can influence selection
+- handoff history (`.aictx/continuity/handoffs.jsonl`) is intentionally bounded; it is continuity aid, not full audit history
+- packet/context generation is conservative and task-dependent; it does not run for every execution
+- RepoMap depends on optional Tree-sitter support; if unavailable, RepoMap stays disabled/unavailable
+- RepoMap quick refresh is budgeted and can preserve last-known structural state when refresh is partial
+- continuity metrics are aggregate observed counts, not proof of productivity gain
+- `reflect` is a small deterministic rule set over recent logs; it is guidance, not diagnosis
+- missing data stays empty or `unknown`; AICTX does not invent runtime evidence
+- `.aictx/continuity/last_execution_summary.md` tracks only the latest finalized execution and is overwritten on each run
+- AICTX is safe for evaluation and cautious repo-local workflows; it is not a guarantee of better speed, quality, or exploration

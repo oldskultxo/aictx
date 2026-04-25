@@ -4,19 +4,20 @@
 
 `aictx` is a repo-local continuity runtime for coding agents.
 
-The public surface is intentionally small:
+Current public CLI:
 
 - `aictx install`
 - `aictx init`
 - `aictx suggest`
 - `aictx reflect`
 - `aictx reuse`
+- `aictx next`
+- `aictx map status|refresh|query`
 - `aictx report real-usage`
 - `aictx clean`
 - `aictx uninstall`
 
-Under that surface, the runtime still contains internal commands and compatibility layers used by middleware and runner integrations.
-Legacy knowledge mods and global aggregation are intentionally not part of the v4 continuity contract.
+Internal runtime commands remain available under `aictx internal ...` for middleware, hooks, wrappers, and runner integrations.
 
 ## Core runtime flow
 
@@ -25,50 +26,53 @@ The runtime is built around one simple loop:
 1. prepare execution
 2. run task
 3. finalize execution
-4. expose `agent_summary_text` for the final user response
+4. expose startup/final summary texts when required
 5. persist reusable data
 6. reuse it on later executions
 
-### Prepare
+## Prepare
 
-`prepare_execution()` currently does these things:
+`prepare_execution()` currently:
 
 - builds an execution envelope
-- resolves task type
-- loads repo bootstrap sources
+- resolves a provisional task type
+- derives a provisional area id from currently known paths
+- loads repo bootstrap sources and effective preferences
 - may build packet-oriented context for non-trivial work
-- loads continuity layers from repo-local artifacts
+- loads repo-local continuity layers:
   - session identity
-  - handoff
-  - recent decisions
+  - handoff and recent handoff history
+  - decisions
   - failure patterns
   - semantic repo memory
   - procedural reuse
   - staleness markers
-- if a previous successful strategy exists, injects an `execution_hint`
+- may include RepoMap status when available
+- may inject `execution_hint` when a reusable strategy matches
+- may return `startup_banner_text` with show-once-per-visible-session semantics
 
-### Execute
+## Finalize
 
-The agent then executes normally.
+`finalize_execution()` currently:
 
-`aictx` does not replace the agent loop. It adds runtime data around it.
-
-### Finalize
-
-`finalize_execution()` currently does these things:
-
-- appends a real execution log
-- appends operational feedback
+- appends execution telemetry and real execution logs
+- recalculates task classification from observed evidence
+- recalculates area id from observed files/tests when possible
+- exposes:
+  - `prepared_task_type` / `prepared_area_id`
+  - `final_task_type` / `final_area_id`
+  - `effective_task_type` / `effective_area_id`
+  - `final_task_resolution`
 - persists validated learning where enabled
-- persists strategy memory for successful validated runs
-- records failure events on unsuccessful runs
+- persists strategy memory
+- records or resolves failure memory
 - persists handoff / decisions / semantic continuity artifacts
-- updates aggregate continuity metrics
+- updates continuity metrics
 - returns `agent_summary` and `agent_summary_text`
 
 ## Real data sources
 
-The main real-data files are:
+Main repo-local artifacts:
 
 ```text
 .aictx/continuity/session.json
@@ -84,135 +88,82 @@ The main real-data files are:
 .aictx/metrics/execution_feedback.jsonl
 .aictx/strategy_memory/strategies.jsonl
 .aictx/failure_memory/failure_patterns.jsonl
+.aictx/area_memory/areas.json
 ```
 
-### Execution logs
+## Classification model
 
-Each execution log is based only on observed runtime data, for example:
+Task/area typing is deterministic and evidence-based.
 
-- task id
-- timestamp
-- task type
-- files opened
-- files reopened
-- execution time
-- success
-- packet usage
+Current shape:
 
-If a field is not available yet, it remains empty or null rather than being inferred.
+- `prepare` gives a provisional classification from explicit metadata, prompt, and currently known files
+- `finalize` can reclassify from observed files, tests, commands, errors, and result summary
+- AICTX preserves both the initial guess and the final/effective values for traceability
 
-### Execution feedback
-
-Feedback is operational, not narrative.
-
-It summarizes real facts such as:
-
-- files opened count
-- reopened files count
-- packet usage
-- strategy reuse
-- simple redundant exploration detection
-- whether packet/context was actually built and reused signals when observed
-
-### Strategy memory
-
-Strategy memory is append-only. Successful executions can become reusable strategy hints; failed executions are retained for history/debugging but excluded from positive reuse.
-
-Current schema stores observed execution signals such as task id/type, entry points, files used, command/test/error hints, area, success, and timestamp.
-
-There is no ML layer or synthetic scoring. Reuse ranking is deterministic and explainable.
-
-### Continuity artifacts
-
-Continuity artifacts are repo-local and layered:
-
-- `session.json` -> visible-session identity plus execution counters and startup-banner state
-- `handoff.json` -> latest canonical continuation handoff
-- `handoffs.jsonl` -> rolling recent handoff history (compact)
-- `decisions.jsonl` -> append-only significant decisions
-- `semantic_repo.json` -> compact subsystem-level repo knowledge
-- `dedupe_report.json` -> non-destructive hygiene output
-- `staleness.json` -> markers used to down-rank or exclude stale memory
-- `continuity_metrics.json` -> aggregate counts of real continuity reuse/load events
-- `last_execution_summary.md` -> detailed summary of the latest finalized execution (paired with compact `agent_summary_text`)
-
-These artifacts help a new session continue prior work without claiming hidden semantic intelligence.
+This improves continuity quality but remains heuristic, not semantic understanding.
 
 ## Strategy reuse
 
-Strategy reuse is deliberately conservative.
+Strategy reuse is conservative and explainable.
 
-Current behavior:
+Current matching can consider:
 
-- exclude failed strategies from reuse
-- prefer matching task type and related execution signals when available
-- consider prompt similarity, overlapping files, primary entry point, commands/tests/errors, area, and recency
-- expose the selected strategy as `execution_hint`
+- task type
+- prompt similarity
+- overlapping files
+- primary entry point
+- commands/tests/errors
+- area
+- recency
+- real execution evidence
 
-The runtime does not claim ML-grade semantic retrieval or guaranteed optimization.
+Failed strategies remain stored for history/debugging but are excluded from positive reuse.
 
-## Agent-facing commands
+## Agent-facing operational commands
 
 ### `aictx suggest`
-
-- source: strategy memory
-- returns: suggested entry points and files from the latest matching strategy
-- optional ranking context can improve matching: request text, files, commands, tests, and notable errors
+Returns deterministic next-step guidance from reusable strategy memory.
 
 ### `aictx reflect`
-
-- source: latest execution log
-- returns: exploration warning plus counts, recommended entry points, reason, and suggested next action
+Returns a small deterministic diagnosis over recent exploration patterns.
 
 ### `aictx reuse`
+Returns the latest reusable successful strategy.
 
-- source: strategy memory
-- returns: latest reusable successful execution pattern
-- failed strategies are still stored, but they are never returned as reusable positive guidance
+### `aictx next`
+Returns compact continuity guidance for the next session or next step.
+It can also emit structured JSON with the continuity brief and `why_loaded` evidence.
+
+### `aictx map ...`
+Optional RepoMap structural operations for status, refresh, and query.
 
 ### `aictx report real-usage`
-
-- source: execution logs + execution feedback
-- optional source: continuity metrics
-- returns: real aggregated runtime usage only, including failure/error coverage counters when observed
+Returns aggregated real runtime usage from stored logs/feedback/continuity metrics.
 
 ## Runner integration
 
 ### Codex
-
 Repo guidance is written into:
 
 - `AGENTS.md`
 - `.aictx/agent_runtime.md`
 
-### Claude
+Optional global Codex files can be installed with `--install-codex-global`.
 
+### Claude
 Repo guidance is written into:
 
 - `CLAUDE.md`
 - `.claude/settings.json`
 - `.claude/hooks/*`
 
-The integrations make `aictx` discoverable, guide runtime usage, and require final responses for non-trivial tasks to include `agent_summary_text` after finalize. Enforcement still depends on runner support and agent cooperation.
-
-This dependency is part of the contract:
-- AICTX can only preserve continuity when the runner exposes repo instructions and the agent cooperates with prepare/finalize
-- if the runner ignores repo instructions or suppresses runtime steps, continuity quality degrades
+The integrations guide prepare/finalize usage and final-response summary behavior.
+Enforcement still depends on runner support and agent cooperation.
 
 ## Design principles
 
-Current design choices are intentional:
-
-- real data over synthetic metrics
+- real data over invented metrics
 - deterministic logic over opaque ranking
-- small public surface over large command sprawl
-- reuse of successful runs over speculative intelligence claims
-
-## What remains intentionally simple
-
-- file tracking is still incomplete
-- strategy reuse is deterministic and heuristic, not ML-based
-- continuity quality depends on runner/agent cooperation and available observed signals
-- stale memory handling is conservative and may exclude clearly obsolete records while keeping history on disk
-- no baseline comparison is reported unless real baseline data exists
-- no claim of guaranteed speed or quality improvement is made
+- repo-local artifacts over hidden cross-repo state
+- continuity from observed executions over magical memory claims
