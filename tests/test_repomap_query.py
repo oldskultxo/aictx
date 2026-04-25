@@ -130,3 +130,94 @@ def test_results_are_sorted_deterministically(tmp_path: Path):
     results = query_repo_map(repo, "startup banner")
 
     assert [item["path"] for item in results] == ["src/a_startup.py", "src/b_startup.py"]
+
+
+def test_strong_symbol_beats_heading_and_module_pseudosymbols(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "src").mkdir()
+    (repo / "docs").mkdir()
+    (repo / "src" / "runtime.py").write_text("def startup_banner():\n    pass\n", encoding="utf-8")
+    (repo / "docs" / "runtime.md").write_text("# Startup Banner\n", encoding="utf-8")
+    (repo / "src" / "startup.py").write_text("\"\"\"Startup module.\"\"\"\n", encoding="utf-8")
+    _write_index(
+        repo,
+        [
+            {
+                "path": "docs/runtime.md",
+                "language": "markdown",
+                "symbols": [{"name": "Startup Banner", "kind": "heading", "line": 1, "language": "markdown"}],
+                "metadata_only": False,
+            },
+            {
+                "path": "src/startup.py",
+                "language": "python",
+                "symbols": [{"name": "startup", "kind": "module", "line": 1, "language": "python"}],
+                "metadata_only": False,
+            },
+            {
+                "path": "src/runtime.py",
+                "language": "python",
+                "symbols": [{"name": "startup_banner", "kind": "function", "line": 1, "language": "python"}],
+                "metadata_only": False,
+            },
+        ],
+    )
+
+    results = query_repo_map(repo, "startup banner")
+
+    assert results[0]["path"] == "src/runtime.py"
+    assert results[0]["metadata"]["symbol_kind"] == "function"
+    assert all(item["score"] < results[0]["score"] for item in results[1:])
+
+
+def test_generic_query_does_not_promote_weak_pseudosymbols_without_context(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "src").mkdir()
+    (repo / "src" / "__init__.py").write_text("", encoding="utf-8")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "setup.md").write_text("# Setup\n", encoding="utf-8")
+    _write_index(
+        repo,
+        [
+            {
+                "path": "src/__init__.py",
+                "language": "python",
+                "symbols": [{"name": "__init__", "kind": "module", "line": 1, "language": "python"}],
+                "metadata_only": False,
+            },
+            {
+                "path": "docs/setup.md",
+                "language": "markdown",
+                "symbols": [{"name": "Setup", "kind": "heading", "line": 1, "language": "markdown"}],
+                "metadata_only": False,
+            },
+        ],
+    )
+
+    assert query_repo_map(repo, "init setup") == []
+
+
+def test_active_file_context_can_boost_low_strength_match(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "docs").mkdir()
+    (repo / "docs" / "setup.md").write_text("# Setup\n", encoding="utf-8")
+    _write_index(
+        repo,
+        [
+            {
+                "path": "docs/setup.md",
+                "language": "markdown",
+                "symbols": [{"name": "Setup", "kind": "heading", "line": 1, "language": "markdown"}],
+                "metadata_only": False,
+            },
+        ],
+    )
+
+    results = query_repo_map(repo, "setup", files=["docs/setup.md"])
+
+    assert results
+    assert results[0]["path"] == "docs/setup.md"
+    assert "repo_map:live_path" in results[0]["reasons"]
