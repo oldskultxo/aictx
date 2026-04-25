@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 
 from .runtime_versioning import compat_version_payload
-from .state import REPO_CONTINUITY_DIR, REPO_ENGINE_DIR, REPO_MEMORY_DIR, REPO_METRICS_DIR, REPO_STATE_PATH, REPO_STRATEGY_MEMORY_DIR, write_json
+from .state import REPO_CONTINUITY_DIR, REPO_ENGINE_DIR, REPO_MAP_DIR, REPO_MEMORY_DIR, REPO_METRICS_DIR, REPO_STATE_PATH, REPO_STRATEGY_MEMORY_DIR, write_json
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -241,6 +241,16 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
 
     if update_gitignore:
         ensure_gitignore(repo)
+    return created
+
+
+def ensure_repomap_scaffold(repo: Path) -> list[str]:
+    created: list[str] = []
+    repo_map_dir = repo / REPO_MAP_DIR
+    existed = repo_map_dir.exists()
+    repo_map_dir.mkdir(parents=True, exist_ok=True)
+    if not existed:
+        created.append(str(repo_map_dir))
     return created
 
 

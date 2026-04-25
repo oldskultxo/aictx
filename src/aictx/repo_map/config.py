@@ -50,3 +50,14 @@ def load_repomap_manifest(repo_root: Path) -> dict[str, Any]:
 
 def write_repomap_manifest(repo_root: Path, payload: dict[str, Any]) -> None:
     write_json(repo_map_manifest_path(repo_root), payload)
+
+
+def resolve_repo_repomap_config(global_config: dict[str, Any] | None) -> dict[str, Any]:
+    payload = dict(global_config or {})
+    repomap = payload.get("repomap", {}) if isinstance(payload.get("repomap"), dict) else {}
+    return normalize_repomap_config(
+        {
+            "enabled": bool(repomap.get("requested", False)),
+            "provider": str(repomap.get("provider") or "tree_sitter"),
+        }
+    )

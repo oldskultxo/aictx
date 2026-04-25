@@ -21,11 +21,13 @@ from .continuity import load_continuity_context, render_next_text
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
-from .scaffold import TEMPLATES_DIR, ensure_repo_user_preferences, init_repo_scaffold
+from .scaffold import TEMPLATES_DIR, ensure_repomap_scaffold, ensure_repo_user_preferences, init_repo_scaffold
 from .report import build_real_usage_report
-from .repo_map.config import load_repomap_config, load_repomap_manifest, load_repomap_status
+from .repo_map.config import load_repomap_config, load_repomap_manifest, load_repomap_status, resolve_repo_repomap_config, write_repomap_config, write_repomap_status
 from .repo_map.query import query_repo_map
 from .repo_map.refresh import refresh_repo_map
+from .repo_map.paths import repo_map_config_path, repo_map_index_path, repo_map_manifest_path, repo_map_status_path
+from .repo_map.provider import check_tree_sitter_available
 from .repo_map.setup import (
     install_repomap_dependency,
     repomap_dependency_available,
@@ -498,6 +500,41 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
     return created
 
 
+def _init_repomap_from_global(repo: Path, global_config: dict[str, Any]) -> tuple[list[str], str | None]:
+    repomap = global_config.get("repomap", {}) if isinstance(global_config.get("repomap"), dict) else {}
+    if not bool(repomap.get("requested", False)):
+        return [], None
+
+    created = ensure_repomap_scaffold(repo)
+    repo_config = resolve_repo_repomap_config(global_config)
+    write_repomap_config(repo, repo_config)
+    config_path = str(repo_map_config_path(repo))
+    if config_path not in created:
+        created.append(config_path)
+
+    provider_info = check_tree_sitter_available()
+    if not provider_info.get("available", False):
+        write_repomap_status(
+            repo,
+            {
+                "enabled": bool(repo_config.get("enabled", False)),
+                "available": False,
+                "provider": str(repo_config.get("provider") or "tree_sitter"),
+                "last_refresh_status": "unavailable",
+                "warnings": [str(provider_info.get("error") or "provider_unavailable")],
+            },
+        )
+        return created + [str(repo_map_status_path(repo))], "unavailable"
+
+    refresh = refresh_repo_map(repo, mode="full")
+    repomap_paths = [str(repo_map_status_path(repo))]
+    if (repo_map_manifest_path(repo)).exists():
+        repomap_paths.append(str(repo_map_manifest_path(repo)))
+    if (repo_map_index_path(repo)).exists():
+        repomap_paths.append(str(repo_map_index_path(repo)))
+    return created + [path for path in repomap_paths if path not in created], str(refresh.get("status") or "ok")
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     workspace_id = args.workspace_id or "default"
     workspace_root = args.workspace_root
@@ -652,6 +689,7 @@ def cmd_init(args: argparse.Namespace) -> int:
             return 1
 
     ensure_global_home()
+    global_config = read_json(CONFIG_PATH, default_global_config())
     created = init_repo_scaffold(repo, update_gitignore=update_gitignore)
     persist_repo_communication_mode(repo, selected_communication_mode)
     install_global_agent_runtime(write_json)
@@ -675,6 +713,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     if workspace_root:
         workspace_agents_path = workspace_root / "AGENTS.md"
         upsert_marked_block(workspace_agents_path, render_workspace_agents_block())
+    repomap_created, repomap_result = _init_repomap_from_global(repo, global_config)
     print("Created:")
     for item in created:
         print(f"- {item}")
@@ -687,9 +726,15 @@ def cmd_init(args: argparse.Namespace) -> int:
     print(f"- {repo / 'AGENTS.md'}")
     if workspace_agents_path and workspace_agents_path != repo / 'AGENTS.md':
         print(f"- {workspace_agents_path}")
+    for item in repomap_created:
+        print(f"- {item}")
     if register_repo:
         print("Registered repo in workspace:")
         print(f"- {ws.workspace_id} -> {repo_str}")
+    if repomap_result == "ok":
+        print("RepoMap init: full map built.")
+    elif repomap_result == "unavailable":
+        print("RepoMap init: provider unavailable; status recorded.")
     print("Init complete. Use your coding agent normally in this repo.")
     return 0
 
