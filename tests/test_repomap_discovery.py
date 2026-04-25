@@ -18,15 +18,18 @@ def test_git_discovery_respects_gitignore(tmp_path: Path):
     (repo / "tracked.py").write_text("print('x')\n", encoding="utf-8")
     (repo / "visible.txt").write_text("ok\n", encoding="utf-8")
     (repo / "ignored.txt").write_text("nope\n", encoding="utf-8")
+    (repo / ".aictx" / "repo_map").mkdir(parents=True)
+    (repo / ".aictx" / "repo_map" / "index.json").write_text("{}", encoding="utf-8")
     subprocess.run(["git", "add", ".gitignore", "tracked.py"], cwd=repo, check=True, capture_output=True)
 
     payload = discover_repo_files(repo)
 
     assert payload["discovery_source"] == "git"
-    assert payload["ignore_source"] == "git"
+    assert payload["ignore_source"] == "git+aictx_defaults"
     assert "tracked.py" in payload["files"]
     assert "visible.txt" in payload["files"]
     assert "ignored.txt" not in payload["files"]
+    assert ".aictx/repo_map/index.json" not in payload["files"]
 
 
 def test_non_git_discovery_includes_files_and_marks_none(tmp_path: Path):
@@ -35,9 +38,13 @@ def test_non_git_discovery_includes_files_and_marks_none(tmp_path: Path):
     (repo / "a.py").write_text("print('x')\n", encoding="utf-8")
     (repo / "sub").mkdir()
     (repo / "sub" / "b.txt").write_text("y\n", encoding="utf-8")
+    (repo / ".aictx" / "repo_map").mkdir(parents=True)
+    (repo / ".aictx" / "repo_map" / "index.json").write_text("{}", encoding="utf-8")
+    (repo / "__pycache__").mkdir()
+    (repo / "__pycache__" / "a.pyc").write_bytes(b"x")
 
     payload = discover_repo_files(repo)
 
     assert payload["discovery_source"] == "scan"
-    assert payload["ignore_source"] == "none"
+    assert payload["ignore_source"] == "aictx_defaults"
     assert payload["files"] == ["a.py", "sub/b.txt"]

@@ -5,6 +5,30 @@ from pathlib import Path
 from typing import Any
 
 
+_GENERATED_PATH_PARTS = {
+    ".aictx",
+    ".aictx_cost",
+    ".aictx_failure_memory",
+    ".aictx_global_metrics",
+    ".aictx_library",
+    ".aictx_memory",
+    ".aictx_memory_graph",
+    ".aictx_task_memory",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".svn",
+    ".venv",
+    ".venv-test",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+}
+
+
 def discover_repo_files(repo_root: Path) -> dict[str, Any]:
     repo_root = Path(repo_root)
     git_result = _discover_git_files(repo_root)
@@ -14,12 +38,12 @@ def discover_repo_files(repo_root: Path) -> dict[str, Any]:
     files = sorted(
         path.relative_to(repo_root).as_posix()
         for path in repo_root.rglob("*")
-        if path.is_file()
+        if path.is_file() and _is_discoverable(path.relative_to(repo_root).as_posix())
     )
     return {
         "files": files,
         "discovery_source": "scan",
-        "ignore_source": "none",
+        "ignore_source": "aictx_defaults",
     }
 
 
@@ -45,9 +69,20 @@ def _discover_git_files(repo_root: Path) -> dict[str, Any] | None:
     )
     if result.returncode != 0:
         return None
-    files = sorted(item for item in result.stdout.decode("utf-8", errors="replace").split("\x00") if item)
+    files = sorted(
+        item
+        for item in result.stdout.decode("utf-8", errors="replace").split("\x00")
+        if item and _is_discoverable(item)
+    )
     return {
         "files": files,
         "discovery_source": "git",
-        "ignore_source": "git",
+        "ignore_source": "git+aictx_defaults",
     }
+
+
+def _is_discoverable(relative_path: str) -> bool:
+    parts = Path(str(relative_path or "").replace("\\", "/")).parts
+    if not parts:
+        return False
+    return not any(part in _GENERATED_PATH_PARTS for part in parts)

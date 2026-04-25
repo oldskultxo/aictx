@@ -34,11 +34,11 @@ def test_full_refresh_writes_index_manifest_status(tmp_path: Path, monkeypatch):
 
     assert payload["status"] == "ok"
     assert payload["mode"] == "full"
-    assert payload["files_discovered"] == 2
-    assert payload["files_indexed"] == 2
-    assert payload["symbols_indexed"] == 2
+    assert payload["files_discovered"] == 1
+    assert payload["files_indexed"] == 1
+    assert payload["symbols_indexed"] == 1
     assert repo_map_index_path(repo).exists()
-    assert load_repomap_manifest(repo)["files_indexed"] == 2
+    assert load_repomap_manifest(repo)["files_indexed"] == 1
     assert load_repomap_status(repo)["last_refresh_status"] == "ok"
 
 
