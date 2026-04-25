@@ -20,6 +20,7 @@ from .paths import (
     repo_map_manifest_path,
     repo_map_status_path,
 )
+from .provider import check_provider_available, check_tree_sitter_available, extract_file_structure
 from .setup import (
     REPO_MAP_IMPORT_NAME,
     REPO_MAP_PACKAGE_SPEC,
@@ -41,6 +42,9 @@ __all__ = [
     "repo_map_manifest_path",
     "repo_map_index_path",
     "repo_map_status_path",
+    "check_tree_sitter_available",
+    "check_provider_available",
+    "extract_file_structure",
     "load_repomap_config",
     "write_repomap_config",
     "load_repomap_status",
