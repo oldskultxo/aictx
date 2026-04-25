@@ -23,6 +23,11 @@ from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, ensure_repo_user_preferences, init_repo_scaffold
 from .report import build_real_usage_report
+from .repo_map.setup import (
+    install_repomap_dependency,
+    repomap_dependency_available,
+    update_global_repomap_config,
+)
 from .cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
 from .strategy_memory import select_strategy
 from .runtime_tasks import resolve_task_type
@@ -418,6 +423,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     workspace_root = args.workspace_root
     cross_project_mode = args.cross_project_mode or "workspace"
     install_codex_global = bool(getattr(args, "install_codex_global", False))
+    with_repomap = bool(getattr(args, "with_repomap", False))
     dry_run = bool(getattr(args, "dry_run", False))
 
     if not args.yes:
@@ -434,6 +440,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         workspace_id = ask_text("Default workspace name", workspace_id)
         if not workspace_root and ask_yes_no("Add a workspace root now?", True):
             workspace_root = ask_text("Workspace root", str(Path("~/projects").expanduser()))
+        with_repomap = ask_yes_no("Enable RepoMap support using Tree-sitter?", False)
 
     if dry_run:
         planned = [
@@ -454,16 +461,36 @@ def cmd_install(args: argparse.Namespace) -> int:
         if workspace_root:
             print("Would register workspace root:")
             print(f"- {str(Path(workspace_root).expanduser().resolve())}")
+        if with_repomap:
+            print("Would request RepoMap support and check/install the optional Tree-sitter dependency if needed.")
         return 0
 
     ensure_global_home()
     config = read_json(CONFIG_PATH, default_global_config())
+    repomap_requested = with_repomap
+    repomap_available = False
     config.update(
         {
             "active_workspace": workspace_id,
             "cross_project_mode": cross_project_mode,
         }
     )
+    if repomap_requested:
+        repomap_available = repomap_dependency_available()
+        if not repomap_available:
+            should_install_repomap = False
+            if args.yes and with_repomap:
+                should_install_repomap = True
+            elif not args.yes:
+                should_install_repomap = ask_yes_no("RepoMap needs the optional Tree-sitter dependency. Install it now?", True)
+            if should_install_repomap:
+                install_result = install_repomap_dependency()
+                repomap_available = install_result.returncode == 0 and repomap_dependency_available()
+            if not repomap_available:
+                print("RepoMap unavailable.")
+        config = update_global_repomap_config(config, requested=True, available=repomap_available)
+    else:
+        config = update_global_repomap_config(config, requested=False, available=False)
     write_json(CONFIG_PATH, config)
 
     ws = read_json(workspace_path(workspace_id), None)
@@ -503,6 +530,13 @@ def cmd_install(args: argparse.Namespace) -> int:
     if workspace_root:
         print("Registered workspace root:")
         print(f"- {str(Path(workspace_root).expanduser().resolve())}")
+    if repomap_requested:
+        if repomap_available:
+            print("RepoMap support: enabled (Tree-sitter available).")
+        else:
+            print("RepoMap support: requested but unavailable.")
+    else:
+        print("RepoMap support: disabled.")
     print("Install complete. Next: run `aictx init` inside a repository.")
     return 0
 
@@ -635,6 +669,7 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--workspace-id", help="Workspace id", default="default")
     install.add_argument("--cross-project-mode", choices=["workspace", "explicit", "disabled"], help="Cross-project discovery mode")
     install.add_argument("--install-codex-global", action="store_true", help="Opt in to global Codex ~/.codex integration")
+    install.add_argument("--with-repomap", action="store_true", help="Request optional RepoMap support using Tree-sitter")
     install.add_argument("--dry-run", action="store_true", help="Show planned install writes without mutating files")
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     install.set_defaults(func=cmd_install)

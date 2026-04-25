@@ -20,6 +20,11 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+repomap = [
+  "tree-sitter-language-pack>=1.6.0"
+]
+
 [project.urls]
 Homepage = "https://github.com/oldskultxo/aictx"
 Repository = "https://github.com/oldskultxo/aictx"
