@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import ast
 import importlib
+import json
+import re
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Iterable, Mapping
@@ -22,6 +25,11 @@ COMMON_LANGUAGE_BY_SUFFIX = {
     ".cpp": "cpp",
     ".cc": "cpp",
     ".hpp": "cpp",
+    ".md": "markdown",
+    ".json": "json",
+    ".toml": "toml",
+    ".yaml": "yaml",
+    ".yml": "yaml",
 }
 
 SYMBOL_NODE_KINDS = {
@@ -94,9 +102,13 @@ def extract_file_structure(path: Path, repo_root: Path, max_parse_file_bytes: in
     except ImportError:
         return _metadata_only(relative_path, reason="provider_unavailable", size_bytes=size_bytes)
 
-    language = _detect_language(module, path)
+    language = _detect_special_language(path, source) or _detect_language(module, path)
     if not language:
         return _metadata_only(relative_path, reason="unsupported_language", size_bytes=size_bytes)
+
+    metadata = _extract_lightweight_metadata(relative_path, language, source, size_bytes=size_bytes)
+    if metadata is not None:
+        return metadata
 
     processed = _try_process(module, path, source, language)
     if processed:
@@ -105,6 +117,11 @@ def extract_file_structure(path: Path, repo_root: Path, max_parse_file_bytes: in
     parsed = _try_tree_sitter_traversal(module, source, language)
     if parsed:
         return _normalize_processed(relative_path, language, parsed, size_bytes=size_bytes)
+
+    if language == "python":
+        static_python = _extract_python_static_metadata(relative_path, source, size_bytes=size_bytes)
+        if static_python is not None:
+            return static_python
 
     return _metadata_only(relative_path, language=language, reason="unsupported_extraction", size_bytes=size_bytes)
 
@@ -149,6 +166,20 @@ def _detect_language(module: ModuleType, path: Path) -> str:
         if detected:
             return str(detected)
     return COMMON_LANGUAGE_BY_SUFFIX.get(path.suffix.lower(), "")
+
+
+def _detect_special_language(path: Path, source: bytes) -> str:
+    if path.name == "Makefile":
+        return "makefile"
+    first_line = source.splitlines()[0].decode("utf-8", errors="replace").lower() if source.splitlines() else ""
+    if first_line.startswith("#!"):
+        if "python" in first_line:
+            return "python"
+        if any(shell in first_line for shell in ("sh", "bash", "zsh")):
+            return "shell"
+    if path.suffix:
+        return ""
+    return ""
 
 
 def _try_process(module: ModuleType, path: Path, source: bytes, language: str) -> Mapping[str, Any] | None:
@@ -215,6 +246,131 @@ def _normalize_named_items(items: Iterable[Any], *, kind: str, language: str) ->
             payload.setdefault("kind", kind)
             normalized.append(normalize_repomap_symbol(payload, language=language))
     return normalized
+
+
+def _extract_lightweight_metadata(path: str, language: str, source: bytes, *, size_bytes: int) -> dict[str, Any] | None:
+    text = source.decode("utf-8", errors="replace")
+    if language == "markdown":
+        symbols = _markdown_heading_symbols(text)
+    elif language in {"json", "toml", "yaml"}:
+        symbols = _config_key_symbols(text, language)
+    elif language in {"makefile", "shell"}:
+        symbols = [_symbol(Path(path).name or path, "entrypoint", language, 1)]
+    else:
+        return None
+    if not symbols:
+        symbols = [_symbol(Path(path).name or path, "file", language, 1)]
+    return _record_with_symbols(path, language, symbols, size_bytes=size_bytes)
+
+
+def _extract_python_static_metadata(path: str, source: bytes, *, size_bytes: int) -> dict[str, Any] | None:
+    text = source.decode("utf-8", errors="replace")
+    try:
+        module = ast.parse(text)
+    except SyntaxError:
+        return None
+    symbols: list[dict[str, Any]] = []
+    imports_added = 0
+    constants_added = 0
+    for node in module.body:
+        if imports_added < 8 and isinstance(node, (ast.Import, ast.ImportFrom)):
+            for name in _import_names(node):
+                symbols.append(_symbol(name, "import", "python", int(getattr(node, "lineno", 0) or 0)))
+                imports_added += 1
+                if imports_added >= 8:
+                    break
+        elif constants_added < 8 and isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id.isupper():
+                    symbols.append(_symbol(target.id, "constant", "python", int(getattr(node, "lineno", 0) or 0)))
+                    constants_added += 1
+                if constants_added >= 8:
+                    break
+        elif constants_added < 8 and isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id.isupper():
+            symbols.append(_symbol(node.target.id, "constant", "python", int(getattr(node, "lineno", 0) or 0)))
+            constants_added += 1
+    if not symbols:
+        kind = "entrypoint" if Path(path).name in {"__main__.py", "cli.py"} else "module"
+        symbols.append(_symbol(Path(path).stem or path, kind, "python", 1))
+    return _record_with_symbols(path, "python", symbols, size_bytes=size_bytes)
+
+
+def _import_names(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Import):
+        return [alias.asname or alias.name for alias in node.names[:8]]
+    if isinstance(node, ast.ImportFrom):
+        module = "." * int(node.level or 0) + str(node.module or "")
+        return [f"{module}.{alias.asname or alias.name}".strip(".") for alias in node.names[:8]]
+    return []
+
+
+def _markdown_heading_symbols(text: str) -> list[dict[str, Any]]:
+    symbols: list[dict[str, Any]] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        match = re.match(r"^(#{1,3})\s+(.+?)\s*$", line)
+        if match:
+            title = match.group(2).strip().strip("#").strip()
+            if title:
+                symbols.append(_symbol(title, "heading", "markdown", line_no))
+        if len(symbols) >= 6:
+            break
+    return symbols
+
+
+def _config_key_symbols(text: str, language: str) -> list[dict[str, Any]]:
+    if language == "json":
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            return []
+        if isinstance(payload, dict):
+            return [_symbol(str(key), "config_key", language, 1) for key in list(payload)[:8]]
+        return []
+    symbols: list[dict[str, Any]] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", "---")):
+            continue
+        if language == "toml":
+            section = re.match(r"^\[([A-Za-z0-9_.-]+)\]$", stripped)
+            key = re.match(r"^([A-Za-z0-9_.-]+)\s*=", stripped)
+            name = section.group(1) if section else key.group(1) if key else ""
+        else:
+            key = re.match(r"^([A-Za-z0-9_.-]+):", stripped)
+            name = key.group(1) if key else ""
+        if name:
+            symbols.append(_symbol(name, "config_key", language, line_no))
+        if len(symbols) >= 8:
+            break
+    return symbols
+
+
+def _record_with_symbols(path: str, language: str, symbols: list[dict[str, Any]], *, size_bytes: int) -> dict[str, Any]:
+    return normalize_repomap_file_record(
+        {
+            "path": path,
+            "language": language,
+            "symbols": symbols,
+            "imports": [],
+            "metadata_only": False,
+            "provider": REPO_MAP_PROVIDER,
+            "reason": "",
+            "size_bytes": size_bytes,
+        }
+    )
+
+
+def _symbol(name: str, kind: str, language: str, line: int) -> dict[str, Any]:
+    return normalize_repomap_symbol(
+        {
+            "name": name,
+            "kind": kind,
+            "line": line,
+            "end_line": line,
+            "language": language,
+        },
+        language=language,
+    )
 
 
 def _try_tree_sitter_traversal(module: ModuleType, source: bytes, language: str) -> Mapping[str, Any] | None:

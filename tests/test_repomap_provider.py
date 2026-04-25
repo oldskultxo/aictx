@@ -87,3 +87,55 @@ def test_fake_provider_process_output_is_normalized(tmp_path: Path, monkeypatch)
         "run": "function",
         "Thing": "class",
     }
+
+
+def test_python_static_metadata_adds_imports_constants_and_module_pseudosymbol(tmp_path: Path, monkeypatch):
+    source = tmp_path / "config.py"
+    source.write_text("import os\nfrom pathlib import Path\nMAX_SIZE = 10\nvalue = 1\n", encoding="utf-8")
+    fake_module = SimpleNamespace(__version__="x", available_languages=lambda: ["python"], detect_language=lambda path: "python")
+    monkeypatch.setattr(tree_sitter_provider, "_import_language_pack", lambda: fake_module)
+
+    record = tree_sitter_provider.extract_file_structure(source, tmp_path, max_parse_file_bytes=10_000)
+
+    assert record["metadata_only"] is False
+    assert record["reason"] == ""
+    symbols = {symbol["name"]: symbol["kind"] for symbol in record["symbols"]}
+    assert symbols["os"] == "import"
+    assert symbols["pathlib.Path"] == "import"
+    assert symbols["MAX_SIZE"] == "constant"
+    assert "value" not in symbols
+
+
+def test_python_without_static_signals_gets_module_or_entrypoint_pseudosymbol(tmp_path: Path, monkeypatch):
+    module_file = tmp_path / "__main__.py"
+    module_file.write_text("\"\"\"entrypoint only\"\"\"\n", encoding="utf-8")
+    fake_module = SimpleNamespace(__version__="x", available_languages=lambda: ["python"], detect_language=lambda path: "python")
+    monkeypatch.setattr(tree_sitter_provider, "_import_language_pack", lambda: fake_module)
+
+    record = tree_sitter_provider.extract_file_structure(module_file, tmp_path, max_parse_file_bytes=10_000)
+
+    assert record["metadata_only"] is False
+    assert record["symbols"] == [{"name": "__main__", "kind": "entrypoint", "line": 1, "end_line": 1, "language": "python"}]
+
+
+def test_markdown_config_makefile_and_shebang_use_explicit_low_noise_kinds(tmp_path: Path, monkeypatch):
+    fake_module = SimpleNamespace(__version__="x", available_languages=lambda: ["python"], detect_language=lambda path: "")
+    monkeypatch.setattr(tree_sitter_provider, "_import_language_pack", lambda: fake_module)
+    readme = tmp_path / "README.md"
+    readme.write_text("# Title\n\n## Setup\n\n#### ignored deep heading\n", encoding="utf-8")
+    config = tmp_path / "settings.json"
+    config.write_text('{"alpha": 1, "beta": 2}', encoding="utf-8")
+    makefile = tmp_path / "Makefile"
+    makefile.write_text("test:\n\tpytest\n", encoding="utf-8")
+    script = tmp_path / "ctx-tool"
+    script.write_text("#!/usr/bin/env bash\necho ok\n", encoding="utf-8")
+    legacy_script = tmp_path / "legacy.py"
+    legacy_script.write_text("#!/usr/bin/env bash\necho ok\n", encoding="utf-8")
+
+    assert {symbol["kind"] for symbol in tree_sitter_provider.extract_file_structure(readme, tmp_path, 10_000)["symbols"]} == {"heading"}
+    assert {symbol["name"]: symbol["kind"] for symbol in tree_sitter_provider.extract_file_structure(config, tmp_path, 10_000)["symbols"]} == {"alpha": "config_key", "beta": "config_key"}
+    assert tree_sitter_provider.extract_file_structure(makefile, tmp_path, 10_000)["symbols"][0]["kind"] == "entrypoint"
+    assert tree_sitter_provider.extract_file_structure(script, tmp_path, 10_000)["symbols"][0]["kind"] == "entrypoint"
+    legacy_record = tree_sitter_provider.extract_file_structure(legacy_script, tmp_path, 10_000)
+    assert legacy_record["language"] == "shell"
+    assert legacy_record["symbols"][0]["kind"] == "entrypoint"
