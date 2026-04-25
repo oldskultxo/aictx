@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV ?= .venv
 VENV_PYTHON := $(VENV)/bin/python
 VENV_PIP := $(VENV_PYTHON) -m pip
-AICTX_MODULE := $(VENV_PYTHON) -m aictx
+AICTX_MODULE := PYTHONPATH=src $(VENV_PYTHON) -m aictx
 VENV_READY := $(VENV)/.aictx-ready
 INSTALL_INPUTS := pyproject.toml Makefile $(shell find src -type f | sort)
 

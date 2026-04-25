@@ -65,4 +65,4 @@ def test_prepare_execution_ignores_invalid_decision_lines_without_crash(tmp_path
     assert context["decisions"] == [{"decision": "valid"}]
     assert context["loaded"]["decisions"] is True
     assert "invalid_jsonl_lines:.aictx/continuity/decisions.jsonl:2" in context["warnings"]
-    assert "- decisions: yes" in prepared["continuity_summary_text"]
+    assert "- decisions: sí" in prepared["continuity_summary_text"]

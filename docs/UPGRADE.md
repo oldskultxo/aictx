@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 4.2.x
+## Current line: 4.3.x
 
-Current documented runtime: `4.2.1`.
+Current documented runtime: `4.3.0`.
 
 For users already on recent `4.x`, there is no special manual migration workflow beyond re-running the normal setup paths when needed:
 
@@ -13,10 +13,12 @@ aictx init --repo .
 
 The important `4.x` changes are behavioral, not a new user-facing migration command.
 
-## 4.2.x
+## 4.3.x
 
 ### Added
 
+- public `aictx map status|refresh|query`
+- optional RepoMap runtime outputs under `.aictx/repo_map/`
 - public `aictx next`
 - structured continuity brief JSON for `next --json`
 - richer compact/final execution summaries

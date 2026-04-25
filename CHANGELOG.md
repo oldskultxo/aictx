@@ -2,12 +2,17 @@
 
 ## Unreleased
 
+## 4.3.0 - 2026-04-26
+
 ### Added
 - Added RepoMap status visibility to `aictx report real-usage` under a compact `repo_map` section (`enabled`, `available`, `files_indexed`, `symbols_indexed`, `last_refresh_status`).
 - Added docs coverage for optional RepoMap setup/usage and realistic limitations.
+- Added deterministic RepoMap runtime files and public `aictx map status|refresh|query` operations.
+- Added prepared/final/effective task and area classification so finalize can correct provisional typing with observed execution evidence.
 
 ### Changed
 - Updated continuity integration and docs to keep RepoMap claims factual and non-promissory (no speed/token savings guarantees).
+- Updated startup/final-summary rendering and docs to align with the current runtime contract and localized output behavior.
 
 ## 4.2.1 - 2026-04-25
 

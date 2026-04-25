@@ -4,7 +4,7 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It helps each new session behave like the same repo-native engineer continuing prior work.
 
-Current documented implementation: `4.2.1`
+Current documented implementation: `4.3.0`
 
 ---
 
@@ -195,12 +195,11 @@ It makes past executions observable and reusable.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.2.1` is:
+The stable repo-local continuity artifact contract in `4.3.0` is:
 
 ```text
 .aictx/continuity/session.json
 .aictx/continuity/handoff.json
-.aictx/continuity/handoffs.jsonl
 .aictx/continuity/decisions.jsonl
 .aictx/continuity/semantic_repo.json
 .aictx/continuity/dedupe_report.json
@@ -220,6 +219,13 @@ Behavior expectations:
 - packet/context middleware may be built for non-trivial work and remains inspectable when present
 - failed strategies remain in history but are excluded from positive reuse
 - maintenance and staleness files mark or summarize; they do not imply hidden ML or automatic repair
+
+Additional optional runtime outputs may appear:
+- `.aictx/continuity/handoffs.jsonl`
+- `.aictx/repo_map/config.json`
+- `.aictx/repo_map/manifest.json`
+- `.aictx/repo_map/index.json`
+- `.aictx/repo_map/status.json`
 
 Additional latest-run output:
 - `.aictx/continuity/last_execution_summary.md`
@@ -283,7 +289,7 @@ Additional latest-run output:
 
 ## Possible evolution
 
-The current `4.2.1` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
+The current `4.3.0` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
 
 Possible future work, based on real usage:
 

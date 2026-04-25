@@ -38,6 +38,13 @@ The detailed file may also include:
 - AICTX value sources
 - next-session guidance
 
+Additional optional runtime outputs may appear:
+
+- `.aictx/repo_map/config.json`
+- `.aictx/repo_map/manifest.json`
+- `.aictx/repo_map/index.json`
+- `.aictx/repo_map/status.json`
+
 Important contract detail:
 
 - agents should use `agent_summary_text` as the canonical factual source
