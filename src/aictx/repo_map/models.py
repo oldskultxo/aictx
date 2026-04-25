@@ -32,7 +32,11 @@ class RepoMapStatus:
     enabled: bool = False
     available: bool = False
     provider: str = REPO_MAP_PROVIDER
+    last_refresh_mode: str = ""
     last_refresh_status: str = "never"
+    last_refresh_ms: int = 0
+    files_reparsed: int = 0
+    files_pending: int = 0
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -41,7 +45,11 @@ class RepoMapStatus:
             "enabled": bool(self.enabled),
             "available": bool(self.available),
             "provider": str(self.provider or REPO_MAP_PROVIDER),
+            "last_refresh_mode": str(self.last_refresh_mode or ""),
             "last_refresh_status": str(self.last_refresh_status or "never"),
+            "last_refresh_ms": int(self.last_refresh_ms),
+            "files_reparsed": int(self.files_reparsed),
+            "files_pending": int(self.files_pending),
             "warnings": [str(item) for item in self.warnings],
         }
 
@@ -121,7 +129,11 @@ def normalize_repomap_status(payload: Mapping[str, Any] | None) -> dict[str, Any
         enabled=bool(data.get("enabled", False)),
         available=bool(data.get("available", False)),
         provider=str(data.get("provider") or REPO_MAP_PROVIDER),
+        last_refresh_mode=str(data.get("last_refresh_mode") or ""),
         last_refresh_status=str(data.get("last_refresh_status") or "never"),
+        last_refresh_ms=int(data.get("last_refresh_ms") or 0),
+        files_reparsed=int(data.get("files_reparsed") or 0),
+        files_pending=int(data.get("files_pending") or 0),
         warnings=[str(item) for item in data.get("warnings", [])] if isinstance(data.get("warnings", []), list) else [],
     ).to_dict()
 

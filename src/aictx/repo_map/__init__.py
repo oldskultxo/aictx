@@ -25,6 +25,7 @@ from .paths import (
     repo_map_status_path,
 )
 from .discovery import discover_repo_files
+from .manifest import build_repomap_manifest, file_manifest_entries, file_manifest_entry, manifest_entries_by_path
 from .refresh import refresh_repo_map
 from .provider import check_provider_available, check_tree_sitter_available, extract_file_structure
 from .setup import (
@@ -49,6 +50,10 @@ __all__ = [
     "repo_map_index_path",
     "repo_map_status_path",
     "discover_repo_files",
+    "build_repomap_manifest",
+    "file_manifest_entry",
+    "file_manifest_entries",
+    "manifest_entries_by_path",
     "refresh_repo_map",
     "check_tree_sitter_available",
     "check_provider_available",
