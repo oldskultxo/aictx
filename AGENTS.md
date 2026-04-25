@@ -13,7 +13,7 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
-- Always show the startup banner at the start of the first user-visible response for each execution. If `prepare_execution` returns `startup_banner_text`, render it exactly; otherwise render `{agent_label} (session #{session_count}) - awake` from prepared identity fields.
+- On the first execution of each visible session, always show the startup banner at the start of the first user-visible response. If `prepare_execution` returns `startup_banner_text`, render it exactly; if first-session text is missing, render `{agent_label} (session #{session_count}) - awake` from prepared identity fields. Do not render it again after `already_shown` is true.
 - After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving all factual content.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.

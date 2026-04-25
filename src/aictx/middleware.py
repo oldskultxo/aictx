@@ -467,12 +467,13 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     session_id = str(session.get("session_id") or "")
     banner_text = str(continuity_context.get("startup_banner_text") or "").strip()
     banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
-    startup_banner_text = banner_text or _fallback_startup_banner_text(repo_root, session)
+    startup_banner_text = "" if banner_already_shown else (banner_text or _fallback_startup_banner_text(repo_root, session))
     if startup_banner_text:
         updated_session = mark_startup_banner_shown(repo_root, session, timestamp=str(envelope.get("timestamp") or now_iso()))
         continuity_context["session"] = updated_session
         continuity_context["agent_identity"] = updated_session
         session = updated_session
+    banner_required = bool(startup_banner_text)
     packet: dict[str, Any] = {}
     packet_path = ""
     if should_prepare_packet(envelope["user_request"], envelope["execution_mode"], task_resolution["task_type"]):
@@ -529,9 +530,9 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "session_count": int(session.get("session_count") or 0),
         "startup_banner_text": startup_banner_text,
         "startup_banner_policy": {
-            "show_in_first_user_visible_response": True,
-            "show_once_per_session": False,
-            "required": True,
+            "show_in_first_user_visible_response": banner_required,
+            "show_once_per_session": True,
+            "required": banner_required,
             "already_shown": banner_already_shown,
             "session_id": session_id,
             "position": "response_prefix",
@@ -543,7 +544,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "allow_enrichment": False,
             "preserve_facts": True,
             "do_not_invent": True,
-            "instruction": "Always render this startup banner exactly as provided at the start of the first user-visible response for this execution. If text is unavailable, render '{agent_label} (session #{session_count}) - awake' from the prepared identity fields.",
+            "instruction": "On the first execution of each visible session, always render this startup banner exactly as provided at the start of the first user-visible response. If first-session text is unavailable, render '{agent_label} (session #{session_count}) - awake' from the prepared identity fields. Do not render it again after already_shown is true.",
         },
         "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
         "runtime_text_policy": {

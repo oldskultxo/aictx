@@ -34,6 +34,8 @@ def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_p
         f"codex@{repo.name} (session #1) - awake\n\n"
         "In the previous session, there was no prior handoff to resume."
     )
+    assert first["startup_banner_policy"]["required"] is True
+    assert first["startup_banner_policy"]["show_once_per_session"] is True
 
     second = prepare_execution(_payload(repo, "exec-2"))
     assert second["continuity_context"]["session"]["session_count"] == 1
@@ -41,13 +43,10 @@ def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_p
     assert second["continuity_context"]["session"]["agent_label"] == first["continuity_context"]["session"]["agent_label"]
     assert second["agent_label"] == f"codex@{repo.name}"
     assert second["session_count"] == 1
-    assert second["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - awake\n\n"
-        "In the previous session, there was no prior handoff to resume."
-    )
-    assert second["startup_banner_policy"]["show_in_first_user_visible_response"] is True
-    assert second["startup_banner_policy"]["show_once_per_session"] is False
-    assert second["startup_banner_policy"]["required"] is True
+    assert second["startup_banner_text"] == ""
+    assert second["startup_banner_policy"]["show_in_first_user_visible_response"] is False
+    assert second["startup_banner_policy"]["show_once_per_session"] is True
+    assert second["startup_banner_policy"]["required"] is False
     assert second["startup_banner_policy"]["already_shown"] is True
 
     on_disk = read_json(session_path, {})
