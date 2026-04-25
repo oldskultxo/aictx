@@ -6,7 +6,7 @@ from typing import Any
 
 from .area_memory import load_area_memory
 from .failure_memory import load_failures
-from .state import REPO_CONTINUITY_DIR, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, read_json, write_json
+from .state import REPO_CONTINUITY_DIR, REPO_MAP_CONFIG_PATH, REPO_MAP_MANIFEST_PATH, REPO_MAP_STATUS_PATH, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, read_json, write_json
 
 
 EXECUTION_LOGS_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
@@ -95,6 +95,7 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         continuity_metrics=continuity_metrics if isinstance(continuity_metrics, dict) else {},
         redundant_exploration=redundant_exploration,
     )
+    repo_map = build_repo_map_report(repo_root)
 
     return {
         "total_executions": len(logs),
@@ -123,6 +124,20 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         "memory_hygiene": hygiene,
         "continuity_metrics": continuity_metrics if isinstance(continuity_metrics, dict) else {},
         "continuity_health": continuity_health,
+        "repo_map": repo_map,
+    }
+
+
+def build_repo_map_report(repo_root: Path) -> dict[str, Any]:
+    config = read_json(repo_root / REPO_MAP_CONFIG_PATH, {})
+    status = read_json(repo_root / REPO_MAP_STATUS_PATH, {})
+    manifest = read_json(repo_root / REPO_MAP_MANIFEST_PATH, {})
+    return {
+        "enabled": bool((config if isinstance(config, dict) else {}).get("enabled", False)),
+        "available": bool((status if isinstance(status, dict) else {}).get("available", False)),
+        "files_indexed": int((manifest if isinstance(manifest, dict) else {}).get("files_indexed", 0) or 0),
+        "symbols_indexed": int((manifest if isinstance(manifest, dict) else {}).get("symbols_indexed", 0) or 0),
+        "last_refresh_status": str((status if isinstance(status, dict) else {}).get("last_refresh_status") or "never"),
     }
 
 

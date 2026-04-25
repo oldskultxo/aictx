@@ -85,6 +85,24 @@ The rest of the public commands are optional operational commands:
 
 ---
 
+## RepoMap (optional)
+
+RepoMap is an optional Tree-sitter powered structural index.
+It helps AICTX suggest likely files/symbols.
+It does not guarantee speed or token savings.
+
+Setup and usage:
+
+```bash
+pip install "aictx[repomap]"
+aictx install --with-repomap
+aictx init
+aictx map status
+aictx map query "startup banner"
+```
+
+---
+
 ## What aictx does
 
 * records real execution in `.aictx/metrics/execution_logs.jsonl`

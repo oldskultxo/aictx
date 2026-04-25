@@ -16,6 +16,10 @@ aictx init
 aictx suggest
 aictx reflect
 aictx reuse
+aictx next
+aictx map status
+aictx map refresh
+aictx map query "startup banner"
 aictx report real-usage
 aictx clean
 aictx uninstall
@@ -23,6 +27,7 @@ aictx uninstall
 
 Public contract:
 - `install`, `init`, `suggest`, `reflect`, `reuse`, `report real-usage`, `clean`, `uninstall`
+- `next`, `map status|refresh|query` are also public and optional operational commands
 - these are the supported user-facing commands
 - outputs are deterministic JSON where applicable
 
@@ -110,6 +115,19 @@ Current report may include:
 - failure pattern counts
 - error capture counters
 - continuity metrics when present
+- `repo_map` status snapshot (enabled/available/index counts/last refresh status)
+
+## Optional RepoMap setup
+
+```bash
+pip install "aictx[repomap]"
+aictx install --with-repomap
+aictx init
+aictx map status
+aictx map query "startup banner"
+```
+
+RepoMap is optional and structural only; it does not guarantee speed or token savings.
 
 ## Continuity artifacts
 

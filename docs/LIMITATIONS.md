@@ -6,6 +6,9 @@
 - continuity artifacts are only as good as the real signals the runner and agent provide; missing prepare/finalize cooperation weakens handoff, decision, semantic, and metrics quality
 - handoff history (`.aictx/continuity/handoffs.jsonl`) is intentionally bounded to recent entries; it is continuity aid, not full audit history
 - middleware context packet generation is conservative and task-dependent; it does not run for every execution and still depends on the runtime path actually calling `prepare_execution`
+- RepoMap depends on an optional Tree-sitter provider; if dependency is unavailable, RepoMap remains disabled/unavailable
+- RepoMap quick refresh is bounded by time/file budgets and may preserve stale last-known records when partial
+- metadata-only files can appear in RepoMap artifacts and query results even when symbol parsing was skipped
 - there is no guaranteed improvement in speed, quality, or file exploration
 - the system depends on runner support and agent cooperation to call the runtime, use guidance, and include the required final AICTX summary
 - failed strategies are stored, and failure memory can provide avoidance context, but this is still deterministic and limited rather than rich semantic diagnosis

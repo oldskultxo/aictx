@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-No unreleased changes.
+### Added
+- Added RepoMap status visibility to `aictx report real-usage` under a compact `repo_map` section (`enabled`, `available`, `files_indexed`, `symbols_indexed`, `last_refresh_status`).
+- Added docs coverage for optional RepoMap setup/usage and realistic limitations.
+
+### Changed
+- Updated continuity integration and docs to keep RepoMap claims factual and non-promissory (no speed/token savings guarantees).
 
 ## 4.2.1 - 2026-04-25
 
