@@ -32,6 +32,7 @@ def refresh_repo_map(
     mode: str = "full",
     budget_ms: int | None = None,
     max_changed_files: int | None = None,
+    changed_file_hints: list[str] | None = None,
 ) -> dict[str, Any]:
     repo_root = Path(repo_root)
     started = time.perf_counter()
@@ -43,6 +44,7 @@ def refresh_repo_map(
             started=started,
             budget_ms=budget_ms,
             max_changed_files=max_changed_files,
+            changed_file_hints=changed_file_hints,
         )
 
     if mode != "full":
@@ -123,6 +125,7 @@ def _quick_refresh_repo_map(
     started: float,
     budget_ms: int | None,
     max_changed_files: int | None,
+    changed_file_hints: list[str] | None,
 ) -> dict[str, Any]:
     config = load_repomap_config(repo_root)
     budget = int(budget_ms if budget_ms is not None else config.get("quick_refresh_budget_ms", 300))
@@ -187,7 +190,7 @@ def _quick_refresh_repo_map(
         for path, current in current_by_path.items()
         if _entry_changed(previous_by_path.get(path), current)
     ]
-    changed_paths.sort()
+    changed_paths = _prioritize_changed_paths(changed_paths, changed_file_hints or [])
     parsed_paths = changed_paths[: max(0, max_files)]
     pending_paths = changed_paths[len(parsed_paths):]
 
@@ -301,6 +304,17 @@ def _entry_changed(previous: dict[str, Any] | None, current: dict[str, Any]) -> 
         or int(previous.get("size_bytes") or 0) != int(current.get("size_bytes") or 0)
         or int(previous.get("mtime_ns") or 0) != int(current.get("mtime_ns") or 0)
     )
+
+
+def _prioritize_changed_paths(changed_paths: list[str], hints: list[str]) -> list[str]:
+    changed = set(changed_paths)
+    prioritized: list[str] = []
+    for hint in hints:
+        normalized = str(hint or "").strip().replace("\\", "/")
+        if normalized in changed and normalized not in prioritized:
+            prioritized.append(normalized)
+    prioritized.extend(path for path in sorted(changed_paths) if path not in prioritized)
+    return prioritized
 
 
 def _budget_exceeded(started: float, budget_ms: int) -> bool:

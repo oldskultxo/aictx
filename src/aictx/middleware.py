@@ -91,6 +91,69 @@ def heuristic_skill_detection(user_request: str, envelope: dict[str, Any]) -> di
     }
 
 
+def _looks_like_file_path(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text or "\n" in text or text.startswith("-"):
+        return False
+    if "/" in text or "\\" in text:
+        return True
+    suffix = Path(text).suffix
+    return bool(suffix and len(suffix) <= 12)
+
+
+def _repomap_file_hints(capture: dict[str, Any]) -> list[str]:
+    hints: list[str] = []
+    for key in ("files_opened", "files_edited", "tests_executed"):
+        values = capture.get(key, [])
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            text = str(value or "").strip().replace("\\", "/")
+            if text and _looks_like_file_path(text) and text not in hints:
+                hints.append(text)
+    return hints
+
+
+def prepare_repo_map_status(repo_root: Path, capture: dict[str, Any]) -> dict[str, Any]:
+    try:
+        from .repo_map.config import load_repomap_config
+        from .repo_map.refresh import refresh_repo_map
+
+        config = load_repomap_config(repo_root)
+        if not bool(config.get("enabled", False)):
+            return {
+                "enabled": False,
+                "available": False,
+                "used": False,
+                "refresh_status": "disabled",
+            }
+        result = refresh_repo_map(
+            repo_root,
+            mode="quick",
+            budget_ms=int(config.get("quick_refresh_budget_ms", 300)),
+            max_changed_files=int(config.get("quick_refresh_max_files", 20)),
+            changed_file_hints=_repomap_file_hints(capture),
+        )
+        status = str(result.get("status") or "unknown")
+        return {
+            "enabled": True,
+            "available": status not in {"unavailable", "skipped"},
+            "used": status not in {"unavailable", "skipped", "needs_full_refresh"},
+            "refresh_mode": "quick",
+            "refresh_status": status,
+            "refresh_ms": int(result.get("duration_ms") or 0),
+        }
+    except Exception as exc:
+        return {
+            "enabled": True,
+            "available": False,
+            "used": False,
+            "refresh_mode": "quick",
+            "refresh_status": "error",
+            "error": type(exc).__name__,
+        }
+
+
 def classify_execution(envelope: dict[str, Any]) -> dict[str, Any]:
     explicit_skill = normalize_skill_metadata(envelope.get("skill_metadata"))
     explicit_mode = str(envelope.get("execution_mode", "") or "").strip().lower()
@@ -361,6 +424,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         explicit_task_type=envelope.get("declared_task_type"),
         touched_files=list(capture.get("files_opened", [])) + list(capture.get("files_edited", [])),
     )
+    repo_map_status = prepare_repo_map_status(repo_root, capture)
     retrieval_matches = [
         row for row in rank_records(envelope["user_request"], project=repo_root.name)[:5]
         if row.get("type") != "user_preference"
@@ -440,6 +504,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "task_resolution": task_resolution,
         "task_fingerprint": task_fingerprint,
         "execution_signal_capture": capture,
+        "repo_map_status": repo_map_status,
         "area_id": area_id,
         "area_hints": hints,
         "related_failures": related_failures,
