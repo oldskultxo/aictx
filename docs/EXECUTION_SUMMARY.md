@@ -28,10 +28,11 @@ The summary reports only observed or persisted facts:
 - whether learning, strategy memory, or failure memory was stored
 - observed file/reopen counts
 - commands and tests captured when available
+- `reuse_confidence`, `continuity_value`, and `capture_quality` when available from the finalized runtime payload
 
 AICTX does not claim quality or speed improvements from this summary.
 
-The summary belongs to the current `4.1.0` continuity runtime contract:
+The summary belongs to the current `4.2.1` continuity runtime contract:
 
 - it is generated after repo-local continuity persistence
 - it reports continuity reuse and stored artifacts from the current execution

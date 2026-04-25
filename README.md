@@ -4,7 +4,7 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It helps each new session behave like the same repo-native engineer continuing prior work.
 
-Current documented implementation: `4.1.0`
+Current documented implementation: `4.2.1`
 
 ---
 
@@ -157,17 +157,18 @@ It makes past executions observable and reusable.
 ## Runtime loop
 
 1. `prepare_execution()` loads prior successful strategies and may attach `execution_hint`
-2. for non-trivial work it may also build a bounded packet/context payload and continuity summary
-3. the agent executes
-4. `finalize_execution()` records logs, feedback, strategy memory, and `agent_summary_text`
-5. the agent appends `agent_summary_text` to the final user response; if unavailable, it says `AICTX summary unavailable`
-6. the next execution can reuse successful strategies and ignore failed ones
+2. it exposes `continuity_brief` with ranked, evidence-backed next context when prior memory is useful
+3. for non-trivial work it may also build a bounded packet/context payload and continuity summary
+4. the agent executes
+5. `finalize_execution()` records logs, feedback, strategy memory, `continuity_value`, `capture_quality`, and `agent_summary_text`
+6. the agent appends `agent_summary_text` to the final user response; if unavailable, it says `AICTX summary unavailable`
+7. the next execution can reuse successful strategies and ignore failed ones
 
 ---
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.1.0` is:
+The stable repo-local continuity artifact contract in `4.2.1` is:
 
 ```text
 .aictx/continuity/session.json
@@ -232,6 +233,8 @@ Additional runtime continuity outputs may appear (not part of the stable contrac
 * file tracking depends on explicit input from the agent/runtime; wrapped execution can capture commands, tests, errors, and edited files best-effort
 * strategy reuse is heuristic: matching task type, prompt similarity, overlapping files, primary entry point, commands/tests/errors, and area are preferred, with recency as a secondary signal
 * continuity loading is layered: session identity, handoff, recent decisions, failure patterns, semantic repo memory, procedural reuse, maintenance hygiene, staleness filtering, and aggregate continuity metrics
+* `continuity_brief` and `continuity_context.ranked_items` explain likely next paths, active decisions, known risks, recommended commands/tests, and why each memory source was loaded
+* `aictx next --repo .` renders the same continuity guidance as compact human-facing output, with `--json` available for integrations
 * task typing uses explicit metadata first, then deterministic keyword/path inference, then `unknown`
 * capture provenance distinguishes explicit, runtime-observed, heuristic, and unknown signals
 * middleware packet generation is conservative and task-dependent, not unconditional for every execution
@@ -252,7 +255,7 @@ Additional runtime continuity outputs may appear (not part of the stable contrac
 
 ## Possible evolution
 
-The current `4.1.0` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
+The current `4.2.1` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
 
 Possible future work, based on real usage:
 

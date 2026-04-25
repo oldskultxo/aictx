@@ -14,6 +14,8 @@ EXECUTION_FEEDBACK_PATH = REPO_METRICS_DIR / "execution_feedback.jsonl"
 STRATEGIES_PATH = REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl"
 MEMORY_HYGIENE_PATH = REPO_METRICS_DIR / "memory_hygiene.json"
 CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
+HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
+STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -86,6 +88,13 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
     notable_error_count = sum(len(row.get("notable_errors", [])) for row in notable_error_rows)
     hygiene = build_memory_hygiene_report(repo_root)
     continuity_metrics = read_json(repo_root / CONTINUITY_METRICS_PATH, {})
+    continuity_health = build_continuity_health_report(
+        repo_root,
+        logs=logs,
+        feedback_rows=feedback_rows,
+        continuity_metrics=continuity_metrics if isinstance(continuity_metrics, dict) else {},
+        redundant_exploration=redundant_exploration,
+    )
 
     return {
         "total_executions": len(logs),
@@ -113,6 +122,70 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         "agent_summaries": summaries_available,
         "memory_hygiene": hygiene,
         "continuity_metrics": continuity_metrics if isinstance(continuity_metrics, dict) else {},
+        "continuity_health": continuity_health,
+    }
+
+
+def build_continuity_health_report(
+    repo_root: Path,
+    *,
+    logs: list[dict[str, Any]],
+    feedback_rows: list[dict[str, Any]],
+    continuity_metrics: dict[str, Any],
+    redundant_exploration: int,
+) -> dict[str, Any]:
+    total = len(logs)
+    packet_usage = 0
+    strategy_usage = 0
+    for row in feedback_rows:
+        feedback = row.get("aictx_feedback", {}) if isinstance(row.get("aictx_feedback"), dict) else {}
+        if bool(feedback.get("used_packet")):
+            packet_usage += 1
+        if bool(feedback.get("used_strategy")):
+            strategy_usage += 1
+    staleness = read_json(repo_root / STALENESS_PATH, {})
+    handoff = read_json(repo_root / HANDOFF_PATH, {})
+    stale_excluded = 0
+    if isinstance(staleness, dict):
+        handoff_state = staleness.get("handoff") if isinstance(staleness.get("handoff"), dict) else {}
+        stale_excluded += 1 if handoff_state.get("stale") else 0
+        stale_excluded += len(staleness.get("decisions", [])) if isinstance(staleness.get("decisions"), list) else 0
+        semantic = staleness.get("semantic_repo") if isinstance(staleness.get("semantic_repo"), dict) else {}
+        stale_excluded += len(semantic.get("subsystems", [])) if isinstance(semantic.get("subsystems"), list) else 0
+        stale_excluded += len(staleness.get("strategies", [])) if isinstance(staleness.get("strategies"), list) else 0
+    capture_quality_rows = []
+    for row in feedback_rows:
+        summary = row.get("agent_summary") if isinstance(row.get("agent_summary"), dict) else {}
+        quality = summary.get("capture_quality") if isinstance(summary.get("capture_quality"), dict) else {}
+        if quality:
+            capture_quality_rows.append(quality)
+    capture_ratios = [
+        float(row.get("coverage_ratio"))
+        for row in capture_quality_rows
+        if isinstance(row.get("coverage_ratio"), (int, float))
+    ]
+    avg_capture_ratio = round(sum(capture_ratios) / len(capture_ratios), 4) if capture_ratios else None
+    unknown_gaps: dict[str, int] = {}
+    for row in logs:
+        provenance = row.get("capture_provenance") if isinstance(row.get("capture_provenance"), dict) else {}
+        for field in ["files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors"]:
+            if str(provenance.get(field) or "unknown") == "unknown":
+                unknown_gaps[field] = unknown_gaps.get(field, 0) + 1
+    return {
+        "packet_context_usefulness": {
+            "packet_usage": packet_usage,
+            "packet_usage_rate": round(packet_usage / total, 4) if total else 0,
+            "strategy_usage_rate": round(strategy_usage / total, 4) if total else 0,
+        },
+        "stale_memory_excluded": stale_excluded,
+        "redundant_exploration_avoided": max(0, int(continuity_metrics.get("strategy_reuse_count", 0) or 0) - redundant_exploration),
+        "capture_coverage_gaps": unknown_gaps,
+        "avg_capture_quality": avg_capture_ratio,
+        "handoff_freshness": {
+            "present": bool(handoff),
+            "updated_at": str(handoff.get("updated_at") or "") if isinstance(handoff, dict) else "",
+            "stale": bool(staleness.get("handoff", {}).get("stale")) if isinstance(staleness.get("handoff"), dict) else False,
+        },
     }
 
 

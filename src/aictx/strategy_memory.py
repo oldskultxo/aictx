@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +100,44 @@ def _dedupe(values: list[Any], *, limit: int = 0) -> list[str]:
     return cleaned
 
 
+def _parse_iso(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _age_days(value: Any) -> int | None:
+    parsed = _parse_iso(value)
+    if not parsed:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return max(0, int((datetime.now(timezone.utc) - parsed).total_seconds() // 86400))
+
+
+def strategy_reuse_confidence(strategy: dict[str, Any] | None) -> str:
+    if not strategy:
+        return "low"
+    breakdown = strategy.get("similarity_breakdown") if isinstance(strategy.get("similarity_breakdown"), dict) else {}
+    score = int(breakdown.get("total", strategy.get("score", 0)) or 0)
+    signals = [str(item) for item in strategy.get("matched_signals", []) if str(item or "").strip()]
+    strong_signals = [item for item in signals if item != "recency" and not item.startswith("execution_evidence")]
+    commands = _list_field(strategy, "commands_executed")
+    tests = _list_field(strategy, "tests_executed")
+    edited = _list_field(strategy, "files_edited")
+    age = _age_days(strategy.get("timestamp"))
+    evidence_points = len(commands) + len(tests) + len(edited)
+    if score >= 3000 or len(strong_signals) >= 2:
+        return "high"
+    if score >= 1000 or strong_signals or evidence_points >= 2 or (age is not None and age <= 14 and evidence_points):
+        return "medium"
+    return "low"
+
+
 def rank_strategy(
     strategy: dict[str, Any],
     *,
@@ -170,6 +209,19 @@ def rank_strategy(
         score += 600
         reasons.append(f"subsystem:{target_subsystem}")
         breakdown["subsystem"] = 600
+    evidence_score = min(
+        80,
+        len(_list_field(strategy, "commands_executed")) * 12
+        + len(_list_field(strategy, "tests_executed")) * 18
+        + len(_list_field(strategy, "files_edited")) * 16,
+    )
+    age = _age_days(strategy.get("timestamp"))
+    if evidence_score:
+        if age is not None and age > 30:
+            evidence_score = max(1, evidence_score // 2)
+        score += evidence_score
+        reasons.append(f"execution_evidence:{evidence_score}")
+        breakdown["execution_evidence"] = evidence_score
     if not reasons:
         reasons.append("recency")
     breakdown["total"] = score
@@ -229,6 +281,7 @@ def select_strategy(
     enriched["overlapping_files"] = ranking["overlapping_files"]
     enriched["related_commands"] = ranking["related_commands"]
     enriched["related_tests"] = ranking["related_tests"]
+    enriched["reuse_confidence"] = strategy_reuse_confidence(enriched)
     return enriched
 
 

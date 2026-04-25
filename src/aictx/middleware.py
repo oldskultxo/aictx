@@ -458,6 +458,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_path": packet_path,
         "packet": packet,
         "continuity_context": continuity_context,
+        "continuity_brief": continuity_context.get("continuity_brief", {}) if isinstance(continuity_context.get("continuity_brief"), dict) else {},
         "startup_banner_text": startup_banner_text,
         "startup_banner_policy": {
             "show_in_first_user_visible_response": bool(startup_banner_text),
@@ -521,6 +522,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "overlapping_files": list(selected_strategy.get("overlapping_files", [])) if isinstance(selected_strategy.get("overlapping_files"), list) else [],
             "related_commands": list(selected_strategy.get("related_commands", [])) if isinstance(selected_strategy.get("related_commands"), list) else [],
             "related_tests": list(selected_strategy.get("related_tests", [])) if isinstance(selected_strategy.get("related_tests"), list) else [],
+            "reuse_confidence": str(selected_strategy.get("reuse_confidence") or "low"),
         }
     if execution["execution_mode"] == "skill":
         prepared["skill_context"] = {
@@ -675,6 +677,61 @@ def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, An
     }
 
 
+def build_capture_quality(execution_log: dict[str, Any]) -> dict[str, Any]:
+    provenance = execution_log.get("capture_provenance") if isinstance(execution_log.get("capture_provenance"), dict) else {}
+    fields = ["files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors"]
+    covered = [
+        field
+        for field in fields
+        if isinstance(execution_log.get(field), list)
+        and bool(execution_log.get(field))
+        and str(provenance.get(field) or "unknown") != "unknown"
+    ]
+    unknown = [field for field in fields if str(provenance.get(field) or "unknown") == "unknown"]
+    return {
+        "covered_fields": covered,
+        "unknown_fields": unknown,
+        "coverage_ratio": round(len(covered) / len(fields), 4),
+        "provenance": dict(provenance),
+    }
+
+
+def build_continuity_value(
+    prepared: dict[str, Any],
+    execution_log: dict[str, Any],
+    handoff_stored: bool,
+    decision_stored: bool,
+    failure_recorded: bool,
+) -> dict[str, Any]:
+    continuity = prepared.get("continuity_context", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
+    loaded = continuity.get("loaded", {}) if isinstance(continuity.get("loaded"), dict) else {}
+    ranked_items = continuity.get("ranked_items", []) if isinstance(continuity.get("ranked_items"), list) else []
+    brief = continuity.get("continuity_brief", {}) if isinstance(continuity.get("continuity_brief"), dict) else {}
+    useful_loads = [key for key, value in loaded.items() if key != "session" and bool(value)]
+    observed_fields = [
+        field
+        for field in ("files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors")
+        if isinstance(execution_log.get(field), list) and bool(execution_log.get(field))
+    ]
+    return {
+        "loaded_sources": useful_loads,
+        "ranked_item_count": len(ranked_items),
+        "top_ranked_kind": str(ranked_items[0].get("kind") or "") if ranked_items and isinstance(ranked_items[0], dict) else "",
+        "stored_sources": [
+            label
+            for label, stored in (
+                ("handoff", handoff_stored),
+                ("decision", decision_stored),
+                ("failure", failure_recorded),
+            )
+            if stored
+        ],
+        "observed_fields": observed_fields,
+        "brief_available": bool(brief),
+        "probable_path_count": len(brief.get("probable_paths", [])) if isinstance(brief.get("probable_paths"), list) else 0,
+    }
+
+
 def persist_execution_feedback(repo_root: Path, prepared: dict[str, Any], feedback: dict[str, Any], agent_summary: dict[str, Any] | None = None) -> dict[str, Any]:
     path = repo_root / EXECUTION_FEEDBACK_PATH
     payload = {
@@ -732,6 +789,22 @@ def _next_session_guidance(summary: dict[str, Any]) -> str:
     return text or "No specific handoff guidance stored"
 
 
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    return f"{count} {singular if count == 1 else (plural or singular + 's')}"
+
+
+def _compact_next_hint(summary: dict[str, Any]) -> str:
+    next_guidance = summary.get("next_guidance") if isinstance(summary.get("next_guidance"), dict) else {}
+    if not next_guidance:
+        return ""
+    where = _compact_list(next_guidance.get("where_to_continue"), limit=2)
+    if not where:
+        where = _compact_list(next_guidance.get("probable_paths"), limit=2)
+    if not where:
+        return ""
+    return "; ".join(where)
+
+
 def render_agent_summary(summary: dict[str, Any]) -> str:
     return render_compact_agent_summary(summary, details_path=".aictx/continuity/last_execution_summary.md")
 
@@ -777,7 +850,20 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
     if stored_parts:
         parts.append("we stored " + ", ".join(stored_parts))
     core = "; ".join(parts) if parts else "we left useful continuity traceability"
-    message = f"we closed this run with useful continuity context: {core}; we observed {files_count} files and {tests_count} tests"
+    observed: list[str] = []
+    if files_count:
+        observed.append(_plural(files_count, "file"))
+    if tests_count:
+        observed.append(_plural(tests_count, "test"))
+    suffixes: list[str] = []
+    if observed:
+        suffixes.append("we observed " + " and ".join(observed))
+    next_hint = _compact_next_hint(summary)
+    if next_hint:
+        suffixes.append(f"next: {next_hint}")
+    message = f"we closed this run with useful continuity context: {core}"
+    if suffixes:
+        message += "; " + "; ".join(suffixes)
     return f"AICTX: {message}. Details: {_render_details_link(details_path)}"
 
 
@@ -814,6 +900,7 @@ def build_agent_summary(
     summary = {
         "strategy_reused": bool(hint),
         "selection_reason": str(hint.get("selection_reason") or ""),
+        "reuse_confidence": str(hint.get("reuse_confidence") or continuity.get("continuity_brief", {}).get("reuse_confidence") or "low"),
         "learning_persisted": bool(learning),
         "strategy_persisted": bool(strategy),
         "failure_recorded": bool(failure),
@@ -827,6 +914,9 @@ def build_agent_summary(
         "reopened_files": len(execution_log.get("files_reopened", [])) if isinstance(execution_log.get("files_reopened"), list) else 0,
         "commands_observed": list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else [],
         "tests_observed": list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else [],
+        "next_guidance": dict(continuity.get("continuity_brief", {})) if isinstance(continuity.get("continuity_brief"), dict) else {},
+        "continuity_value": build_continuity_value(prepared, execution_log, bool(handoff), bool(decisions), bool(failure)),
+        "capture_quality": build_capture_quality(execution_log),
     }
     return {"structured": summary, "rendered": render_agent_summary(summary)}
 
@@ -839,6 +929,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "validated_learning": bool(result.get("validated_learning")),
         "decisions": list(result.get("decisions", [])) if isinstance(result.get("decisions"), list) else [],
         "semantic_repo": list(result.get("semantic_repo", [])) if isinstance(result.get("semantic_repo"), list) else [],
+        "handoff": result.get("handoff", {}) if isinstance(result.get("handoff"), dict) else {},
     }
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
@@ -912,6 +1003,9 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "continuity_metrics_persisted": continuity_metrics,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": agent_summary_text,
+        "continuity_value": agent_summary["structured"].get("continuity_value", {}),
+        "reuse_confidence": agent_summary["structured"].get("reuse_confidence", "low"),
+        "capture_quality": agent_summary["structured"].get("capture_quality", {}),
         "agent_summary_policy": {
             "append_to_final_response": True,
             "render_in_user_language": True,

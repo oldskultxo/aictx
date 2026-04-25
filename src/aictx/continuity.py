@@ -15,7 +15,7 @@ from .state import (
     read_jsonl,
     write_json,
 )
-from .strategy_memory import load_strategies, select_strategy
+from .strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 HANDOFFS_HISTORY_PATH = REPO_CONTINUITY_DIR / "handoffs.jsonl"
@@ -144,7 +144,8 @@ def _render_handoff_standup(rows: list[dict[str, Any]]) -> str:
 
 
 def _render_handoff_standup_clause(row: dict[str, Any]) -> str:
-    summary = _compact_handoff_summary(str(row.get("summary") or ""))
+    completed = _clean_string_list(row.get("completed"), limit=1)
+    summary = _compact_handoff_summary(completed[0] if completed else str(row.get("summary") or ""))
     if not summary:
         return ""
     status = str(row.get("status") or "").strip().lower()
@@ -195,36 +196,44 @@ def render_last_execution_summary_markdown(summary: dict[str, Any]) -> str:
         "## Continuity",
         f"- Reused strategy: {reused}",
         f"- Strategy reason: {reason}",
+        f"- Reuse confidence: {str(summary.get('reuse_confidence') or 'low')}",
         f"- Handoff stored: {'yes' if summary.get('handoff_stored') else 'no'}",
         f"- Decision stored: {'yes' if summary.get('decision_stored') else 'no'}",
         f"- Failure pattern recorded: {'yes' if summary.get('failure_recorded') else 'no'}",
-        "",
-        "## Observed execution",
-        f"- Files observed: {int(summary.get('files_opened', 0) or 0)}",
-        "- Tests observed:",
     ]
+    next_guidance = summary.get("next_guidance") if isinstance(summary.get("next_guidance"), dict) else {}
+    if next_guidance:
+        lines.extend(["", "## AICTX next", ""])
+        rendered = render_next_text(next_guidance)
+        lines.extend(rendered.splitlines()[1:] if rendered.startswith("AICTX next") else rendered.splitlines())
+    observed_lines: list[str] = []
+    files_observed = int(summary.get('files_opened', 0) or 0)
+    if files_observed:
+        observed_lines.append(f"- Files observed: {files_observed}")
     tests = summary.get("tests_observed") if isinstance(summary.get("tests_observed"), list) else []
     if tests:
-        lines.extend([f"  - {item}" for item in _clean_string_list(tests, limit=8)])
-    else:
-        lines.append("  - none")
+        observed_lines.append("- Tests observed:")
+        observed_lines.extend([f"  - {item}" for item in _clean_string_list(tests, limit=8)])
+    if observed_lines:
+        lines.extend(["", "## Observed execution"])
+        lines.extend(observed_lines)
     lines.extend(["", "## Next session", "", "Recommended starting points:"])
     points = _summary_next_points(summary, limit=5)
     if points:
         lines.extend([f"- {item}" for item in points])
     else:
         lines.append("- none")
-    lines.extend(
-        [
-            "",
-            "## Raw details",
-            "",
-            f"- Learning stored: {'yes' if summary.get('learning_persisted') else 'no'}",
-            f"- Strategy stored: {'yes' if summary.get('strategy_persisted') else 'no'}",
-            f"- Commands observed: {len(summary.get('commands_observed', [])) if isinstance(summary.get('commands_observed'), list) else 0}",
-            f"- Reopened files: {int(summary.get('reopened_files', 0) or 0)}",
-        ]
-    )
+    raw_lines = [
+        f"- Learning stored: {'yes' if summary.get('learning_persisted') else 'no'}",
+        f"- Strategy stored: {'yes' if summary.get('strategy_persisted') else 'no'}",
+    ]
+    commands_count = len(summary.get('commands_observed', [])) if isinstance(summary.get('commands_observed'), list) else 0
+    reopened_count = int(summary.get('reopened_files', 0) or 0)
+    if commands_count:
+        raw_lines.append(f"- Commands observed: {commands_count}")
+    if reopened_count:
+        raw_lines.append(f"- Reopened files: {reopened_count}")
+    lines.extend(["", "## Raw details", ""] + raw_lines)
     return "\n".join(lines) + "\n"
 
 
@@ -250,6 +259,10 @@ def _normalize_handoff_history_row(row: dict[str, Any]) -> dict[str, Any]:
         "status": str(row.get("status") or "").strip(),
         "reason": str(row.get("reason") or "").strip(),
         "task_type": str(row.get("task_type") or "").strip(),
+        "completed": _clean_string_list(row.get("completed"), limit=5),
+        "next_steps": _clean_string_list(row.get("next_steps"), limit=5),
+        "blocked": _clean_string_list(row.get("blocked"), limit=5),
+        "risks": _clean_string_list(row.get("risks"), limit=5),
         "recommended_starting_points": _clean_string_list(row.get("recommended_starting_points"), limit=5),
         "files_observed": int(row.get("files_observed", 0) or 0),
         "tests_observed": _clean_string_list(row.get("tests_observed"), limit=8),
@@ -490,7 +503,8 @@ def persist_handoff_memory(
         learning_stored=learning_stored,
     ):
         return None
-    summary = str(result.get("result_summary") or "").strip()
+    handoff_payload = result.get("handoff") if isinstance(result.get("handoff"), dict) else {}
+    summary = str(handoff_payload.get("summary") or result.get("result_summary") or "").strip()
     if not summary:
         return None
     session = prepared.get("continuity_context", {}).get("session", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
@@ -509,13 +523,19 @@ def persist_handoff_memory(
     task_type = str(prepared.get("resolved_task_type") or "")
     reason = str(prepared.get("envelope", {}).get("user_request") or "") if isinstance(prepared.get("envelope"), dict) else ""
     files_observed = len(_observed_files(prepared))
+    completed = _clean_string_list(handoff_payload.get("completed"), limit=8) or [summary]
+    next_steps = _clean_string_list(handoff_payload.get("next_steps"), limit=8)
+    blocked = _clean_string_list(handoff_payload.get("blocked") or handoff_payload.get("open_items"), limit=8)
+    risks = _clean_string_list(handoff_payload.get("risks"), limit=8)
+    recommended = _clean_string_list(handoff_payload.get("recommended_starting_points"), limit=8) or _observed_files(prepared)
     handoff = {
         "summary": summary,
-        "completed": [summary],
-        "open_items": [],
-        "risks": [],
-        "next_steps": [],
-        "recommended_starting_points": _observed_files(prepared),
+        "completed": completed,
+        "next_steps": next_steps,
+        "blocked": blocked,
+        "open_items": blocked,
+        "risks": risks,
+        "recommended_starting_points": recommended,
         "updated_at": timestamp,
         "source_session": source_session,
         "source_execution_id": source_execution_id,
@@ -527,6 +547,10 @@ def persist_handoff_memory(
             "execution_id": source_execution_id,
             "timestamp": timestamp,
             "summary": summary,
+            "completed": completed,
+            "next_steps": next_steps,
+            "blocked": blocked,
+            "risks": risks,
             "status": status,
             "reason": reason,
             "task_type": task_type,
@@ -1011,6 +1035,285 @@ def _continuity_reuse_files(
     return _clean_string_list(candidates, limit=20)
 
 
+def _request_tokens(text: str) -> set[str]:
+    return {token for token in str(text or "").lower().replace("/", " ").replace("_", " ").replace("-", " ").split() if len(token) > 2}
+
+
+def _live_paths(repo_root: Path, paths: Any, *, limit: int = 8) -> list[str]:
+    return [path for path in _clean_string_list(paths, limit=limit) if _path_exists(repo_root, path)]
+
+
+def _rank_text_score(tokens: set[str], *texts: Any) -> int:
+    if not tokens:
+        return 0
+    haystack = " ".join(str(text or "").lower().replace("_", " ") for text in texts)
+    return min(20, len(tokens.intersection(set(haystack.split()))) * 4)
+
+
+def _ranked_item(
+    *,
+    kind: str,
+    item_id: str,
+    title: str,
+    score: int,
+    reasons: list[str],
+    paths: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "id": item_id,
+        "title": title[:160],
+        "score": int(score),
+        "reasons": _clean_string_list(reasons, limit=8),
+        "paths": _clean_string_list(paths or [], limit=8),
+        "metadata": metadata or {},
+    }
+
+
+def build_ranked_continuity_items(
+    repo_root: Path,
+    *,
+    request_text: str,
+    files: list[str],
+    handoff: dict[str, Any],
+    decisions: list[dict[str, Any]],
+    failures: list[dict[str, Any]],
+    semantic_repo: dict[str, Any],
+    procedural_reuse: dict[str, Any],
+    staleness: dict[str, Any],
+) -> list[dict[str, Any]]:
+    tokens = _request_tokens(request_text)
+    target_files = set(_clean_string_list(files, limit=20))
+    items: list[dict[str, Any]] = []
+
+    if handoff:
+        paths = _clean_string_list(handoff.get("recommended_starting_points"), limit=8)
+        live = _live_paths(repo_root, paths, limit=8)
+        score = 35 + len(set(live).intersection(target_files)) * 20 + len(live) * 3
+        reasons = ["handoff_loaded"]
+        if live:
+            reasons.append("live_starting_points")
+        if _handoff_is_stale(staleness):
+            score -= 40
+            reasons.append("stale_penalty")
+        items.append(_ranked_item(
+            kind="handoff",
+            item_id=str(handoff.get("source_execution_id") or "handoff"),
+            title=str(handoff.get("summary") or "handoff"),
+            score=score,
+            reasons=reasons,
+            paths=live or paths,
+        ))
+
+    for index, decision in enumerate(decisions):
+        paths = _clean_string_list(decision.get("related_paths"), limit=8)
+        live = _live_paths(repo_root, paths, limit=8)
+        score = 25 + _rank_text_score(tokens, decision.get("decision"), decision.get("rationale"), decision.get("subsystem"))
+        if live:
+            score += 10 + len(set(live).intersection(target_files)) * 20
+        if paths and not live:
+            score -= 15
+        reasons = ["recent_decision"]
+        if live:
+            reasons.append("live_related_paths")
+        items.append(_ranked_item(
+            kind="decision",
+            item_id=_decision_ref(decision, index),
+            title=str(decision.get("decision") or "decision"),
+            score=score,
+            reasons=reasons,
+            paths=live or paths,
+            metadata={"subsystem": str(decision.get("subsystem") or "")},
+        ))
+
+    for index, failure in enumerate(failures):
+        paths = _clean_string_list(list(failure.get("related_paths", []) or []) + list(failure.get("files_involved", []) or []), limit=8)
+        live = _live_paths(repo_root, paths, limit=8)
+        score = 30 + _rank_text_score(tokens, failure.get("signature"), failure.get("failure_signature"), failure.get("error_text"))
+        if live:
+            score += 8
+        reasons = ["relevant_failure"]
+        if live:
+            reasons.append("live_failure_paths")
+        items.append(_ranked_item(
+            kind="failure",
+            item_id=str(failure.get("failure_id") or failure.get("signature") or f"failure:{index}"),
+            title=str(failure.get("signature") or failure.get("failure_signature") or "failure"),
+            score=score,
+            reasons=reasons,
+            paths=live or paths,
+        ))
+
+    for subsystem in semantic_repo.get("subsystems", []) if isinstance(semantic_repo.get("subsystems"), list) else []:
+        if not isinstance(subsystem, dict):
+            continue
+        paths = _clean_string_list(subsystem.get("key_paths"), limit=8)
+        live = _live_paths(repo_root, paths, limit=8)
+        score = 20 + _rank_text_score(tokens, subsystem.get("name"), subsystem.get("description"), " ".join(subsystem.get("entry_points", []) or []))
+        if live:
+            score += 8 + len(set(live).intersection(target_files)) * 20
+        if paths and not live:
+            score -= 20
+        reasons = ["semantic_repo_match"]
+        if live:
+            reasons.append("live_key_paths")
+        items.append(_ranked_item(
+            kind="semantic_repo",
+            item_id=str(subsystem.get("name") or "subsystem"),
+            title=str(subsystem.get("name") or "subsystem"),
+            score=score,
+            reasons=reasons,
+            paths=live or paths,
+            metadata={"entry_points": _clean_string_list(subsystem.get("entry_points"), limit=4)},
+        ))
+
+    if procedural_reuse:
+        paths = _strategy_paths(procedural_reuse)
+        live = _live_paths(repo_root, paths, limit=8)
+        confidence = strategy_reuse_confidence(procedural_reuse)
+        base = {"high": 50, "medium": 35, "low": 20}.get(confidence, 20)
+        score = base + int(procedural_reuse.get("score", 0) or 0) // 100
+        reasons = ["procedural_reuse", f"confidence:{confidence}"]
+        if live:
+            reasons.append("live_strategy_paths")
+        items.append(_ranked_item(
+            kind="strategy",
+            item_id=str(procedural_reuse.get("task_id") or "strategy"),
+            title=str(procedural_reuse.get("task_text") or procedural_reuse.get("selection_reason") or "strategy"),
+            score=score,
+            reasons=reasons,
+            paths=live or paths,
+            metadata={
+                "reuse_confidence": confidence,
+                "selection_reason": str(procedural_reuse.get("selection_reason") or ""),
+            },
+        ))
+
+    return sorted(items, key=lambda item: (-int(item.get("score", 0)), str(item.get("kind") or ""), str(item.get("id") or "")))[:12]
+
+
+def _why_loaded_from_items(
+    *,
+    loaded: dict[str, Any],
+    ranked_items: list[dict[str, Any]],
+    staleness: dict[str, Any],
+) -> dict[str, list[str]]:
+    by_kind: dict[str, list[str]] = {}
+    for item in ranked_items:
+        kind = str(item.get("kind") or "")
+        reasons = item.get("reasons") if isinstance(item.get("reasons"), list) else []
+        by_kind.setdefault(kind, [])
+        for reason in reasons:
+            text = str(reason or "").strip()
+            if text and text not in by_kind[kind]:
+                by_kind[kind].append(text)
+    why = {
+        "handoff": by_kind.get("handoff", ["not_loaded"] if not loaded.get("handoff") else ["handoff_loaded"]),
+        "decisions": by_kind.get("decision", ["not_loaded"] if not loaded.get("decisions") else ["recent_decisions_loaded"]),
+        "failures": by_kind.get("failure", ["not_loaded"] if not loaded.get("failures") else ["relevant_failures_loaded"]),
+        "semantic_repo": by_kind.get("semantic_repo", ["not_loaded"] if not loaded.get("semantic_repo") else ["semantic_repo_loaded"]),
+        "procedural_reuse": by_kind.get("strategy", ["not_loaded"] if not loaded.get("procedural_reuse") else ["strategy_loaded"]),
+    }
+    if _handoff_is_stale(staleness) and "stale_excluded" not in why["handoff"]:
+        why["handoff"] = ["stale_excluded"]
+    return why
+
+
+def build_continuity_brief(
+    *,
+    ranked_items: list[dict[str, Any]],
+    handoff: dict[str, Any],
+    decisions: list[dict[str, Any]],
+    failures: list[dict[str, Any]],
+    semantic_repo: dict[str, Any],
+    procedural_reuse: dict[str, Any],
+    why_loaded: dict[str, list[str]],
+) -> dict[str, Any]:
+    probable_paths: list[str] = []
+    for item in ranked_items:
+        probable_paths.extend(_clean_string_list(item.get("paths"), limit=4))
+    probable_paths.extend(_clean_string_list(handoff.get("recommended_starting_points"), limit=6))
+    commands = _clean_string_list(
+        _clean_string_list(procedural_reuse.get("related_commands"), limit=5)
+        + _clean_string_list(procedural_reuse.get("commands_executed"), limit=5),
+        limit=5,
+    )
+    tests = _clean_string_list(
+        _clean_string_list(procedural_reuse.get("related_tests"), limit=5)
+        + _clean_string_list(procedural_reuse.get("tests_executed"), limit=5),
+        limit=5,
+    )
+    risks: list[str] = []
+    risks.extend(_clean_string_list(handoff.get("risks"), limit=4))
+    for decision in decisions:
+        risks.extend(_clean_string_list(decision.get("risks"), limit=2))
+    for failure in failures:
+        risks.append(str(failure.get("signature") or failure.get("failure_signature") or failure.get("failure_id") or "").strip())
+    for subsystem in semantic_repo.get("subsystems", []) if isinstance(semantic_repo.get("subsystems"), list) else []:
+        if isinstance(subsystem, dict):
+            risks.extend(_clean_string_list(subsystem.get("fragile_areas"), limit=2))
+    where = _clean_string_list(handoff.get("next_steps"), limit=3) or _clean_string_list(handoff.get("recommended_starting_points"), limit=3)
+    if not where:
+        where = _clean_string_list(probable_paths, limit=3)
+    return {
+        "version": 2,
+        "where_to_continue": where,
+        "active_decisions": _clean_string_list([row.get("decision") for row in decisions if isinstance(row, dict)], limit=5),
+        "probable_paths": _clean_string_list(probable_paths, limit=8),
+        "known_risks": _clean_string_list(risks, limit=8),
+        "recommended_commands": commands,
+        "recommended_tests": tests,
+        "reuse_confidence": strategy_reuse_confidence(procedural_reuse),
+        "top_ranked_items": ranked_items[:5],
+        "why_loaded": why_loaded,
+    }
+
+
+def render_next_text(brief: dict[str, Any]) -> str:
+    if not isinstance(brief, dict) or not brief:
+        return "AICTX next\n\nNo actionable continuity context available."
+    lines = ["AICTX next"]
+    where = _clean_string_list(brief.get("where_to_continue"), limit=3)
+    paths = _clean_string_list(brief.get("probable_paths"), limit=5)
+    decisions = _clean_string_list(brief.get("active_decisions"), limit=2)
+    risks = _clean_string_list(brief.get("known_risks"), limit=2)
+    commands = _clean_string_list(brief.get("recommended_commands"), limit=3)
+    tests = _clean_string_list(brief.get("recommended_tests"), limit=3)
+    confidence = str(brief.get("reuse_confidence") or "").strip()
+
+    if where:
+        lines.extend(["", "Continue:"])
+        lines.extend([f"- {item}" for item in where])
+    elif paths:
+        lines.extend(["", "Continue:"])
+        lines.extend([f"- {item}" for item in paths[:3]])
+
+    why_loaded = brief.get("why_loaded") if isinstance(brief.get("why_loaded"), dict) else {}
+    why_lines: list[str] = []
+    for source in ("handoff", "decisions", "semantic_repo", "procedural_reuse", "failures"):
+        reasons = _clean_string_list(why_loaded.get(source), limit=2)
+        reasons = [reason for reason in reasons if reason != "not_loaded"]
+        if reasons:
+            why_lines.append(f"{source}: {', '.join(reasons)}")
+    if confidence:
+        why_lines.append(f"reuse confidence: {confidence}")
+    if why_lines:
+        lines.extend(["", "Why:"])
+        lines.extend([f"- {item}" for item in why_lines[:5]])
+
+    if decisions:
+        lines.extend(["", "Decisions:"])
+        lines.extend([f"- {item}" for item in decisions])
+    if risks:
+        lines.extend(["", "Risks:"])
+        lines.extend([f"- {item}" for item in risks])
+    if commands or tests:
+        lines.extend(["", "Run:"])
+        lines.extend([f"- {item}" for item in _clean_string_list(commands + tests, limit=5)])
+    return "\n".join(lines)
+
+
 def _append_signal(strategy: dict[str, Any], signal: str) -> None:
     matched = strategy.get("matched_signals")
     if not isinstance(matched, list):
@@ -1170,6 +1473,27 @@ def load_continuity_context(
         "semantic_repo": bool(semantic_repo),
         "procedural_reuse": bool(procedural_reuse),
     }
+    ranked_items = build_ranked_continuity_items(
+        repo_root,
+        request_text=request_text,
+        files=list(files or []),
+        handoff=handoff,
+        decisions=decisions,
+        failures=failures,
+        semantic_repo=semantic_repo,
+        procedural_reuse=procedural_reuse,
+        staleness=staleness,
+    )
+    why_loaded = _why_loaded_from_items(loaded=loaded, ranked_items=ranked_items, staleness=staleness)
+    continuity_brief = build_continuity_brief(
+        ranked_items=ranked_items,
+        handoff=handoff,
+        decisions=decisions,
+        failures=failures,
+        semantic_repo=semantic_repo,
+        procedural_reuse=procedural_reuse,
+        why_loaded=why_loaded,
+    )
     context = {
         "agent_identity": session,
         "session": session,
@@ -1181,6 +1505,9 @@ def load_continuity_context(
         "preferences": preferences,
         "procedural_reuse": procedural_reuse,
         "staleness": staleness,
+        "ranked_items": ranked_items,
+        "why_loaded": why_loaded,
+        "continuity_brief": continuity_brief,
         "warnings": warnings,
     }
     context["startup_banner_text"] = render_startup_banner(context, repo_root)

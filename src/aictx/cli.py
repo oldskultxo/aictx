@@ -17,6 +17,7 @@ from .agent_runtime import (
     upsert_marked_block,
 )
 from .middleware import cli_finalize_execution, cli_prepare_execution
+from .continuity import load_continuity_context, render_next_text
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
@@ -194,6 +195,35 @@ def cmd_reuse(args: argparse.Namespace) -> int:
             "related_tests": list(strategy.get("related_tests", [])) if isinstance(strategy.get("related_tests"), list) else [],
         }
     print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def cmd_next(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    request = str(getattr(args, "request", "") or "").strip()
+    files = _list_arg(args, "files_opened")
+    commands = _list_arg(args, "commands_executed")
+    tests = _list_arg(args, "tests_executed")
+    errors = _list_arg(args, "notable_errors")
+    explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
+    resolved = resolve_task_type(request, explicit_task_type=explicit_task_type or None, touched_files=files)
+    task_type = str(resolved.get("task_type") or explicit_task_type or "")
+    context = load_continuity_context(
+        repo,
+        task_type=task_type,
+        request_text=request,
+        files=files,
+        primary_entry_point=files[0] if files else None,
+        commands=commands,
+        tests=tests,
+        errors=errors,
+        area_id=derive_area_id(files + tests) if files or tests else "",
+    )
+    brief = context.get("continuity_brief", {}) if isinstance(context.get("continuity_brief"), dict) else {}
+    if bool(getattr(args, "json", False)):
+        print(__import__("json").dumps({"continuity_brief": brief, "ranked_items": context.get("ranked_items", []), "why_loaded": context.get("why_loaded", {})}, ensure_ascii=False))
+    else:
+        print(render_next_text(brief))
     return 0
 
 
@@ -639,6 +669,17 @@ def build_parser() -> argparse.ArgumentParser:
     reuse.add_argument("--tests-executed", nargs="*", default=[], help="Optional tests already executed")
     reuse.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     reuse.set_defaults(func=cmd_reuse)
+
+    next_cmd = sub.add_parser("next", help="Show compact actionable continuity guidance")
+    next_cmd.add_argument("--repo", default=".", help="Repository root")
+    next_cmd.add_argument("--request", default="", help="Optional request text for contextual continuity ranking")
+    next_cmd.add_argument("--task-type", default="", help="Optional task type filter")
+    next_cmd.add_argument("--files-opened", nargs="*", default=[], help="Optional files already opened")
+    next_cmd.add_argument("--commands-executed", nargs="*", default=[], help="Optional commands already executed")
+    next_cmd.add_argument("--tests-executed", nargs="*", default=[], help="Optional tests already executed")
+    next_cmd.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
+    next_cmd.add_argument("--json", action="store_true", help="Print structured continuity brief JSON")
+    next_cmd.set_defaults(func=cmd_next)
 
     clean = sub.add_parser("clean", help="Remove AICTX content from the current repository")
     clean.add_argument("--repo", default=".", help="Repository root")

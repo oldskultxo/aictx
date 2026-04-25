@@ -4,6 +4,31 @@
 
 No unreleased changes.
 
+## 4.2.1 - 2026-04-25
+
+### Added
+- Added public `aictx next` command for compact, human-readable continuity guidance backed by Continuity Brief v2.
+- Added structured `--json` output for `aictx next` with the brief, ranked items, and `why_loaded` evidence.
+- Added AICTX next details to `.aictx/continuity/last_execution_summary.md` so compact chat output can stay short while preserving actionable detail.
+- Added tests for `aictx next`, Continuity Brief v2, context ranking, operational handoff, reuse confidence, real-usage health, and zero-value summary omission.
+
+### Changed
+- Compact final summaries now omit zero-value observations such as `0 tests`, `0 files`, `0 commands`, and `0 reopened files`.
+- Final summaries now surface compact next-step guidance when useful, following the existing normalized/humanized AICTX summary style.
+
+## 4.2.0 - 2026-04-25
+
+### Added
+- Added Continuity Brief v2 in `prepare_execution` with next focus, active decisions, probable paths, known risks, recommended commands/tests, ranked context evidence, and `why_loaded` explanations.
+- Added ranked continuity items across handoff, decisions, failures, semantic repo memory, and procedural reuse.
+- Added `reuse_confidence`, `continuity_value`, and `capture_quality` to finalize/summary outputs.
+- Added continuity health signals to `report real-usage` for packet/context usefulness, stale memory exclusion, redundant exploration avoidance, capture gaps, and handoff freshness.
+
+### Changed
+- Handoff persistence now accepts structured operational handoff fields while preserving the existing stable artifact paths.
+- Strategy reuse now favors real execution evidence from commands, tests, edited files, and strong matching signals.
+- Test/error capture heuristics now recognize more common test commands and can surface notable error lines from captured output.
+
 ## 4.1.0 - 2026-04-25
 
 ### Added

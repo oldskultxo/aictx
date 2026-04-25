@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import re
 from pathlib import Path
 from typing import Any
 
@@ -33,23 +34,47 @@ def command_text(command: list[str]) -> str:
 
 def infer_tests_from_commands(commands: list[str]) -> list[str]:
     tests: list[str] = []
+    patterns = [
+        r"\bpytest\b",
+        r"\bpython(?:3(?:\.\d+)?)?\s+-m\s+pytest\b",
+        r"\bunittest\b",
+        r"\bmake\s+[^;&|]*\btest\b",
+        r"\bnpm\s+(?:run\s+)?test\b",
+        r"\bpnpm\s+(?:run\s+)?test\b",
+        r"\byarn\s+(?:run\s+)?test\b",
+        r"\btox\b",
+        r"\bgo\s+test\b",
+        r"\bcargo\s+(?:test|nextest)\b",
+        r"\bdotnet\s+test\b",
+        r"\bmix\s+test\b",
+        r"\btest_[A-Za-z0-9_./-]+",
+    ]
     for command in commands:
         text = str(command or "").strip()
-        lowered = text.lower()
-        if any(token in lowered for token in ["pytest", "unittest", "npm test", "go test", "cargo test", "test_smoke"]):
+        if any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns):
             tests.append(text)
     return normalize_list(tests)
 
 
 def notable_errors_from_output(exit_code: int, stdout: str = "", stderr: str = "") -> list[str]:
-    if exit_code == 0:
-        return []
     lines = [line.strip() for line in f"{stderr}\n{stdout}".splitlines() if line.strip()]
+    if exit_code == 0 and not lines:
+        return []
+    benign_patterns = [
+        r"\b0 failed\b",
+        r"\b0 errors?\b",
+        r"\bno errors?\b",
+        r"\bpassed\b",
+        r"\bsuccess(?:ful|fully)?\b",
+    ]
     interesting = [
         line
         for line in lines
         if any(token in line.lower() for token in ["error", "failed", "failure", "traceback", "exception", "assert"])
+        and not any(re.search(pattern, line, flags=re.IGNORECASE) for pattern in benign_patterns)
     ]
+    if exit_code == 0:
+        return normalize_list(interesting[-3:])
     return normalize_list((interesting or lines)[-3:])
 
 
@@ -100,4 +125,3 @@ def build_capture(payload: dict[str, Any], *, runtime_observed: dict[str, list[s
             capture["tests_executed"] = inferred
             capture["provenance"]["tests_executed"] = "heuristic"
     return capture
-
