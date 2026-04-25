@@ -7,7 +7,7 @@ from typing import Any
 
 REPO_MAP_PROVIDER = "tree_sitter"
 REPO_MAP_IMPORT_NAME = "tree_sitter_language_pack"
-REPO_MAP_PACKAGE_SPEC = "tree-sitter-language-pack>=1.6.0"
+REPO_MAP_PACKAGE_SPEC = "tree-sitter-language-pack>=0.13.0,<1.0.0"
 
 
 def repomap_dependency_available() -> bool:

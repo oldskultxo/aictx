@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import tomllib
 from pathlib import Path
 
 import aictx.cli as cli
+from aictx.repo_map.setup import REPO_MAP_PACKAGE_SPEC
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _install_args(tmp_path: Path, **overrides) -> argparse.Namespace:
@@ -18,6 +23,13 @@ def _install_args(tmp_path: Path, **overrides) -> argparse.Namespace:
     }
     payload.update(overrides)
     return argparse.Namespace(**payload)
+
+
+def test_repomap_optional_dependency_matches_runtime_install_spec():
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["optional-dependencies"]["repomap"] == [REPO_MAP_PACKAGE_SPEC]
+    assert REPO_MAP_PACKAGE_SPEC == "tree-sitter-language-pack>=0.13.0,<1.0.0"
 
 
 def test_interactive_install_asks_whether_to_enable_repomap(tmp_path: Path, monkeypatch, capsys):

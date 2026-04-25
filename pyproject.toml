@@ -22,7 +22,7 @@ dependencies = []
 
 [project.optional-dependencies]
 repomap = [
-  "tree-sitter-language-pack>=1.6.0"
+  "tree-sitter-language-pack>=0.13.0,<1.0.0"
 ]
 
 [project.urls]
