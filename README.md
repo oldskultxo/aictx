@@ -66,6 +66,10 @@ aictx init
 aictx suggest
 aictx reflect
 aictx reuse
+aictx next
+aictx map status
+aictx map refresh
+aictx map query "startup banner"
 aictx report real-usage
 aictx clean
 aictx uninstall
@@ -75,6 +79,7 @@ Only `install` and `init` are part of the normal setup path.
 
 The rest of the public commands are optional operational commands:
 - `suggest`, `reflect`, `reuse` -> for manual inspection or explicit agent calls
+- `next`, `map status|refresh|query` -> for compact continuity and RepoMap structural lookup operations
 - `report real-usage` -> for reviewing stored execution data
 - `clean`, `uninstall` -> for removing AICTX-managed content
 

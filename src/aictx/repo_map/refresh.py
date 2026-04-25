@@ -16,6 +16,13 @@ from .provider import check_tree_sitter_available, extract_file_structure
 from .setup import REPO_MAP_PROVIDER
 
 
+def resolve_refresh_mode(requested_mode: str) -> str:
+    normalized = str(requested_mode or "full").strip().lower() or "full"
+    if normalized == "incremental":
+        return "full"
+    return normalized
+
+
 def refresh_repo_map(
     repo_root: Path,
     *,
@@ -25,6 +32,7 @@ def refresh_repo_map(
 ) -> dict[str, Any]:
     repo_root = Path(repo_root)
     started = time.perf_counter()
+    mode = resolve_refresh_mode(mode)
 
     if mode != "full":
         return {"status": "unsupported", "reason": "mode_not_implemented", "mode": mode}

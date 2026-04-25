@@ -23,6 +23,9 @@ from .runtime_launcher import cli_run_execution
 from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, ensure_repo_user_preferences, init_repo_scaffold
 from .report import build_real_usage_report
+from .repo_map.config import load_repomap_config, load_repomap_manifest, load_repomap_status
+from .repo_map.query import query_repo_map
+from .repo_map.refresh import refresh_repo_map
 from .repo_map.setup import (
     install_repomap_dependency,
     repomap_dependency_available,
@@ -229,6 +232,83 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(__import__("json").dumps({"continuity_brief": brief, "ranked_items": context.get("ranked_items", []), "why_loaded": context.get("why_loaded", {})}, ensure_ascii=False))
     else:
         print(render_next_text(brief))
+    return 0
+
+
+def _repomap_status_payload(repo: Path) -> dict[str, Any]:
+    config = load_repomap_config(repo)
+    status = load_repomap_status(repo)
+    manifest = load_repomap_manifest(repo)
+    files_indexed = int(manifest.get("files_indexed", 0)) if isinstance(manifest, dict) else 0
+    symbols_indexed = int(manifest.get("symbols_indexed", 0)) if isinstance(manifest, dict) else 0
+    return {
+        "enabled": bool(status.get("enabled", config.get("enabled", False))),
+        "available": bool(status.get("available", False)),
+        "provider": str(status.get("provider") or config.get("provider") or "tree_sitter"),
+        "files_indexed": files_indexed,
+        "symbols_indexed": symbols_indexed,
+        "last_refresh_status": str(status.get("last_refresh_status") or "never"),
+    }
+
+
+def cmd_map_status(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = _repomap_status_payload(repo)
+    if bool(getattr(args, "json", False)):
+        print(__import__("json").dumps(payload, ensure_ascii=False))
+        return 0
+    print("AICTX map status")
+    print(f"- enabled: {payload['enabled']}")
+    print(f"- available: {payload['available']}")
+    print(f"- provider: {payload['provider']}")
+    print(f"- files_indexed: {payload['files_indexed']}")
+    print(f"- symbols_indexed: {payload['symbols_indexed']}")
+    print(f"- last_refresh_status: {payload['last_refresh_status']}")
+    return 0
+
+
+def cmd_map_refresh(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    requested_mode = "full" if bool(getattr(args, "full", False)) else "incremental"
+    payload = refresh_repo_map(repo, mode=requested_mode)
+    output = {
+        "requested_mode": requested_mode,
+        "executed_mode": str(payload.get("mode") or "full"),
+        **payload,
+    }
+    if bool(getattr(args, "json", False)):
+        print(__import__("json").dumps(output, ensure_ascii=False))
+        return 0
+    print("AICTX map refresh")
+    print(f"- requested_mode: {requested_mode}")
+    print(f"- status: {output.get('status', 'unknown')}")
+    if "files_indexed" in output:
+        print(f"- files_indexed: {output['files_indexed']}")
+    if "symbols_indexed" in output:
+        print(f"- symbols_indexed: {output['symbols_indexed']}")
+    if "reason" in output and str(output.get("reason", "")).strip():
+        print(f"- reason: {output['reason']}")
+    return 0
+
+
+def cmd_map_query(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    text = str(getattr(args, "text", "") or "")
+    limit = int(getattr(args, "limit", 10) or 10)
+    results = query_repo_map(repo, text, limit=limit)
+    if bool(getattr(args, "json", False)):
+        print(__import__("json").dumps(results, ensure_ascii=False))
+        return 0
+    print(f"AICTX map query: {text}")
+    if not results:
+        print("- no matches")
+        return 0
+    for item in results:
+        symbols = ", ".join([str(symbol) for symbol in item.get("symbols", []) if str(symbol).strip()])
+        print(f"- {item.get('path', '')} (score={item.get('score', 0)})")
+        print(f"  reasons: {', '.join(item.get('reasons', []))}")
+        if symbols:
+            print(f"  symbols: {symbols}")
     return 0
 
 
@@ -662,7 +742,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,report,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,next,map,report,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -715,6 +795,27 @@ def build_parser() -> argparse.ArgumentParser:
     next_cmd.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     next_cmd.add_argument("--json", action="store_true", help="Print structured continuity brief JSON")
     next_cmd.set_defaults(func=cmd_next)
+
+    map_cmd = sub.add_parser("map", help="RepoMap operations")
+    map_sub = map_cmd.add_subparsers(dest="map_command", required=True)
+
+    map_status = map_sub.add_parser("status", help="Show RepoMap status")
+    map_status.add_argument("--repo", default=".", help="Repository root")
+    map_status.add_argument("--json", action="store_true", help="Print status as JSON")
+    map_status.set_defaults(func=cmd_map_status)
+
+    map_refresh = map_sub.add_parser("refresh", help="Refresh RepoMap index")
+    map_refresh.add_argument("--repo", default=".", help="Repository root")
+    map_refresh.add_argument("--full", action="store_true", help="Force full refresh")
+    map_refresh.add_argument("--json", action="store_true", help="Print refresh result as JSON")
+    map_refresh.set_defaults(func=cmd_map_refresh)
+
+    map_query = map_sub.add_parser("query", help="Search RepoMap index")
+    map_query.add_argument("--repo", default=".", help="Repository root")
+    map_query.add_argument("--json", action="store_true", help="Print query results as JSON")
+    map_query.add_argument("--limit", type=int, default=10, help="Maximum number of matches")
+    map_query.add_argument("text", help="Query text")
+    map_query.set_defaults(func=cmd_map_query)
 
     clean = sub.add_parser("clean", help="Remove AICTX content from the current repository")
     clean.add_argument("--repo", default=".", help="Repository root")
