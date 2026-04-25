@@ -1087,6 +1087,8 @@ def build_ranked_continuity_items(
     target_files = set(_clean_string_list(files, limit=20))
     items: list[dict[str, Any]] = []
 
+    items.extend(_repo_map_ranked_items(repo_root, request_text=request_text, files=list(files or [])))
+
     if handoff:
         paths = _clean_string_list(handoff.get("recommended_starting_points"), limit=8)
         live = _live_paths(repo_root, paths, limit=8)
@@ -1193,6 +1195,22 @@ def build_ranked_continuity_items(
     return sorted(items, key=lambda item: (-int(item.get("score", 0)), str(item.get("kind") or ""), str(item.get("id") or "")))[:12]
 
 
+def _repo_map_ranked_items(repo_root: Path, *, request_text: str, files: list[str]) -> list[dict[str, Any]]:
+    if not str(request_text or "").strip() and not _clean_string_list(files, limit=20):
+        return []
+    try:
+        from .repo_map.config import load_repomap_config
+        from .repo_map.query import query_repo_map
+
+        config = load_repomap_config(repo_root)
+        if not bool(config.get("enabled", False)):
+            return []
+        query_text = str(request_text or "").strip() or " ".join(_clean_string_list(files, limit=20))
+        return query_repo_map(repo_root, query_text, files=_clean_string_list(files, limit=20), limit=6)
+    except Exception:
+        return []
+
+
 def _why_loaded_from_items(
     *,
     loaded: dict[str, Any],
@@ -1214,6 +1232,7 @@ def _why_loaded_from_items(
         "failures": by_kind.get("failure", ["not_loaded"] if not loaded.get("failures") else ["relevant_failures_loaded"]),
         "semantic_repo": by_kind.get("semantic_repo", ["not_loaded"] if not loaded.get("semantic_repo") else ["semantic_repo_loaded"]),
         "procedural_reuse": by_kind.get("strategy", ["not_loaded"] if not loaded.get("procedural_reuse") else ["strategy_loaded"]),
+        "repo_map": by_kind.get("repo_map", ["not_loaded"] if not loaded.get("repo_map") else ["repo_map_loaded"]),
     }
     if _handoff_is_stale(staleness) and "stale_excluded" not in why["handoff"]:
         why["handoff"] = ["stale_excluded"]
@@ -1291,7 +1310,7 @@ def render_next_text(brief: dict[str, Any]) -> str:
 
     why_loaded = brief.get("why_loaded") if isinstance(brief.get("why_loaded"), dict) else {}
     why_lines: list[str] = []
-    for source in ("handoff", "decisions", "semantic_repo", "procedural_reuse", "failures"):
+    for source in ("handoff", "decisions", "semantic_repo", "procedural_reuse", "failures", "repo_map"):
         reasons = _clean_string_list(why_loaded.get(source), limit=2)
         reasons = [reason for reason in reasons if reason != "not_loaded"]
         if reasons:
@@ -1301,6 +1320,10 @@ def render_next_text(brief: dict[str, Any]) -> str:
     if why_lines:
         lines.extend(["", "Why:"])
         lines.extend([f"- {item}" for item in why_lines[:5]])
+
+    if paths:
+        lines.extend(["", "Paths:"])
+        lines.extend([f"- {item}" for item in paths])
 
     if decisions:
         lines.extend(["", "Decisions:"])
@@ -1484,6 +1507,8 @@ def load_continuity_context(
         procedural_reuse=procedural_reuse,
         staleness=staleness,
     )
+    if any(str(item.get("kind") or "") == "repo_map" for item in ranked_items if isinstance(item, dict)):
+        loaded["repo_map"] = True
     why_loaded = _why_loaded_from_items(loaded=loaded, ranked_items=ranked_items, staleness=staleness)
     continuity_brief = build_continuity_brief(
         ranked_items=ranked_items,

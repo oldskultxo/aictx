@@ -74,7 +74,11 @@ def test_status_write_and_read_preserve_fields(tmp_path: Path):
         "enabled": True,
         "available": True,
         "provider": "tree_sitter",
+        "last_refresh_mode": "",
         "last_refresh_status": "ok",
+        "last_refresh_ms": 0,
+        "files_reparsed": 0,
+        "files_pending": 0,
         "warnings": ["sample-warning"],
     }
 
