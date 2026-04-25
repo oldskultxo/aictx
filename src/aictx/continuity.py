@@ -1192,7 +1192,7 @@ def build_ranked_continuity_items(
             },
         ))
 
-    return sorted(items, key=lambda item: (-int(item.get("score", 0)), str(item.get("kind") or ""), str(item.get("id") or "")))[:12]
+    return _bounded_ranked_items(items, limit=12, repo_map_limit=3)
 
 
 def _repo_map_ranked_items(repo_root: Path, *, request_text: str, files: list[str]) -> list[dict[str, Any]]:
@@ -1205,10 +1205,60 @@ def _repo_map_ranked_items(repo_root: Path, *, request_text: str, files: list[st
         config = load_repomap_config(repo_root)
         if not bool(config.get("enabled", False)):
             return []
-        query_text = str(request_text or "").strip() or " ".join(_clean_string_list(files, limit=20))
-        return query_repo_map(repo_root, query_text, files=_clean_string_list(files, limit=20), limit=6)
+        active_files = _clean_string_list(files, limit=20)
+        query_text = str(request_text or "").strip() or " ".join(active_files)
+        raw_items = query_repo_map(repo_root, query_text, files=active_files, limit=8)
+        return _continuity_repo_map_items(raw_items, active_files=active_files, limit=3)
     except Exception:
         return []
+
+
+def _continuity_repo_map_items(items: list[dict[str, Any]], *, active_files: list[str], limit: int) -> list[dict[str, Any]]:
+    if not items:
+        return []
+    strong_kinds = {"function", "class", "entrypoint"}
+    weak_context_kinds = {"heading", "config_key", "file", "module", "import", "constant"}
+    has_strong = any(
+        str((item.get("metadata") if isinstance(item.get("metadata"), dict) else {}).get("symbol_kind") or "") in strong_kinds
+        for item in items
+        if isinstance(item, dict)
+    )
+    active = set(_clean_string_list(active_files, limit=20))
+    filtered: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        symbol_kind = str(metadata.get("symbol_kind") or "")
+        paths = _clean_string_list(item.get("paths"), limit=4)
+        if has_strong and symbol_kind in weak_context_kinds and not active.intersection(paths):
+            continue
+        bounded = dict(item)
+        original_score = int(bounded.get("score", 0) or 0)
+        score_cap = 44 if active.intersection(paths) else 34
+        bounded["score"] = min(original_score, score_cap)
+        reasons = _clean_string_list(bounded.get("reasons"), limit=8)
+        if original_score > bounded["score"] and "repo_map:continuity_capped" not in reasons:
+            reasons.append("repo_map:continuity_capped")
+        bounded["reasons"] = reasons
+        filtered.append(bounded)
+    filtered.sort(key=lambda item: (-int(item.get("score", 0)), str(item.get("id") or ""), str(item.get("path") or "")))
+    return filtered[: max(0, int(limit))]
+
+
+def _bounded_ranked_items(items: list[dict[str, Any]], *, limit: int, repo_map_limit: int) -> list[dict[str, Any]]:
+    ranked = sorted(items, key=lambda item: (-int(item.get("score", 0)), str(item.get("kind") or ""), str(item.get("id") or "")))
+    selected: list[dict[str, Any]] = []
+    repo_map_count = 0
+    for item in ranked:
+        if str(item.get("kind") or "") == "repo_map":
+            if repo_map_count >= repo_map_limit:
+                continue
+            repo_map_count += 1
+        selected.append(item)
+        if len(selected) >= limit:
+            break
+    return selected
 
 
 def _why_loaded_from_items(
