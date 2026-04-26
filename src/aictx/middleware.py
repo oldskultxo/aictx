@@ -468,11 +468,6 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     banner_text = str(continuity_context.get("startup_banner_text") or "").strip()
     banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
     startup_banner_text = "" if banner_already_shown else (banner_text or _fallback_startup_banner_text(repo_root, session))
-    if startup_banner_text:
-        updated_session = mark_startup_banner_shown(repo_root, session, timestamp=str(envelope.get("timestamp") or now_iso()))
-        continuity_context["session"] = updated_session
-        continuity_context["agent_identity"] = updated_session
-        session = updated_session
     banner_required = bool(startup_banner_text)
     packet: dict[str, Any] = {}
     packet_path = ""
@@ -1145,6 +1140,15 @@ def build_agent_summary(
 
 def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     repo_root = Path(str(prepared.get("envelope", {}).get("repo_root") or ".")).resolve()
+    startup_banner_policy = prepared.get("startup_banner_policy") if isinstance(prepared.get("startup_banner_policy"), dict) else {}
+    if prepared.get("startup_banner_text") and not startup_banner_policy.get("already_shown"):
+        context = prepared.get("continuity_context") if isinstance(prepared.get("continuity_context"), dict) else {}
+        session = context.get("session") if isinstance(context.get("session"), dict) else {}
+        mark_startup_banner_shown(
+            repo_root,
+            session,
+            timestamp=str(prepared.get("envelope", {}).get("timestamp") or now_iso()),
+        )
     normalized_result = {
         "success": bool(result.get("success")),
         "result_summary": str(result.get("result_summary", "") or ""),

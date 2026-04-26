@@ -180,15 +180,51 @@ def derive_runtime(agent_id: str = "", adapter_id: str = "") -> str:
     return _stable_runtime_label(adapter_id or agent_id or "generic")
 
 
+def _visible_session_env_keys(runtime: str) -> tuple[str, ...]:
+    runtime_key = _stable_runtime_label(runtime)
+    common = (
+        "AICTX_SESSION_ID",
+        "AGENT_SESSION_ID",
+        "LLM_SESSION_ID",
+        "CHAT_SESSION_ID",
+    )
+    terminal = (
+        "TERM_SESSION_ID",
+        "TMUX_PANE",
+        "STY",
+    )
+    runtime_keys: tuple[str, ...]
+    if runtime_key.startswith("codex"):
+        runtime_keys = (
+            "CODEX_THREAD_ID",
+            "CODEX_SESSION_ID",
+            "CODEX_CONVERSATION_ID",
+        )
+    elif runtime_key.startswith("claude"):
+        runtime_keys = (
+            "CLAUDE_SESSION_ID",
+            "CLAUDE_CONVERSATION_ID",
+            "CLAUDE_THREAD_ID",
+            "CLAUDE_CODE_SESSION_ID",
+        )
+    else:
+        runtime_keys = (
+            f"{runtime_key.upper().replace('-', '_')}_SESSION_ID",
+            f"{runtime_key.upper().replace('-', '_')}_THREAD_ID",
+        )
+    return common + runtime_keys + terminal
+
+
 def derive_visible_session_id(agent_id: str = "", adapter_id: str = "", session_id: str = "") -> str:
     explicit = str(session_id or "").strip()
     if explicit:
         return explicit
-    for env_key in ("AICTX_SESSION_ID", "CODEX_SESSION_ID", "CLAUDE_SESSION_ID", "TERM_SESSION_ID"):
+    runtime = derive_runtime(agent_id=agent_id, adapter_id=adapter_id)
+    for env_key in _visible_session_env_keys(runtime):
         env_value = str(os.environ.get(env_key, "") or "").strip()
         if env_value:
             return env_value
-    return f"{derive_runtime(agent_id=agent_id, adapter_id=adapter_id)}:default"
+    return f"{runtime}:process:{os.getppid() or os.getpid()}"
 
 
 def touch_session_identity(repo_root: Path, agent_id: str = "", adapter_id: str = "", timestamp: str = "", session_id: str = "") -> dict[str, Any]:
