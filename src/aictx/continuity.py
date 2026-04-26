@@ -994,7 +994,7 @@ def update_continuity_metrics(
         payload["failure_match_count"] += 1
     if bool(loaded.get("semantic_repo")):
         payload["semantic_memory_load_count"] += 1
-    if bool(cross_memory.get("known_failure_avoidance")):
+    if bool(cross_memory.get("known_failure_avoidance")) or (bool(loaded.get("failures")) and bool(telemetry_entry.get("success"))):
         payload["repeated_failure_avoidance_count"] += 1
     payload["updated_at"] = _now_iso()
     write_json(repo_root / CONTINUITY_METRICS_PATH, payload)

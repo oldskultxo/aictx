@@ -989,6 +989,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
     prepare.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
     prepare.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
+    prepare.add_argument("--error-event-json", action="append", default=[], help="JSON error_event object observed during execution")
     prepare.set_defaults(func=cli_prepare_execution)
 
     finalize = execution_sub.add_parser("finalize", help=argparse.SUPPRESS)
@@ -1002,6 +1003,7 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
     finalize.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
     finalize.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
+    finalize.add_argument("--error-event-json", action="append", default=[], help="JSON error_event object observed during execution")
     finalize.add_argument("--decision-json", action="append", default=[], help="JSON object for a significant continuity decision")
     finalize.add_argument("--semantic-json", action="append", default=[], help="JSON object for a semantic repo subsystem update")
     finalize.set_defaults(func=cli_finalize_execution)
@@ -1026,6 +1028,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_execution.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
     run_execution.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
     run_execution.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
+    run_execution.add_argument("--error-event-json", action="append", default=[], help="JSON error_event object observed during execution")
     run_execution.add_argument("command", nargs=argparse.REMAINDER, help="Wrapped command after --.")
     run_execution.set_defaults(func=cli_run_execution)
 

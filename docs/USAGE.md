@@ -134,6 +134,7 @@ Current report may include:
 - redundant exploration counts
 - capture coverage
 - failure pattern counts
+- structured error capture metrics: event counts, toolchains seen, top phases/toolchains, and failure patterns with events
 - continuity health signals
 - RepoMap status snapshot
 
@@ -166,6 +167,23 @@ Related runtime paths:
 These files stay inside the repository.
 Cross-project behavior must come from workspace registry/config, not hardcoded machine paths.
 
+## Failure-aware execution
+
+Wrapped execution can capture structured error events automatically:
+
+```bash
+aictx internal run-execution \
+  --repo . \
+  --request "run tests" \
+  --agent-id demo \
+  --json \
+  -- python -m pytest -q
+```
+
+When the wrapped command fails, the JSON outcome may include `execution_observation.error_events`, derived `notable_errors`, and a persisted failure pattern. Later `prepare_execution` calls can load related patterns so the next agent sees prior failure context.
+
+Explicit integrations can also pass `--error-event-json` to `internal execution prepare`, `internal execution finalize`, or `internal run-execution`.
+
 ## Internal commands
 
 Internal runtime commands exist under `aictx internal ...`, including execution prepare/finalize and wrapped execution helpers.
@@ -178,7 +196,7 @@ Important runtime behavior:
 - if finalize output is unavailable, agents must say `AICTX summary unavailable`
 - `prepare_execution` may return `startup_banner_text`, shown once per visible session when the runtime requires it
 - `finalize` can expose prepared/final/effective task and area classification values
-- `aictx internal run-execution --json` returns the full wrapped outcome as JSON
+- `aictx internal run-execution --json` returns the full wrapped outcome as JSON, including structured `error_events` when captured
 - `aictx internal run-execution` without `--json` prints command output plus runtime banner/summary text when applicable
 
 ## Cleanup

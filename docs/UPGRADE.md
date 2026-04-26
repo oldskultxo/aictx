@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 4.3.x
+## Current line: 4.4.x
 
-Current documented runtime: `4.3.0`.
+Current documented runtime: `4.4.0`.
 
 For users already on recent `4.x`, there is no special manual migration workflow beyond re-running the normal setup paths when needed:
 
@@ -12,6 +12,23 @@ aictx init --repo .
 ```
 
 The important `4.x` changes are behavioral, not a new user-facing migration command.
+
+## 4.4.x
+
+### Added
+
+- toolchain-aware `error_events` for observed command/test/lint/type/build/compile failures
+- structured failure pattern persistence with toolchain, phase, code, path, line, command, exit code, and fingerprint when available
+- backward-compatible derivation of `notable_errors` from structured events
+- failure lookup that can rank by toolchain, phase, code, fingerprint, text, area, and paths
+- final summaries that distinguish new learned failures, repeated known patterns, resolved prior failures, and related failure context that was only considered
+- `report real-usage` error-capture metrics for event counts, toolchains, phases, and failure patterns with structured events
+
+### Notes
+
+- no manual migration is required; rerun `aictx init --repo .` if you want regenerated runner guidance and runtime files
+- failure capture is strongest for commands run through `aictx internal run-execution` or integrations that pass explicit execution/error signals
+- AICTX does not claim an error was avoided unless the observed execution state supports that wording
 
 ## 4.3.x
 

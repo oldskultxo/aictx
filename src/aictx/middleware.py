@@ -20,7 +20,7 @@ from .continuity import (
     write_last_execution_summary,
 )
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
-from .runtime_capture import SIGNAL_FIELDS, build_capture
+from .runtime_capture import SIGNAL_FIELDS, build_capture, normalize_error_events
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
 from .runtime_io import slugify
 from .runtime_memory import rank_records
@@ -363,6 +363,7 @@ def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
         "commands_executed": [str(item) for item in payload.get("commands_executed", []) if str(item).strip()] if isinstance(payload.get("commands_executed"), list) else [],
         "tests_executed": [str(item) for item in payload.get("tests_executed", []) if str(item).strip()] if isinstance(payload.get("tests_executed"), list) else [],
         "notable_errors": [str(item) for item in payload.get("notable_errors", []) if str(item).strip()] if isinstance(payload.get("notable_errors"), list) else [],
+        "error_events": normalize_error_events(payload.get("error_events", [])),
     }
 
 
@@ -569,6 +570,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "commands_executed": list(capture.get("commands_executed", [])),
             "tests_executed": list(capture.get("tests_executed", [])),
             "notable_errors": list(capture.get("notable_errors", [])),
+            "error_events": list(capture.get("error_events", [])),
             "capture_provenance": dict(capture.get("provenance", {})),
             "area_id": area_id,
             "execution_time_ms": None,
@@ -700,6 +702,7 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "commands_executed": list(observation.get("commands_executed", [])) if isinstance(observation.get("commands_executed"), list) else [],
         "tests_executed": list(observation.get("tests_executed", [])) if isinstance(observation.get("tests_executed"), list) else [],
         "notable_errors": list(observation.get("notable_errors", [])) if isinstance(observation.get("notable_errors"), list) else [],
+        "error_events": list(observation.get("error_events", [])) if isinstance(observation.get("error_events"), list) else [],
         "capture_provenance": dict(observation.get("capture_provenance", {})) if isinstance(observation.get("capture_provenance"), dict) else {},
         "area_id": effective_area_id,
         "prepared_area_id": str(prepared.get("prepared_area_id") or prepared.get("area_id") or "unknown"),
@@ -805,7 +808,7 @@ def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, An
 
 def build_capture_quality(execution_log: dict[str, Any]) -> dict[str, Any]:
     provenance = execution_log.get("capture_provenance") if isinstance(execution_log.get("capture_provenance"), dict) else {}
-    fields = ["files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors"]
+    fields = ["files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors", "error_events"]
     covered = [
         field
         for field in fields
@@ -1002,6 +1005,56 @@ def _compact_next_hint(summary: dict[str, Any]) -> str:
     return "; ".join(where)
 
 
+def _failure_descriptor(failure: dict[str, Any]) -> str:
+    if not isinstance(failure, dict):
+        return "fallo"
+    code = ""
+    codes = failure.get("error_codes")
+    if isinstance(codes, list) and codes:
+        code = str(codes[0] or "").strip()
+    toolchain = ""
+    toolchains = failure.get("toolchains")
+    if isinstance(toolchains, list) and toolchains:
+        toolchain = str(toolchains[0] or "").strip()
+    phase = ""
+    phases = failure.get("phases")
+    if isinstance(phases, list) and phases:
+        phase = str(phases[0] or "").strip()
+    parts = [part for part in [toolchain, phase, code] if part]
+    return " ".join(parts) or str(failure.get("failure_id") or failure.get("signature") or "fallo")
+
+
+def _failure_descriptors(rows: list[dict[str, Any]], ids: list[str] | None = None, *, limit: int = 2) -> list[str]:
+    wanted = set(str(item) for item in (ids or []) if str(item).strip())
+    descriptors: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        row_id = str(row.get("failure_id") or row.get("signature") or "").strip()
+        if wanted and row_id not in wanted:
+            continue
+        descriptor = _failure_descriptor(row)
+        if row_id and descriptor == row_id:
+            descriptor = row_id
+        elif row_id:
+            descriptor = f"{descriptor} ({row_id})"
+        if descriptor and descriptor not in seen:
+            descriptors.append(descriptor)
+            seen.add(descriptor)
+        if len(descriptors) >= limit:
+            break
+    missing = [item for item in (ids or []) if str(item).strip() and all(str(item) not in desc for desc in descriptors)]
+    for item in missing:
+        text = str(item)
+        if text not in seen:
+            descriptors.append(text)
+            seen.add(text)
+        if len(descriptors) >= limit:
+            break
+    return descriptors[:limit]
+
+
 def render_agent_summary(summary: dict[str, Any]) -> str:
     return render_compact_agent_summary(summary, details_path=".aictx/continuity/last_execution_summary.md")
 
@@ -1031,7 +1084,11 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
         return f"AICTX summary: ejecución ligera; no añadió continuidad nueva, pero quedó registrada. Details: {_render_details_link(details_path)}"
     if summary.get("failure_recorded"):
         next_hint = _next_session_guidance(summary)
-        return f"AICTX summary: registró un patrón de fallo para retomar con contexto. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
+        failure = summary.get("failure_record") if isinstance(summary.get("failure_record"), dict) else {}
+        descriptor = _failure_descriptor(failure)
+        if failure.get("existing"):
+            return f"AICTX summary: reconoció un patrón de fallo existente ({descriptor}) y actualizó su memoria para no repetirlo. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
+        return f"AICTX summary: aprendió un patrón de fallo nuevo ({descriptor}) para evitar repetirlo. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
     parts: list[str] = []
     strategy_summary = _strategy_summary(summary)
     if strategy_summary:
@@ -1044,7 +1101,10 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
         parts.append(classification_summary)
     avoided = _compact_list(summary.get("avoided"), limit=2)
     if avoided:
-        parts.append("evitó " + "; ".join(avoided))
+        if all(str(item).startswith("resolvió ") for item in avoided):
+            parts.append("; ".join(avoided))
+        else:
+            parts.append("evitó " + "; ".join(avoided))
     stored_parts: list[str] = []
     if summary.get("handoff_stored"):
         stored_parts.append("handoff")
@@ -1098,11 +1158,23 @@ def build_agent_summary(
     prior_failures = continuity.get("failures", []) if isinstance(continuity.get("failures"), list) else []
     avoided: list[str] = []
     if resolved_failures:
-        avoided.append("resolved prior failure: " + ", ".join(str(item) for item in resolved_failures[:2]))
+        rows = prior_failures or lookup_failures(
+            Path(str(prepared.get("envelope", {}).get("repo_root") or ".")).resolve(),
+            task_type=str(execution_log.get("task_type") or ""),
+            text=str(prepared.get("envelope", {}).get("user_request") or ""),
+            files=list(execution_log.get("files_opened", [])) if isinstance(execution_log.get("files_opened"), list) else [],
+            area_id=str(execution_log.get("area_id") or ""),
+            limit=5,
+        )
+        descriptors = _failure_descriptors([row for row in rows if isinstance(row, dict)], resolved_failures, limit=2)
+        avoided.append("resolvió fallo previo: " + ", ".join(descriptors or [str(item) for item in resolved_failures[:2]]))
     elif prior_failures and not failure:
-        failure_ids = [str(row.get("failure_id") or row.get("signature") or "failure") for row in prior_failures if isinstance(row, dict)]
-        if failure_ids:
-            avoided.append("known failure considered: " + ", ".join(failure_ids[:2]))
+        descriptors = _failure_descriptors([row for row in prior_failures if isinstance(row, dict)], limit=2)
+        if descriptors:
+            if execution_log.get("success") is True:
+                avoided.append("usó contexto de fallo previo sin repetirlo: " + ", ".join(descriptors))
+            else:
+                avoided.append("consideró fallo previo relacionado: " + ", ".join(descriptors))
     handoff_payload = handoff.get("handoff", {}) if isinstance(handoff, dict) else {}
     final_task_resolution = prepared.get("final_task_resolution", {}) if isinstance(prepared.get("final_task_resolution"), dict) else {}
     summary = {
@@ -1120,6 +1192,9 @@ def build_agent_summary(
         "learning_persisted": bool(learning),
         "strategy_persisted": bool(strategy),
         "failure_recorded": bool(failure),
+        "failure_record": dict(failure) if isinstance(failure, dict) else {},
+        "resolved_failures": list(resolved_failures or []),
+        "failure_context_loaded": bool(prior_failures),
         "handoff_stored": bool(handoff),
         "decision_stored": bool(decisions),
         "continuity_loaded": dict(loaded),
@@ -1130,6 +1205,7 @@ def build_agent_summary(
         "reopened_files": len(execution_log.get("files_reopened", [])) if isinstance(execution_log.get("files_reopened"), list) else 0,
         "commands_observed": list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else [],
         "tests_observed": list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else [],
+        "error_events_observed": list(execution_log.get("error_events", [])) if isinstance(execution_log.get("error_events"), list) else [],
         "next_guidance": dict(continuity.get("continuity_brief", {})) if isinstance(continuity.get("continuity_brief"), dict) else {},
         "continuity_value": build_continuity_value(prepared, execution_log, bool(handoff), bool(decisions), bool(failure)),
         "capture_quality": build_capture_quality(execution_log),
@@ -1260,12 +1336,14 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "files_reopened": list(prepared.get("last_execution_log", {}).get("files_reopened", [])) if isinstance(prepared.get("last_execution_log", {}).get("files_reopened"), list) else [],
             "commands_executed": list(prepared.get("last_execution_log", {}).get("commands_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("commands_executed"), list) else [],
             "tests_executed": list(prepared.get("last_execution_log", {}).get("tests_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("tests_executed"), list) else [],
+            "error_events": list(prepared.get("last_execution_log", {}).get("error_events", [])) if isinstance(prepared.get("last_execution_log", {}).get("error_events"), list) else [],
         },
         "finalized_at": finalized_at,
     }
 
 
 def cli_prepare_execution(args: argparse.Namespace) -> int:
+    error_events = _cli_error_events(args)
     payload = {
         "repo_root": args.repo,
         "user_request": args.request,
@@ -1281,6 +1359,7 @@ def cli_prepare_execution(args: argparse.Namespace) -> int:
         "commands_executed": list(args.commands_executed or []),
         "tests_executed": list(args.tests_executed or []),
         "notable_errors": list(args.notable_errors or []),
+        "error_events": error_events,
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,
@@ -1296,7 +1375,7 @@ def cli_finalize_execution(args: argparse.Namespace) -> int:
     prepared = read_json(Path(args.prepared), {})
     observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
     for field in SIGNAL_FIELDS:
-        cli_value = list(getattr(args, field, []) or [])
+        cli_value = _cli_error_events(args) if field == "error_events" else list(getattr(args, field, []) or [])
         observation[field] = cli_value or list(observation.get(field, []) or [])
     prepared["execution_observation"] = observation
     decisions = []
@@ -1324,3 +1403,18 @@ def cli_finalize_execution(args: argparse.Namespace) -> int:
     }
     print(json.dumps(finalize_execution(prepared, result), indent=2, ensure_ascii=False))
     return 0
+
+
+def _cli_error_events(args: argparse.Namespace) -> list[dict[str, Any]]:
+    raw_values = list(getattr(args, "error_event_json", []) or [])
+    events: list[dict[str, Any]] = []
+    for raw in raw_values:
+        try:
+            payload = json.loads(str(raw))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            events.append(payload)
+        elif isinstance(payload, list):
+            events.extend(item for item in payload if isinstance(item, dict))
+    return normalize_error_events(events)

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .middleware import finalize_execution, prepare_execution
-from .runtime_capture import changed_files_between, command_text, git_status_files, infer_tests_from_commands, notable_errors_from_output
+from .runtime_capture import changed_files_between, command_text, error_events_from_output, git_status_files, infer_tests_from_commands, normalize_error_events, notable_errors_from_events, notable_errors_from_output
 
 
 def now_stamp() -> str:
@@ -76,13 +76,15 @@ def run_execution(payload: dict[str, Any], command: list[str], validated_learnin
     observed_command = command_text(normalized_command)
     observation["commands_executed"] = [observed_command] if observed_command else []
     observation["tests_executed"] = infer_tests_from_commands(observation["commands_executed"])
-    observation["notable_errors"] = notable_errors_from_output(exit_code, stdout, stderr)
+    observation["error_events"] = error_events_from_output(exit_code, stdout, stderr, observed_command)
+    observation["notable_errors"] = notable_errors_from_events(observation["error_events"]) or notable_errors_from_output(exit_code, stdout, stderr)
     edited = changed_files_between(before_status, after_status)
     if edited:
         observation["files_edited"] = edited
     provenance = dict(observation.get("capture_provenance", {})) if isinstance(observation.get("capture_provenance"), dict) else {}
     provenance["commands_executed"] = "runtime_observed"
     provenance["tests_executed"] = "heuristic" if observation["tests_executed"] else "unknown"
+    provenance["error_events"] = "runtime_observed" if observation["error_events"] else "unknown"
     provenance["notable_errors"] = "runtime_observed" if observation["notable_errors"] else "unknown"
     provenance["files_edited"] = "runtime_observed" if edited else provenance.get("files_edited", "unknown")
     observation["capture_provenance"] = provenance
@@ -100,6 +102,16 @@ def run_execution(payload: dict[str, Any], command: list[str], validated_learnin
 
 
 def cli_run_execution(args: argparse.Namespace) -> int:
+    explicit_error_events: list[dict[str, Any]] = []
+    for raw in list(getattr(args, "error_event_json", []) or []):
+        try:
+            payload = json.loads(str(raw))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            explicit_error_events.append(payload)
+        elif isinstance(payload, list):
+            explicit_error_events.extend(item for item in payload if isinstance(item, dict))
     payload = {
         "repo_root": args.repo,
         "user_request": args.request,
@@ -114,6 +126,7 @@ def cli_run_execution(args: argparse.Namespace) -> int:
         "commands_executed": list(args.commands_executed or []),
         "tests_executed": list(args.tests_executed or []),
         "notable_errors": list(args.notable_errors or []),
+        "error_events": normalize_error_events(explicit_error_events),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,

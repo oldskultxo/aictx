@@ -61,6 +61,44 @@ def failure_signature(task_type: str, errors: list[str], command: str = "") -> s
     return slugify(f"{task_type}:{basis}")[:96]
 
 
+def _clean_error_events(value: Any, *, limit: int = 5) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    events: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in value:
+        if not isinstance(raw, dict):
+            continue
+        message = str(raw.get("message") or "").strip()
+        if not message:
+            continue
+        event = {
+            "toolchain": str(raw.get("toolchain") or "unknown").strip() or "unknown",
+            "phase": str(raw.get("phase") or "runtime").strip() or "runtime",
+            "severity": str(raw.get("severity") or "error").strip() or "error",
+            "message": message[:500],
+            "code": str(raw.get("code") or "").strip(),
+            "file": str(raw.get("file") or "").strip(),
+            "line": str(raw.get("line") or "").strip(),
+            "command": str(raw.get("command") or "").strip(),
+            "exit_code": int(raw.get("exit_code") or 0) if isinstance(raw.get("exit_code"), (int, str)) and str(raw.get("exit_code") or "").lstrip("-").isdigit() else 0,
+            "fingerprint": str(raw.get("fingerprint") or "").strip(),
+        }
+        key = event["fingerprint"] or slugify(":".join([event["toolchain"], event["phase"], event["code"], event["file"], event["message"][:160]]))[:96]
+        event["fingerprint"] = key
+        if key in seen:
+            continue
+        seen.add(key)
+        events.append(event)
+        if len(events) >= limit:
+            break
+    return events
+
+
+def _event_values(events: list[dict[str, Any]], key: str, *, limit: int = 5) -> list[str]:
+    return _clean_string_list([str(event.get(key) or "") for event in events], limit=limit)
+
+
 def load_failures(repo_root: Path) -> list[dict[str, Any]]:
     return read_jsonl(repo_root / FAILURE_PATTERNS_PATH)
 
@@ -76,6 +114,8 @@ def write_failure_index(repo_root: Path, rows: list[dict[str, Any]]) -> None:
                 "task_type": row.get("task_type"),
                 "status": row.get("status"),
                 "area_id": row.get("area_id"),
+                "toolchains": row.get("toolchains", []),
+                "phases": row.get("phases", []),
             }
             for row in rows
         ],
@@ -85,6 +125,9 @@ def write_failure_index(repo_root: Path, rows: list[dict[str, Any]]) -> None:
 
 def persist_failure_pattern(repo_root: Path, prepared: dict[str, Any], execution_log: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
     errors = list(execution_log.get("notable_errors", [])) if isinstance(execution_log.get("notable_errors"), list) else []
+    error_events = _clean_error_events(execution_log.get("error_events", []))
+    if not errors and error_events:
+        errors = _clean_string_list([str(event.get("message") or "") for event in error_events], limit=3)
     commands = list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else []
     if not errors and not result.get("success"):
         summary = str(result.get("result_summary") or "").strip()
@@ -96,11 +139,14 @@ def persist_failure_pattern(repo_root: Path, prepared: dict[str, Any], execution
         return None
     if not errors and not commands:
         return None
-    signature = failure_signature(str(execution_log.get("task_type") or "unknown"), errors, commands[0] if commands else "")
+    event_fingerprint = str(error_events[0].get("fingerprint") or "") if error_events else ""
+    signature = event_fingerprint or failure_signature(str(execution_log.get("task_type") or "unknown"), errors, commands[0] if commands else "")
     rows = load_failures(repo_root)
     existing = next((row for row in rows if row.get("signature") == signature and row.get("status") != "resolved"), None)
     task_type = str(execution_log.get("task_type") or "unknown")
     files_involved = _clean_string_list(execution_log.get("files_opened", []), limit=8)
+    event_files = _event_values(error_events, "file", limit=8)
+    related_paths = _clean_string_list(files_involved + event_files, limit=8)
     record = {
         "failure_id": existing.get("failure_id") if existing else f"failure::{signature}",
         "signature": signature,
@@ -115,11 +161,17 @@ def persist_failure_pattern(repo_root: Path, prepared: dict[str, Any], execution
         "resolved_by_execution_id": "",
         "resolved_by": "",
         "occurrences": int(existing.get("occurrences", 0) or 0) + 1 if existing else 1,
+        "previous_occurrences": int(existing.get("occurrences", 0) or 0) if existing else 0,
         "last_execution_id": str(prepared.get("envelope", {}).get("execution_id") or ""),
         "symptoms": _clean_string_list(errors[:3], limit=3),
         "failed_attempts": _clean_string_list([str(result.get("result_summary") or "")], limit=3),
         "ineffective_commands": _clean_string_list(commands, limit=5),
-        "related_paths": files_involved,
+        "related_paths": related_paths,
+        "error_events": error_events,
+        "toolchains": _event_values(error_events, "toolchain", limit=5),
+        "phases": _event_values(error_events, "phase", limit=5),
+        "error_codes": _event_values(error_events, "code", limit=5),
+        "error_fingerprints": _event_values(error_events, "fingerprint", limit=5),
         "subsystem": str(execution_log.get("area_id") or task_type or "unknown"),
         "resolution_hint": _resolution_hint(task_type, commands, errors),
         "timestamp": now_iso(),
@@ -127,7 +179,16 @@ def persist_failure_pattern(repo_root: Path, prepared: dict[str, Any], execution
     }
     append_jsonl(repo_root / FAILURE_PATTERNS_PATH, record)
     write_failure_index(repo_root, load_failures(repo_root))
-    return {"path": (repo_root / FAILURE_PATTERNS_PATH).as_posix(), "failure_id": record["failure_id"], "signature": signature}
+    return {
+        "path": (repo_root / FAILURE_PATTERNS_PATH).as_posix(),
+        "failure_id": record["failure_id"],
+        "signature": signature,
+        "existing": bool(existing),
+        "occurrences": record["occurrences"],
+        "toolchains": record["toolchains"],
+        "phases": record["phases"],
+        "error_codes": record["error_codes"],
+    }
 
 
 GENERIC_FAILURE_TOKENS = {"fail", "failed", "failure", "error", "fix", "bug", "test", "tests"}
@@ -150,6 +211,18 @@ def lookup_failures(repo_root: Path, *, task_type: str = "", text: str = "", fil
         row_files = set(_clean_string_list(row.get("files_involved", [])) + _clean_string_list(row.get("related_paths", [])))
         if file_set.intersection(row_files):
             score += 3
+        event_tokens: set[str] = set()
+        for event in _clean_error_events(row.get("error_events", [])):
+            event_tokens.update(token for token in slugify(" ".join([
+                str(event.get("toolchain") or ""),
+                str(event.get("phase") or ""),
+                str(event.get("code") or ""),
+                str(event.get("fingerprint") or ""),
+                str(event.get("message") or ""),
+            ])).split("_") if len(token) > 2 and token not in GENERIC_FAILURE_TOKENS)
+        for key in ("toolchains", "phases", "error_codes", "error_fingerprints"):
+            event_tokens.update(token for token in slugify(" ".join(_clean_string_list(row.get(key, [])))).split("_") if len(token) > 2 and token not in GENERIC_FAILURE_TOKENS)
+        score += 2 * len(tokens.intersection(event_tokens))
         haystack = slugify(" ".join([
             str(row.get("error_text", "")),
             str(row.get("failed_command", "")),
@@ -159,6 +232,10 @@ def lookup_failures(repo_root: Path, *, task_type: str = "", text: str = "", fil
             " ".join(_clean_string_list(row.get("ineffective_commands", []))),
             " ".join(_clean_string_list(row.get("related_paths", []))),
             str(row.get("resolution_hint", "")),
+            " ".join(_clean_string_list(row.get("toolchains", []))),
+            " ".join(_clean_string_list(row.get("phases", []))),
+            " ".join(_clean_string_list(row.get("error_codes", []))),
+            " ".join(_clean_string_list(row.get("error_fingerprints", []))),
         ]))
         score += len(tokens.intersection(set(haystack.split("_"))))
         if score:

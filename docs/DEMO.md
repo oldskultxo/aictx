@@ -74,7 +74,29 @@ aictx internal run-execution \
   -- python -m pytest -q
 ```
 
-## 5. Continuity inspection
+## 5. Failure capture demo
+
+Wrapped execution can capture failures and persist failure memory:
+
+```bash
+aictx internal run-execution \
+  --repo . \
+  --request "run typecheck" \
+  --agent-id demo \
+  --json \
+  -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
+```
+
+What to inspect:
+
+```bash
+cat .aictx/failure_memory/failure_patterns.jsonl
+aictx report real-usage --repo .
+```
+
+A later related execution can load the failure context during prepare. If a successful execution resolves a matching open failure, the final summary can report the resolved prior failure with a descriptor such as `typescript typecheck TS2322`.
+
+## 6. Continuity inspection
 
 ```bash
 aictx next --repo .
@@ -87,9 +109,10 @@ This demo proves:
 - run 1 records real execution
 - run 2 can reuse a real prior strategy
 - prepare can classify provisionally, while finalize can classify from observed evidence
+- failed wrapped commands can create structured, reusable failure memory
 - output comes from stored logs, feedback, continuity, and strategy memory only
 
-## 6. Cleanup
+## 7. Cleanup
 
 ```bash
 aictx clean --repo .

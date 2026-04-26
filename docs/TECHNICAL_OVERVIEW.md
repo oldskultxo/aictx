@@ -43,7 +43,7 @@ The runtime is built around one simple loop:
   - session identity
   - handoff and recent handoff history
   - decisions
-  - failure patterns
+  - failure patterns, including structured toolchain error events when available
   - semantic repo memory
   - procedural reuse
   - staleness markers
@@ -65,7 +65,7 @@ The runtime is built around one simple loop:
   - `final_task_resolution`
 - persists validated learning where enabled
 - persists strategy memory
-- records or resolves failure memory
+- records, recognizes, or resolves failure memory
 - persists handoff / decisions / semantic continuity artifacts
 - updates continuity metrics
 - returns `agent_summary` and `agent_summary_text`
@@ -103,6 +103,14 @@ Current shape:
 
 This improves continuity quality but remains heuristic, not semantic understanding.
 
+## Failure capture and memory
+
+AICTX 4.4 normalizes observed failures into `error_events` where possible. Events are compact dictionaries with `toolchain`, `phase`, `severity`, `message`, `code`, `file`, `line`, `command`, `exit_code`, and `fingerprint`.
+
+The runtime can parse common output from Python/pytest/mypy/ruff/pyright, JS/TS/npm/tsc/ESLint/Jest/Vitest, Go, Rust/Cargo, Java/JVM/Maven, .NET, C/C++, Ruby, PHP, and unknown failed commands through a generic fallback.
+
+Failure records remain repo-local in `.aictx/failure_memory/failure_patterns.jsonl`. They are used as debugging/avoidance context, not as positive strategy reuse. Summaries distinguish new learned patterns, repeated known patterns, resolved prior failures, and related context that was only considered.
+
 ## Strategy reuse
 
 Strategy reuse is conservative and explainable.
@@ -114,6 +122,7 @@ Current matching can consider:
 - overlapping files
 - primary entry point
 - commands/tests/errors
+- structured error event fingerprints/codes when available through failure memory
 - area
 - recency
 - real execution evidence

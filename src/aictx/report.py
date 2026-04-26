@@ -71,7 +71,7 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         if row.get("agent_summary"):
             summaries_available += 1
 
-    capture_fields = ["files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors"]
+    capture_fields = ["files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors", "error_events"]
     capture_coverage = {
         field: sum(1 for row in logs if isinstance(row.get(field), list) and bool(row.get(field)))
         for field in capture_fields
@@ -86,6 +86,17 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
     failed_with_pattern = sum(1 for row in failed_logs if str(row.get("task_id") or "") in failure_execution_ids)
     notable_error_rows = [row for row in logs if isinstance(row.get("notable_errors"), list) and bool(row.get("notable_errors"))]
     notable_error_count = sum(len(row.get("notable_errors", [])) for row in notable_error_rows)
+    error_event_rows = [row for row in logs if isinstance(row.get("error_events"), list) and bool(row.get("error_events"))]
+    error_events = [event for row in error_event_rows for event in row.get("error_events", []) if isinstance(event, dict)]
+    toolchains = sorted({str(event.get("toolchain") or "unknown") for event in error_events if event.get("toolchain")})
+    phase_counts: dict[str, int] = {}
+    toolchain_counts: dict[str, int] = {}
+    for event in error_events:
+        toolchain = str(event.get("toolchain") or "unknown")
+        phase = str(event.get("phase") or "runtime")
+        toolchain_counts[toolchain] = toolchain_counts.get(toolchain, 0) + 1
+        phase_counts[phase] = phase_counts.get(phase, 0) + 1
+    structured_failure_count = sum(1 for row in failures if isinstance(row.get("error_events"), list) and bool(row.get("error_events")))
     hygiene = build_memory_hygiene_report(repo_root)
     continuity_metrics = read_json(repo_root / CONTINUITY_METRICS_PATH, {})
     continuity_health = build_continuity_health_report(
@@ -110,6 +121,12 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         "error_capture": {
             "notable_error_count": notable_error_count,
             "executions_with_notable_errors": len(notable_error_rows),
+            "error_event_count": len(error_events),
+            "executions_with_error_events": len(error_event_rows),
+            "toolchains_seen": toolchains,
+            "top_toolchains": dict(sorted(toolchain_counts.items(), key=lambda item: (-item[1], item[0]))[:5]),
+            "top_phases": dict(sorted(phase_counts.items(), key=lambda item: (-item[1], item[0]))[:5]),
+            "failure_patterns_with_error_events": structured_failure_count,
             "failed_executions": len(failed_logs),
             "failed_executions_with_failure_pattern": failed_with_pattern,
             "failed_executions_without_failure_pattern": max(0, len(failed_logs) - failed_with_pattern),

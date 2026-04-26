@@ -29,6 +29,9 @@ The summary reports only observed or persisted facts, for example:
 - observed files/tests counts
 - next focus when continuity has one
 - prepared/final/effective task and area classification when that adds real value
+- failure memory events when relevant: learned new pattern, recognized repeated pattern, resolved prior failure, or considered prior context
+
+For failure memory, compact summaries include human-readable descriptors when available, for example `typescript typecheck TS2322`, plus the failure id where useful. AICTX should not claim that a failure was avoided unless the execution facts support that wording.
 
 The detailed file may also include:
 

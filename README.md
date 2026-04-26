@@ -4,7 +4,7 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It helps each new session behave like the same repo-native engineer continuing prior work.
 
-Current documented implementation: `4.3.0`
+Current documented implementation: `4.4.0`
 
 ---
 
@@ -27,6 +27,7 @@ It records real execution, preserves continuity artifacts inside the repository,
 - reusable strategy memory
 - canonical handoff, decisions, semantic repo, staleness, and continuity metrics artifacts
 - structured execution signal capture with provenance
+- toolchain-aware error capture and failure memory
 - failure and repo-area memory
 - lightweight runtime guidance and post-task summaries for coding agents
 - optional RepoMap structural lookup when Tree-sitter support is installed
@@ -120,12 +121,37 @@ aictx map query "startup banner"
   * `continuity_metrics.json`
   * `last_execution_summary.md` (latest detailed finalize summary)
 * captures available files, commands, tests, and errors with provenance instead of inventing data
+* normalizes command/test/lint/type/build/compile failures into compact `error_events` with `toolchain`, `phase`, `code`, path, line, command, exit code, and fingerprint when observed
+* derives backward-compatible `notable_errors` from structured error events when possible
 * preserves provisional and observed classification for continuity traceability (`prepared_*`, `final_*`, `effective_*`)
 * stores repo-local failure patterns and area memory for later debugging/context
 * reuses only successful strategies during later executions
+* loads related failure patterns during prepare so agents can avoid repeating known mistakes
+* distinguishes new, repeated, resolved, and merely considered failure context in `agent_summary_text` without inventing causality
 * returns `agent_summary` and `agent_summary_text` after finalize; `agent_summary_text` is the canonical factual source for the final AICTX summary
 * exposes small JSON commands for runtime guidance
 * does not rely on hidden model memory or opaque cross-repo state
+
+
+## Failure capture and learning
+
+AICTX 4.4 adds toolchain-aware failure capture for wrapped executions and explicit runtime signals.
+
+When AICTX observes failed commands, tests, linting, typing, builds, or compilation, it can normalize the output into structured `error_events` with fields such as:
+
+```text
+toolchain, phase, severity, message, code, file, line, command, exit_code, fingerprint
+```
+
+Supported recognition includes Python/pytest/mypy/ruff/pyright, JavaScript and TypeScript tooling, Go, Rust/Cargo, Java/JVM, .NET, C/C++, Ruby, PHP, and a generic fallback.
+
+The failure memory flow remains inspectable:
+
+- structured events are persisted in `.aictx/failure_memory/failure_patterns.jsonl`
+- `notable_errors` remains available as the compact backward-compatible string form
+- `prepare_execution()` can load related failure patterns for the next agent
+- `finalize_execution()` can record new patterns, recognize repeated patterns, or resolve prior patterns after a successful related execution
+- `agent_summary_text` reports this compactly: learned new pattern, recognized existing pattern, resolved prior failure, or considered/used prior failure context without claiming avoidance unless the observed facts support it
 
 ---
 
@@ -195,7 +221,7 @@ It makes past executions observable and reusable.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.3.0` is:
+The stable repo-local continuity artifact contract in `4.4.0` is:
 
 ```text
 .aictx/continuity/session.json
@@ -263,7 +289,7 @@ Additional latest-run output:
 
 ## Notes
 
-* file tracking depends on explicit input from the agent/runtime; wrapped execution can capture commands, tests, errors, and edited files best-effort
+* file tracking depends on explicit input from the agent/runtime; wrapped execution can capture commands, tests, structured error events, and edited files best-effort
 * strategy reuse is heuristic: matching task type, prompt similarity, overlapping files, primary entry point, commands/tests/errors, and area are preferred, with recency as a secondary signal
 * `prepare` task/area typing is provisional; `finalize` can correct it from observed files, tests, commands, errors, and result summary
 * continuity loading is layered: session identity, handoff, recent decisions, failure patterns, semantic repo memory, procedural reuse, maintenance hygiene, staleness filtering, and aggregate continuity metrics
@@ -274,7 +300,7 @@ Additional latest-run output:
 * middleware packet generation is conservative and task-dependent, not unconditional for every execution
 * `reflect` is intentionally small-scope: it only looks at the latest execution log, but it can now return issue classification, counts, suggested next action, and recommended entry points
 * `suggest` and `reuse` can rank with extra context such as request text, files, commands, tests, and notable errors when that context is provided
-* failed strategies are stored and excluded from positive reuse hints; they may still inform failure-aware avoidance and debugging context
+* failed strategies are stored and excluded from positive reuse hints; structured failure patterns may still inform failure-aware avoidance and debugging context
 * no synthetic benchmarks or estimated improvements are reported
 
 ---
@@ -289,12 +315,13 @@ Additional latest-run output:
 
 ## Possible evolution
 
-The current `4.3.0` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
+The current `4.4.0` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
 
 Possible future work, based on real usage:
 
 * better file access capture from agent/runtime integrations
 * broader runner-native signal capture where supported
+* more parser samples for newly observed toolchain formats
 * clearer comparison across repeated task categories
 * stronger runner-native automation where supported
 * richer repo-level reporting built only from real execution history
