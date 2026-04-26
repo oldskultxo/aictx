@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 4.4.1 - 2026-04-26
+
+### Fixed
+- Published release-hygiene patch with package/docs version aligned to `4.4.1`.
+- Added the missing `4.4.0` changelog entry so the release history matches the published package lineage.
+
+## 4.4.0 - 2026-04-26
+
+### Added
+- Added toolchain-aware failure capture for wrapped executions and explicit runtime signals.
+- Added structured `error_events` with toolchain, phase, severity, message, code, file, line, command, exit code, and fingerprint when observed.
+- Added structured failure pattern persistence and lookup across common Python, JavaScript/TypeScript, Go, Rust, Java/JVM, .NET, C/C++, Ruby, PHP, and generic toolchain outputs.
+- Added finalize summaries that distinguish new learned failures, repeated known patterns, resolved prior failures, and related failure context that was only considered.
+
+### Changed
+- Derived backward-compatible `notable_errors` from structured error events when possible.
+- Improved failure summaries to use compact human-readable descriptors for resolved and repeated patterns.
+- Updated README and docs to describe AICTX 4.4 failure capture and summary semantics.
+
 ## 4.3.0 - 2026-04-26
 
 ### Added
