@@ -71,7 +71,11 @@ aictx reuse
 aictx next
 aictx task start "Fix login token refresh"
 aictx task status --json
+aictx task list --json
+aictx task show fix-login-token-refresh --json
 aictx task update --json-patch '{"next_action":"run targeted auth tests"}' --json
+aictx task update --from-file work-state-patch.json --json
+aictx task resume fix-login-token-refresh --json
 aictx task close --status resolved --json
 aictx map status
 aictx map refresh

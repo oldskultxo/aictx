@@ -113,6 +113,22 @@ def _json_dict(raw: str) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _json_file(path: str) -> dict[str, Any]:
+    text = str(path or "").strip()
+    if not text:
+        return {}
+    try:
+        return _json_dict(Path(text).expanduser().read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+
+
+def _work_state_payload(args: argparse.Namespace) -> dict[str, Any]:
+    payload = _json_file(getattr(args, "work_state_file", ""))
+    payload.update(_json_dict(getattr(args, "work_state_json", "")))
+    return payload
+
+
 def cli_run_execution(args: argparse.Namespace) -> int:
     explicit_error_events: list[dict[str, Any]] = []
     for raw in list(getattr(args, "error_event_json", []) or []):
@@ -139,7 +155,7 @@ def cli_run_execution(args: argparse.Namespace) -> int:
         "tests_executed": list(args.tests_executed or []),
         "notable_errors": list(args.notable_errors or []),
         "error_events": normalize_error_events(explicit_error_events),
-        "work_state": _json_dict(getattr(args, "work_state_json", "")),
+        "work_state": _work_state_payload(args),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,

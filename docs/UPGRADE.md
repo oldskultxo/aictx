@@ -17,9 +17,10 @@ The important `4.x` changes are behavioral, not a new user-facing migration comm
 
 ### Added
 
-- repo-local Work State under `.aictx/tasks/` with public `aictx task start|status|update|close`
+- repo-local Work State under `.aictx/tasks/` with public `aictx task start|status|list|show|update|resume|close`
 - active Work State loading in prepare/startup/`aictx next`, plus conservative finalize updates
-- `report real-usage` Work State visibility for active task id/status/thread count/last update time
+- `report real-usage` Work State visibility for active task id/status/thread count/last update time and recent status counts
+- `--from-file` task patch input, compact `changed_fields` update output, and internal `--work-state-file` runtime payloads
 - `docs/WORK_STATE.md` for artifact, CLI, and runtime behavior
 
 ### Notes

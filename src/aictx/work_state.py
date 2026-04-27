@@ -141,6 +141,16 @@ def normalize_work_state(payload: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def changed_work_state_fields(before: dict[str, Any], after: dict[str, Any], patch: dict[str, Any] | None = None) -> list[str]:
+    patch_keys = set((patch or {}).keys())
+    fields = sorted(
+        field
+        for field in _ALLOWED_FIELDS
+        if field not in {"version", "task_id", "created_at", "updated_at"} and (before.get(field) != after.get(field) or field in patch_keys)
+    )
+    return fields
+
+
 def work_state_paths(repo_root: Path, task_id: str | None = None) -> dict[str, Path]:
     base = Path(repo_root)
     normalized_task_id = normalize_task_id(task_id) if task_id else ""
@@ -179,6 +189,27 @@ def load_active_work_state(repo_root: Path) -> dict[str, Any]:
     if not task_id:
         return {}
     return load_work_state(repo_root, task_id)
+
+
+def list_work_states(repo_root: Path) -> list[dict[str, Any]]:
+    threads_dir = work_state_paths(repo_root)["threads_dir"]
+    if not threads_dir.exists():
+        return []
+    states: list[dict[str, Any]] = []
+    for path in sorted(threads_dir.glob("*.json")):
+        state = load_work_state(repo_root, path.stem)
+        if state:
+            states.append(state)
+    states.sort(key=lambda row: (str(row.get("updated_at") or ""), str(row.get("task_id") or "")), reverse=True)
+    return states
+
+
+def load_recent_inactive_work_state(repo_root: Path, *, statuses: set[str] | None = None) -> dict[str, Any]:
+    allowed = statuses or {"blocked", "paused"}
+    for state in list_work_states(repo_root):
+        if str(state.get("status") or "") in allowed:
+            return state
+    return {}
 
 
 def _write_active_task(repo_root: Path, task_id: str) -> None:
@@ -271,11 +302,39 @@ def update_work_state(repo_root: Path, patch: dict[str, Any], *, task_id: str | 
     return save_work_state(repo_root, merged, source=source, event="updated")
 
 
-def close_work_state(repo_root: Path, *, task_id: str | None = None, status: str = "resolved", source: str = "cli") -> dict[str, Any]:
+def resume_work_state(repo_root: Path, task_id: str, *, source: str = "cli") -> dict[str, Any]:
+    target_task_id = normalize_task_id(task_id)
+    current = load_work_state(repo_root, target_task_id)
+    if not current:
+        return {}
+    current["status"] = "in_progress"
+    current["updated_at"] = now_iso()
+    return save_work_state(repo_root, current, source=source, event="resumed")
+
+
+def close_work_state(
+    repo_root: Path,
+    *,
+    task_id: str | None = None,
+    status: str = "resolved",
+    patch: dict[str, Any] | None = None,
+    source: str = "cli",
+) -> dict[str, Any]:
     target_task_id = normalize_task_id(task_id or load_active_task_id(repo_root) or "task")
     current = load_work_state(repo_root, target_task_id)
     if not current:
         current = normalize_work_state({"task_id": target_task_id})
+    patch = patch if isinstance(patch, dict) else {}
+    for field in _STRING_FIELDS:
+        if field in {"task_id", "created_at", "updated_at", "status"}:
+            continue
+        if field in patch:
+            current[field] = patch.get(field)
+    for field in _LIST_FIELDS:
+        if field in patch:
+            current[field] = list(current.get(field, [])) + list(patch.get(field, []) or [])
+    if "uncertainties" in patch:
+        current["uncertainties"] = list(current.get("uncertainties", [])) + list(patch.get("uncertainties", []) or [])
     current["status"] = status if status in _ALLOWED_STATUS else "resolved"
     current["updated_at"] = now_iso()
     normalized = save_work_state(repo_root, current, source=source, event="closed")

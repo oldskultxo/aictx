@@ -12,7 +12,7 @@ Current public CLI:
 - `aictx reflect`
 - `aictx reuse`
 - `aictx next`
-- `aictx task start|status|update|close`
+- `aictx task start|status|list|show|update|resume|close`
 - `aictx map status|refresh|query`
 - `aictx report real-usage`
 - `aictx clean`
@@ -154,6 +154,7 @@ When active Work State exists, it has priority over older historical continuity 
 ### `aictx task ...`
 Returns or mutates the deterministic repo-local Work State artifact for the active task.
 This is operational continuity, not planning or issue tracking.
+Stored threads can be listed, shown, resumed, or closed with a final explicit patch.
 
 ### `aictx map ...`
 Optional RepoMap structural operations for status, refresh, and query.
@@ -161,6 +162,7 @@ Optional RepoMap structural operations for status, refresh, and query.
 ### `aictx report real-usage`
 Returns aggregated real runtime usage from stored logs/feedback/continuity metrics.
 It also exposes a compact Work State snapshot (`active`, `task_id`, `status`, `threads_count`, `last_updated_at`).
+The snapshot includes `recent_statuses` counts across stored task threads.
 
 ## Runner integration
 

@@ -19,7 +19,10 @@ aictx reuse
 aictx next
 aictx task start "Fix login token refresh"
 aictx task status --json
+aictx task list --json
+aictx task show fix-login-token-refresh --json
 aictx task update --json-patch '{"next_action":"run targeted auth tests"}' --json
+aictx task resume fix-login-token-refresh --json
 aictx task close --status resolved --json
 aictx map status
 aictx map refresh
@@ -105,7 +108,7 @@ aictx next --repo . --json
 
 `--json` returns the structured continuity brief and `why_loaded` evidence.
 
-When an active Work State exists, `aictx next` prioritizes it before older handoff/decision/reuse context.
+When an active Work State exists, `aictx next` prioritizes it before older handoff/decision/reuse context. When no task is active, it may show the most recent paused or blocked task as secondary context.
 
 ## `aictx task ...`
 
@@ -116,16 +119,26 @@ Examples:
 ```bash
 aictx task start "Fix login token refresh" --repo . --json
 aictx task status --repo . --json
+aictx task list --repo . --json
+aictx task show fix-login-token-refresh --repo . --json
 aictx task update --repo . --json-patch '{"current_hypothesis":"token not persisted before retry","next_action":"inspect auth interceptor ordering"}' --json
+aictx task update --repo . --from-file work-state-patch.json --json
+aictx task resume fix-login-token-refresh --repo . --json
 aictx task close --repo . --status resolved --json
+aictx task close --repo . --status blocked --json-patch '{"risks":["waiting on flaky CI"],"next_action":"rerun CI"}' --json
 ```
 
 Current subcommands:
 
 - `task start` -> create/update `.aictx/tasks/active.json`, create `threads/<task-id>.json`, append `started` event
 - `task status` -> return the active task, or `{ "active": false }` when none exists
-- `task update` -> merge supported fields into the active task and append `updated` event
+- `task status --all` / `task list` -> list stored task threads
+- `task show <task-id>` -> inspect a specific stored task thread
+- `task update` -> merge supported fields into the active task and append `updated` event; accepts `--json-patch` or `--from-file`
+- `task update --json` -> returns the normalized state plus `updated: true` and `changed_fields`
+- `task resume <task-id>` -> make a stored task active again and append `resumed` event
 - `task close` -> mark `resolved|abandoned|blocked|paused`, clear active pointer, keep thread history
+- `task close --json-patch ...` -> merge a final factual patch while closing
 
 See `docs/WORK_STATE.md` for artifact shape and limits.
 
@@ -166,7 +179,7 @@ Current report may include:
 - structured error capture metrics: event counts, toolchains seen, top phases/toolchains, and failure patterns with events
 - continuity health signals
 - RepoMap status snapshot
-- active Work State visibility: `active`, `task_id`, `status`, `threads_count`, `last_updated_at`
+- active Work State visibility: `active`, `task_id`, `status`, `threads_count`, `last_updated_at`, `recent_statuses`
 
 ## Continuity artifacts
 
@@ -230,7 +243,7 @@ Important runtime behavior:
 - `prepare_execution` may return `startup_banner_text`, shown once per visible session when the runtime requires it
 - `prepare_execution` can expose `active_work_state` when `.aictx/tasks/active.json` points to a valid task thread
 - `finalize` can expose prepared/final/effective task and area classification values
-- `finalize` can conservatively update active Work State when factual execution evidence or explicit `--work-state-json` is provided
+- `finalize` can conservatively update active Work State when factual execution evidence or explicit `--work-state-json` / `--work-state-file` is provided
 - `aictx internal run-execution --json` returns the full wrapped outcome as JSON, including structured `error_events` when captured
 - `aictx internal run-execution` without `--json` prints command output plus runtime banner/summary text when applicable
 

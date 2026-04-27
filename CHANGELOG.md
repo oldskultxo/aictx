@@ -4,6 +4,9 @@
 
 ### Added
 - Added repo-local Work State under `.aictx/tasks/` with public `aictx task start|status|update|close`.
+- Added `aictx task list`, `task show <task-id>`, `task resume <task-id>`, `task status --all`, and close-time `--json-patch` support for stored Work State threads.
+- Added `aictx task update --from-file`, compact `changed_fields` update output, internal `--work-state-file`, startup-banner hypothesis rendering, and Work State `recent_statuses` reporting.
+- Added secondary `aictx next` visibility for the most recent paused or blocked Work State when no task is active.
 - Added active Work State continuity loading to prepare/startup/`aictx next`, plus conservative finalize updates from factual execution evidence or explicit runtime payloads.
 - Added compact Work State visibility to `aictx report real-usage` (`active`, `task_id`, `status`, `threads_count`, `last_updated_at`).
 - Added `docs/WORK_STATE.md` and updated README/usage/overview/summary/limitations/upgrade docs for the Work State runtime contract.

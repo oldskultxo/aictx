@@ -37,7 +37,7 @@ from .repo_map.setup import (
 from .cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
 from .strategy_memory import select_strategy
 from .runtime_tasks import resolve_task_type
-from .work_state import close_work_state, load_active_work_state, render_work_state_summary, start_work_state, update_work_state
+from .work_state import changed_work_state_fields, close_work_state, list_work_states, load_active_work_state, load_work_state, render_work_state_summary, resume_work_state, start_work_state, update_work_state
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
@@ -224,6 +224,34 @@ def _parse_json_dict(raw: str, *, field_name: str) -> dict[str, Any]:
     return payload
 
 
+def _parse_json_file(path: str, *, field_name: str) -> dict[str, Any]:
+    target = Path(path).expanduser()
+    try:
+        return _parse_json_dict(target.read_text(encoding="utf-8"), field_name=field_name)
+    except OSError as exc:
+        raise ValueError(f"Invalid {field_name} file: {exc}") from exc
+
+
+def _patch_from_args(args: argparse.Namespace, *, required: bool = False) -> dict[str, Any]:
+    patch: dict[str, Any] = {}
+    from_file = str(getattr(args, "from_file", "") or "").strip()
+    raw_patch = str(getattr(args, "json_patch", "") or "").strip()
+    if from_file:
+        patch.update(_parse_json_file(from_file, field_name="from-file"))
+    if raw_patch:
+        patch.update(_parse_json_dict(raw_patch, field_name="json-patch"))
+    if required and not patch:
+        raise ValueError("json-patch or from-file is required")
+    return patch
+
+
+def _state_with_update_meta(state: dict[str, Any], changed_fields: list[str], *, action: str = "updated") -> dict[str, Any]:
+    payload = dict(state)
+    payload[action] = True
+    payload["changed_fields"] = changed_fields
+    return payload
+
+
 def cmd_task_start(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     initial = _parse_json_dict(args.initial_json, field_name="initial") if str(getattr(args, "initial_json", "") or "").strip() else {}
@@ -237,6 +265,8 @@ def cmd_task_start(args: argparse.Namespace) -> int:
 
 def cmd_task_status(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
+    if bool(getattr(args, "all", False)):
+        return cmd_task_list(args)
     state = load_active_work_state(repo)
     if bool(getattr(args, "json", False)):
         if not state:
@@ -250,22 +280,89 @@ def cmd_task_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _task_list_payload(repo: Path) -> dict[str, Any]:
+    active_task_id = str(load_active_work_state(repo).get("task_id") or "")
+    tasks = []
+    for state in list_work_states(repo):
+        item = {
+            "task_id": str(state.get("task_id") or ""),
+            "status": str(state.get("status") or ""),
+            "goal": str(state.get("goal") or ""),
+            "updated_at": str(state.get("updated_at") or ""),
+            "active": str(state.get("task_id") or "") == active_task_id,
+        }
+        tasks.append(item)
+    return {"tasks": tasks}
+
+
+def _render_task_list(tasks: list[dict[str, Any]]) -> str:
+    if not tasks:
+        return "No task threads."
+    lines = []
+    for task in tasks:
+        active = " active" if bool(task.get("active")) else ""
+        goal = str(task.get("goal") or task.get("task_id") or "").strip()
+        lines.append(f"{task.get('task_id')} [{task.get('status')}{active}] {goal}".strip())
+    return "\n".join(lines)
+
+
+def cmd_task_list(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = _task_list_payload(repo)
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print(_render_task_list(list(payload.get("tasks", []))))
+    return 0
+
+
+def cmd_task_show(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    state = load_work_state(repo, str(getattr(args, "task_id", "") or ""))
+    if bool(getattr(args, "json", False)):
+        _print_json(state if state else {"found": False})
+    else:
+        print(render_work_state_summary(state) if state else "Task not found.")
+    return 0
+
+
 def cmd_task_update(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    patch = _parse_json_dict(args.json_patch, field_name="json-patch")
+    patch = _patch_from_args(args, required=True)
+    before = load_work_state(repo, str(getattr(args, "task_id", "") or "")) if getattr(args, "task_id", None) else load_active_work_state(repo)
     state = update_work_state(repo, patch, task_id=getattr(args, "task_id", None))
+    changed_fields = changed_work_state_fields(before, state, patch)
     if bool(getattr(args, "json", False)):
-        _print_json(state)
+        _print_json(_state_with_update_meta(state, changed_fields))
     else:
+        if changed_fields:
+            print("Updated: " + ", ".join(changed_fields))
         print(render_work_state_summary(state))
+    return 0
+
+
+def cmd_task_resume(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    state = resume_work_state(repo, str(getattr(args, "task_id", "") or ""))
+    if bool(getattr(args, "json", False)):
+        _print_json(state if state else {"resumed": False})
+    else:
+        print(render_work_state_summary(state) if state else "Task not found.")
     return 0
 
 
 def cmd_task_close(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    state = close_work_state(repo, task_id=getattr(args, "task_id", None), status=str(getattr(args, "status", "resolved") or "resolved"))
+    patch = _patch_from_args(args)
+    state = close_work_state(
+        repo,
+        task_id=getattr(args, "task_id", None),
+        status=str(getattr(args, "status", "resolved") or "resolved"),
+        patch=patch,
+    )
     if bool(getattr(args, "json", False)):
-        _print_json(state)
+        changed_fields = changed_work_state_fields({}, state, patch)
+        _print_json(_state_with_update_meta(state, changed_fields, action="closed"))
     else:
         print(render_work_state_summary(state))
     return 0
@@ -906,20 +1003,41 @@ def build_parser() -> argparse.ArgumentParser:
 
     task_status = task_sub.add_parser("status", help="Show active repo-local task")
     task_status.add_argument("--repo", default=".", help="Repository root")
+    task_status.add_argument("--all", action="store_true", help="List all task threads")
     task_status.add_argument("--json", action="store_true", help="Print task state as JSON")
     task_status.set_defaults(func=cmd_task_status)
+
+    task_list = task_sub.add_parser("list", help="List repo-local task threads")
+    task_list.add_argument("--repo", default=".", help="Repository root")
+    task_list.add_argument("--json", action="store_true", help="Print task list as JSON")
+    task_list.set_defaults(func=cmd_task_list)
+
+    task_show = task_sub.add_parser("show", help="Show a repo-local task thread")
+    task_show.add_argument("task_id", help="Task id")
+    task_show.add_argument("--repo", default=".", help="Repository root")
+    task_show.add_argument("--json", action="store_true", help="Print task state as JSON")
+    task_show.set_defaults(func=cmd_task_show)
 
     task_update = task_sub.add_parser("update", help="Update active repo-local task")
     task_update.add_argument("--repo", default=".", help="Repository root")
     task_update.add_argument("--task-id", help="Optional task id override")
-    task_update.add_argument("--json-patch", required=True, help="Task patch JSON object")
+    task_update.add_argument("--json-patch", default="", help="Task patch JSON object")
+    task_update.add_argument("--from-file", default="", help="Read task patch JSON object from file")
     task_update.add_argument("--json", action="store_true", help="Print task state as JSON")
     task_update.set_defaults(func=cmd_task_update)
+
+    task_resume = task_sub.add_parser("resume", help="Resume a repo-local task thread")
+    task_resume.add_argument("task_id", help="Task id")
+    task_resume.add_argument("--repo", default=".", help="Repository root")
+    task_resume.add_argument("--json", action="store_true", help="Print task state as JSON")
+    task_resume.set_defaults(func=cmd_task_resume)
 
     task_close = task_sub.add_parser("close", help="Close active repo-local task")
     task_close.add_argument("--repo", default=".", help="Repository root")
     task_close.add_argument("--task-id", help="Optional task id override")
     task_close.add_argument("--status", default="resolved", choices=["resolved", "abandoned", "blocked", "paused"], help="Final task status")
+    task_close.add_argument("--json-patch", default="", help="Optional final task patch JSON object")
+    task_close.add_argument("--from-file", default="", help="Read optional final task patch JSON object from file")
     task_close.add_argument("--json", action="store_true", help="Print task state as JSON")
     task_close.set_defaults(func=cmd_task_close)
 
@@ -1084,6 +1202,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
     prepare.add_argument("--error-event-json", action="append", default=[], help="JSON error_event object observed during execution")
     prepare.add_argument("--work-state-json", default="", help="Optional work state JSON object")
+    prepare.add_argument("--work-state-file", default="", help="Optional work state JSON file")
     prepare.set_defaults(func=cli_prepare_execution)
 
     finalize = execution_sub.add_parser("finalize", help=argparse.SUPPRESS)
@@ -1101,6 +1220,7 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--decision-json", action="append", default=[], help="JSON object for a significant continuity decision")
     finalize.add_argument("--semantic-json", action="append", default=[], help="JSON object for a semantic repo subsystem update")
     finalize.add_argument("--work-state-json", default="", help="Optional work state JSON object")
+    finalize.add_argument("--work-state-file", default="", help="Optional work state JSON file")
     finalize.set_defaults(func=cli_finalize_execution)
 
     run_execution = internal_sub.add_parser("run-execution", help=argparse.SUPPRESS)
@@ -1125,6 +1245,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_execution.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
     run_execution.add_argument("--error-event-json", action="append", default=[], help="JSON error_event object observed during execution")
     run_execution.add_argument("--work-state-json", default="", help="Optional work state JSON object")
+    run_execution.add_argument("--work-state-file", default="", help="Optional work state JSON file")
     run_execution.add_argument("command", nargs=argparse.REMAINDER, help="Wrapped command after --.")
     run_execution.set_defaults(func=cli_run_execution)
 

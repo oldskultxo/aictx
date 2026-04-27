@@ -168,8 +168,18 @@ def test_session_runtime_falls_back_to_agent_id_when_adapter_missing(tmp_path: P
 def test_prepare_execution_banner_includes_active_work_state(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
-    start_work_state(repo, "Fix login token refresh", initial={"next_action": "inspect interceptor ordering"})
+    start_work_state(
+        repo,
+        "Fix login token refresh",
+        initial={
+            "current_hypothesis": "refresh retries before token update",
+            "next_action": "inspect interceptor ordering",
+        },
+    )
 
     prepared = prepare_execution(_payload(repo, "exec-work-state-banner"))
 
-    assert "Estado activo: Fix login token refresh. Siguiente paso: inspect interceptor ordering." in prepared["startup_banner_text"]
+    assert (
+        "Estado activo: Fix login token refresh. Siguiente paso: inspect interceptor ordering. "
+        "Hipótesis: refresh retries before token update."
+    ) in prepared["startup_banner_text"]

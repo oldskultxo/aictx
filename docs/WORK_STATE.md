@@ -39,7 +39,7 @@ It is a deterministic, inspectable, repo-local continuity artifact.
 
 - `active.json` stores the current active task pointer
 - `threads/<task-id>.json` stores the normalized current state for that task
-- `threads/<task-id>.events.jsonl` stores append-only lifecycle events such as `started`, `updated`, and `closed`
+- `threads/<task-id>.events.jsonl` stores append-only lifecycle events such as `started`, `updated`, `resumed`, and `closed`
 
 ## Public CLI
 
@@ -48,8 +48,13 @@ Examples:
 ```bash
 aictx task start "Fix login token refresh" --repo . --json
 aictx task status --repo . --json
+aictx task list --repo . --json
+aictx task show fix-login-token-refresh --repo . --json
 aictx task update --repo . --json-patch '{"current_hypothesis":"token not persisted before retry","next_action":"inspect auth interceptor ordering"}' --json
+aictx task update --repo . --from-file work-state-patch.json --json
+aictx task resume fix-login-token-refresh --repo . --json
 aictx task close --repo . --status resolved --json
+aictx task close --repo . --status blocked --json-patch '{"risks":["waiting on flaky CI"],"next_action":"rerun CI"}' --json
 ```
 
 Supported close statuses:
@@ -60,6 +65,10 @@ Supported close statuses:
 - `paused`
 
 `task status --json` returns `{ "active": false }` when no active task exists.
+`task list` and `task show <task-id>` inspect stored threads without changing the active pointer.
+`task resume <task-id>` makes an existing thread active again.
+`task update --json` includes `updated: true` and `changed_fields` for compact diff visibility.
+`task close --json-patch ...` merges final factual state while closing.
 
 ## Runtime integration
 
@@ -68,11 +77,12 @@ Supported close statuses:
 - loads the active task thread when `.aictx/tasks/active.json` points to a valid task
 - exposes compact `active_work_state` in prepared payloads
 - makes active Work State visible to startup banner, continuity summary, and `aictx next`
+- lets `aictx next` show a recent paused or blocked task as secondary context when no task is active
 
 `finalize_execution()`:
 
 - can conservatively update the active task thread from factual execution evidence
-- can also accept explicit runtime payloads via `--work-state-json`
+- can also accept explicit runtime payloads via `--work-state-json` or `--work-state-file`
 - does not invent hypotheses, discarded paths, or product conclusions
 
 ## Relationship to other continuity layers

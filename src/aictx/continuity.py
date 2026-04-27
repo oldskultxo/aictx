@@ -16,7 +16,7 @@ from .state import (
     write_json,
 )
 from .strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
-from .work_state import compact_work_state_for_prepare, load_active_work_state
+from .work_state import compact_work_state_for_prepare, load_active_work_state, load_recent_inactive_work_state
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 HANDOFFS_HISTORY_PATH = REPO_CONTINUITY_DIR / "handoffs.jsonl"
@@ -121,7 +121,7 @@ def _active_work_state_line(context: dict[str, Any]) -> str:
         parts.append(("Estado activo: " if lang == "es" else "Active work state: ") + goal.rstrip("."))
     if next_action:
         parts.append(("Siguiente paso: " if lang == "es" else "Next: ") + next_action.rstrip("."))
-    elif hypothesis and len(hypothesis) <= 120:
+    if hypothesis and len(hypothesis) <= 120:
         parts.append(("Hipótesis: " if lang == "es" else "Hypothesis: ") + hypothesis.rstrip("."))
     return ". ".join(parts).strip() + ("." if parts else "")
 
@@ -1393,6 +1393,7 @@ def build_continuity_brief(
     procedural_reuse: dict[str, Any],
     why_loaded: dict[str, list[str]],
     active_work_state: dict[str, Any] | None = None,
+    recent_work_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     probable_paths: list[str] = []
     for item in ranked_items:
@@ -1418,14 +1419,24 @@ def build_continuity_brief(
         if isinstance(subsystem, dict):
             risks.extend(_clean_string_list(subsystem.get("fragile_areas"), limit=2))
     active_state = compact_work_state_for_prepare(active_work_state or {})
+    recent_state = compact_work_state_for_prepare(recent_work_state or {}) if not active_state else {}
     where = _clean_string_list(handoff.get("next_steps"), limit=3) or _clean_string_list(handoff.get("recommended_starting_points"), limit=3)
     if active_state.get("next_action"):
         where = [str(active_state.get("next_action"))]
     elif active_state.get("active_files"):
         where = _clean_string_list(active_state.get("active_files"), limit=3)
+    elif not where and recent_state.get("next_action"):
+        where = [str(recent_state.get("next_action"))]
+    elif not where and recent_state.get("active_files"):
+        where = _clean_string_list(recent_state.get("active_files"), limit=3)
     if not where:
         where = _clean_string_list(probable_paths, limit=3)
-    commands = _clean_string_list(_clean_string_list(active_state.get("recommended_commands"), limit=5) + commands, limit=5)
+    commands = _clean_string_list(
+        _clean_string_list(active_state.get("recommended_commands"), limit=5)
+        + _clean_string_list(recent_state.get("recommended_commands"), limit=3)
+        + commands,
+        limit=5,
+    )
     return {
         "version": 2,
         "where_to_continue": where,
@@ -1436,6 +1447,16 @@ def build_continuity_brief(
                 "current_hypothesis": active_state.get("current_hypothesis", ""),
                 "next_action": active_state.get("next_action", ""),
                 "recommended_commands": list(active_state.get("recommended_commands", [])),
+            }.items() if value not in ("", [], None)
+        },
+        "recent_work_state": {
+            key: value for key, value in {
+                "task_id": recent_state.get("task_id", ""),
+                "status": recent_state.get("status", ""),
+                "goal": recent_state.get("goal", ""),
+                "current_hypothesis": recent_state.get("current_hypothesis", ""),
+                "next_action": recent_state.get("next_action", ""),
+                "recommended_commands": list(recent_state.get("recommended_commands", [])),
             }.items() if value not in ("", [], None)
         },
         "active_decisions": _clean_string_list([row.get("decision") for row in decisions if isinstance(row, dict)], limit=5),
@@ -1454,6 +1475,7 @@ def render_next_text(brief: dict[str, Any]) -> str:
         return "AICTX next\n\nNo actionable continuity context available."
     lines = ["AICTX next"]
     active_work_state = brief.get("active_work_state") if isinstance(brief.get("active_work_state"), dict) else {}
+    recent_work_state = brief.get("recent_work_state") if isinstance(brief.get("recent_work_state"), dict) else {}
     where = _clean_string_list(brief.get("where_to_continue"), limit=3)
     paths = _clean_string_list(brief.get("probable_paths"), limit=5)
     decisions = _clean_string_list(brief.get("active_decisions"), limit=2)
@@ -1476,6 +1498,19 @@ def render_next_text(brief: dict[str, Any]) -> str:
         verify = _clean_string_list(active_work_state.get("recommended_commands"), limit=2)
         if verify:
             lines.extend([f"- Verify: {item}" for item in verify])
+    elif recent_work_state:
+        lines.extend(["", "Recent paused/blocked work:"])
+        goal = str(recent_work_state.get("goal") or recent_work_state.get("task_id") or "").strip()
+        status = str(recent_work_state.get("status") or "").strip()
+        hypothesis = str(recent_work_state.get("current_hypothesis") or "").strip()
+        next_action = str(recent_work_state.get("next_action") or "").strip()
+        if goal:
+            suffix = f" ({status})" if status else ""
+            lines.append(f"- Goal: {goal}{suffix}")
+        if hypothesis:
+            lines.append(f"- Hypothesis: {hypothesis}")
+        if next_action:
+            lines.append(f"- Next: {next_action}")
     if where:
         lines.extend(["", "Continue:"])
         lines.extend([f"- {item}" for item in where])
@@ -1688,6 +1723,9 @@ def load_continuity_context(
     active_work_state = compact_work_state_for_prepare(load_active_work_state(repo_root))
     if active_work_state:
         loaded["work_state"] = True
+    recent_work_state = {}
+    if not active_work_state:
+        recent_work_state = compact_work_state_for_prepare(load_recent_inactive_work_state(repo_root))
     continuity_brief = build_continuity_brief(
         ranked_items=ranked_items,
         handoff=handoff,
@@ -1697,6 +1735,7 @@ def load_continuity_context(
         procedural_reuse=procedural_reuse,
         why_loaded=why_loaded,
         active_work_state=active_work_state,
+        recent_work_state=recent_work_state,
     )
     context = {
         "agent_identity": session,
@@ -1713,6 +1752,7 @@ def load_continuity_context(
         "why_loaded": why_loaded,
         "continuity_brief": continuity_brief,
         "active_work_state": active_work_state,
+        "recent_work_state": recent_work_state,
         "warnings": warnings,
     }
     context["startup_banner_text"] = render_startup_banner(context, repo_root)

@@ -1393,7 +1393,7 @@ def cli_prepare_execution(args: argparse.Namespace) -> int:
         "tests_executed": list(args.tests_executed or []),
         "notable_errors": list(args.notable_errors or []),
         "error_events": error_events,
-        "work_state": _cli_json_dict(getattr(args, "work_state_json", "")),
+        "work_state": _cli_work_state(args),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,
@@ -1434,7 +1434,7 @@ def cli_finalize_execution(args: argparse.Namespace) -> int:
         "validated_learning": bool(args.validated_learning),
         "decisions": decisions,
         "semantic_repo": semantic_repo,
-        "work_state": _cli_json_dict(getattr(args, "work_state_json", "")),
+        "work_state": _cli_work_state(args),
     }
     print(json.dumps(finalize_execution(prepared, result), indent=2, ensure_ascii=False))
     return 0
@@ -1449,6 +1449,22 @@ def _cli_json_dict(raw: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _cli_json_file(path: str) -> dict[str, Any]:
+    text = str(path or "").strip()
+    if not text:
+        return {}
+    try:
+        return _cli_json_dict(Path(text).expanduser().read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+
+
+def _cli_work_state(args: argparse.Namespace) -> dict[str, Any]:
+    payload = _cli_json_file(getattr(args, "work_state_file", ""))
+    payload.update(_cli_json_dict(getattr(args, "work_state_json", "")))
+    return payload
 
 
 def _cli_error_events(args: argparse.Namespace) -> list[dict[str, Any]]:

@@ -7,7 +7,7 @@ from typing import Any
 from .area_memory import load_area_memory
 from .failure_memory import load_failures
 from .state import REPO_CONTINUITY_DIR, REPO_MAP_CONFIG_PATH, REPO_MAP_MANIFEST_PATH, REPO_MAP_STATUS_PATH, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, read_json, write_json
-from .work_state import load_active_work_state, work_state_paths
+from .work_state import list_work_states, load_active_work_state, work_state_paths
 
 
 EXECUTION_LOGS_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
@@ -165,6 +165,10 @@ def build_work_state_report(repo_root: Path) -> dict[str, Any]:
     active = load_active_work_state(repo_root)
     threads_dir = work_state_paths(repo_root)["threads_dir"]
     threads_count = len(list(threads_dir.glob("*.json"))) if threads_dir.exists() else 0
+    recent_statuses: dict[str, int] = {}
+    for state in list_work_states(repo_root):
+        status = str(state.get("status") or "unknown")
+        recent_statuses[status] = recent_statuses.get(status, 0) + 1
     if not active:
         return {
             "active": False,
@@ -172,6 +176,7 @@ def build_work_state_report(repo_root: Path) -> dict[str, Any]:
             "status": "",
             "threads_count": threads_count,
             "last_updated_at": "",
+            "recent_statuses": recent_statuses,
         }
     return {
         "active": True,
@@ -179,6 +184,7 @@ def build_work_state_report(repo_root: Path) -> dict[str, Any]:
         "status": str(active.get("status") or ""),
         "threads_count": threads_count,
         "last_updated_at": str(active.get("updated_at") or ""),
+        "recent_statuses": recent_statuses,
     }
 
 
