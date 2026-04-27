@@ -1,20 +1,51 @@
 # Limitations
 
-- file and error tracking still depend on explicit input from the agent/runner or wrapped execution capture
-- task typing is deterministic and evidence-based, but still heuristic rather than semantic understanding
-- `prepare` classification is provisional; `finalize` can correct it with observed files/tests/commands/errors
-- even with observed reclassification, mixed implementation+validation work can still be borderline between `feature_work`, `refactoring`, and `testing`
-- continuity quality depends on runner support and agent cooperation with prepare/finalize
-- Work State persistence is deterministic and explicit; AICTX does not infer hypotheses, discarded paths, or unresolved uncertainties from thin evidence
-- strategy reuse is deterministic and conservative; task type, prompt similarity, file overlap, entry point, commands/tests/errors, area, and recency can influence selection
-- handoff history (`.aictx/continuity/handoffs.jsonl`) is intentionally bounded; it is continuity aid, not full audit history
-- packet/context generation is conservative and task-dependent; it does not run for every execution
-- RepoMap depends on optional Tree-sitter support; if unavailable, RepoMap stays disabled/unavailable
-- RepoMap quick refresh is budgeted and can preserve last-known structural state when refresh is partial
-- continuity metrics are aggregate observed counts, not proof of productivity gain
-- `reflect` is a small deterministic rule set over recent logs; it is guidance, not diagnosis
-- missing data stays empty or `unknown`; AICTX does not invent runtime evidence or claim failure avoidance without supporting execution facts
-- only one active Work State pointer exists per repo at a time; older task threads remain stored but are not automatically re-ranked as planning objects
-- `.aictx/continuity/last_execution_summary.md` tracks only the latest finalized execution and is overwritten on each run
-- parser coverage is broad but not exhaustive; unknown toolchain outputs fall back to generic structured failure events
-- AICTX is safe for evaluation and cautious repo-local workflows; it is not a guarantee of better speed, quality, or exploration
+AICTX is a continuity runtime, not an autonomous coding system.
+
+---
+
+## Agent cooperation
+
+AICTX is strongest when the agent or runner follows the runtime contract.
+
+If the agent does not call prepare/finalize or pass observed facts, AICTX cannot record them.
+
+---
+
+## Signal capture
+
+File, command, test, and error capture depends on explicit runtime signals, wrapped execution, runner support, and user workflow discipline.
+
+---
+
+## Work State
+
+Work State is explicit and conservative.
+
+AICTX does not infer hidden intent, hypotheses, discarded paths, or product conclusions from sparse evidence.
+
+Only one active task pointer exists per repo.
+
+---
+
+## RepoMap
+
+RepoMap is optional.
+
+It depends on Tree-sitter support and does not replace semantic understanding.
+
+AICTX works without RepoMap.
+
+---
+
+## Metrics
+
+AICTX reports observed runtime evidence. It does not prove productivity gain, token savings, speed improvement, or code quality improvement.
+
+---
+
+## Bottom line
+
+AICTX makes continuity visible, inspectable, and reusable.
+
+It does not make agents correct, autonomous, or magically persistent.

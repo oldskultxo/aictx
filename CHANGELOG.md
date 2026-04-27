@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.5.3 - 2026-04-28
+
+### Changed
+- Reworked README around agent-driven setup and public product clarity.
+- Added docs/INSTALLATION.md with install/init flows and example setup answers.
+- Added docs/REPOMAP.md and gave RepoMap stronger positioning.
+- Added docs/CLEANUP.md.
+- Added docs/STRATEGY_MEMORY.md.
+- Added docs/HANDOFFS.md.
+- Expanded docs/TECHNICAL_OVERVIEW.md into a complete architecture/runtime overview.
+- Reframed docs/USAGE.md as advanced command reference.
+
 ## 4.5.2 - 2026-04-27
 
 ### Fixed

@@ -1,125 +1,50 @@
 # Demo
 
-This demo shows one recorded execution and one later reuse.
+This demo shows AICTX as an operational continuity runtime.
 
-## 1. Install and initialize
+---
+
+## Install and initialize
 
 ```bash
 pip install aictx
-aictx install --yes
-aictx init --repo . --yes --no-register
+aictx install
+aictx init --yes --no-register
 ```
 
-## 2. First execution
+---
+
+## Show Work State continuity
 
 ```bash
-aictx internal execution prepare \
-  --repo . \
-  --request "review middleware behavior" \
-  --agent-id demo \
-  --execution-id demo-1 \
-  --files-opened src/a.py src/b.py \
-  --files-reopened src/a.py > prepared-1.json
-
-aictx internal execution finalize \
-  --prepared prepared-1.json \
-  --success \
-  --validated-learning \
-  --files-opened src/a.py src/b.py \
-  --files-reopened src/a.py \
-  --result-summary "first run"
+aictx task start "Fix token refresh loop" --json
+aictx task update --json   --json-patch '{"current_hypothesis":"refresh replay happens before persisted token update","active_files":["src/api/client.ts"],"next_action":"inspect interceptor ordering","recommended_commands":["pytest -q tests/test_auth.py"]}'
+aictx next
 ```
 
-What to inspect:
+---
+
+## Show RepoMap
 
 ```bash
-cat .aictx/metrics/execution_logs.jsonl
-cat .aictx/metrics/execution_feedback.jsonl
-cat .aictx/strategy_memory/strategies.jsonl
-cat .aictx/continuity/last_execution_summary.md
+pip install "aictx[repomap]"
+aictx install --with-repomap --yes
+aictx init --yes --no-register
+aictx map status
+aictx map query "work state"
 ```
 
-## 3. Second execution
+---
+
+## Show failure capture
 
 ```bash
-aictx internal execution prepare \
-  --repo . \
-  --request "review middleware behavior again" \
-  --agent-id demo \
-  --execution-id demo-2 > prepared-2.json
+aictx internal run-execution   --repo .   --request "run typecheck"   --agent-id demo   --json   -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
 ```
 
-If the first run produced a reusable successful strategy, `prepared-2.json` can include `execution_hint`.
-
-Finalize it:
-
-```bash
-aictx internal execution finalize \
-  --prepared prepared-2.json \
-  --success \
-  --result-summary "second run"
-```
-
-## 4. Wrapped execution helper
-
-For wrapped automations, `run-execution` performs prepare + command + finalize.
-Without `--json`, it prints command output plus the startup banner when required and the AICTX summary.
-
-```bash
-aictx internal run-execution \
-  --repo . \
-  --request "run tests" \
-  --agent-id demo \
-  --validated-learning \
-  -- python -m pytest -q
-```
-
-## 5. Failure capture demo
-
-Wrapped execution can capture failures and persist failure memory:
-
-```bash
-aictx internal run-execution \
-  --repo . \
-  --request "run typecheck" \
-  --agent-id demo \
-  --json \
-  -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
-```
-
-What to inspect:
+Inspect:
 
 ```bash
 cat .aictx/failure_memory/failure_patterns.jsonl
-aictx report real-usage --repo .
-```
-
-A later related execution can load the failure context during prepare. If a successful execution resolves a matching open failure, the final summary can report the resolved prior failure with a descriptor such as `typescript typecheck TS2322`.
-
-## 6. Continuity inspection
-
-```bash
-aictx next --repo .
-aictx reuse --repo .
-aictx report real-usage --repo .
-```
-
-This demo proves:
-
-- run 1 records real execution
-- run 2 can reuse a real prior strategy
-- prepare can classify provisionally, while finalize can classify from observed evidence
-- failed wrapped commands can create structured, reusable failure memory
-- output comes from stored logs, feedback, continuity, and strategy memory only
-
-## 7. Cleanup
-
-```bash
-aictx clean --repo .
-```
-
-To remove AICTX global state and registered repo content too:
-
-```bash
-aictx uninstall
+aictx report real-usage
 ```

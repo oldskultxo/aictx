@@ -2,44 +2,35 @@
 
 ## Release identity
 
-- [ ] target version is intentionally set in `pyproject.toml`
+- [ ] `pyproject.toml` version updated
+- [ ] `src/aictx/_version.py` updated
+- [ ] README documented implementation updated
+- [ ] `docs/UPGRADE.md` current runtime updated
+- [ ] `CHANGELOG.md` updated
 - [ ] tag format is `vX.Y.Z`
-- [ ] `CHANGELOG.md` is updated before tagging
-- [ ] relevant upgrade notes are reflected in `docs/UPGRADE.md`
 
-## Product trust
+---
 
-- [ ] README, `docs/USAGE.md`, and `docs/TECHNICAL_OVERVIEW.md` describe the same public surface
-- [ ] limitations are honest and current
-- [ ] continuity/runtime summary behavior documented in `docs/EXECUTION_SUMMARY.md` matches shipped behavior
-- [ ] optional RepoMap docs match current CLI flags and limits
+## Product clarity
 
-## Runtime integrity
+- [ ] README explains normal agent-driven workflow
+- [ ] README does not make AICTX look like a manual CLI-only tool
+- [ ] README is Codex-first, Claude-aware, generic-agent compatible
+- [ ] README shows real startup identity format
+- [ ] RepoMap has appropriate visibility
+- [ ] Install/init flow is documented with example answers
+- [ ] Communication mode is documented under init, not install
+- [ ] Cleanup is documented
+- [ ] Technical overview covers all runtime capabilities
+- [ ] Docs distinguish `internal boot` diagnostic output from user-visible startup banner
+- [ ] Strategy Memory and Handoffs have dedicated docs if listed as README core concepts
+- [ ] Limitations remain honest
 
-- [ ] `aictx internal boot --repo <repo>` succeeds
-- [ ] `aictx internal execution prepare ...` and `finalize ...` expose current classification/runtime fields
-- [ ] startup banner and final summary policies match runner instructions
-- [ ] missing data still surfaces as `unknown` / empty rather than invented values
+---
 
-## Validation commands
+## Validation
 
-- [ ] `python3 -m venv .venv`
-- [ ] `.venv/bin/pip install -e . pytest build`
-- [ ] `make test`
-- [ ] `make smoke`
-- [ ] `make package-check`
-- [ ] `python -m build`
-- [ ] install clean wheel in a fresh venv
-- [ ] `aictx --help` works from the clean wheel install
-- [ ] `aictx init --repo <tmp> --yes --no-register` works from the clean wheel install
-- [ ] `aictx internal boot --repo <tmp>` works from the clean wheel install
-- [ ] optional RepoMap install path is validated when relevant
-
-## CI and publish
-
-- [ ] GitHub Actions pass on supported Python versions
-- [ ] editable install is exercised in CI
-- [ ] smoke flow passes in CI
-- [ ] package build passes in CI
-- [ ] tag-triggered release/publish workflows are ready
-- [ ] `pip install aictx==X.Y.Z` works in a fresh venv after publish
+```bash
+python -m pytest -q
+python -m build
+```

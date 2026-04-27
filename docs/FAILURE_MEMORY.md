@@ -1,60 +1,47 @@
-# Failure memory
+# Failure Memory
 
-AICTX records failed executions as repo-local, inspectable failure patterns under:
+Failure Memory stores observed failure patterns as repo-local, inspectable data.
 
-- `.aictx/failure_memory/failure_patterns.jsonl`
-- `.aictx/failure_memory/failure_index.json`
+---
+
+## Artifacts
+
+```text
+.aictx/failure_memory/failure_patterns.jsonl
+.aictx/failure_memory/failure_index.json
+```
+
+---
 
 ## What is captured
 
-AICTX 4.4 can capture command, test, lint, typecheck, build, and compilation failures as structured `error_events` when the runtime observes command output or receives explicit event JSON.
+AICTX can capture command, test, lint, typecheck, build, and compilation failures when the runtime observes command output or receives explicit error event JSON.
 
-Each event is compact and deterministic:
+Structured fields can include:
 
 ```text
 toolchain, phase, severity, message, code, file, line, command, exit_code, fingerprint
 ```
 
-`notable_errors` remains part of the contract as a compact list of strings. When structured events exist, AICTX derives useful notable errors from them for backward compatibility.
+---
 
-Current toolchain recognition includes:
+## Reuse semantics
 
-- Python: traceback/pytest-style failures, mypy, ruff, pyright
-- JavaScript/TypeScript: npm, tsc `TSxxxx`, ESLint, Jest/Vitest-style output
-- Go, Rust/Cargo, Java/JVM/Maven, .NET, C/C++, Ruby, PHP
-- generic fallback for unknown failed commands
+Failure Memory can help later sessions recognize prior failure context.
 
-## Failure records
+Failed strategies are not reused as positive strategy hints.
 
-Records include deterministic fields such as:
+---
 
-- failure signature / fingerprint
-- task type
-- area id
-- error text and symptoms
-- structured `error_events` when available
-- toolchains, phases, error codes, and error fingerprints
-- failed command and ineffective commands
-- involved/related files
-- attempted fix summary
-- occurrence count
-- status / resolution link
+## Summary wording
 
-## Reuse and avoidance
+Allowed:
 
-Current behavior:
+```text
+Learned new failure pattern: typescript typecheck TS2322.
+Recognized repeated failure pattern: pytest assertion failure.
+Resolved prior failure: rust cargo compile E0308.
+Related failure context was loaded.
+```
 
-- failed strategies are stored for history and debugging
-- they are not reused as positive strategy hints
-- related failure context can still be loaded during prepare for avoidance/debugging
-- lookup ranks failures by task type, area, request text, paths, toolchain, phase, code, fingerprint, and symptoms
-- successful later executions can resolve matching open failure records
-
-`agent_summary_text` reports failure memory without inventing causality:
-
-- new failed pattern -> learned a new failure pattern, with a human descriptor such as `typescript typecheck TS2322`
-- repeated failed pattern -> recognized an existing failure pattern and updated its occurrence count
-- successful related fix -> resolved a prior failure, with descriptor and failure id when available
-- prior context loaded without a new failure -> reports that related failure context was considered or used without claiming proof of prevention
-
-As with task/area typing elsewhere in AICTX, stored failure task/area values come from the effective observed classification when available.
+Avoid unsupported causal claims such as “AICTX prevented the failure”.

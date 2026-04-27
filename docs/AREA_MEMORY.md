@@ -1,27 +1,34 @@
-# Area memory
+# Area Memory
 
-AICTX derives a lightweight `area_id` from observed paths.
+Area Memory is an advanced continuity signal that groups observed execution facts by repository area.
 
-Current deterministic rules:
+It is secondary to Work State, Failure Memory, and RepoMap, but can improve context selection.
 
-- `src/aictx/middleware.py` -> `src/aictx`
-- `tests/test_smoke.py` -> `tests/test_smoke.py`
-- `docs/USAGE.md` -> `docs/USAGE.md`
-- no observed paths -> `unknown`
+---
 
-Area memory is stored in `.aictx/area_memory/areas.json`.
+## Area derivation
 
-Each area tracks only repo-local observed facts, such as:
+Examples:
 
-- related files
-- related tests
-- executions count
-- strategy count
-- failure count
+```text
+src/aictx/middleware.py -> src/aictx
+tests/test_smoke.py -> tests/test_smoke.py
+docs/USAGE.md -> docs/USAGE.md
+no observed paths -> unknown
+```
 
-Important behavior:
+---
 
-- area hints are deterministic and local
-- they are one signal in continuity and strategy selection, not an absolute router
-- `prepare` can start with `prepared_area_id = unknown` when no files are known yet
-- `finalize` can recalculate `final_area_id` from observed files/tests and expose `effective_area_id`
+## Artifact
+
+```text
+.aictx/area_memory/areas.json
+```
+
+---
+
+## Use
+
+Area Memory can influence continuity context, strategy selection, failure lookup, and report visibility.
+
+It is a deterministic hint, not semantic understanding.
