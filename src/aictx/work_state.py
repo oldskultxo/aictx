@@ -345,8 +345,22 @@ def merge_work_state_from_execution(repo_root: Path, prepared: dict[str, Any], e
 
 
 def compact_work_state_for_prepare(state: dict[str, Any]) -> dict[str, Any]:
-    normalized = normalize_work_state(state if isinstance(state, dict) else {})
-    if not normalized.get("goal") and not normalized.get("task_id"):
+    if not isinstance(state, dict) or not state:
+        return {}
+    normalized = normalize_work_state(state)
+    has_signal = any(
+        [
+            normalized.get("goal"),
+            normalized.get("current_hypothesis"),
+            normalized.get("next_action"),
+            normalized.get("active_files"),
+            normalized.get("verified"),
+            normalized.get("unverified"),
+            normalized.get("recommended_commands"),
+            normalized.get("risks"),
+        ]
+    )
+    if not has_signal:
         return {}
     compact = {
         "task_id": normalized.get("task_id", ""),

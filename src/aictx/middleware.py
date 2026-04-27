@@ -1127,6 +1127,9 @@ def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) 
         stored_parts.append("validated learning")
     if stored_parts:
         parts.append("guardó " + ", ".join(stored_parts))
+    work_state_updated = summary.get("work_state_updated") if isinstance(summary.get("work_state_updated"), dict) else {}
+    if work_state_updated.get("updated") and str(work_state_updated.get("task_id") or "").strip():
+        parts.append("actualizó work state para " + str(work_state_updated.get("task_id") or "").strip())
     core = "; ".join(parts) if parts else "dejó continuidad útil"
     observed: list[str] = []
     if files_count:
@@ -1221,6 +1224,8 @@ def build_agent_summary(
         "continuity_value": build_continuity_value(prepared, execution_log, bool(handoff), bool(decisions), bool(failure)),
         "capture_quality": build_capture_quality(execution_log),
         "repo_map_status": dict(prepared.get("repo_map_status", {})) if isinstance(prepared.get("repo_map_status"), dict) else {},
+        "work_state_updated": dict(prepared.get("work_state_updated", {})) if isinstance(prepared.get("work_state_updated"), dict) else {},
+        "active_work_state": dict(continuity.get("active_work_state", {})) if isinstance(continuity.get("active_work_state"), dict) else {},
     }
     return {"structured": summary, "rendered": render_agent_summary(summary)}
 
