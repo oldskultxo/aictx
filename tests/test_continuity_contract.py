@@ -23,7 +23,7 @@ PYPROJECT_PATH = ROOT / "pyproject.toml"
 
 def _readme_artifact_lines() -> list[str]:
     text = README_PATH.read_text(encoding="utf-8")
-    marker = "The stable repo-local continuity artifact contract in `4.4.1` is:"
+    marker = "The stable repo-local continuity artifact contract in `4.5.0` is:"
     section = text.split(marker, 1)[1]
     block = section.split("```text", 1)[1].split("```", 1)[0]
     return [line.strip() for line in block.splitlines() if line.strip()]
@@ -67,14 +67,14 @@ def test_init_repo_scaffold_creates_required_base_runtime_structure(tmp_path: Pa
 def test_pyproject_describes_continuity_runtime():
     payload = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
 
-    assert payload["project"]["version"] == "4.4.1"
+    assert payload["project"]["version"] == "4.5.0"
     assert payload["project"]["description"] == "Repo-local continuity runtime for coding agents"
 
 
 def test_readme_contract_section_mentions_current_runtime_and_repomap():
     text = README_PATH.read_text(encoding="utf-8")
 
-    assert "Current documented implementation: `4.4.1`" in text
+    assert "Current documented implementation: `4.5.0`" in text
     assert "## Artifact contract" in text
     assert ".aictx/repo_map/config.json" in text
     assert ".aictx/repo_map/status.json" in text

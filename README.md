@@ -4,7 +4,7 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It helps each new session behave like the same repo-native engineer continuing prior work.
 
-Current documented implementation: `4.4.1`
+Current documented implementation: `4.5.0`
 
 ---
 
@@ -234,7 +234,7 @@ It makes past executions observable and reusable.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.4.1` is:
+The stable repo-local continuity artifact contract in `4.5.0` is:
 
 ```text
 .aictx/continuity/session.json
@@ -328,7 +328,7 @@ Additional latest-run output:
 
 ## Possible evolution
 
-The current `4.4.1` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
+The current `4.5.0` runtime keeps continuity deterministic and inspectable rather than turning into an opaque agent platform.
 
 Possible future work, based on real usage:
 

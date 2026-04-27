@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.5.0 - 2026-04-27
+
 ### Added
 - Added repo-local Work State under `.aictx/tasks/` with public `aictx task start|status|update|close`.
 - Added `aictx task list`, `task show <task-id>`, `task resume <task-id>`, `task status --all`, and close-time `--json-patch` support for stored Work State threads.

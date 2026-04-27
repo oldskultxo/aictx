@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 4.4.x
+## Current line: 4.5.x
 
-Current documented runtime: `4.4.1`.
+Current documented runtime: `4.5.0`.
 
 For users already on recent `4.x`, there is no special manual migration workflow beyond re-running the normal setup paths when needed:
 
@@ -13,7 +13,7 @@ aictx init --repo .
 
 The important `4.x` changes are behavioral, not a new user-facing migration command.
 
-## 4.4.x
+## 4.5.x
 
 ### Added
 
