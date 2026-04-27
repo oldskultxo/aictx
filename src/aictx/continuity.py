@@ -16,6 +16,7 @@ from .state import (
     write_json,
 )
 from .strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
+from .work_state import compact_work_state_for_prepare, load_active_work_state, load_recent_inactive_work_state
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 HANDOFFS_HISTORY_PATH = REPO_CONTINUITY_DIR / "handoffs.jsonl"
@@ -107,6 +108,24 @@ def _banner_header(agent_label: str, session_count: int, lang: str) -> str:
     return f"{agent_label} (session #{session_count}) - {state}"
 
 
+def _active_work_state_line(context: dict[str, Any]) -> str:
+    state = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    if not state:
+        return ""
+    lang = _ui_language(context)
+    goal = str(state.get("goal") or state.get("task_id") or "").strip()
+    next_action = str(state.get("next_action") or "").strip()
+    hypothesis = str(state.get("current_hypothesis") or "").strip()
+    parts = []
+    if goal:
+        parts.append(("Estado activo: " if lang == "es" else "Active work state: ") + goal.rstrip("."))
+    if next_action:
+        parts.append(("Siguiente paso: " if lang == "es" else "Next: ") + next_action.rstrip("."))
+    if hypothesis and len(hypothesis) <= 120:
+        parts.append(("Hipótesis: " if lang == "es" else "Hypothesis: ") + hypothesis.rstrip("."))
+    return ". ".join(parts).strip() + ("." if parts else "")
+
+
 def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     loaded = context.get("loaded") if isinstance(context.get("loaded"), dict) else {}
@@ -123,6 +142,8 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
         f"- semantic_repo: {'sí' if loaded.get('semantic_repo') and lang == 'es' else 'yes' if loaded.get('semantic_repo') else 'no'}",
         f"- procedural_reuse: {'sí' if loaded.get('procedural_reuse') and lang == 'es' else 'yes' if loaded.get('procedural_reuse') else 'no'}",
     ]
+    if "work_state" in loaded:
+        lines.append(f"- work_state: {'sí' if loaded.get('work_state') and lang == 'es' else 'yes' if loaded.get('work_state') else 'no'}")
     return "\n".join(lines)
 
 
@@ -131,6 +152,7 @@ def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     lang = _ui_language(context)
     agent_label, session_count = _session_summary_parts(session, repo_root)
     header = _banner_header(agent_label, session_count, lang)
+    work_line = _active_work_state_line(context)
     recent = load_handoff_history(repo_root, limit=5)
     if recent:
         standup = _render_handoff_standup(recent, lang=lang)
@@ -142,18 +164,20 @@ def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
             if starts
             else ""
         )
-        return (
+        banner = (
             f"{header}\n\nEn la sesión anterior dejamos este progreso: {standup}.{next_part}"
             if lang == "es"
             else f"{header}\n\nIn the previous session, we left this progress: {standup}.{next_part}"
         )
+        return banner if not work_line else banner + f"\n{work_line}"
     latest = latest_handoff_record(repo_root)
     if not latest:
-        return (
+        banner = (
             f"{header}\n\nEn la sesión anterior no había handoff previo que retomar."
             if lang == "es"
             else f"{header}\n\nIn the previous session, there was no prior handoff to resume."
         )
+        return banner if not work_line else banner + f"\n{work_line}"
     summary = str(latest.get("summary") or "").strip() or "there was no prior handoff"
     status = str(latest.get("status") or "").strip().lower()
     if status == "resolved":
@@ -170,11 +194,12 @@ def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
         if starts
         else ""
     )
-    return (
+    banner = (
         f"{header}\n\nEn la sesión anterior, {status_text}: {summary}.{next_part}"
         if lang == "es"
         else f"{header}\n\nIn the previous session, {status_text}: {summary}.{next_part}"
     )
+    return banner if not work_line else banner + f"\n{work_line}"
 
 
 def _render_handoff_standup(rows: list[dict[str, Any]], *, lang: str = "en") -> str:
@@ -264,6 +289,12 @@ def render_last_execution_summary_markdown(summary: dict[str, Any]) -> str:
         lines.append(
             f"- RepoMap: enabled={'yes' if repo_map.get('enabled') else 'no'}, used={'yes' if repo_map.get('used') else 'no'}, status={str(repo_map.get('refresh_status') or 'unknown')}"
         )
+    work_state_updated = summary.get("work_state_updated") if isinstance(summary.get("work_state_updated"), dict) else {}
+    if work_state_updated.get("updated"):
+        task_id = str(work_state_updated.get("task_id") or "").strip() or "unknown"
+        fields = work_state_updated.get("fields") if isinstance(work_state_updated.get("fields"), list) else []
+        field_text = ", ".join(str(item) for item in fields[:5]) if fields else "none"
+        lines.append(f"- Work state updated: {task_id} ({field_text})")
     next_guidance = summary.get("next_guidance") if isinstance(summary.get("next_guidance"), dict) else {}
     if next_guidance:
         lines.extend(["", "## AICTX next", ""])
@@ -1361,6 +1392,8 @@ def build_continuity_brief(
     semantic_repo: dict[str, Any],
     procedural_reuse: dict[str, Any],
     why_loaded: dict[str, list[str]],
+    active_work_state: dict[str, Any] | None = None,
+    recent_work_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     probable_paths: list[str] = []
     for item in ranked_items:
@@ -1385,12 +1418,47 @@ def build_continuity_brief(
     for subsystem in semantic_repo.get("subsystems", []) if isinstance(semantic_repo.get("subsystems"), list) else []:
         if isinstance(subsystem, dict):
             risks.extend(_clean_string_list(subsystem.get("fragile_areas"), limit=2))
+    active_state = compact_work_state_for_prepare(active_work_state or {})
+    recent_state = compact_work_state_for_prepare(recent_work_state or {}) if not active_state else {}
     where = _clean_string_list(handoff.get("next_steps"), limit=3) or _clean_string_list(handoff.get("recommended_starting_points"), limit=3)
+    if active_state.get("next_action"):
+        where = [str(active_state.get("next_action"))]
+    elif active_state.get("active_files"):
+        where = _clean_string_list(active_state.get("active_files"), limit=3)
+    elif not where and recent_state.get("next_action"):
+        where = [str(recent_state.get("next_action"))]
+    elif not where and recent_state.get("active_files"):
+        where = _clean_string_list(recent_state.get("active_files"), limit=3)
     if not where:
         where = _clean_string_list(probable_paths, limit=3)
+    commands = _clean_string_list(
+        _clean_string_list(active_state.get("recommended_commands"), limit=5)
+        + _clean_string_list(recent_state.get("recommended_commands"), limit=3)
+        + commands,
+        limit=5,
+    )
     return {
         "version": 2,
         "where_to_continue": where,
+        "active_work_state": {
+            key: value for key, value in {
+                "task_id": active_state.get("task_id", ""),
+                "goal": active_state.get("goal", ""),
+                "current_hypothesis": active_state.get("current_hypothesis", ""),
+                "next_action": active_state.get("next_action", ""),
+                "recommended_commands": list(active_state.get("recommended_commands", [])),
+            }.items() if value not in ("", [], None)
+        },
+        "recent_work_state": {
+            key: value for key, value in {
+                "task_id": recent_state.get("task_id", ""),
+                "status": recent_state.get("status", ""),
+                "goal": recent_state.get("goal", ""),
+                "current_hypothesis": recent_state.get("current_hypothesis", ""),
+                "next_action": recent_state.get("next_action", ""),
+                "recommended_commands": list(recent_state.get("recommended_commands", [])),
+            }.items() if value not in ("", [], None)
+        },
         "active_decisions": _clean_string_list([row.get("decision") for row in decisions if isinstance(row, dict)], limit=5),
         "probable_paths": _clean_string_list(probable_paths, limit=8),
         "known_risks": _clean_string_list(risks, limit=8),
@@ -1406,6 +1474,8 @@ def render_next_text(brief: dict[str, Any]) -> str:
     if not isinstance(brief, dict) or not brief:
         return "AICTX next\n\nNo actionable continuity context available."
     lines = ["AICTX next"]
+    active_work_state = brief.get("active_work_state") if isinstance(brief.get("active_work_state"), dict) else {}
+    recent_work_state = brief.get("recent_work_state") if isinstance(brief.get("recent_work_state"), dict) else {}
     where = _clean_string_list(brief.get("where_to_continue"), limit=3)
     paths = _clean_string_list(brief.get("probable_paths"), limit=5)
     decisions = _clean_string_list(brief.get("active_decisions"), limit=2)
@@ -1414,6 +1484,33 @@ def render_next_text(brief: dict[str, Any]) -> str:
     tests = _clean_string_list(brief.get("recommended_tests"), limit=3)
     confidence = str(brief.get("reuse_confidence") or "").strip()
 
+    if active_work_state:
+        lines.extend(["", "Active work:"])
+        goal = str(active_work_state.get("goal") or active_work_state.get("task_id") or "").strip()
+        hypothesis = str(active_work_state.get("current_hypothesis") or "").strip()
+        next_action = str(active_work_state.get("next_action") or "").strip()
+        if goal:
+            lines.append(f"- Goal: {goal}")
+        if hypothesis:
+            lines.append(f"- Hypothesis: {hypothesis}")
+        if next_action:
+            lines.append(f"- Next: {next_action}")
+        verify = _clean_string_list(active_work_state.get("recommended_commands"), limit=2)
+        if verify:
+            lines.extend([f"- Verify: {item}" for item in verify])
+    elif recent_work_state:
+        lines.extend(["", "Recent paused/blocked work:"])
+        goal = str(recent_work_state.get("goal") or recent_work_state.get("task_id") or "").strip()
+        status = str(recent_work_state.get("status") or "").strip()
+        hypothesis = str(recent_work_state.get("current_hypothesis") or "").strip()
+        next_action = str(recent_work_state.get("next_action") or "").strip()
+        if goal:
+            suffix = f" ({status})" if status else ""
+            lines.append(f"- Goal: {goal}{suffix}")
+        if hypothesis:
+            lines.append(f"- Hypothesis: {hypothesis}")
+        if next_action:
+            lines.append(f"- Next: {next_action}")
     if where:
         lines.extend(["", "Continue:"])
         lines.extend([f"- {item}" for item in where])
@@ -1623,6 +1720,12 @@ def load_continuity_context(
     if any(str(item.get("kind") or "") == "repo_map" for item in ranked_items if isinstance(item, dict)):
         loaded["repo_map"] = True
     why_loaded = _why_loaded_from_items(loaded=loaded, ranked_items=ranked_items, staleness=staleness)
+    active_work_state = compact_work_state_for_prepare(load_active_work_state(repo_root))
+    if active_work_state:
+        loaded["work_state"] = True
+    recent_work_state = {}
+    if not active_work_state:
+        recent_work_state = compact_work_state_for_prepare(load_recent_inactive_work_state(repo_root))
     continuity_brief = build_continuity_brief(
         ranked_items=ranked_items,
         handoff=handoff,
@@ -1631,6 +1734,8 @@ def load_continuity_context(
         semantic_repo=semantic_repo,
         procedural_reuse=procedural_reuse,
         why_loaded=why_loaded,
+        active_work_state=active_work_state,
+        recent_work_state=recent_work_state,
     )
     context = {
         "agent_identity": session,
@@ -1646,6 +1751,8 @@ def load_continuity_context(
         "ranked_items": ranked_items,
         "why_loaded": why_loaded,
         "continuity_brief": continuity_brief,
+        "active_work_state": active_work_state,
+        "recent_work_state": recent_work_state,
         "warnings": warnings,
     }
     context["startup_banner_text"] = render_startup_banner(context, repo_root)

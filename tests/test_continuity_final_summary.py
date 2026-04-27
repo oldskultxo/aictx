@@ -4,6 +4,7 @@ from pathlib import Path
 
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.scaffold import init_repo_scaffold
+from aictx.work_state import start_work_state
 
 
 def _payload(repo: Path, execution_id: str) -> dict:
@@ -90,3 +91,20 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
         "AICTX summary: ejecución ligera; no añadió continuidad nueva, pero quedó registrada. "
         "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)"
     )
+
+
+def test_final_summary_mentions_work_state_update_when_present(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    start_work_state(repo, "Fix login token refresh")
+    prepared = prepare_execution({**_payload(repo, "exec-summary-work-state"), "commands_executed": ["pytest -q tests/test_auth.py"]})
+
+    finalized = finalize_execution(
+        prepared,
+        {"success": True, "result_summary": "Updated work state.", "validated_learning": False},
+    )
+
+    text = finalized["agent_summary_text"]
+    assert "actualizó work state para fix-login-token-refresh" in text
+    detailed = (repo / ".aictx" / "continuity" / "last_execution_summary.md").read_text(encoding="utf-8")
+    assert "- Work state updated: fix-login-token-refresh" in detailed

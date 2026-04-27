@@ -5,6 +5,7 @@ from pathlib import Path
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import REPO_CONTINUITY_SESSION_PATH, read_json
+from aictx.work_state import start_work_state
 
 
 def _payload(repo: Path, execution_id: str) -> dict:
@@ -162,3 +163,23 @@ def test_session_runtime_falls_back_to_agent_id_when_adapter_missing(tmp_path: P
     session = prepared["continuity_context"]["session"]
     assert session["runtime"] == "codex-runner"
     assert session["agent_label"] == f"codex-runner@{repo.name}"
+
+
+def test_prepare_execution_banner_includes_active_work_state(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    start_work_state(
+        repo,
+        "Fix login token refresh",
+        initial={
+            "current_hypothesis": "refresh retries before token update",
+            "next_action": "inspect interceptor ordering",
+        },
+    )
+
+    prepared = prepare_execution(_payload(repo, "exec-work-state-banner"))
+
+    assert (
+        "Estado activo: Fix login token refresh. Siguiente paso: inspect interceptor ordering. "
+        "Hipótesis: refresh retries before token update."
+    ) in prepared["startup_banner_text"]

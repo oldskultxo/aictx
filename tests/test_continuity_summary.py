@@ -7,6 +7,7 @@ from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, SEMANTIC_REPO_PATH
 from aictx.middleware import prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import write_json
+from aictx.work_state import start_work_state
 
 
 def _payload(repo: Path, execution_id: str = "exec-summary") -> dict:
@@ -117,3 +118,14 @@ def test_prepare_execution_reports_rich_continuity_summary(tmp_path: Path):
         "semantic_repo": True,
         "procedural_reuse": True,
     }
+
+
+def test_prepare_execution_continuity_summary_reports_work_state_when_active(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    start_work_state(repo, "Fix login token refresh", initial={"next_action": "inspect interceptor ordering"})
+
+    prepared = prepare_execution(_payload(repo, "exec-work-state-summary"))
+
+    assert "- work_state: sí" in prepared["continuity_summary_text"]
+    assert prepared["continuity_context"]["loaded"]["work_state"] is True

@@ -17,6 +17,21 @@ The important `4.x` changes are behavioral, not a new user-facing migration comm
 
 ### Added
 
+- repo-local Work State under `.aictx/tasks/` with public `aictx task start|status|list|show|update|resume|close`
+- active Work State loading in prepare/startup/`aictx next`, plus conservative finalize updates
+- `report real-usage` Work State visibility for active task id/status/thread count/last update time and recent status counts
+- `--from-file` task patch input, compact `changed_fields` update output, and internal `--work-state-file` runtime payloads
+- `docs/WORK_STATE.md` for artifact, CLI, and runtime behavior
+
+### Notes
+
+- no manual migration is required; rerun `aictx init --repo .` if you want regenerated runner guidance and eager `.aictx/tasks/` scaffold
+- Work State is operational continuity only; it is not a planner, kanban, or issue tracker
+
+## 4.4.x
+
+### Added
+
 - toolchain-aware `error_events` for observed command/test/lint/type/build/compile failures
 - structured failure pattern persistence with toolchain, phase, code, path, line, command, exit code, and fingerprint when available
 - backward-compatible derivation of `notable_errors` from structured events

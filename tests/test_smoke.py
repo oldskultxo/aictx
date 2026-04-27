@@ -1149,6 +1149,7 @@ def test_report_real_usage_returns_empty_metrics_without_history(tmp_path: Path,
     assert payload["failure_pattern_count"] == 0
     assert payload["error_capture"]["notable_error_count"] == 0
     assert payload["failure_patterns"]["open"] == 0
+    assert payload["work_state"]["active"] is False
 
 
 
@@ -1229,6 +1230,7 @@ def test_report_real_usage_aggregates_real_logs_and_feedback(tmp_path: Path, cap
     assert payload["capture_coverage"]["notable_errors"] == 1
     assert payload["error_capture"]["notable_error_count"] == 1
     assert payload["error_capture"]["failed_executions"] == 1
+    assert payload["work_state"]["threads_count"] == 0
 
 
 
