@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ from .repo_map.setup import (
 from .cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
 from .strategy_memory import select_strategy
 from .runtime_tasks import resolve_task_type
+from .work_state import close_work_state, load_active_work_state, render_work_state_summary, start_work_state, update_work_state
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
@@ -205,6 +207,67 @@ def cmd_reuse(args: argparse.Namespace) -> int:
             "related_tests": list(strategy.get("related_tests", [])) if isinstance(strategy.get("related_tests"), list) else [],
         }
     print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def _print_json(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload, ensure_ascii=False))
+
+
+def _parse_json_dict(raw: str, *, field_name: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(str(raw or ""))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid {field_name} JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{field_name} must be a JSON object")
+    return payload
+
+
+def cmd_task_start(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    initial = _parse_json_dict(args.initial_json, field_name="initial") if str(getattr(args, "initial_json", "") or "").strip() else {}
+    state = start_work_state(repo, args.goal, task_id=getattr(args, "task_id", None), initial=initial)
+    if bool(getattr(args, "json", False)):
+        _print_json(state)
+    else:
+        print(render_work_state_summary(state))
+    return 0
+
+
+def cmd_task_status(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    state = load_active_work_state(repo)
+    if bool(getattr(args, "json", False)):
+        if not state:
+            _print_json({"active": False})
+        else:
+            payload = {"active": True}
+            payload.update(state)
+            _print_json(payload)
+    else:
+        print(render_work_state_summary(state) if state else "No active task.")
+    return 0
+
+
+def cmd_task_update(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    patch = _parse_json_dict(args.json_patch, field_name="json-patch")
+    state = update_work_state(repo, patch, task_id=getattr(args, "task_id", None))
+    if bool(getattr(args, "json", False)):
+        _print_json(state)
+    else:
+        print(render_work_state_summary(state))
+    return 0
+
+
+def cmd_task_close(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    state = close_work_state(repo, task_id=getattr(args, "task_id", None), status=str(getattr(args, "status", "resolved") or "resolved"))
+    if bool(getattr(args, "json", False)):
+        _print_json(state)
+    else:
+        print(render_work_state_summary(state))
     return 0
 
 
@@ -787,7 +850,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,next,map,report,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,task,next,map,report,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -829,6 +892,36 @@ def build_parser() -> argparse.ArgumentParser:
     reuse.add_argument("--tests-executed", nargs="*", default=[], help="Optional tests already executed")
     reuse.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     reuse.set_defaults(func=cmd_reuse)
+
+    task_cmd = sub.add_parser("task", help="Manage repo-local work state")
+    task_sub = task_cmd.add_subparsers(dest="task_command", required=True)
+
+    task_start = task_sub.add_parser("start", help="Start a repo-local active task")
+    task_start.add_argument("goal", help="Active task goal")
+    task_start.add_argument("--repo", default=".", help="Repository root")
+    task_start.add_argument("--task-id", help="Optional stable task id")
+    task_start.add_argument("--initial-json", default="", help="Optional initial state JSON object")
+    task_start.add_argument("--json", action="store_true", help="Print task state as JSON")
+    task_start.set_defaults(func=cmd_task_start)
+
+    task_status = task_sub.add_parser("status", help="Show active repo-local task")
+    task_status.add_argument("--repo", default=".", help="Repository root")
+    task_status.add_argument("--json", action="store_true", help="Print task state as JSON")
+    task_status.set_defaults(func=cmd_task_status)
+
+    task_update = task_sub.add_parser("update", help="Update active repo-local task")
+    task_update.add_argument("--repo", default=".", help="Repository root")
+    task_update.add_argument("--task-id", help="Optional task id override")
+    task_update.add_argument("--json-patch", required=True, help="Task patch JSON object")
+    task_update.add_argument("--json", action="store_true", help="Print task state as JSON")
+    task_update.set_defaults(func=cmd_task_update)
+
+    task_close = task_sub.add_parser("close", help="Close active repo-local task")
+    task_close.add_argument("--repo", default=".", help="Repository root")
+    task_close.add_argument("--task-id", help="Optional task id override")
+    task_close.add_argument("--status", default="resolved", choices=["resolved", "abandoned", "blocked", "paused"], help="Final task status")
+    task_close.add_argument("--json", action="store_true", help="Print task state as JSON")
+    task_close.set_defaults(func=cmd_task_close)
 
     next_cmd = sub.add_parser("next", help="Show compact actionable continuity guidance")
     next_cmd.add_argument("--repo", default=".", help="Repository root")
