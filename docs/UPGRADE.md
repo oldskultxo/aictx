@@ -2,7 +2,7 @@
 
 ## Current line: 4.5.x
 
-Current documented runtime: `4.5.0`.
+Current documented runtime: `4.5.1`.
 
 For users already on recent `4.x`, there is no special manual migration workflow beyond re-running the normal setup paths when needed:
 
@@ -22,6 +22,9 @@ The important `4.x` changes are behavioral, not a new user-facing migration comm
 - `report real-usage` Work State visibility for active task id/status/thread count/last update time and recent status counts
 - `--from-file` task patch input, compact `changed_fields` update output, and internal `--work-state-file` runtime payloads
 - `docs/WORK_STATE.md` for artifact, CLI, and runtime behavior
+- minimal branch-safe Work State loading using saved git branch/head context.
+- Work State created on a merged feature branch can still load on main when the saved commit is reachable from current HEAD.
+- Dirty Work State from another branch is skipped to avoid unsafe continuation.
 
 ### Notes
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.5.1 - 2026-04-27
 
 ### Added
 - Added minimal branch-safe Work State loading using saved git branch/head context.
