@@ -248,6 +248,8 @@ The stable repo-local continuity artifact contract in `4.5.0` is:
 .aictx/failure_memory/failure_patterns.jsonl
 .aictx/metrics/execution_logs.jsonl
 .aictx/metrics/execution_feedback.jsonl
+.aictx/tasks/active.json
+.aictx/tasks/threads/*
 ```
 
 Behavior expectations:
