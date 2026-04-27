@@ -162,6 +162,36 @@ def test_finalize_execution_accepts_explicit_work_state_patch(tmp_path: Path) ->
     assert state["next_action"] == "run auth tests"
 
 
+@pytest.mark.skipif(not GIT_AVAILABLE, reason="git binary unavailable")
+def test_finalize_execution_does_not_update_skipped_branch_unsafe_work_state(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _init_git_repo(repo)
+    _git(repo, "checkout", "-b", "feature/login")
+    (repo / "tracked.txt").write_text("base\nfeature-only\n", encoding="utf-8")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "commit", "-m", "feature commit")
+    start_work_state(repo, "Fix login token refresh", initial={"next_action": "inspect interceptor"})
+    _git(repo, "checkout", "main")
+    (repo / "tracked.txt").write_text("base\nmain-only\n", encoding="utf-8")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "commit", "-m", "main change")
+
+    before = load_work_state(repo, "fix-login-token-refresh")
+    prepared = prepare_execution({
+        **_payload(repo, "exec-work-state-finalize-skipped"),
+        "files_opened": ["src/api/client.ts"],
+        "commands_executed": ["pytest -q tests/test_auth.py"],
+    })
+
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "should not update skipped work state"})
+    after = load_work_state(repo, "fix-login-token-refresh")
+
+    assert prepared["skipped_work_state"]["task_id"] == "fix-login-token-refresh"
+    assert finalized["work_state_updated"] is None
+    assert after == before
+
+
 def test_run_execution_propagates_work_state_json_and_records_success(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)

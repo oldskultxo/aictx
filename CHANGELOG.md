@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.5.2 - 2026-04-27
+
+### Fixed
+- Handle skipped work-state and git branch detach
+
 ## 4.5.1 - 2026-04-27
 
 ### Added

@@ -2,7 +2,7 @@
 
 ## Current line: 4.5.x
 
-Current documented runtime: `4.5.1`.
+Current documented runtime: `4.5.2`.
 
 For users already on recent `4.x`, there is no special manual migration workflow beyond re-running the normal setup paths when needed:
 

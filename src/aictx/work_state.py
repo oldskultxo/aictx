@@ -174,9 +174,10 @@ def capture_git_context(repo_root: Path) -> dict[str, Any]:
         entry = line[3:].strip() if len(line) >= 4 else line.strip()
         if entry:
             changed_files.append(entry)
+    branch = branch_result.stdout.strip() or "(detached)"
     return {
         "available": True,
-        "branch": branch_result.stdout.strip(),
+        "branch": branch,
         "head": head_result.stdout.strip(),
         "dirty": bool(changed_files),
         "changed_files": _dedupe_strings(changed_files, limit=64),
@@ -522,7 +523,9 @@ def _command_to_recommendation(command: str) -> str:
 
 
 def merge_work_state_from_execution(repo_root: Path, prepared: dict[str, Any], execution_log: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
-    active = load_active_work_state(repo_root)
+    skipped = prepared.get("skipped_work_state") if isinstance(prepared.get("skipped_work_state"), dict) else {}
+    checked = load_active_work_state_checked(repo_root)
+    active = checked.get("active_work_state", {}) if isinstance(checked, dict) else {}
     explicit = result.get("work_state") if isinstance(result.get("work_state"), dict) else {}
     if not active and not explicit:
         return None
@@ -530,6 +533,9 @@ def merge_work_state_from_execution(repo_root: Path, prepared: dict[str, Any], e
     if not active and not explicit_task_id:
         return None
     target_task_id = explicit_task_id or str(active.get("task_id") or "")
+    skipped_task_id = str(skipped.get("task_id") or "").strip()
+    if skipped_task_id and target_task_id and normalize_task_id(skipped_task_id) == normalize_task_id(target_task_id):
+        return None
     patch: dict[str, Any] = dict(explicit) if isinstance(explicit, dict) else {}
     active_files = []
     for field in ("files_opened", "files_edited", "files_reopened"):
