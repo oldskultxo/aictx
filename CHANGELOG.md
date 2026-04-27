@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+- Added repo-local Work State under `.aictx/tasks/` with public `aictx task start|status|update|close`.
+- Added active Work State continuity loading to prepare/startup/`aictx next`, plus conservative finalize updates from factual execution evidence or explicit runtime payloads.
+- Added compact Work State visibility to `aictx report real-usage` (`active`, `task_id`, `status`, `threads_count`, `last_updated_at`).
+- Added `docs/WORK_STATE.md` and updated README/usage/overview/summary/limitations/upgrade docs for the Work State runtime contract.
+
 ## 4.4.1 - 2026-04-26
 
 ### Fixed

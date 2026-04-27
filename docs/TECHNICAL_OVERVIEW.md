@@ -12,6 +12,7 @@ Current public CLI:
 - `aictx reflect`
 - `aictx reuse`
 - `aictx next`
+- `aictx task start|status|update|close`
 - `aictx map status|refresh|query`
 - `aictx report real-usage`
 - `aictx clean`
@@ -48,6 +49,7 @@ The runtime is built around one simple loop:
   - procedural reuse
   - staleness markers
 - may include RepoMap status when available
+- loads active Work State from `.aictx/tasks/active.json` / `.aictx/tasks/threads/<task-id>.json` when present
 - may inject `execution_hint` when a reusable strategy matches
 - may return `startup_banner_text` with show-once-per-visible-session semantics
 
@@ -67,6 +69,7 @@ The runtime is built around one simple loop:
 - persists strategy memory
 - records, recognizes, or resolves failure memory
 - persists handoff / decisions / semantic continuity artifacts
+- may conservatively update active Work State from factual execution evidence or explicit runtime payloads
 - updates continuity metrics
 - returns `agent_summary` and `agent_summary_text`
 
@@ -84,6 +87,9 @@ Main repo-local artifacts:
 .aictx/continuity/staleness.json
 .aictx/continuity/continuity_metrics.json
 .aictx/continuity/last_execution_summary.md
+.aictx/tasks/active.json
+.aictx/tasks/threads/<task-id>.json
+.aictx/tasks/threads/<task-id>.events.jsonl
 .aictx/metrics/execution_logs.jsonl
 .aictx/metrics/execution_feedback.jsonl
 .aictx/strategy_memory/strategies.jsonl
@@ -143,12 +149,18 @@ Returns the latest reusable successful strategy.
 ### `aictx next`
 Returns compact continuity guidance for the next session or next step.
 It can also emit structured JSON with the continuity brief and `why_loaded` evidence.
+When active Work State exists, it has priority over older historical continuity layers.
+
+### `aictx task ...`
+Returns or mutates the deterministic repo-local Work State artifact for the active task.
+This is operational continuity, not planning or issue tracking.
 
 ### `aictx map ...`
 Optional RepoMap structural operations for status, refresh, and query.
 
 ### `aictx report real-usage`
 Returns aggregated real runtime usage from stored logs/feedback/continuity metrics.
+It also exposes a compact Work State snapshot (`active`, `task_id`, `status`, `threads_count`, `last_updated_at`).
 
 ## Runner integration
 

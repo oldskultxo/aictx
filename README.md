@@ -55,7 +55,7 @@ After `aictx init`, you can use your coding agent normally in that repo.
 
 Manual `aictx` commands after initialization are optional:
 - the intended flow is `install` + `init`, then agent-driven usage
-- `suggest`, `reflect`, `reuse`, `next`, and `report real-usage` remain available for inspection, debugging, or manual control
+- `suggest`, `reflect`, `reuse`, `next`, `task ...`, and `report real-usage` remain available for inspection, debugging, or manual control
 - Claude/Codex integration files and hooks added by `init` are there to help the agent use `aictx` automatically when the runner respects repo instructions
 
 ---
@@ -69,6 +69,10 @@ aictx suggest
 aictx reflect
 aictx reuse
 aictx next
+aictx task start "Fix login token refresh"
+aictx task status --json
+aictx task update --json-patch '{"next_action":"run targeted auth tests"}' --json
+aictx task close --status resolved --json
 aictx map status
 aictx map refresh
 aictx map query "startup banner"
@@ -81,7 +85,7 @@ Only `install` and `init` are part of the normal setup path.
 
 The rest of the public commands are optional operational commands:
 - `suggest`, `reflect`, `reuse` -> for manual inspection or explicit agent calls
-- `next`, `map status|refresh|query` -> for compact continuity and RepoMap structural lookup operations
+- `next`, `task ...`, `map status|refresh|query` -> for compact continuity, active work preservation, and RepoMap structural lookup operations
 - `report real-usage` -> for reviewing stored execution data
 - `clean`, `uninstall` -> for removing AICTX-managed content
 
@@ -120,6 +124,10 @@ aictx map query "startup banner"
   * `staleness.json`
   * `continuity_metrics.json`
   * `last_execution_summary.md` (latest detailed finalize summary)
+* stores active task continuity in `.aictx/tasks/`
+  * `active.json`
+  * `threads/<task-id>.json`
+  * `threads/<task-id>.events.jsonl`
 * captures available files, commands, tests, and errors with provenance instead of inventing data
 * normalizes command/test/lint/type/build/compile failures into compact `error_events` with `toolchain`, `phase`, `code`, path, line, command, exit code, and fingerprint when observed
 * derives backward-compatible `notable_errors` from structured error events when possible
@@ -129,6 +137,7 @@ aictx map query "startup banner"
 * loads related failure patterns during prepare so agents can avoid repeating known mistakes
 * distinguishes new, repeated, resolved, and merely considered failure context in `agent_summary_text` without inventing causality
 * returns `agent_summary` and `agent_summary_text` after finalize; `agent_summary_text` is the canonical factual source for the final AICTX summary
+* can preserve active Work State across sessions: goal, current hypothesis, active files, next action, factual verified items, and conservative recommended commands
 * exposes small JSON commands for runtime guidance
 * does not rely on hidden model memory or opaque cross-repo state
 
@@ -338,10 +347,12 @@ Not part of the current product contract:
 ## Read next
 
 * [Usage](docs/USAGE.md)
-* [Demo](docs/DEMO.md)
-* [Limitations](docs/LIMITATIONS.md)
-* [Safety](docs/SAFETY.md)
-* [Upgrade](docs/UPGRADE.md)
-* [Execution summary](docs/EXECUTION_SUMMARY.md)
+* [Technical overview](docs/TECHNICAL_OVERVIEW.md)
 * [Failure memory](docs/FAILURE_MEMORY.md)
 * [Area memory](docs/AREA_MEMORY.md)
+* [Work state](docs/WORK_STATE.md)
+* [Safety](docs/SAFETY.md)
+* [Execution summary](docs/EXECUTION_SUMMARY.md)
+* [Demo](docs/DEMO.md)
+* [Upgrade](docs/UPGRADE.md)
+* [Limitations](docs/LIMITATIONS.md)

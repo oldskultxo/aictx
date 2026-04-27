@@ -28,6 +28,7 @@ The summary reports only observed or persisted facts, for example:
 - stored artifacts such as handoff, decision, strategy, or validated learning
 - observed files/tests counts
 - next focus when continuity has one
+- work state update when finalize preserved an active task thread
 - prepared/final/effective task and area classification when that adds real value
 - failure memory events when relevant: learned new pattern, recognized repeated pattern, resolved prior failure, or considered prior context
 
@@ -38,6 +39,8 @@ The detailed file may also include:
 - prepared/final/effective task type
 - prepared/final/effective area
 - RepoMap status used during prepare
+- active Work State context used during prepare
+- which Work State fields were updated during finalize
 - AICTX value sources
 - next-session guidance
 
