@@ -296,24 +296,29 @@ def _command_to_recommendation(command: str) -> str:
 
 def merge_work_state_from_execution(repo_root: Path, prepared: dict[str, Any], execution_log: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
     active = load_active_work_state(repo_root)
-    if not active:
+    explicit = result.get("work_state") if isinstance(result.get("work_state"), dict) else {}
+    if not active and not explicit:
         return None
-    patch: dict[str, Any] = {}
+    explicit_task_id = str(explicit.get("task_id") or "").strip() if isinstance(explicit, dict) else ""
+    if not active and not explicit_task_id:
+        return None
+    target_task_id = explicit_task_id or str(active.get("task_id") or "")
+    patch: dict[str, Any] = dict(explicit) if isinstance(explicit, dict) else {}
     active_files = []
     for field in ("files_opened", "files_edited", "files_reopened"):
         active_files.extend(list(execution_log.get(field, []) or []))
     if active_files:
-        patch["active_files"] = active_files
+        patch["active_files"] = list(patch.get("active_files", []) or []) + active_files
     execution_id = str(prepared.get("envelope", {}).get("execution_id") or "").strip()
     if execution_id:
-        patch["source_execution_ids"] = [execution_id]
+        patch["source_execution_ids"] = list(patch.get("source_execution_ids", []) or []) + [execution_id]
     recommended_commands = []
     for command in list(execution_log.get("commands_executed", []) or []) + list(execution_log.get("tests_executed", []) or []):
         recommendation = _command_to_recommendation(str(command or ""))
         if recommendation:
             recommended_commands.append(recommendation)
     if recommended_commands:
-        patch["recommended_commands"] = recommended_commands
+        patch["recommended_commands"] = list(patch.get("recommended_commands", []) or []) + recommended_commands
     if bool(result.get("success")):
         verified: list[str] = []
         for command in list(execution_log.get("commands_executed", []) or []):
@@ -325,7 +330,7 @@ def merge_work_state_from_execution(repo_root: Path, prepared: dict[str, Any], e
             if text:
                 verified.append(f"Test command passed: {text}")
         if verified:
-            patch["verified"] = verified
+            patch["verified"] = list(patch.get("verified", []) or []) + verified
     else:
         risks = []
         for item in list(execution_log.get("notable_errors", []) or []):
@@ -333,10 +338,10 @@ def merge_work_state_from_execution(repo_root: Path, prepared: dict[str, Any], e
             if text:
                 risks.append(f"Observed error: {text}")
         if risks:
-            patch["risks"] = risks
+            patch["risks"] = list(patch.get("risks", []) or []) + risks
     if not patch:
         return None
-    return update_work_state(repo_root, patch, task_id=str(active.get("task_id") or ""), source="finalize_execution")
+    return update_work_state(repo_root, patch, task_id=target_task_id, source="finalize_execution")
 
 
 def compact_work_state_for_prepare(state: dict[str, Any]) -> dict[str, Any]:

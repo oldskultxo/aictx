@@ -70,6 +70,7 @@ def run_execution(payload: dict[str, Any], command: list[str], validated_learnin
         "success": exit_code == 0,
         "result_summary": summarize_command_result(normalized_command, exit_code, stdout, stderr),
         "validated_learning": bool(validated_learning and exit_code == 0),
+        "work_state": payload.get("work_state", {}) if isinstance(payload.get("work_state"), dict) else {},
     }
     after_status = git_status_files(repo_root)
     observation = prepared.get("execution_observation", {}) if isinstance(prepared.get("execution_observation"), dict) else {}
@@ -101,6 +102,17 @@ def run_execution(payload: dict[str, Any], command: list[str], validated_learnin
     }
 
 
+def _json_dict(raw: str) -> dict[str, Any]:
+    text = str(raw or "").strip()
+    if not text:
+        return {}
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def cli_run_execution(args: argparse.Namespace) -> int:
     explicit_error_events: list[dict[str, Any]] = []
     for raw in list(getattr(args, "error_event_json", []) or []):
@@ -127,6 +139,7 @@ def cli_run_execution(args: argparse.Namespace) -> int:
         "tests_executed": list(args.tests_executed or []),
         "notable_errors": list(args.notable_errors or []),
         "error_events": normalize_error_events(explicit_error_events),
+        "work_state": _json_dict(getattr(args, "work_state_json", "")),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,

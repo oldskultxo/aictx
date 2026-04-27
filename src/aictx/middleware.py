@@ -27,6 +27,7 @@ from .runtime_memory import rank_records
 from .runtime_tasks import resolve_observed_task_type, resolve_task_type
 from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, mark_startup_banner_shown, read_json, touch_session_identity, write_json
 from .strategy_memory import build_strategy_entry, persist_strategy, select_strategy
+from .work_state import compact_work_state_for_prepare, load_active_work_state, merge_work_state_from_execution
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
 REAL_EXECUTION_LOG_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
@@ -364,6 +365,7 @@ def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
         "tests_executed": [str(item) for item in payload.get("tests_executed", []) if str(item).strip()] if isinstance(payload.get("tests_executed"), list) else [],
         "notable_errors": [str(item) for item in payload.get("notable_errors", []) if str(item).strip()] if isinstance(payload.get("notable_errors"), list) else [],
         "error_events": normalize_error_events(payload.get("error_events", [])),
+        "work_state": payload.get("work_state", {}) if isinstance(payload.get("work_state"), dict) else {},
     }
 
 
@@ -462,6 +464,14 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         errors=list(capture.get("notable_errors", [])),
         area_id=area_id,
     )
+    active_work_state_payload = load_active_work_state(repo_root)
+    explicit_work_state = envelope.get("work_state") if isinstance(envelope.get("work_state"), dict) else {}
+    active_work_state = compact_work_state_for_prepare({**active_work_state_payload, **explicit_work_state}) if active_work_state_payload or explicit_work_state else {}
+    if active_work_state:
+        continuity_context["active_work_state"] = active_work_state
+        loaded = continuity_context.get("loaded") if isinstance(continuity_context.get("loaded"), dict) else {}
+        loaded["work_state"] = True
+        continuity_context["loaded"] = loaded
     related_failures = list(continuity_context.get("failures", []))
     hints = area_hints(repo_root, area_id)
     session = continuity_context.get("session", {}) if isinstance(continuity_context.get("session"), dict) else {}
@@ -523,6 +533,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_path": packet_path,
         "packet": packet,
         "continuity_context": continuity_context,
+        "active_work_state": active_work_state,
         "continuity_brief": continuity_context.get("continuity_brief", {}) if isinstance(continuity_context.get("continuity_brief"), dict) else {},
         "agent_label": str(session.get("agent_label") or ""),
         "session_count": int(session.get("session_count") or 0),
@@ -1232,6 +1243,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "decisions": list(result.get("decisions", [])) if isinstance(result.get("decisions"), list) else [],
         "semantic_repo": list(result.get("semantic_repo", [])) if isinstance(result.get("semantic_repo"), list) else [],
         "handoff": result.get("handoff", {}) if isinstance(result.get("handoff"), dict) else {},
+        "work_state": result.get("work_state", {}) if isinstance(result.get("work_state"), dict) else {},
     }
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
@@ -1268,6 +1280,21 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         timestamp=finalized_at,
     )
     continuity_metrics = update_continuity_metrics(repo_root, prepared, telemetry_entry)
+    work_state_state = merge_work_state_from_execution(repo_root, prepared, execution_log, normalized_result)
+    work_state_updated = None
+    if isinstance(work_state_state, dict) and work_state_state:
+        task_id = str(work_state_state.get("task_id") or "")
+        fields = [
+            key for key in ("active_files", "verified", "unverified", "discarded_paths", "uncertainties", "next_action", "recommended_commands", "risks", "source_execution_ids")
+            if work_state_state.get(key)
+        ]
+        work_state_updated = {
+            "updated": True,
+            "task_id": task_id,
+            "path": f".aictx/tasks/threads/{task_id}.json" if task_id else "",
+            "fields": fields,
+        }
+    prepared["work_state_updated"] = work_state_updated
     agent_summary = build_agent_summary(
         prepared,
         learning,
@@ -1310,6 +1337,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "decisions_persisted": decisions,
         "semantic_repo_persisted": semantic_repo,
         "continuity_metrics_persisted": continuity_metrics,
+        "work_state_updated": work_state_updated,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": agent_summary_text,
         "continuity_value": agent_summary["structured"].get("continuity_value", {}),
@@ -1360,6 +1388,7 @@ def cli_prepare_execution(args: argparse.Namespace) -> int:
         "tests_executed": list(args.tests_executed or []),
         "notable_errors": list(args.notable_errors or []),
         "error_events": error_events,
+        "work_state": _cli_json_dict(getattr(args, "work_state_json", "")),
         "skill_metadata": {
             "skill_id": args.skill_id,
             "skill_name": args.skill_name,
@@ -1400,9 +1429,21 @@ def cli_finalize_execution(args: argparse.Namespace) -> int:
         "validated_learning": bool(args.validated_learning),
         "decisions": decisions,
         "semantic_repo": semantic_repo,
+        "work_state": _cli_json_dict(getattr(args, "work_state_json", "")),
     }
     print(json.dumps(finalize_execution(prepared, result), indent=2, ensure_ascii=False))
     return 0
+
+
+def _cli_json_dict(raw: str) -> dict[str, Any]:
+    text = str(raw or "").strip()
+    if not text:
+        return {}
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _cli_error_events(args: argparse.Namespace) -> list[dict[str, Any]]:
