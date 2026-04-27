@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -115,6 +116,84 @@ def _normalize_status(value: Any) -> str:
     return status if status in _ALLOWED_STATUS else "in_progress"
 
 
+def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _normalize_git_context(payload: Any) -> dict[str, Any]:
+    captured_at = now_iso()
+    if not isinstance(payload, dict):
+        return {}
+    available = bool(payload.get("available"))
+    if not available:
+        reason = _truncate(payload.get("reason"), 80) or "git_unavailable"
+        return {
+            "available": False,
+            "reason": reason,
+            "captured_at": _truncate(payload.get("captured_at") or captured_at, 40),
+        }
+    branch = _truncate(payload.get("branch"), 240)
+    head = _truncate(payload.get("head"), 80)
+    changed_files = _dedupe_strings(payload.get("changed_files"), limit=64)
+    return {
+        "available": True,
+        "branch": branch,
+        "head": head,
+        "dirty": bool(payload.get("dirty")),
+        "changed_files": changed_files,
+        "captured_at": _truncate(payload.get("captured_at") or captured_at, 40),
+    }
+
+
+def capture_git_context(repo_root: Path) -> dict[str, Any]:
+    captured_at = now_iso()
+    try:
+        branch_result = _run_git(repo_root, "branch", "--show-current")
+        head_result = _run_git(repo_root, "rev-parse", "HEAD")
+        status_result = _run_git(repo_root, "status", "--porcelain")
+    except (FileNotFoundError, OSError):
+        return {
+            "available": False,
+            "reason": "git_unavailable",
+            "captured_at": captured_at,
+        }
+    if branch_result.returncode != 0 or head_result.returncode != 0 or status_result.returncode != 0:
+        return {
+            "available": False,
+            "reason": "git_unavailable",
+            "captured_at": captured_at,
+        }
+    changed_files = []
+    for line in status_result.stdout.splitlines():
+        entry = line[3:].strip() if len(line) >= 4 else line.strip()
+        if entry:
+            changed_files.append(entry)
+    return {
+        "available": True,
+        "branch": branch_result.stdout.strip(),
+        "head": head_result.stdout.strip(),
+        "dirty": bool(changed_files),
+        "changed_files": _dedupe_strings(changed_files, limit=64),
+        "captured_at": captured_at,
+    }
+
+
+def _is_git_ancestor(repo_root: Path, ancestor: str, head_ref: str = "HEAD") -> bool:
+    if not ancestor.strip():
+        return False
+    try:
+        result = _run_git(repo_root, "merge-base", "--is-ancestor", ancestor, head_ref)
+    except (FileNotFoundError, OSError):
+        return False
+    return result.returncode == 0
+
+
 def normalize_work_state(payload: dict[str, Any]) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
     created_at = _truncate(payload.get("created_at") or now_iso(), 40)
@@ -138,6 +217,9 @@ def normalize_work_state(payload: dict[str, Any]) -> dict[str, Any]:
         "created_at": created_at,
         "updated_at": updated_at,
     }
+    git_context = _normalize_git_context(payload.get("git_context"))
+    if git_context:
+        state["git_context"] = git_context
     return state
 
 
@@ -189,6 +271,91 @@ def load_active_work_state(repo_root: Path) -> dict[str, Any]:
     if not task_id:
         return {}
     return load_work_state(repo_root, task_id)
+
+
+def evaluate_work_state_git_context(repo_root: Path, state: dict[str, Any]) -> dict[str, Any]:
+    state = state if isinstance(state, dict) else {}
+    saved_context = state.get("git_context") if isinstance(state.get("git_context"), dict) else None
+    current_context = capture_git_context(repo_root)
+    status = {
+        "loadable": True,
+        "reason": "no_git_context",
+        "saved_branch": "",
+        "current_branch": str(current_context.get("branch") or ""),
+        "saved_head": "",
+        "current_head": str(current_context.get("head") or ""),
+        "warning": "",
+    }
+    if not saved_context:
+        return status
+    status["saved_branch"] = str(saved_context.get("branch") or "")
+    status["saved_head"] = str(saved_context.get("head") or "")
+    if not bool(saved_context.get("available")):
+        status["reason"] = "git_unavailable"
+        status["warning"] = "saved Work State git context unavailable; loading conservatively"
+        return status
+    if not bool(current_context.get("available")):
+        status["reason"] = "git_unavailable"
+        status["warning"] = "current repository git context unavailable; loading conservatively"
+        return status
+    saved_branch = status["saved_branch"]
+    current_branch = status["current_branch"]
+    saved_head = status["saved_head"]
+    current_head = status["current_head"]
+    saved_dirty = bool(saved_context.get("dirty"))
+    current_dirty = bool(current_context.get("dirty"))
+    if saved_branch == current_branch:
+        status["reason"] = "same_branch"
+        warnings: list[str] = []
+        if saved_head and current_head and saved_head != current_head:
+            warnings.append("same branch but HEAD changed since Work State was saved")
+        if saved_dirty != current_dirty:
+            warnings.append("working tree dirty state changed since Work State was saved")
+        status["warning"] = "; ".join(warnings)
+        return status
+    if saved_dirty:
+        status["loadable"] = False
+        status["reason"] = "dirty_branch_mismatch"
+        status["warning"] = "saved Work State was dirty on a different branch"
+        return status
+    if saved_head and _is_git_ancestor(repo_root, saved_head):
+        status["reason"] = "branch_changed_but_merged"
+        warnings = ["branch changed but saved commit is reachable from current HEAD"]
+        if saved_dirty != current_dirty:
+            warnings.append("working tree dirty state changed since Work State was saved")
+        status["warning"] = "; ".join(warnings)
+        return status
+    status["loadable"] = False
+    status["reason"] = "branch_mismatch_unmerged"
+    status["warning"] = "saved branch differs and saved commit is not reachable from current HEAD"
+    return status
+
+
+def load_active_work_state_checked(repo_root: Path) -> dict[str, Any]:
+    state = load_active_work_state(repo_root)
+    if not state:
+        return {
+            "active_work_state": {},
+            "work_state_git_status": {},
+            "skipped_work_state": {},
+        }
+    status = evaluate_work_state_git_context(repo_root, state)
+    if status.get("loadable"):
+        return {
+            "active_work_state": state,
+            "work_state_git_status": status,
+            "skipped_work_state": {},
+        }
+    return {
+        "active_work_state": {},
+        "work_state_git_status": status,
+        "skipped_work_state": {
+            "task_id": str(state.get("task_id") or ""),
+            "reason": str(status.get("reason") or ""),
+            "saved_branch": str(status.get("saved_branch") or ""),
+            "current_branch": str(status.get("current_branch") or ""),
+        },
+    }
 
 
 def list_work_states(repo_root: Path) -> list[dict[str, Any]]:
@@ -244,6 +411,7 @@ def save_work_state(repo_root: Path, state: dict[str, Any], *, source: str, even
     if isinstance(previous, dict) and previous.get("created_at") and not normalized.get("created_at"):
         normalized["created_at"] = _truncate(previous.get("created_at"), 40)
     normalized["updated_at"] = now_iso()
+    normalized["git_context"] = capture_git_context(repo_root)
     write_json(paths["thread"], normalized)
     if normalized.get("status") == "in_progress":
         _write_active_task(repo_root, normalized["task_id"])

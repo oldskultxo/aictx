@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from aictx import cli
 from aictx.middleware import finalize_execution, prepare_execution
@@ -10,6 +14,8 @@ from aictx.runtime_launcher import run_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import write_json
 from aictx.work_state import load_work_state, start_work_state
+
+GIT_AVAILABLE = shutil.which("git") is not None
 
 
 def _payload(repo: Path, execution_id: str = "exec-work-state") -> dict:
@@ -21,6 +27,21 @@ def _payload(repo: Path, execution_id: str = "exec-work-state") -> dict:
         "execution_id": execution_id,
         "timestamp": "2026-04-27T10:00:00Z",
     }
+
+
+def _git(repo: Path, *args: str) -> str:
+    result = subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+    return result.stdout.strip()
+
+
+def _init_git_repo(repo: Path) -> None:
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.name", "Test User")
+    _git(repo, "config", "user.email", "test@example.com")
+    tracked = repo / "tracked.txt"
+    tracked.write_text("base\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "initial")
 
 
 def test_prepare_execution_exposes_active_work_state(tmp_path: Path) -> None:
@@ -44,6 +65,51 @@ def test_prepare_execution_without_active_work_state_is_empty(tmp_path: Path) ->
 
     assert prepared["active_work_state"] == {}
     assert "work_state" not in prepared["continuity_context"]["loaded"]
+
+
+@pytest.mark.skipif(not GIT_AVAILABLE, reason="git binary unavailable")
+def test_prepare_execution_exposes_skipped_work_state_when_branch_mismatch_is_unsafe(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _init_git_repo(repo)
+    _git(repo, "checkout", "-b", "feature/login")
+    (repo / "tracked.txt").write_text("base\nfeature-only\n", encoding="utf-8")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "commit", "-m", "feature commit")
+    start_work_state(repo, "Fix login token refresh", initial={"next_action": "inspect interceptor"})
+    _git(repo, "checkout", "main")
+    (repo / "tracked.txt").write_text("base\nmain-only\n", encoding="utf-8")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "commit", "-m", "main change")
+
+    prepared = prepare_execution(_payload(repo, "exec-work-state-skipped"))
+
+    assert prepared["active_work_state"] == {}
+    assert prepared["work_state_git_status"]["reason"] == "branch_mismatch_unmerged"
+    assert prepared["skipped_work_state"]["task_id"] == "fix-login-token-refresh"
+    assert prepared["continuity_context"]["loaded"]["work_state"] is False
+    assert prepared["continuity_context"]["skipped_work_state"]["reason"] == "branch_mismatch_unmerged"
+
+
+@pytest.mark.skipif(not GIT_AVAILABLE, reason="git binary unavailable")
+def test_prepare_execution_exposes_active_work_state_when_branch_mismatch_is_safely_merged(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _init_git_repo(repo)
+    _git(repo, "checkout", "-b", "feature/login")
+    (repo / "tracked.txt").write_text("base\nfeature\n", encoding="utf-8")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "commit", "-m", "feature commit")
+    start_work_state(repo, "Fix login token refresh", initial={"next_action": "inspect interceptor"})
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--no-ff", "feature/login", "-m", "merge feature")
+
+    prepared = prepare_execution(_payload(repo, "exec-work-state-merged"))
+
+    assert prepared["active_work_state"]["task_id"] == "fix-login-token-refresh"
+    assert prepared["work_state_git_status"]["reason"] == "branch_changed_but_merged"
+    assert "skipped_work_state" not in prepared
+    assert prepared["continuity_context"]["loaded"]["work_state"] is True
 
 
 def test_finalize_execution_updates_active_work_state_conservatively(tmp_path: Path) -> None:

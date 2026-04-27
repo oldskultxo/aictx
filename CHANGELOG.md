@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+- Added minimal branch-safe Work State loading using saved git branch/head context.
+- Work State created on a merged feature branch can still load on main when the saved commit is reachable from current HEAD.
+- Dirty Work State from another branch is skipped to avoid unsafe continuation.
+
 ## 4.5.0 - 2026-04-27
 
 ### Added

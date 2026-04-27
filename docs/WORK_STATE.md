@@ -85,6 +85,26 @@ Supported close statuses:
 - can also accept explicit runtime payloads via `--work-state-json` or `--work-state-file`
 - does not invent hypotheses, discarded paths, or product conclusions
 
+## Branch-safe loading
+
+When Work State is saved in a git repo, AICTX also stores a minimal git context snapshot for safety:
+
+- branch
+- HEAD commit
+- dirty flag
+- changed files
+- capture timestamp
+
+Loading rules:
+
+- same branch -> load
+- different branch + saved commit is ancestor of current `HEAD` -> load with warning
+- different branch + saved commit is not ancestor -> skip
+- dirty saved state + different branch -> skip
+- non-git repo or old Work State without `git_context` -> load conservatively
+
+This is a safety layer only. It does not create branch-specific task management or semantic task merging.
+
 ## Relationship to other continuity layers
 
 - Work State = current suspended task state

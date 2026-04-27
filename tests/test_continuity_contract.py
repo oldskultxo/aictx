@@ -13,7 +13,7 @@ from aictx.continuity import (
 )
 from aictx.failure_memory import FAILURE_PATTERNS_PATH
 from aictx.scaffold import init_repo_scaffold
-from aictx.state import REPO_CONTINUITY_SESSION_PATH, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR
+from aictx.state import REPO_CONTINUITY_SESSION_PATH, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, REPO_TASKS_ACTIVE_PATH, REPO_TASK_THREADS_DIR
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +43,8 @@ def test_readme_artifact_contract_matches_runtime_constants():
         FAILURE_PATTERNS_PATH.as_posix(),
         (REPO_METRICS_DIR / "execution_logs.jsonl").as_posix(),
         (REPO_METRICS_DIR / "execution_feedback.jsonl").as_posix(),
+        REPO_TASKS_ACTIVE_PATH.as_posix(),
+        (REPO_TASK_THREADS_DIR / "*").as_posix(),
     }
 
     assert documented == expected

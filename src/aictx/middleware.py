@@ -27,7 +27,7 @@ from .runtime_memory import rank_records
 from .runtime_tasks import resolve_observed_task_type, resolve_task_type
 from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, mark_startup_banner_shown, read_json, touch_session_identity, write_json
 from .strategy_memory import build_strategy_entry, persist_strategy, select_strategy
-from .work_state import compact_work_state_for_prepare, load_active_work_state, merge_work_state_from_execution
+from .work_state import compact_work_state_for_prepare, load_active_work_state_checked, merge_work_state_from_execution
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
 REAL_EXECUTION_LOG_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
@@ -464,13 +464,21 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         errors=list(capture.get("notable_errors", [])),
         area_id=area_id,
     )
-    active_work_state_payload = load_active_work_state(repo_root)
+    active_work_state_checked = load_active_work_state_checked(repo_root)
+    active_work_state_payload = active_work_state_checked.get("active_work_state", {})
+    work_state_git_status = active_work_state_checked.get("work_state_git_status", {})
+    skipped_work_state = active_work_state_checked.get("skipped_work_state", {})
     explicit_work_state = envelope.get("work_state") if isinstance(envelope.get("work_state"), dict) else {}
     active_work_state = compact_work_state_for_prepare({**active_work_state_payload, **explicit_work_state}) if active_work_state_payload or explicit_work_state else {}
     if active_work_state:
         continuity_context["active_work_state"] = active_work_state
         loaded = continuity_context.get("loaded") if isinstance(continuity_context.get("loaded"), dict) else {}
         loaded["work_state"] = True
+        continuity_context["loaded"] = loaded
+    elif skipped_work_state:
+        continuity_context["skipped_work_state"] = skipped_work_state
+        loaded = continuity_context.get("loaded") if isinstance(continuity_context.get("loaded"), dict) else {}
+        loaded["work_state"] = False
         continuity_context["loaded"] = loaded
     related_failures = list(continuity_context.get("failures", []))
     hints = area_hints(repo_root, area_id)
@@ -590,6 +598,10 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "used_strategy": bool(selected_strategy),
         },
     }
+    if work_state_git_status:
+        prepared["work_state_git_status"] = work_state_git_status
+    if skipped_work_state:
+        prepared["skipped_work_state"] = skipped_work_state
     if selected_strategy:
         prepared["execution_hint"] = {
             "entry_points": list(selected_strategy.get("entry_points", [])) if isinstance(selected_strategy.get("entry_points"), list) else [],
