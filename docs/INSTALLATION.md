@@ -154,6 +154,7 @@ Current init decisions:
 | Register repo | default yes unless `--no-register` | Adds repo to AICTX registry for cleanup/uninstall |
 | Communication mode | `caveman_full` | Stores repo preference under `.aictx/memory/user_preferences.json` |
 | Repo runner integrations | `Y` | Creates/updates `AGENTS.md`, `CLAUDE.md`, `.claude/*` |
+| Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy and writes `.aictx/continuity/portability.json` |
 | RepoMap initialization | default when globally requested | Writes/refreshes `.aictx/repo_map/*` if available |
 
 Representative interactive flow:
@@ -179,6 +180,14 @@ Simple one-shot setup:
 
 ```bash
 aictx init --repo . --yes
+```
+
+Portable continuity remains disabled by default for new repos. To opt in:
+
+```bash
+aictx init --repo . --portable-continuity
+aictx init --repo . --yes --portable-continuity
+aictx init --repo . --no-portable-continuity
 ```
 
 Demo/test setup without registry updates:

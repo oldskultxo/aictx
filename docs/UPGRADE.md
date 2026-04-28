@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 4.5.x
+## Current line: 4.6.x
 
-Current documented runtime: `4.5.3`.
+Current documented runtime: `4.6.0`.
 
 For users already on recent `4.x`, there is no special manual migration command. Re-run normal setup when needed:
 
@@ -12,17 +12,10 @@ aictx init
 ```
 
 ---
-
-## 4.5.x
+## 4.6.x
 
 Added:
-
-- Work State under `.aictx/tasks/`;
-- public `aictx task start|status|list|show|update|resume|close`;
-- active Work State loading in prepare/startup/`aictx next`;
-- conservative finalize updates;
-- branch-safe Work State loading using git branch/head context;
-- skip behavior for unsafe branch mismatch.
+- Opt-in git-portable continuity using an AICTX-managed `.gitignore` block and `.aictx/continuity/portability.json` without duplicating canonical artifacts.
 
 No manual migration is expected.
 

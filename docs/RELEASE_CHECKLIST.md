@@ -28,6 +28,12 @@
 
 ---
 
+- [ ] `git check-ignore` tests cover portable/local-only artifacts
+- [ ] `docs/PORTABILITY.md` updated
+- [ ] `aictx init --yes` does not enable portability by default
+- [ ] portability can be enabled after local-only init
+- [ ] portability can be disabled after being enabled
+
 ## Validation
 
 ```bash

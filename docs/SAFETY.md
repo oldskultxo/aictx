@@ -2,6 +2,8 @@
 
 AICTX is repo-local, inspectable, and conservative.
 
+Git-portable continuity is opt-in. Review `.aictx/` changes before committing because portable artifacts may still contain operational context.
+
 ---
 
 ## Default behavior

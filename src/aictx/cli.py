@@ -18,6 +18,7 @@ from .agent_runtime import (
     upsert_marked_block,
 )
 from .middleware import cli_finalize_execution, cli_prepare_execution
+from .portability import detect_portable_continuity_from_gitignore, load_portability_state
 from .continuity import load_continuity_context, render_next_text
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from .runtime_launcher import cli_run_execution
@@ -117,6 +118,35 @@ def ask_choice(prompt: str, options: list[tuple[str, str]], default: str) -> str
             if 1 <= choice <= len(options):
                 return options[choice - 1][0]
         print("Invalid selection. Enter the option number.")
+
+
+def resolve_init_portable_continuity(args: argparse.Namespace, repo: Path) -> bool:
+    if getattr(args, "portable_continuity", False):
+        return True
+    if getattr(args, "no_portable_continuity", False):
+        return False
+
+    existing_payload = load_portability_state(repo)
+    existing = existing_payload.get("enabled") if isinstance(existing_payload, dict) else None
+    if existing is None:
+        existing = detect_portable_continuity_from_gitignore(repo)
+
+    default = bool(existing) if existing is not None else False
+    if getattr(args, "yes", False):
+        return default
+    if not sys.stdin.isatty():
+        return default
+
+    return ask_yes_no(
+        "Enable AICTX git-portable continuity?\n\n"
+        "This allows committing a safe subset of .aictx/ so Work State,\n"
+        "handoffs, decisions, failure memory, strategy memory and RepoMap config\n"
+        "can travel with the repository.\n\n"
+        "Volatile/local artifacts such as metrics, session identity, execution logs\n"
+        "and RepoMap indexes will remain ignored.\n\n"
+        "Enable git-portable continuity?",
+        default=default,
+    )
 
 
 def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
@@ -820,9 +850,23 @@ def cmd_install(args: argparse.Namespace) -> int:
 
 def cmd_init(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
+    gitignore_path = repo / ".gitignore"
+    original_gitignore_exists = gitignore_path.exists()
+    original_gitignore_text = gitignore_path.read_text(encoding="utf-8") if original_gitignore_exists else ""
     update_gitignore = not args.no_gitignore
+    if args.no_gitignore and getattr(args, "portable_continuity", False):
+        print(
+            "Error: --portable-continuity requires updating .gitignore. "
+            "Remove --no-gitignore or use --no-portable-continuity.",
+            file=sys.stderr,
+        )
+        return 2
     register_repo = not args.no_register
     selected_communication_mode = "disabled"
+    portable_continuity = False
+
+    if args.yes:
+        portable_continuity = resolve_init_portable_continuity(args, repo)
 
     if not args.yes:
         print("aictx init")
@@ -838,6 +882,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print()
         update_gitignore = ask_yes_no("Write .gitignore entries if missing?", update_gitignore)
         register_repo = ask_yes_no("Register this repo in the active workspace?", register_repo)
+        portable_continuity = resolve_init_portable_continuity(args, repo)
         selected_communication_mode = ask_choice(
             "Select default communication mode for this repo:",
             COMMUNICATION_MODE_OPTIONS,
@@ -850,12 +895,18 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     ensure_global_home()
     global_config = read_json(CONFIG_PATH, default_global_config())
-    created = init_repo_scaffold(repo, update_gitignore=update_gitignore)
+    created = init_repo_scaffold(repo, update_gitignore=update_gitignore, portable_continuity=portable_continuity)
     persist_repo_communication_mode(repo, selected_communication_mode)
     install_global_agent_runtime(write_json)
     local_runtime_path = copy_local_agent_runtime(repo)
     prepared = prepare_repo_runtime(repo)
     runner_integrations = install_repo_runner_integrations(repo)
+    if not update_gitignore:
+        if original_gitignore_exists:
+            gitignore_path.write_text(original_gitignore_text, encoding="utf-8")
+        elif gitignore_path.exists():
+            gitignore_path.unlink()
+            runner_integrations = [item for item in runner_integrations if item != gitignore_path]
     upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
     legacy_override = repo / "AGENTS.override.md"
     remove_marked_block(legacy_override)
@@ -963,6 +1014,9 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--repo", default=".", help="Repository path")
     init.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     init.add_argument("--no-gitignore", action="store_true", help="Do not modify .gitignore")
+    portable_group = init.add_mutually_exclusive_group()
+    portable_group.add_argument("--portable-continuity", action="store_true", help="Enable git-portable AICTX continuity artifacts")
+    portable_group.add_argument("--no-portable-continuity", action="store_true", help="Keep all AICTX runtime artifacts local/ignored")
     init.add_argument("--no-register", action="store_true", help="Do not register repo in active workspace")
     init.set_defaults(func=cmd_init)
 

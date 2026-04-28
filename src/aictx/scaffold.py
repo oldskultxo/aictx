@@ -3,6 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
+from .portability import (
+    detect_portable_continuity_from_gitignore,
+    load_portability_state,
+    remove_legacy_aictx_gitignore_lines,
+    render_aictx_gitignore_block,
+    strip_aictx_gitignore_block,
+    write_portability_state,
+)
 from .runtime_versioning import compat_version_payload
 from .state import REPO_CONTINUITY_DIR, REPO_ENGINE_DIR, REPO_MAP_DIR, REPO_MEMORY_DIR, REPO_METRICS_DIR, REPO_STATE_PATH, REPO_STRATEGY_MEMORY_DIR, REPO_TASKS_DIR, REPO_TASK_THREADS_DIR, write_json
 
@@ -197,7 +205,18 @@ def ensure_repo_memory_sources(repo: Path) -> list[str]:
     return created
 
 
-def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
+def _resolve_portable_continuity(repo: Path, portable_continuity: bool | None) -> bool:
+    if portable_continuity is not None:
+        return portable_continuity
+    existing_payload = load_portability_state(repo)
+    existing_enabled = existing_payload.get("enabled") if isinstance(existing_payload, dict) else None
+    if isinstance(existing_enabled, bool):
+        return existing_enabled
+    detected = detect_portable_continuity_from_gitignore(repo)
+    return bool(detected) if detected is not None else False
+
+
+def init_repo_scaffold(repo: Path, update_gitignore: bool = True, *, portable_continuity: bool | None = None) -> list[str]:
     created: list[str] = []
 
     engine_dir = repo / REPO_ENGINE_DIR
@@ -241,8 +260,15 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True) -> list[str]:
         if ensure_file(path):
             created.append(str(path))
 
+    resolved_portable_continuity = _resolve_portable_continuity(repo, portable_continuity)
+    portability_path = repo / ".aictx" / "continuity" / "portability.json"
+    portability_existed = portability_path.exists()
+    write_portability_state(repo, enabled=resolved_portable_continuity)
+    if not portability_existed:
+        created.append(str(portability_path))
+
     if update_gitignore:
-        ensure_gitignore(repo)
+        ensure_gitignore(repo, portable_continuity=resolved_portable_continuity)
     return created
 
 
@@ -256,15 +282,15 @@ def ensure_repomap_scaffold(repo: Path) -> list[str]:
     return created
 
 
-def ensure_gitignore(repo: Path) -> None:
+def ensure_gitignore(repo: Path, *, portable_continuity: bool = False) -> None:
     path = repo / ".gitignore"
-    desired = [
-        ".DS_Store",
-        ".aictx/",
-    ]
-    existing = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    merged = list(existing)
-    for entry in desired:
-        if entry not in merged:
-            merged.append(entry)
-    path.write_text("\n".join(merged).rstrip() + "\n", encoding="utf-8")
+    existing_text = path.read_text(encoding="utf-8") if path.exists() else ""
+    cleaned = strip_aictx_gitignore_block(existing_text)
+    cleaned = remove_legacy_aictx_gitignore_lines(cleaned)
+    lines = cleaned.splitlines() if cleaned else []
+    if ".DS_Store" not in lines:
+        lines.append(".DS_Store")
+    cleaned = "\n".join(lines).rstrip()
+    block = render_aictx_gitignore_block(portable_continuity=portable_continuity)
+    final = "\n".join(part for part in [cleaned, block.rstrip()] if part).rstrip() + "\n"
+    path.write_text(final, encoding="utf-8")

@@ -87,7 +87,8 @@ It can:
 - write `.claude/hooks/*`;
 - persist repo communication mode;
 - initialize RepoMap if requested and available;
-- register the repo unless disabled.
+- register the repo unless disabled;
+- optionally switch the AICTX-managed `.gitignore` block between local-only and git-portable continuity without moving canonical artifacts.
 
 ### 3. Boot runtime state
 

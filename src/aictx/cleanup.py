@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_runtime import AGENTS_END, AGENTS_START
+from .portability import remove_legacy_aictx_gitignore_lines, strip_aictx_gitignore_block
 from .runner_integrations import (
     AICTX_END,
     AICTX_START,
@@ -29,10 +30,6 @@ REPO_OPTIONAL_FILES = [
     Path('CLAUDE.md'),
     Path('AGENTS.md'),
 ]
-AICTX_GITIGNORE_LINES = {
-    '.aictx/',
-    '.aictx/',
-}
 CLAUDE_GITIGNORE_LINES = {
     CLAUDE_DIR_GITIGNORE_LINE,
     CLAUDE_MD_GITIGNORE_LINE,
@@ -93,10 +90,14 @@ def remove_marked_block(path: Path, start_marker: str = AICTX_START, end_marker:
 def remove_gitignore_aictx_entries(path: Path) -> bool:
     if not path.exists():
         return False
-    lines = path.read_text(encoding='utf-8').splitlines()
+    original_text = path.read_text(encoding='utf-8')
+    text = strip_aictx_gitignore_block(original_text)
+    text = remove_legacy_aictx_gitignore_lines(text)
+
+    lines = text.splitlines()
     filtered: list[str] = []
     skip_claude_managed_lines = False
-    changed = False
+    changed = text != original_text
     for line in lines:
         stripped = line.strip()
         if skip_claude_managed_lines:
@@ -104,9 +105,6 @@ def remove_gitignore_aictx_entries(path: Path) -> bool:
                 changed = True
                 continue
             skip_claude_managed_lines = False
-        if stripped in AICTX_GITIGNORE_LINES:
-            changed = True
-            continue
         if stripped == CLAUDE_GITIGNORE_COMMENT:
             skip_claude_managed_lines = True
             changed = True

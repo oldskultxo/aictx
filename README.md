@@ -8,7 +8,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `4.5.3`
+Current documented implementation: `4.6.0`
 
 ---
 
@@ -19,6 +19,48 @@ Coding agents are powerful, but most sessions still start cold.
 They rediscover repository structure, repeat failed paths, lose track of what was already verified, and depend on chat history for unfinished work.
 
 AICTX gives them a repo-local continuity layer.
+
+---
+
+## What changes with AICTX
+
+Without AICTX:
+
+- the next session starts from a prompt and a fresh repo scan;
+- failed approaches are easy to repeat;
+- unfinished task state lives in chat history;
+- the next action is easy to lose;
+- branch switches can resume the wrong context.
+
+With AICTX:
+
+- the next session can load a compact continuity brief;
+- active Work State preserves goal, hypothesis, files, next action, risks, and verified/unverified work;
+- Failure Memory warns about known patterns;
+- RepoMap can provide structural entry points so agents know where to look first;
+- summaries preserve what changed and what can be reused;
+- branch-safe loading avoids resuming active work on the wrong branch.
+
+---
+
+## Core capabilities
+
+| Capability | What it does | Why it matters |
+|---|---|---|
+| **Work State** | Preserves the active task, hypothesis, next action, files, risks, and verification state | The next session knows what was in progress |
+| **Failure Memory** | Stores observed command/test/build/type/lint failures as structured patterns | Agents can avoid repeating known mistakes |
+| **RepoMap** | Optional Tree-sitter structural map of files and symbols | Agents get better “where should I look first?” context |
+| **Strategy Memory** | Reuses successful prior execution patterns | Known-good approaches can be suggested again |
+| **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
+| **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
+
+```text
+Work State = what is currently in progress.
+Failure Memory = what failed before.
+RepoMap = where useful code likely lives.
+Strategy Memory = what worked before.
+Execution Summary = what changed in the last run.
+```
 
 ---
 
@@ -79,47 +121,15 @@ install -> init -> use your coding agent
 
 See [Installation](docs/INSTALLATION.md).
 
----
+## Git-portable continuity
 
-## What changes with AICTX
+AICTX continuity can be made git-portable.
 
-Without AICTX:
+When enabled during `aictx init`, AICTX writes a selective `.gitignore` policy so a safe subset of canonical `.aictx/` artifacts can be committed with the repo. Another machine can clone/pull, run `aictx init`, and continue with the same repo-local continuity.
 
-- the next session starts from a prompt and a fresh repo scan;
-- failed approaches are easy to repeat;
-- unfinished task state lives in chat history;
-- the next action is easy to lose;
-- branch switches can resume the wrong context.
+Git is the transport. AICTX does not require cloud sync.
 
-With AICTX:
-
-- the next session can load a compact continuity brief;
-- active Work State preserves goal, hypothesis, files, next action, risks, and verified/unverified work;
-- Failure Memory warns about known patterns;
-- RepoMap can provide structural entry points so agents know where to look first;
-- summaries preserve what changed and what can be reused;
-- branch-safe loading avoids resuming active work on the wrong branch.
-
----
-
-## Core capabilities
-
-| Capability | What it does | Why it matters |
-|---|---|---|
-| **Work State** | Preserves the active task, hypothesis, next action, files, risks, and verification state | The next session knows what was in progress |
-| **Failure Memory** | Stores observed command/test/build/type/lint failures as structured patterns | Agents can avoid repeating known mistakes |
-| **RepoMap** | Optional Tree-sitter structural map of files and symbols | Agents get better “where should I look first?” context |
-| **Strategy Memory** | Reuses successful prior execution patterns | Known-good approaches can be suggested again |
-| **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
-| **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
-
-```text
-Work State = what is currently in progress.
-Failure Memory = what failed before.
-RepoMap = where useful code likely lives.
-Strategy Memory = what worked before.
-Execution Summary = what changed in the last run.
-```
+See [Portability](docs/PORTABILITY.md).
 
 ---
 
@@ -253,7 +263,7 @@ This is safety, not branch-aware task management.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.5.3` is:
+The stable repo-local continuity artifact contract in `4.6.0` is:
 
 ```text
 .aictx/continuity/session.json

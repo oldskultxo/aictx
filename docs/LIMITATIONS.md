@@ -38,6 +38,10 @@ AICTX works without RepoMap.
 
 ---
 
+## Portability
+
+Git-portable continuity is selective, opt-in, and Git-based. It does not sync anything by itself, and committed portable artifacts may still reveal operational context that should be reviewed before sharing.
+
 ## Metrics
 
 AICTX reports observed runtime evidence. It does not prove productivity gain, token savings, speed improvement, or code quality improvement.
