@@ -141,6 +141,7 @@ def test_init_portable_continuity_requires_gitignore_updates(tmp_path: Path):
     assert completed.returncode == 2
     assert "--portable-continuity requires updating .gitignore" in completed.stderr
     assert not (repo / ".gitignore").exists()
+    assert not (repo / ".aictx" / "continuity" / "portability.json").exists()
 
 
 def test_init_no_gitignore_with_no_portable_continuity_is_allowed(tmp_path: Path):
