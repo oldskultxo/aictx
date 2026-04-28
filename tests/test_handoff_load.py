@@ -118,7 +118,7 @@ def test_prepare_execution_startup_banner_uses_latest_handoff_history(tmp_path: 
         f"codex@{repo.name} · session #1 · awake\n\n"
         "Resuming: release alignment.\n"
         "Last progress: updated release metadata.\n"
-        "Next: pyproject.toml"
+        "Entry point: pyproject.toml"
     )
 
 
@@ -197,10 +197,66 @@ def test_prepare_execution_startup_banner_summarizes_recent_handoff_history_comp
         f"codex@{repo.name} · session #1 · awake\n\n"
         "Resuming: Updated AICTX compact final summary details path to render as a….\n"
         "Last progress: Updated AICTX compact final summary details path to render as a clickable markdown link for IDE/chat surfaces.\n"
-        "Next: src/aictx/middleware.py"
+        "Entry point: src/aictx/middleware.py"
     )
     assert banner.count(";") == 0
     assert "implemented handoff history and startup banner" not in banner
+
+
+def test_prepare_execution_startup_banner_uses_next_steps_for_pending_work(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    write_json(
+        repo / HANDOFF_PATH,
+        {
+            "summary": "Continue middleware cleanup.",
+            "completed": ["Added handoff persistence."],
+            "next_steps": ["Inspect continuity loader."],
+            "recommended_starting_points": ["src/aictx/continuity.py"],
+        },
+    )
+
+    banner = prepare_execution(_payload(repo, "exec-next-steps"))["startup_banner_text"]
+
+    assert "Next: Inspect continuity loader." in banner
+    assert "Entry point:" not in banner
+
+
+def test_prepare_execution_startup_banner_uses_entry_point_without_pending_work(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    write_json(
+        repo / HANDOFF_PATH,
+        {
+            "summary": "Updated release metadata",
+            "completed": ["Aligned pyproject.toml and src/aictx/_version.py."],
+            "recommended_starting_points": ["pyproject.toml", "src/aictx/_version.py"],
+        },
+    )
+
+    banner = prepare_execution(_payload(repo, "exec-entry-point"))["startup_banner_text"]
+
+    assert "Entry point: pyproject.toml" in banner
+    assert "Next:" not in banner
+
+
+def test_prepare_execution_startup_banner_omits_redundant_single_entry_point(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    write_json(
+        repo / HANDOFF_PATH,
+        {
+            "summary": "Updated src/aictx/middleware.py",
+            "completed": ["Updated src/aictx/middleware.py"],
+            "recommended_starting_points": ["src/aictx/middleware.py"],
+        },
+    )
+
+    banner = prepare_execution(_payload(repo, "exec-redundant-entry-point"))["startup_banner_text"]
+
+    assert "Entry point:" not in banner
+    assert "Next:" not in banner
+    assert "src/aictx/middleware.py" in banner
 
 
 def test_prepare_execution_startup_banner_uses_blocked_status_and_preserves_tokens(tmp_path: Path):
@@ -228,6 +284,6 @@ def test_prepare_execution_startup_banner_uses_blocked_status_and_preserves_toke
 
     assert "Blocked:" in banner
     assert "Last progress:" not in banner
-    assert "tests/test_portability.py" in banner
+    assert "Next: Need to preserve --no-gitignore and --portable-continuity behavior" in banner
     assert "--no-gitignore" in banner
     assert "--portable-continuity" in banner

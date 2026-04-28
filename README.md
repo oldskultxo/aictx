@@ -194,7 +194,7 @@ codex@aictx · session #40 · awake
 
 Resuming: branch-safe Work State finalize behavior.
 Last progress: finalize behavior aligned with tests.
-Next: tests/test_work_state_runtime.py
+Entry point: tests/test_work_state_runtime.py
 Active task: Improve public docs. Next: update installation guide.
 ```
 
@@ -205,9 +205,14 @@ codex@aictx · sesión #40 · despierto
 
 Retomando: branch-safe Work State finalize behavior.
 Último avance: finalize behavior aligned with tests.
-Siguiente: tests/test_work_state_runtime.py
+Punto de entrada: tests/test_work_state_runtime.py
 Tarea activa: Improve public docs. Siguiente: update installation guide.
 ```
+
+Semantics:
+
+- `Next:` means real pending work, for example `next_steps`, `open_items`, `blocked` items, or an active Work State `next_action`.
+- `Entry point:` means a technical resume location from `recommended_starting_points` when there is no real pending work.
 
 ### Final summary
 

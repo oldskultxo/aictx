@@ -147,11 +147,28 @@ def _compact_blocker(row: dict[str, Any]) -> str:
 
 
 def _next_focus(row: dict[str, Any]) -> str:
+    for key in ("next_steps", "open_items", "blocked"):
+        items = _clean_string_list(row.get(key), limit=1)
+        if items:
+            return items[0]
+    return ""
+
+
+def _entry_point_focus(row: dict[str, Any]) -> str:
     points = _clean_string_list(row.get("recommended_starting_points"), limit=1)
-    if points:
-        return points[0]
-    steps = _clean_string_list(row.get("next_steps"), limit=1)
-    return steps[0] if steps else ""
+    return points[0] if points else ""
+
+
+def _entry_point_is_redundant(row: dict[str, Any], entry_point: str) -> bool:
+    if not entry_point:
+        return False
+    points = _clean_string_list(row.get("recommended_starting_points"), limit=2)
+    if len(points) != 1:
+        return False
+    topic = _compact_topic(row)
+    progress = _compact_progress(row)
+    needle = entry_point.casefold()
+    return needle in topic.casefold() or needle in progress.casefold()
 
 
 def _active_work_state_line(context: dict[str, Any]) -> str:
@@ -207,6 +224,10 @@ def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
         next_focus = _next_focus(latest)
         if next_focus:
             body.append(f"Next: {next_focus}")
+        else:
+            entry_point = _entry_point_focus(latest)
+            if entry_point and not _entry_point_is_redundant(latest, entry_point):
+                body.append(f"Entry point: {entry_point}")
     if work_line:
         body.append(work_line)
     return header + "\n\n" + "\n".join(body[:4])
