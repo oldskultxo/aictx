@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from aictx.continuity import AICTX_TEXT_SEPARATOR
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.work_state import start_work_state
@@ -53,7 +54,8 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     )
 
     text = finalized["agent_summary_text"]
-    assert text.startswith("AICTX summary\n")
+    assert text.startswith(f"{AICTX_TEXT_SEPARATOR}\nAICTX summary\n")
+    assert text.count(AICTX_TEXT_SEPARATOR) == 1
     assert "; aictx" not in text.lower()
     assert "because" not in text.lower()
     assert "unknown" not in text.lower()
@@ -103,6 +105,7 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
 
     text = finalized["agent_summary_text"]
     assert text == (
+        f"{AICTX_TEXT_SEPARATOR}\n"
         "AICTX summary\n\n"
         "Context: loaded preferences.\n"
         "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)"

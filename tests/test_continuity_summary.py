@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, SEMANTIC_REPO_PATH
+from aictx.continuity import AICTX_TEXT_SEPARATOR, DECISIONS_PATH, HANDOFF_PATH, SEMANTIC_REPO_PATH
 from aictx.middleware import prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import write_json
@@ -42,12 +42,12 @@ def test_prepare_execution_reports_empty_continuity_summary(tmp_path: Path):
     assert prepared["continuity_context"]["continuity_summary_text"] == expected
     assert prepared["startup_banner_text"] == (
         f"codex@{repo.name} · session #1 · awake\n\n"
-        "No previous handoff to resume."
+        f"No previous handoff to resume.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
     assert prepared["startup_banner_policy"]["show_in_first_user_visible_response"] is True
     assert prepared["continuity_context"]["startup_banner_text"] == (
         f"codex@{repo.name} · session #1 · awake\n\n"
-        "No previous handoff to resume."
+        f"No previous handoff to resume.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
 
 
@@ -108,7 +108,7 @@ def test_prepare_execution_reports_rich_continuity_summary(tmp_path: Path):
     assert prepared["startup_banner_text"] == (
         f"codex@{repo.name} · session #1 · awake\n\n"
         "Resuming: resume continuity task.\n"
-        "Last progress: resume continuity task."
+        f"Last progress: resume continuity task.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
     assert prepared["continuity_context"]["loaded"] == {
         "session": True,

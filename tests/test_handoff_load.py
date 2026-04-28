@@ -4,7 +4,7 @@ from pathlib import Path
 
 import json
 
-from aictx.continuity import HANDOFF_PATH, HANDOFFS_HISTORY_PATH, load_continuity_context
+from aictx.continuity import AICTX_TEXT_SEPARATOR, HANDOFF_PATH, HANDOFFS_HISTORY_PATH, load_continuity_context
 from aictx.middleware import prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import write_json
@@ -57,7 +57,7 @@ def test_prepare_execution_reports_handoff_no_when_missing(tmp_path: Path):
     assert "- handoff: no" in prepared["continuity_summary_text"]
     assert prepared["startup_banner_text"] == (
         f"codex@{repo.name} · session #1 · awake\n\n"
-        "No previous handoff to resume."
+        f"No previous handoff to resume.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
 
 
@@ -118,7 +118,7 @@ def test_prepare_execution_startup_banner_uses_latest_handoff_history(tmp_path: 
         f"codex@{repo.name} · session #1 · awake\n\n"
         "Resuming: release alignment.\n"
         "Last progress: updated release metadata.\n"
-        "Entry point: pyproject.toml"
+        f"Entry point: pyproject.toml\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
 
 
@@ -197,7 +197,7 @@ def test_prepare_execution_startup_banner_summarizes_recent_handoff_history_comp
         f"codex@{repo.name} · session #1 · awake\n\n"
         "Resuming: Updated AICTX compact final summary details path to render as a clickable markdown link for IDE/chat surfaces.\n"
         "Last progress: Updated AICTX compact final summary details path to render as a clickable markdown link for IDE/chat surfaces.\n"
-        "Entry point: src/aictx/middleware.py"
+        f"Entry point: src/aictx/middleware.py\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
     assert banner.count(";") == 0
     assert "implemented handoff history and startup banner" not in banner

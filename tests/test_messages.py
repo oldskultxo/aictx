@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 
 from aictx import cli
+from aictx.continuity import AICTX_TEXT_SEPARATOR
 from aictx.messages import get_message_mode, messages_muted, set_message_mode
-from aictx.middleware import finalize_execution, prepare_execution
+from aictx.middleware import finalize_execution, prepare_execution, prepend_aictx_text_separator
 from aictx.scaffold import init_repo_scaffold
 
 
@@ -110,6 +111,9 @@ def test_prepare_execution_defaults_to_unmuted_when_missing_preference(tmp_path:
     assert prepared["message_visibility"]["mode"] == "unmuted"
     assert prepared["message_visibility"]["startup_banner_suppressed"] is False
     assert prepared["startup_banner_policy"]["muted"] is False
+    assert prepared["startup_banner_text"].rstrip().endswith(AICTX_TEXT_SEPARATOR)
+    assert prepared["startup_banner_text"].count(AICTX_TEXT_SEPARATOR) == 1
+    assert f"\n\n{AICTX_TEXT_SEPARATOR}\n\n" in prepared["startup_banner_text"]
 
 
 def test_finalize_execution_suppresses_agent_summary_when_muted(tmp_path: Path):
@@ -155,6 +159,20 @@ def test_finalize_execution_defaults_to_unmuted_when_missing_preference(tmp_path
     assert finalized["message_visibility"]["mode"] == "unmuted"
     assert "agent_summary_text" in finalized
     assert finalized["agent_summary_text"]
+    assert finalized["agent_summary_text"].startswith(f"{AICTX_TEXT_SEPARATOR}\n")
+    assert finalized["agent_summary_text"].count(AICTX_TEXT_SEPARATOR) == 1
+
+
+def test_prepend_aictx_text_separator_is_idempotent() -> None:
+    first = prepend_aictx_text_separator("AICTX summary\n\nDone:")
+    second = prepend_aictx_text_separator(first)
+
+    assert first == second
+    assert first.startswith(f"{AICTX_TEXT_SEPARATOR}\n")
+
+
+def test_prepend_aictx_text_separator_empty_input() -> None:
+    assert prepend_aictx_text_separator("") == ""
 
 
 def test_muted_run_execution_keeps_command_output_but_hides_automatic_messages(tmp_path: Path, capsys):

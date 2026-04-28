@@ -26,6 +26,16 @@ DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
 STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
 CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
 LAST_EXECUTION_SUMMARY_PATH = REPO_CONTINUITY_DIR / "last_execution_summary.md"
+AICTX_TEXT_SEPARATOR = "────────────────────────────────"
+
+
+def append_aictx_text_separator(text: str) -> str:
+    cleaned = str(text or "").rstrip()
+    if not cleaned:
+        return ""
+    if cleaned.endswith(AICTX_TEXT_SEPARATOR):
+        return f"{cleaned}\n\n"
+    return f"{cleaned}\n\n{AICTX_TEXT_SEPARATOR}\n\n"
 
 
 def _read_optional_json(repo_root: Path, relative_path: Path, expected_type: type, warnings: list[str]) -> Any:
@@ -281,13 +291,15 @@ def build_startup_banner_render_payload(context: dict[str, Any], repo_root: Path
             "canonical_text": header,
         },
         "lines": rendered_lines,
-        "canonical_text": header + "\n\n" + "\n".join(str(item.get("canonical_text") or "") for item in rendered_lines),
+        "canonical_text": append_aictx_text_separator(
+            header + "\n\n" + "\n".join(str(item.get("canonical_text") or "") for item in rendered_lines)
+        ),
     }
 
 
 def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
     payload = build_startup_banner_render_payload(context, repo_root)
-    return str(payload.get("canonical_text") or "")
+    return append_aictx_text_separator(str(payload.get("canonical_text") or ""))
 
 
 def _summary_next_points(summary: dict[str, Any], *, limit: int = 2) -> list[str]:
@@ -1803,6 +1815,6 @@ def load_continuity_context(
         "warnings": warnings,
     }
     context["startup_banner_render_payload"] = build_startup_banner_render_payload(context, repo_root)
-    context["startup_banner_text"] = str(context["startup_banner_render_payload"].get("canonical_text") or "")
+    context["startup_banner_text"] = render_startup_banner(context, repo_root)
     context["continuity_summary_text"] = render_continuity_summary(context, repo_root)
     return context

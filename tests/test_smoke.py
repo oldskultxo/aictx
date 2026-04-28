@@ -1503,7 +1503,7 @@ def test_run_execution_captures_command_tests_errors_and_agent_summary(tmp_path:
     finalized = payload["finalized"]
     assert finalized["failure_persisted"]["failure_id"]
     assert finalized["agent_summary"]["failure_recorded"] is True
-    assert finalized["agent_summary_text"].startswith("AICTX summary\n")
+    assert finalized["agent_summary_text"].startswith("────────────────────────────────\nAICTX summary\n")
     log_rows = [
         json.loads(line)
         for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()

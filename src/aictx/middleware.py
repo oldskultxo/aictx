@@ -12,6 +12,7 @@ from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
 from .continuity import (
+    AICTX_TEXT_SEPARATOR,
     build_startup_banner_render_payload,
     load_continuity_context,
     persist_decision_memory,
@@ -488,13 +489,13 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     hints = area_hints(repo_root, area_id)
     session = continuity_context.get("session", {}) if isinstance(continuity_context.get("session"), dict) else {}
     session_id = str(session.get("session_id") or "")
-    banner_text = str(continuity_context.get("startup_banner_text") or "").strip()
+    banner_text = str(continuity_context.get("startup_banner_text") or "")
     banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
     startup_banner_render_payload = dict(continuity_context.get("startup_banner_render_payload", {})) if isinstance(continuity_context.get("startup_banner_render_payload"), dict) else build_startup_banner_render_payload(continuity_context, repo_root)
     startup_banner_text = "" if banner_already_shown else (banner_text or _fallback_startup_banner_text(repo_root, session))
     if startup_banner_text and startup_banner_render_payload and not startup_banner_render_payload.get("canonical_text"):
         startup_banner_render_payload["canonical_text"] = startup_banner_text
-    banner_required = bool(startup_banner_text)
+    banner_required = bool(startup_banner_text.strip())
     if message_output_muted:
         startup_banner_text = ""
         banner_required = False
@@ -1010,6 +1011,15 @@ def render_agent_summary(summary: dict[str, Any]) -> str:
     return render_compact_agent_summary(summary, details_path=".aictx/continuity/last_execution_summary.md")
 
 
+def prepend_aictx_text_separator(text: str) -> str:
+    cleaned = str(text or "").lstrip()
+    if not cleaned:
+        return ""
+    if cleaned.startswith(AICTX_TEXT_SEPARATOR):
+        return cleaned
+    return f"{AICTX_TEXT_SEPARATOR}\n{cleaned}"
+
+
 def build_agent_summary_render_payload(summary: dict[str, Any], *, details_path: str) -> dict[str, Any]:
     context_parts: list[dict[str, Any]] = []
     if summary.get("strategy_reused"):
@@ -1088,7 +1098,7 @@ def build_agent_summary_render_payload(summary: dict[str, Any], *, details_path:
         "title": "AICTX summary",
         "sections": sections,
         "details_path": str(details_path or ""),
-        "canonical_text": "\n".join(lines),
+        "canonical_text": prepend_aictx_text_separator("\n".join(lines)),
     }
 
 
@@ -1403,7 +1413,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
                 details_path = resolved_path
     agent_summary["structured"]["polished_summary"] = build_polished_agent_summary(agent_summary["structured"], details_path=details_path)
     agent_summary_render_payload = build_agent_summary_render_payload(agent_summary["structured"], details_path=details_path)
-    agent_summary_text = str(agent_summary_render_payload.get("canonical_text") or "")
+    agent_summary_text = prepend_aictx_text_separator(str(agent_summary_render_payload.get("canonical_text") or ""))
     returned_agent_summary_text = "" if message_output_muted else agent_summary_text
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     used_packet = bool(prepared.get("last_execution_log", {}).get("used_packet")) if isinstance(prepared.get("last_execution_log"), dict) else False

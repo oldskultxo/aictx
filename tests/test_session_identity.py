@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from aictx.continuity import AICTX_TEXT_SEPARATOR
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import REPO_CONTINUITY_SESSION_PATH, read_json
@@ -33,7 +34,7 @@ def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_p
     assert first["continuity_context"]["session"]["agent_label"] == f"codex@{repo.name}"
     assert first["startup_banner_text"] == (
         f"codex@{repo.name} · session #1 · awake\n\n"
-        "No previous handoff to resume."
+        f"No previous handoff to resume.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
     assert first["startup_banner_policy"]["required"] is True
     assert first["startup_banner_policy"]["show_once_per_session"] is True
@@ -128,7 +129,7 @@ def test_prepare_execution_increments_visible_session_when_session_id_changes(tm
     assert second["continuity_context"]["session"]["execution_count"] == 1
     assert second["startup_banner_text"] == (
         f"codex@{repo.name} · session #2 · awake\n\n"
-        "No previous handoff to resume."
+        f"No previous handoff to resume.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
 
 
