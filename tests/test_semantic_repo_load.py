@@ -49,7 +49,7 @@ def test_valid_compact_semantic_repo_loads_fully(tmp_path: Path):
     assert len(semantic["subsystems"]) == 1
     assert semantic["subsystems"][0]["name"] == "runtime_startup"
     assert prepared["continuity_context"]["loaded"]["semantic_repo"] is True
-    assert "- semantic_repo: sí" in prepared["continuity_summary_text"]
+    assert "- semantic_repo: yes" in prepared["continuity_summary_text"]
 
 
 def test_missing_or_malformed_semantic_repo_does_not_crash(tmp_path: Path):

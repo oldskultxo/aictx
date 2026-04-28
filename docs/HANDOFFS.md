@@ -89,10 +89,11 @@ Startup continuity can use this history to render a compact “previous session�
 Example startup shape:
 
 ```text
-codex@aictx (session #40) - awake
+codex@aictx · session #40 · awake
 
-In the previous session, we made progress on: branch-safe Work State finalize behavior.
-Next recommended focus: tests/test_work_state_runtime.py.
+Resuming: branch-safe Work State finalize behavior.
+Last progress: finalize behavior aligned with tests.
+Next: tests/test_work_state_runtime.py
 ```
 
 ---
@@ -162,16 +163,16 @@ Startup banner rendering can combine:
 - recommended starting points;
 - active Work State;
 - next action;
-- hypothesis;
 - language preference.
 
 Example:
 
 ```text
-claude@aictx (session #41) - awake
+claude@aictx · session #41 · awake
 
-In the previous session, we left this progress: we made progress on documentation UX.
-Active work state: Public release docs. Next: clarify agent-driven workflow.
+Resuming: documentation UX.
+Last progress: documentation UX updated.
+Active task: Public release docs. Next: clarify agent-driven workflow.
 ```
 
 ---

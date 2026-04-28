@@ -219,16 +219,10 @@ Startup identity is based on session context.
 
 The visible startup continuity banner is produced through prepare/startup continuity, not by the raw `internal boot` diagnostic payload.
 
-The banner header shape is:
+The canonical runtime banner header shape is:
 
 ```text
-<agent_label> (session #<n>) - awake
-```
-
-Spanish UI:
-
-```text
-<agent_label> (session #<n>) - despierto
+<agent_label> · session #<n> · awake
 ```
 
 Typical labels:
@@ -239,23 +233,24 @@ claude@repo-name
 agent@repo-name
 ```
 
-The startup banner can include:
+The banner is a compact resumption card. It can include:
 
-- previous handoff summary;
-- recommended starting points;
-- active Work State;
-- next action;
-- hypothesis;
-- language-specific wording.
+- `Resuming: ...`
+- `Last progress: ...` or `Blocked: ...`
+- `Next: ...`
+- `Active task: ... Next: ...`
+
+The runtime canonical banner is English. Agents may localize labels and connective wording to the current user language, but must preserve facts, structure, file paths, commands, flags, test names, package names, and code identifiers.
 
 Example:
 
 ```text
-codex@aictx (session #40) - awake
+codex@aictx · session #40 · awake
 
-In the previous session, we made progress on: branch-safe Work State finalize behavior.
-Next recommended focus: tests/test_work_state_runtime.py.
-Active work state: Improve public docs. Next: update installation guide.
+Resuming: branch-safe Work State finalize behavior.
+Last progress: finalize behavior aligned with tests.
+Next: tests/test_work_state_runtime.py
+Active task: Improve public docs. Next: update installation guide.
 ```
 
 ---
@@ -291,8 +286,11 @@ The visible agent startup banner is the compact continuity message intended for 
 Example shape:
 
 ```text
-codex@repo (session #40) - awake
-...
+codex@repo · session #40 · awake
+
+Resuming: previous work.
+Last progress: aligned runtime behavior with tests.
+Next: tests/test_smoke.py
 ```
 
 ---

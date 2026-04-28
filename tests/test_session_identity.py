@@ -32,8 +32,8 @@ def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_p
     assert first["continuity_context"]["session"]["runtime"] == "codex"
     assert first["continuity_context"]["session"]["agent_label"] == f"codex@{repo.name}"
     assert first["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "En la sesión anterior no había handoff previo que retomar."
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        "No previous handoff to resume."
     )
     assert first["startup_banner_policy"]["required"] is True
     assert first["startup_banner_policy"]["show_once_per_session"] is True
@@ -127,8 +127,8 @@ def test_prepare_execution_increments_visible_session_when_session_id_changes(tm
     assert second["continuity_context"]["session"]["session_count"] == 2
     assert second["continuity_context"]["session"]["execution_count"] == 1
     assert second["startup_banner_text"] == (
-        f"codex@{repo.name} (session #2) - despierto\n\n"
-        "En la sesión anterior no había handoff previo que retomar."
+        f"codex@{repo.name} · session #2 · awake\n\n"
+        "No previous handoff to resume."
     )
 
 
@@ -179,7 +179,4 @@ def test_prepare_execution_banner_includes_active_work_state(tmp_path: Path):
 
     prepared = prepare_execution(_payload(repo, "exec-work-state-banner"))
 
-    assert (
-        "Estado activo: Fix login token refresh. Siguiente paso: inspect interceptor ordering. "
-        "Hipótesis: refresh retries before token update."
-    ) in prepared["startup_banner_text"]
+    assert "Active task: Fix login token refresh. Next: inspect interceptor ordering." in prepared["startup_banner_text"]

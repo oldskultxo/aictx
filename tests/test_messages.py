@@ -187,4 +187,4 @@ def test_muted_run_execution_keeps_command_output_but_hides_automatic_messages(t
     output = capsys.readouterr().out
     assert "wrapped ok" in output
     assert "AICTX summary:" not in output
-    assert f"codex@{repo.name} (session #1) - despierto" not in output
+    assert f"codex@{repo.name} · session #1 · awake" not in output

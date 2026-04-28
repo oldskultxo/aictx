@@ -185,34 +185,28 @@ Any coding agent can use AICTX if it can read repo instructions, call CLI comman
 
 ### Startup continuity
 
-AICTX startup continuity includes the runner identity, repo name, session number, and wake state.
+AICTX produces a compact canonical startup banner in English. Supported agents may localize labels and connective wording to the current user language, but must preserve facts, file paths, commands, flags, test names, package names, and code identifiers.
 
-Codex example:
+Canonical runtime example:
 
 ```text
-codex@aictx (session #40) - awake
+codex@aictx · session #40 · awake
 
-In the previous session, we made progress on: branch-safe Work State finalize behavior.
-Next recommended focus: tests/test_work_state_runtime.py.
-Active work state: Improve public docs. Next: update installation guide.
+Resuming: branch-safe Work State finalize behavior.
+Last progress: finalize behavior aligned with tests.
+Next: tests/test_work_state_runtime.py
+Active task: Improve public docs. Next: update installation guide.
 ```
 
-Claude example:
+Optional agent-rendered localized example:
 
 ```text
-claude@aictx (session #41) - awake
+codex@aictx · sesión #40 · despierto
 
-In the previous session, we left this progress: we made progress on documentation UX.
-Active work state: Public release docs. Next: clarify agent-driven workflow.
-```
-
-Spanish UI example:
-
-```text
-codex@aictx (session #42) - despierto
-
-En la sesión anterior, avanzamos en: pulir README y guía de instalación.
-Estado activo: Public release docs. Siguiente paso: revisar RepoMap.
+Retomando: branch-safe Work State finalize behavior.
+Último avance: finalize behavior aligned with tests.
+Siguiente: tests/test_work_state_runtime.py
+Tarea activa: Improve public docs. Siguiente: update installation guide.
 ```
 
 ### Final summary

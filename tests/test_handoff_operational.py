@@ -57,4 +57,4 @@ def test_startup_banner_uses_compact_handoff_history_clause(tmp_path: Path):
     banner = render_startup_banner({"session": {"agent_label": "codex@repo", "session_count": 2}}, repo)
 
     assert "Compact done" in banner
-    assert "Very long fallback" not in banner
+    assert "Last progress: Compact done." in banner

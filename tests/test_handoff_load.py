@@ -43,7 +43,7 @@ def test_load_continuity_context_loads_valid_handoff(tmp_path: Path):
 
     assert context["handoff"]["summary"] == "Continue middleware cleanup."
     assert context["loaded"]["handoff"] is True
-    assert "- handoff: sí" in context["continuity_summary_text"]
+    assert "- handoff: yes" in context["continuity_summary_text"]
 
 
 def test_prepare_execution_reports_handoff_no_when_missing(tmp_path: Path):
@@ -56,8 +56,8 @@ def test_prepare_execution_reports_handoff_no_when_missing(tmp_path: Path):
     assert prepared["continuity_context"]["loaded"]["handoff"] is False
     assert "- handoff: no" in prepared["continuity_summary_text"]
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "En la sesión anterior no había handoff previo que retomar."
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        "No previous handoff to resume."
     )
 
 
@@ -115,9 +115,10 @@ def test_prepare_execution_startup_banner_uses_latest_handoff_history(tmp_path: 
 
     prepared = prepare_execution(_payload(repo, "exec-from-history"))
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "En la sesión anterior dejamos este progreso: old summary; updated release metadata."
-        " Siguiente foco recomendado: pyproject.toml, src/aictx/_version.py."
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        "Resuming: release alignment.\n"
+        "Last progress: updated release metadata.\n"
+        "Next: pyproject.toml"
     )
 
 
@@ -191,11 +192,42 @@ def test_prepare_execution_startup_banner_summarizes_recent_handoff_history_comp
 
     prepared = prepare_execution(_payload(repo, "exec-standup"))
 
-    assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "En la sesión anterior dejamos este progreso: implemented handoff history and startup banner; "
-        "added compact final summary and markdown details file; aligned docs and ran full validation; "
-        "verified local init from source checkout and clean git status; "
-        "Updated AICTX compact final summary details path to render as a clickable markdown…."
-        " Siguiente foco recomendado: src/aictx/middleware.py, tests/test_smoke.py."
+    banner = prepared["startup_banner_text"]
+    assert banner == (
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        "Resuming: Updated AICTX compact final summary details path to render as a….\n"
+        "Last progress: Updated AICTX compact final summary details path to render as a clickable markdown link for IDE/chat surfaces.\n"
+        "Next: src/aictx/middleware.py"
     )
+    assert banner.count(";") == 0
+    assert "implemented handoff history and startup banner" not in banner
+
+
+def test_prepare_execution_startup_banner_uses_blocked_status_and_preserves_tokens(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    history_path = repo / HANDOFFS_HISTORY_PATH
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(
+        json.dumps(
+            {
+                "execution_id": "exec-blocked",
+                "timestamp": "2026-04-24T14:00:00Z",
+                "summary": "portable continuity flag validation",
+                "status": "blocked",
+                "reason": "git-portable continuity",
+                "blocked": ["Need to preserve --no-gitignore and --portable-continuity behavior."],
+                "recommended_starting_points": ["tests/test_portability.py"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    banner = prepare_execution(_payload(repo, "exec-blocked"))["startup_banner_text"]
+
+    assert "Blocked:" in banner
+    assert "Last progress:" not in banner
+    assert "tests/test_portability.py" in banner
+    assert "--no-gitignore" in banner
+    assert "--portable-continuity" in banner

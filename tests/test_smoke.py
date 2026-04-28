@@ -177,6 +177,10 @@ def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path
     assert runtime_policy["allow_enrichment"] is True
     assert runtime_policy["preserve_facts"] is True
     assert startup_policy["render_in_user_language"] is True
+    assert startup_policy["allow_language_adaptation"] is True
+    assert startup_policy["allow_fact_enrichment"] is False
+    assert startup_policy["allow_structure_changes"] is False
+    assert startup_policy["preserve_technical_tokens"] is True
     assert startup_policy["do_not_invent"] is True
 
     finalized = finalize_execution(
@@ -1416,7 +1420,7 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
     assert args.func(args) == 0
     output = capsys.readouterr().out
     assert output.startswith(
-        f"codex@{repo.name} (session #1) - despierto\n\nEn la sesión anterior no había handoff previo que retomar.\n"
+        f"codex@{repo.name} · session #1 · awake\n\nNo previous handoff to resume.\n"
     )
     assert "wrapped ok" in output
     assert "AICTX summary: " in output

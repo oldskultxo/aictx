@@ -565,10 +565,14 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "fallback_language": preferred_language,
             "fallback_language_source": preferred_language_source,
             "allow_enrichment": False,
+            "allow_language_adaptation": True,
+            "allow_fact_enrichment": False,
+            "allow_structure_changes": False,
             "preserve_facts": True,
             "do_not_invent": True,
+            "preserve_technical_tokens": True,
             "muted": message_output_muted,
-            "instruction": "On the first execution of each visible session, always render this startup banner exactly as provided at the start of the first user-visible response. If first-session text is unavailable, render '{agent_label} (session #{session_count}) - awake' from the prepared identity fields. Do not render it again after already_shown is true.",
+            "instruction": "Render this startup banner in the current user language. You may translate or adapt labels and connective wording only. Do not add, remove, reorder, reinterpret, or enrich facts. Do not translate file paths, commands, flags, package names, test names, code identifiers, or other technical tokens. Keep the same compact structure.",
         },
         "message_visibility": {
             "mode": message_mode,
@@ -650,7 +654,7 @@ def _fallback_startup_banner_text(repo_root: Path, session: dict[str, Any]) -> s
         session_count = int(session.get("session_count") or 0)
     except (TypeError, ValueError):
         session_count = 0
-    return f"{agent_label} (session #{max(session_count, 0)}) - awake"
+    return f"{agent_label} · session #{max(session_count, 0)} · awake"
 
 
 def _final_area_id(prepared: dict[str, Any], observation: dict[str, Any]) -> str:

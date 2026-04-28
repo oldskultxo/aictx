@@ -6,7 +6,7 @@ AICTX_MODULE := PYTHONPATH=src $(VENV_PYTHON) -m aictx
 VENV_READY := $(VENV)/.aictx-ready
 INSTALL_INPUTS := pyproject.toml Makefile $(shell find src -type f | sort)
 
-.PHONY: check-python venv test smoke package-check ci clean-smoke
+.PHONY: check-python venv init-from-local test smoke package-check ci clean-smoke
 
 check-python:
 	@$(PYTHON) -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' || { echo "aictx requires Python >= 3.11. Run with: make test PYTHON=python3.12"; exit 1; }
@@ -20,6 +20,9 @@ $(VENV_READY): $(VENV_PYTHON) $(INSTALL_INPUTS)
 	@touch $(VENV_READY)
 
 venv: $(VENV_READY)
+
+init-from-local:
+	PYTHONPATH=src .venv/bin/python -m aictx init --repo . --yes
 
 test: check-python $(VENV_READY)
 	$(VENV_PYTHON) -m pytest -q
