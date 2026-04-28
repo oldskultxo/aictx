@@ -223,17 +223,11 @@ Example shape:
 ```text
 AICTX summary
 
-Captured:
-- command: pytest -q
-
-Updated:
-- Work State: next action preserved
-
-Learned:
-- no new failure pattern
-
-Next:
-- continue from src/aictx/work_state.py
+Context: reused previous strategy + loaded handoff/decisions/preferences.
+Map: RepoMap quick ok.
+Saved: updated handoff.
+Entry point: src/aictx/continuity.py, src/aictx/middleware.py.
+Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)
 ```
 
 ---

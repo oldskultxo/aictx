@@ -38,7 +38,7 @@ When Codex is running inside a repository initialized with `aictx`:
 - if the repository exposes `aictx internal run-execution`, treat it as the preferred middleware entrypoint for wrapped automations
 - on the first execution of each visible session, always show the startup banner at the start of the first user-visible response; if `prepare_execution` returns `startup_banner_text`, render the startup banner in the current user language by translating or adapting labels and connective wording only; preserve facts, structure, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or enrich facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from prepared identity fields; do not render it again after `already_shown` is true
 - in the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime
-- final responses for non-trivial tasks must include the AICTX final summary from finalize, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving real facts; if unavailable, say `AICTX summary unavailable`
+- final responses for non-trivial tasks must include the AICTX final summary from finalize, using `agent_summary_text` as the canonical compact user-facing source, localized to the current user language while preserving real facts, structure, technical tokens, and the details link/path; if unavailable, say `AICTX summary unavailable`
 {AICTX_END}
 """
 
@@ -57,7 +57,7 @@ Required behavior:
 - Read `CLAUDE.md` too when it exists.
 - Prefer `aictx internal run-execution` as the execution middleware entrypoint when available.
 - On the first execution of each visible session, always place the startup banner at the start of the first user-visible response. If `prepare_execution` returns `startup_banner_text`, render the startup banner in the current user language by translating or adapting labels and connective wording only; preserve facts, structure, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or enrich facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from prepared identity fields. Do not render it again after `already_shown` is true.
-- Final responses for non-trivial tasks must append the AICTX final summary after finalize, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving real facts.
+- Final responses for non-trivial tasks must append the AICTX final summary after finalize, using `agent_summary_text` as the canonical compact user-facing source, localized to the current user language while preserving real facts, structure, technical tokens, and the details link/path.
 - If finalize output is unavailable, say exactly `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 """
@@ -74,7 +74,7 @@ This repository is initialized with `aictx`.
 - Pre-tool enforcement may block direct edits to generated runtime artifacts and legacy parallel memory paths.
 - Treat `aictx internal run-execution` as the preferred wrapped execution entrypoint when available.
 - On the first execution of each visible session, always show the startup banner at the start of the first user-visible response. If `prepare_execution` returns `startup_banner_text`, render the startup banner in the current user language by translating or adapting labels and connective wording only; preserve facts, structure, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or enrich facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from prepared identity fields. Do not render it again after `already_shown` is true.
-- After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the canonical compact source, localized to the current user language while preserving factual runtime content.
+- After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the canonical compact user-facing source, localized to the current user language while preserving factual runtime content, structure, technical tokens, and the details link/path.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 
@@ -234,7 +234,7 @@ summary.append("If the task matches previous work, run: aictx reuse --repo .")
 summary.append("In the aictx source repository, prefer: PYTHONPATH=src .venv/bin/python -m aictx ...")
 summary.append("On the first execution of each visible session, always place the startup banner at the start of the first user-visible response. If prepare_execution returns startup_banner_text, render it in the current user language by adapting labels and connective wording only while preserving facts, compact structure, and technical tokens. If first-session text is missing, render {agent_label} · session #{session_count} · awake from prepared identity fields. Do not render it again after already_shown is true.")
 summary.append("After finalize, append the AICTX final summary to the final user response, localized to the current user language while preserving factual runtime content.")
-summary.append("When available, follow prepared.runtime_text_policy, prepared.startup_banner_policy, and finalized.agent_summary_policy.")
+summary.append("When available, follow prepared.runtime_text_policy, prepared.startup_banner_policy, and finalized.agent_summary_policy; for final summaries, adapt language only and preserve facts, technical tokens, and the details link/path.")
 summary.append("If no finalize output exists, say: AICTX summary unavailable.")
 
 print(json.dumps({

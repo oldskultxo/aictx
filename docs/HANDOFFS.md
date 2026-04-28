@@ -137,6 +137,9 @@ Handoff = what should be remembered from this run.
 
 Both must remain factual.
 
+In final execution summaries, `Next:` means real pending work. `Entry point:`
+means a technical resume location such as handoff `recommended_starting_points`.
+
 ---
 
 ## Handoffs vs Work State

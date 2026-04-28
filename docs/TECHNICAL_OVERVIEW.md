@@ -130,7 +130,8 @@ After work, integrations can call:
 aictx internal execution finalize ...
 ```
 
-`finalize_execution()` stores observed evidence and returns `agent_summary_text`.
+`finalize_execution()` stores observed evidence and returns `agent_summary_text`,
+the compact user-facing final summary.
 
 ### 7. Next session
 
@@ -570,7 +571,12 @@ The detailed latest summary may be written to:
 .aictx/continuity/last_execution_summary.md
 ```
 
-Agents should treat `agent_summary_text` as the canonical factual final summary source. If finalize output is unavailable, the agent should say:
+Agents should treat `agent_summary_text` as the canonical compact user-facing
+final summary source. `.aictx/continuity/last_execution_summary.md` is the
+detailed diagnostic latest-run summary and should remain linked from the final
+summary when generated.
+
+If finalize output is unavailable, the agent should say:
 
 ```text
 AICTX summary unavailable

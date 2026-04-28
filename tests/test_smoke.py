@@ -196,8 +196,11 @@ def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path
     summary_policy = finalized["agent_summary_policy"]
     assert summary_policy["append_to_final_response"] is True
     assert summary_policy["render_in_user_language"] is True
-    assert summary_policy["allow_enrichment"] is True
+    assert summary_policy["allow_language_adaptation"] is True
+    assert summary_policy["allow_fact_enrichment"] is False
+    assert summary_policy["allow_enrichment"] is False
     assert summary_policy["preserve_facts"] is True
+    assert summary_policy["do_not_invent"] is True
 
 
 def test_communication_policy_uses_disabled_template_default():
@@ -1423,8 +1426,8 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
         f"codex@{repo.name} · session #1 · awake\n\nNo previous handoff to resume.\n"
     )
     assert "wrapped ok" in output
-    assert "AICTX summary: " in output
-    assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in output
+    assert "AICTX summary\n" in output
+    assert "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)" in output
 
 
 def test_runtime_capture_provenance_and_prepare_fields(tmp_path: Path):
@@ -1482,7 +1485,7 @@ def test_run_execution_captures_command_tests_errors_and_agent_summary(tmp_path:
     finalized = payload["finalized"]
     assert finalized["failure_persisted"]["failure_id"]
     assert finalized["agent_summary"]["failure_recorded"] is True
-    assert "AICTX summary:" in finalized["agent_summary_text"]
+    assert finalized["agent_summary_text"].startswith("AICTX summary\n")
     log_rows = [
         json.loads(line)
         for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
@@ -2100,8 +2103,10 @@ def test_finalize_execution_recalculates_final_task_type_and_area_from_observed_
     assert finalized["final_area_id"] == "src/aictx"
     assert finalized["effective_area_id"] == "src/aictx"
     assert finalized["final_task_resolution"]["source"] == "observed_signals"
-    assert "clasificación final de tarea: refactoring" in finalized["agent_summary_text"]
-    assert "área final: src/aictx" in finalized["agent_summary_text"]
+    assert "unknown" not in finalized["agent_summary_text"]
+    detailed = (repo / ".aictx" / "continuity" / "last_execution_summary.md").read_text(encoding="utf-8")
+    assert "- Final task type: refactoring" in detailed
+    assert "- Final area: src/aictx" in detailed
 
     log_rows = [
         json.loads(line)
