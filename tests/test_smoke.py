@@ -816,6 +816,25 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
     assert finalized_output["aictx_feedback"]["reopened_files"] == 1
 
 
+def test_prepare_execution_accepts_legacy_agent_and_task_aliases(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "task": "review middleware behavior",
+            "agent": "agent-test",
+            "execution_id": "exec-legacy-aliases",
+            "status": "started",
+        }
+    )
+
+    assert prepared["envelope"]["user_request"] == "review middleware behavior"
+    assert prepared["envelope"]["agent_id"] == "agent-test"
+    assert prepared["envelope"]["execution_id"] == "exec-legacy-aliases"
+
+
 def test_persist_repo_communication_mode_disabled(tmp_path: Path):
     repo = tmp_path / "repo"
     prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"

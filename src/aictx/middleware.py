@@ -337,8 +337,8 @@ def build_context_packet(
 
 def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     repo_root = Path(str(payload.get("repo_root") or ".")).expanduser().resolve()
-    user_request = str(payload.get("user_request") or "").strip()
-    agent_id = str(payload.get("agent_id") or payload.get("adapter_id") or "").strip()
+    user_request = str(payload.get("user_request") or payload.get("task") or "").strip()
+    agent_id = str(payload.get("agent_id") or payload.get("agent") or payload.get("adapter_id") or "").strip()
     execution_id = str(payload.get("execution_id") or "").strip()
     timestamp = str(payload.get("timestamp") or now_iso()).strip()
     if not user_request:
