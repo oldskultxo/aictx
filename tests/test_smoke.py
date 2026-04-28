@@ -140,17 +140,23 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "agent_summary_text" in repo_block
     assert "startup_banner_text" in repo_block
     assert "current user language" in repo_block
+    assert "startup_banner_render_payload" in repo_block
+    assert "agent_summary_render_payload" in repo_block
     assert "AICTX summary unavailable" in repo_block
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in repo_block
     claude_block = render_claude_md_block()
     assert "agent_summary_text" in claude_block
     assert "startup_banner_text" in claude_block
     assert "current user language" in claude_block
+    assert "startup_banner_render_payload" in claude_block
+    assert "agent_summary_render_payload" in claude_block
     assert "AICTX summary unavailable" in claude_block
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in claude_block
     prompt_hook = render_user_prompt_submit_script()
     assert "localized to the current user language" in prompt_hook
     assert "startup_banner_text" in prompt_hook
+    assert "startup_banner_render_payload" in prompt_hook
+    assert "agent_summary_render_payload" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in prompt_hook
 
