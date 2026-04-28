@@ -195,7 +195,7 @@ def test_prepare_execution_startup_banner_summarizes_recent_handoff_history_comp
     banner = prepared["startup_banner_text"]
     assert banner == (
         f"codex@{repo.name} · session #1 · awake\n\n"
-        "Resuming: Updated AICTX compact final summary details path to render as a….\n"
+        "Resuming: Updated AICTX compact final summary details path to render as a clickable markdown link for IDE/chat surfaces.\n"
         "Last progress: Updated AICTX compact final summary details path to render as a clickable markdown link for IDE/chat surfaces.\n"
         "Entry point: src/aictx/middleware.py"
     )

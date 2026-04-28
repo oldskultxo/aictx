@@ -124,18 +124,18 @@ def _compact_banner_text(text: str, *, max_len: int = 88) -> str:
 
 def _compact_topic(row: dict[str, Any]) -> str:
     for key in ("reason", "summary", "task_type"):
-        value = _compact_banner_text(str(row.get(key) or ""), max_len=72)
+        value = _compact_banner_text(str(row.get(key) or ""), max_len=120)
         if value:
             return value
     return "previous work"
 
 
 def _compact_progress(row: dict[str, Any]) -> str:
-    items = [_compact_banner_text(item, max_len=88) for item in _clean_string_list(row.get("completed"), limit=3)]
+    items = [_compact_banner_text(item, max_len=160) for item in _clean_string_list(row.get("completed"), limit=3)]
     items = [item for item in items if item]
     if items:
         return ", ".join(items)
-    return _compact_banner_text(str(row.get("summary") or ""), max_len=120) or "previous work"
+    return _compact_banner_text(str(row.get("summary") or ""), max_len=200) or "previous work"
 
 
 def _compact_blocker(row: dict[str, Any]) -> str:
