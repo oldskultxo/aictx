@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 4.6.x
+## Current line: 4.7.x
 
-Current documented runtime: `4.6.0`.
+Current documented runtime: `4.7.0`.
 
 For users already on recent `4.x`, there is no special manual migration command. Re-run normal setup when needed:
 
@@ -12,10 +12,17 @@ aictx init
 ```
 
 ---
-## 4.6.x
+## 4.7.x
 
 Added:
-- Opt-in git-portable continuity using an AICTX-managed `.gitignore` block and `.aictx/continuity/portability.json` without duplicating canonical artifacts.
+- Added `aictx messages mute`.
+- Added `aictx messages unmute`.
+- Added `aictx messages status`.
+- Added `aictx -v`, `aictx --version`.
+- Polish startup banner text
+- Polish summary output text
+- Hardened output messages translations policy
+- Docs update
 
 No manual migration is expected.
 

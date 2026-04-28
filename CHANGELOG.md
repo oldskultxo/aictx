@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.7.0 - 2026-04-29
+
+### Added
+- Added `aictx messages mute`.
+- Added `aictx messages unmute`.
+- Added `aictx messages status`.
+- Added `aictx -v`, `aictx --version`.
+- Polish startup banner text
+- Polish summary output text
+- Hardened output messages translations policy
+- Docs update
+
 ## 4.6.0 - 2026-04-28
 
 ### Added
