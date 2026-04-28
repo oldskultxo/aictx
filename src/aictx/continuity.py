@@ -131,11 +131,11 @@ def _compact_topic(row: dict[str, Any]) -> str:
 
 
 def _compact_progress(row: dict[str, Any]) -> str:
-    items = [_compact_banner_text(item, max_len=160) for item in _clean_string_list(row.get("completed"), limit=3)]
+    items = [_compact_banner_text(item, max_len=220) for item in _clean_string_list(row.get("completed"), limit=3)]
     items = [item for item in items if item]
     if items:
         return ", ".join(items)
-    return _compact_banner_text(str(row.get("summary") or ""), max_len=200) or "previous work"
+    return _compact_banner_text(str(row.get("summary") or ""), max_len=240) or "previous work"
 
 
 def _compact_blocker(row: dict[str, Any]) -> str:
