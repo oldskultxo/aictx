@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import core_runtime
+from ._version import __version__
 from .adapters import install_global_adapters
 from .area_memory import derive_area_id
 from .agent_runtime import (
@@ -18,6 +19,7 @@ from .agent_runtime import (
     upsert_marked_block,
 )
 from .middleware import cli_finalize_execution, cli_prepare_execution
+from .messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
 from .portability import detect_portable_continuity_from_gitignore, load_portability_state
 from .continuity import load_continuity_context, render_next_text
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
@@ -307,6 +309,37 @@ def cmd_task_status(args: argparse.Namespace) -> int:
             _print_json(payload)
     else:
         print(render_work_state_summary(state) if state else "No active task.")
+    return 0
+
+
+def cmd_messages_mute(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = set_message_mode(repo, MESSAGE_MODE_MUTED)
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print("AICTX messages: muted")
+    return 0
+
+
+def cmd_messages_unmute(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = set_message_mode(repo, MESSAGE_MODE_UNMUTED)
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print("AICTX messages: unmuted")
+    return 0
+
+
+def cmd_messages_status(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    mode = get_message_mode(repo)
+    payload = {"messages": {"mode": mode}}
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print(f"AICTX messages: {mode}")
     return 0
 
 
@@ -985,7 +1018,7 @@ def should_render_banner(argv: list[str], stdout_is_tty: bool) -> bool:
     effective = argv
     if "--" in effective:
         effective = effective[: effective.index("--")]
-    suppressed_flags = {"--json", "--quiet", "-q", "-h", "--help"}
+    suppressed_flags = {"--json", "--quiet", "-q", "-h", "--help", "-v", "--version"}
     return not any(flag in effective for flag in suppressed_flags)
 
 
@@ -998,7 +1031,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,task,next,map,report,clean,uninstall}")
+    parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,task,next,messages,map,report,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1105,6 +1139,24 @@ def build_parser() -> argparse.ArgumentParser:
     next_cmd.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     next_cmd.add_argument("--json", action="store_true", help="Print structured continuity brief JSON")
     next_cmd.set_defaults(func=cmd_next)
+
+    messages = sub.add_parser("messages", help="Control automatic AICTX runtime message visibility")
+    messages_sub = messages.add_subparsers(dest="messages_command", required=True)
+
+    messages_mute = messages_sub.add_parser("mute", help="Suppress automatic startup banner and execution summary")
+    messages_mute.add_argument("--repo", default=".", help="Repository root")
+    messages_mute.add_argument("--json", action="store_true", help="Print status as JSON")
+    messages_mute.set_defaults(func=cmd_messages_mute)
+
+    messages_unmute = messages_sub.add_parser("unmute", help="Allow automatic startup banner and execution summary")
+    messages_unmute.add_argument("--repo", default=".", help="Repository root")
+    messages_unmute.add_argument("--json", action="store_true", help="Print status as JSON")
+    messages_unmute.set_defaults(func=cmd_messages_unmute)
+
+    messages_status = messages_sub.add_parser("status", help="Show automatic AICTX runtime message visibility")
+    messages_status.add_argument("--repo", default=".", help="Repository root")
+    messages_status.add_argument("--json", action="store_true", help="Print status as JSON")
+    messages_status.set_defaults(func=cmd_messages_status)
 
     map_cmd = sub.add_parser("map", help="RepoMap operations")
     map_sub = map_cmd.add_subparsers(dest="map_command", required=True)
@@ -1312,3 +1364,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

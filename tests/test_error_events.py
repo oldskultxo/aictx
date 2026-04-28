@@ -101,7 +101,7 @@ def test_finalize_persists_structured_failure_and_prepare_reuses_it(tmp_path: Pa
     assert rows[-1]["error_events"][0]["code"] == "TS2322"
     assert rows[-1]["toolchains"] == ["typescript"]
     assert rows[-1]["phases"] == ["typecheck"]
-    assert "aprendió un patrón de fallo" in finalized["agent_summary_text"]
+    assert "recorded new failure pattern: typescript typecheck TS2322." in finalized["agent_summary_text"]
     assert lookup_failures(repo, task_type="bug_fixing", text="TS2322 type mismatch", files=["src/app.ts"], area_id="src")
 
     reused = prepare_execution(
@@ -145,7 +145,7 @@ def test_repeated_failure_summary_recognizes_existing_pattern(tmp_path: Path) ->
 
     assert finalized["failure_persisted"]["existing"] is True
     assert finalized["failure_persisted"]["occurrences"] == 2
-    assert "reconoció un patrón de fallo existente" in finalized["agent_summary_text"]
+    assert "recognized existing failure pattern: typescript typecheck TS2322." in finalized["agent_summary_text"]
 
 
 def test_success_summary_reports_prior_failure_resolved_without_overclaiming(tmp_path: Path) -> None:

@@ -16,6 +16,12 @@ aictx install
 aictx init
 ```
 
+Optional install check:
+
+```bash
+aictx --version
+```
+
 Explicit form:
 
 ```bash

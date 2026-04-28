@@ -12,6 +12,8 @@ from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
 from .continuity import (
+    AICTX_TEXT_SEPARATOR,
+    build_startup_banner_render_payload,
     load_continuity_context,
     persist_decision_memory,
     persist_handoff_memory,
@@ -20,6 +22,7 @@ from .continuity import (
     write_last_execution_summary,
 )
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
+from .messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, messages_muted
 from .runtime_capture import SIGNAL_FIELDS, build_capture, normalize_error_events
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
 from .runtime_io import slugify
@@ -336,8 +339,8 @@ def build_context_packet(
 
 def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
     repo_root = Path(str(payload.get("repo_root") or ".")).expanduser().resolve()
-    user_request = str(payload.get("user_request") or "").strip()
-    agent_id = str(payload.get("agent_id") or payload.get("adapter_id") or "").strip()
+    user_request = str(payload.get("user_request") or payload.get("task") or "").strip()
+    agent_id = str(payload.get("agent_id") or payload.get("agent") or payload.get("adapter_id") or "").strip()
     execution_id = str(payload.get("execution_id") or "").strip()
     timestamp = str(payload.get("timestamp") or now_iso()).strip()
     if not user_request:
@@ -404,6 +407,8 @@ def load_bootstrap_sources(repo_root: Path) -> dict[str, Any]:
 def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     envelope = build_execution_envelope(payload)
     repo_root = Path(envelope["repo_root"])
+    message_output_muted = messages_muted(repo_root)
+    message_mode = MESSAGE_MODE_MUTED if message_output_muted else MESSAGE_MODE_UNMUTED
     boot_sources = load_bootstrap_sources(repo_root)
     adapter_profile = resolve_adapter_profile(envelope.get("adapter_id"), envelope.get("agent_id"), repo_root=repo_root)
     execution = classify_execution(envelope)
@@ -484,10 +489,16 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     hints = area_hints(repo_root, area_id)
     session = continuity_context.get("session", {}) if isinstance(continuity_context.get("session"), dict) else {}
     session_id = str(session.get("session_id") or "")
-    banner_text = str(continuity_context.get("startup_banner_text") or "").strip()
+    banner_text = str(continuity_context.get("startup_banner_text") or "")
     banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
+    startup_banner_render_payload = dict(continuity_context.get("startup_banner_render_payload", {})) if isinstance(continuity_context.get("startup_banner_render_payload"), dict) else build_startup_banner_render_payload(continuity_context, repo_root)
     startup_banner_text = "" if banner_already_shown else (banner_text or _fallback_startup_banner_text(repo_root, session))
-    banner_required = bool(startup_banner_text)
+    if startup_banner_text and startup_banner_render_payload and not startup_banner_render_payload.get("canonical_text"):
+        startup_banner_render_payload["canonical_text"] = startup_banner_text
+    banner_required = bool(startup_banner_text.strip())
+    if message_output_muted:
+        startup_banner_text = ""
+        banner_required = False
     packet: dict[str, Any] = {}
     packet_path = ""
     if should_prepare_packet(envelope["user_request"], envelope["execution_mode"], task_resolution["task_type"]):
@@ -546,6 +557,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "agent_label": str(session.get("agent_label") or ""),
         "session_count": int(session.get("session_count") or 0),
         "startup_banner_text": startup_banner_text,
+        "startup_banner_render_payload": startup_banner_render_payload,
         "startup_banner_policy": {
             "show_in_first_user_visible_response": banner_required,
             "show_once_per_session": True,
@@ -559,9 +571,23 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "fallback_language": preferred_language,
             "fallback_language_source": preferred_language_source,
             "allow_enrichment": False,
+            "allow_language_adaptation": True,
+            "allow_semantic_localization": True,
+            "localize_from_structured_fields": True,
+            "allow_fact_enrichment": False,
+            "allow_structure_changes": False,
             "preserve_facts": True,
+            "preserve_canonical_payload": True,
             "do_not_invent": True,
-            "instruction": "On the first execution of each visible session, always render this startup banner exactly as provided at the start of the first user-visible response. If first-session text is unavailable, render '{agent_label} (session #{session_count}) - awake' from the prepared identity fields. Do not render it again after already_shown is true.",
+            "preserve_technical_tokens": True,
+            "render_payload_field": "startup_banner_render_payload",
+            "muted": message_output_muted,
+            "instruction": "Render this startup banner in the current user language. Prefer startup_banner_render_payload when available. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown link targets, or other technical tokens. Do not add, remove, reorder, reinterpret, or invent facts.",
+        },
+        "message_visibility": {
+            "mode": message_mode,
+            "startup_banner_suppressed": message_output_muted,
+            "agent_summary_suppressed": message_output_muted,
         },
         "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
         "runtime_text_policy": {
@@ -638,7 +664,7 @@ def _fallback_startup_banner_text(repo_root: Path, session: dict[str, Any]) -> s
         session_count = int(session.get("session_count") or 0)
     except (TypeError, ValueError):
         session_count = 0
-    return f"{agent_label} (session #{max(session_count, 0)}) - awake"
+    return f"{agent_label} · session #{max(session_count, 0)} · awake"
 
 
 def _final_area_id(prepared: dict[str, Any], observation: dict[str, Any]) -> str:
@@ -914,77 +940,6 @@ def _compact_list(values: Any, *, limit: int = 3) -> list[str]:
     return cleaned
 
 
-def _humanize_selection_reason(reason: str, *, limit: int = 2) -> list[str]:
-    cleaned = str(reason or "").strip()
-    if not cleaned:
-        return []
-    parts: list[str] = []
-    for raw in cleaned.split(";"):
-        item = raw.strip()
-        if not item:
-            continue
-        if item == "previous_successful_execution":
-            parts.append("venía de una ejecución previa con éxito")
-        elif item == "recency":
-            parts.append("era la referencia más reciente")
-        elif item.startswith("task_type:"):
-            parts.append(f"coincidía el tipo de tarea ({item.split(':', 1)[1]})")
-        elif item.startswith("primary_entry_point:"):
-            parts.append(f"apuntaba al mismo punto de entrada ({item.split(':', 1)[1]})")
-        elif item.startswith("file_overlap:"):
-            parts.append(f"tocaba el mismo archivo ({item.split(':', 1)[1]})")
-        elif item.startswith("area:"):
-            parts.append(f"coincidía el área ({item.split(':', 1)[1]})")
-        elif item.startswith("execution_evidence:"):
-            parts.append(f"tenía evidencia real de uso ({item.split(':', 1)[1]})")
-        else:
-            parts.append(item.replace("_", " "))
-        if len(parts) >= limit:
-            break
-    return parts
-
-
-def _strategy_summary(summary: dict[str, Any]) -> str:
-    points = _compact_list(summary.get("strategy_entry_points"), limit=2)
-    reasons = _humanize_selection_reason(str(summary.get("selection_reason") or ""), limit=2)
-    if points and reasons:
-        return f"reusó la estrategia de {', '.join(points)} porque {', '.join(reasons)}"
-    if points:
-        return f"reusó la estrategia de {', '.join(points)}"
-    if reasons:
-        return f"reusó estrategia porque {', '.join(reasons)}"
-    if summary.get("strategy_reused"):
-        return "reusó una estrategia previa con éxito"
-    return ""
-
-
-def _aictx_value_summary(summary: dict[str, Any]) -> str:
-    continuity_value = summary.get("continuity_value") if isinstance(summary.get("continuity_value"), dict) else {}
-    loaded_sources = _compact_list(continuity_value.get("loaded_sources"), limit=3)
-    repo_map = summary.get("repo_map_status") if isinstance(summary.get("repo_map_status"), dict) else {}
-    value_parts: list[str] = []
-    if loaded_sources:
-        value_parts.append("aictx aportó " + ", ".join(loaded_sources))
-    if repo_map.get("used"):
-        mode = str(repo_map.get("refresh_mode") or "quick").strip()
-        status = str(repo_map.get("refresh_status") or "ok").strip()
-        value_parts.append(f"usó RepoMap ({mode}, {status})")
-    return "; ".join(value_parts)
-
-
-def _classification_summary(summary: dict[str, Any]) -> str:
-    prepared_task = str(summary.get("prepared_task_type") or "unknown")
-    final_task = str(summary.get("effective_task_type") or summary.get("final_task_type") or "unknown")
-    prepared_area = str(summary.get("prepared_area_id") or "unknown")
-    final_area = str(summary.get("effective_area_id") or summary.get("final_area_id") or "unknown")
-    parts: list[str] = []
-    if final_task != "unknown" and final_task != prepared_task:
-        parts.append(f"clasificación final de tarea: {final_task}")
-    if final_area != "unknown" and final_area != prepared_area:
-        parts.append(f"área final: {final_area}")
-    return "; ".join(parts)
-
-
 def _continuity_reuse_lines(summary: dict[str, Any]) -> list[str]:
     reused: list[str] = []
     if summary.get("strategy_reused"):
@@ -1002,35 +957,9 @@ def _continuity_reuse_lines(summary: dict[str, Any]) -> list[str]:
     return reused or ["No prior continuity context was reused"]
 
 
-def _next_session_guidance(summary: dict[str, Any]) -> str:
-    handoff = summary.get("handoff_payload") if isinstance(summary.get("handoff_payload"), dict) else {}
-    for key in ("next_steps", "recommended_starting_points", "open_items"):
-        values = _compact_list(handoff.get(key), limit=2)
-        if values:
-            return "; ".join(values)
-    text = str(handoff.get("summary") or "").strip()
-    return text or "No specific handoff guidance stored"
-
-
-def _plural(count: int, singular: str, plural: str | None = None) -> str:
-    return f"{count} {singular if count == 1 else (plural or singular + 's')}"
-
-
-def _compact_next_hint(summary: dict[str, Any]) -> str:
-    next_guidance = summary.get("next_guidance") if isinstance(summary.get("next_guidance"), dict) else {}
-    if not next_guidance:
-        return ""
-    where = _compact_list(next_guidance.get("where_to_continue"), limit=2)
-    if not where:
-        where = _compact_list(next_guidance.get("probable_paths"), limit=2)
-    if not where:
-        return ""
-    return "; ".join(where)
-
-
 def _failure_descriptor(failure: dict[str, Any]) -> str:
     if not isinstance(failure, dict):
-        return "fallo"
+        return "failure"
     code = ""
     codes = failure.get("error_codes")
     if isinstance(codes, list) and codes:
@@ -1044,7 +973,7 @@ def _failure_descriptor(failure: dict[str, Any]) -> str:
     if isinstance(phases, list) and phases:
         phase = str(phases[0] or "").strip()
     parts = [part for part in [toolchain, phase, code] if part]
-    return " ".join(parts) or str(failure.get("failure_id") or failure.get("signature") or "fallo")
+    return " ".join(parts) or str(failure.get("failure_id") or failure.get("signature") or "failure")
 
 
 def _failure_descriptors(rows: list[dict[str, Any]], ids: list[str] | None = None, *, limit: int = 2) -> list[str]:
@@ -1082,89 +1011,238 @@ def render_agent_summary(summary: dict[str, Any]) -> str:
     return render_compact_agent_summary(summary, details_path=".aictx/continuity/last_execution_summary.md")
 
 
-def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) -> str:
-    files_count = int(summary.get("files_opened", 0) or 0)
-    tests_count = len(summary.get("tests_observed", [])) if isinstance(summary.get("tests_observed"), list) else 0
-    meaningful_context = any(
-        [
-            summary.get("strategy_reused"),
-            summary.get("handoff_stored"),
-            summary.get("decision_stored"),
-            summary.get("failure_recorded"),
-            summary.get("learning_persisted"),
-            summary.get("strategy_persisted"),
-        ]
-    )
-    if not any(
-        [
-            meaningful_context,
-            files_count,
-            tests_count,
-        ]
-    ):
-        return f"AICTX summary: esta ejecución no dejó contexto reutilizable, pero quedó registrada. Details: {_render_details_link(details_path)}"
-    if not meaningful_context and files_count <= 1 and tests_count == 0:
-        return f"AICTX summary: ejecución ligera; no añadió continuidad nueva, pero quedó registrada. Details: {_render_details_link(details_path)}"
-    if summary.get("failure_recorded"):
-        next_hint = _next_session_guidance(summary)
-        failure = summary.get("failure_record") if isinstance(summary.get("failure_record"), dict) else {}
-        descriptor = _failure_descriptor(failure)
-        if failure.get("existing"):
-            return f"AICTX summary: reconoció un patrón de fallo existente ({descriptor}) y actualizó su memoria para no repetirlo. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
-        return f"AICTX summary: aprendió un patrón de fallo nuevo ({descriptor}) para evitar repetirlo. Next recommended focus: {next_hint}. Details: {_render_details_link(details_path)}"
-    parts: list[str] = []
-    strategy_summary = _strategy_summary(summary)
-    if strategy_summary:
-        parts.append(strategy_summary)
-    value_summary = _aictx_value_summary(summary)
-    if value_summary:
-        parts.append(value_summary)
-    classification_summary = _classification_summary(summary)
-    if classification_summary:
-        parts.append(classification_summary)
+def prepend_aictx_text_separator(text: str) -> str:
+    cleaned = str(text or "").lstrip()
+    if not cleaned:
+        return ""
+    if cleaned.startswith(AICTX_TEXT_SEPARATOR):
+        return cleaned
+    return f"{AICTX_TEXT_SEPARATOR}\n{cleaned}"
+
+
+def build_agent_summary_render_payload(summary: dict[str, Any], *, details_path: str) -> dict[str, Any]:
+    context_parts: list[dict[str, Any]] = []
+    if summary.get("strategy_reused"):
+        context_parts.append({
+            "kind": "strategy_reused",
+            "entry_points": _compact_list(summary.get("strategy_entry_points"), limit=2),
+        })
+    loaded_sources = _loaded_continuity_sources(summary)
+    if loaded_sources:
+        context_parts.append({"kind": "loaded_sources", "sources": loaded_sources})
     avoided = _compact_list(summary.get("avoided"), limit=2)
     if avoided:
-        if all(str(item).startswith("resolvió ") for item in avoided):
-            parts.append("; ".join(avoided))
-        else:
-            parts.append("evitó " + "; ".join(avoided))
-    stored_parts: list[str] = []
+        context_parts.append({"kind": "failure_context", "items": avoided})
+    if summary.get("failure_recorded"):
+        failure = summary.get("failure_record") if isinstance(summary.get("failure_record"), dict) else {}
+        context_parts.append({
+            "kind": "failure_recorded",
+            "existing": bool(failure.get("existing")),
+            "descriptor": _failure_descriptor(failure),
+        })
+    if not context_parts:
+        files_count = int(summary.get("files_opened", 0) or 0)
+        tests_count = len(summary.get("tests_observed", [])) if isinstance(summary.get("tests_observed"), list) else 0
+        context_parts.append({
+            "kind": "execution_registered",
+            "has_observed_activity": bool(files_count or tests_count),
+        })
+
+    saved_items: list[str] = []
     if summary.get("handoff_stored"):
-        stored_parts.append("handoff")
-    if summary.get("strategy_persisted"):
-        stored_parts.append("strategy")
+        saved_items.append("updated handoff")
     if summary.get("decision_stored"):
-        stored_parts.append("decision")
-    if summary.get("learning_persisted"):
-        stored_parts.append("validated learning")
-    if stored_parts:
-        parts.append("guardó " + ", ".join(stored_parts))
+        saved_items.append("updated decision memory")
+    if summary.get("failure_recorded"):
+        saved_items.append("recorded failure pattern")
     work_state_updated = summary.get("work_state_updated") if isinstance(summary.get("work_state_updated"), dict) else {}
-    if work_state_updated.get("updated") and str(work_state_updated.get("task_id") or "").strip():
-        parts.append("actualizó work state para " + str(work_state_updated.get("task_id") or "").strip())
-    core = "; ".join(parts) if parts else "dejó continuidad útil"
-    observed: list[str] = []
-    if files_count:
-        observed.append(_plural(files_count, "file"))
-    if tests_count:
-        observed.append(_plural(tests_count, "test"))
-    suffixes: list[str] = []
-    if observed:
-        suffixes.append("observó " + " y ".join(observed))
-    next_hint = _compact_next_hint(summary)
-    if next_hint:
-        suffixes.append(f"siguiente: {next_hint}")
-    message = core
-    if suffixes:
-        message += "; " + "; ".join(suffixes)
-    return f"AICTX summary: {message}. Details: {_render_details_link(details_path)}"
+    if work_state_updated.get("updated"):
+        saved_items.append("updated Work State")
+
+    next_items = _real_next_items(summary)
+    entry_points = _entry_points(summary)
+    details_link = _render_details_link(details_path)
+    sections: list[dict[str, Any]] = []
+    context_line = _summary_context_line(summary)
+    if context_line:
+        sections.append({"kind": "context", "canonical_text": context_line, "parts": context_parts})
+    map_line = _summary_map_line(summary)
+    if map_line:
+        repo_map = summary.get("repo_map_status") if isinstance(summary.get("repo_map_status"), dict) else {}
+        sections.append({
+            "kind": "map",
+            "canonical_text": map_line,
+            "mode": str(repo_map.get("refresh_mode") or ""),
+            "status": str(repo_map.get("refresh_status") or ""),
+        })
+    saved_line = _summary_saved_line(summary)
+    if saved_line:
+        sections.append({"kind": "saved", "canonical_text": saved_line, "items": saved_items})
+    next_or_entry_line = _summary_next_or_entry_line(summary)
+    if next_or_entry_line:
+        if next_items:
+            sections.append({"kind": "next", "canonical_text": next_or_entry_line, "items": next_items})
+        elif entry_points:
+            sections.append({"kind": "entry_point", "canonical_text": next_or_entry_line, "paths": entry_points})
+    details_line = _summary_details_line(details_path)
+    if details_line:
+        sections.append({
+            "kind": "details",
+            "canonical_text": details_line,
+            "path": str(details_path or ""),
+            "link_text": "last_execution_summary.md",
+            "markdown_link": details_link,
+        })
+    lines = ["AICTX summary", ""] + [str(section.get("canonical_text") or "") for section in sections]
+    return {
+        "title": "AICTX summary",
+        "sections": sections,
+        "details_path": str(details_path or ""),
+        "canonical_text": prepend_aictx_text_separator("\n".join(lines)),
+    }
+
+
+def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) -> str:
+    payload = build_agent_summary_render_payload(summary, details_path=details_path)
+    return str(payload.get("canonical_text") or "")
 
 
 def _render_details_link(details_path: str) -> str:
     path = str(details_path or "").strip()
     if not path:
         return ""
-    return f"[`{path}`]({path})"
+    return f"[last_execution_summary.md]({path})"
+
+
+def _loaded_continuity_sources(summary: dict[str, Any]) -> list[str]:
+    loaded = summary.get("continuity_loaded") if isinstance(summary.get("continuity_loaded"), dict) else {}
+    continuity_value = summary.get("continuity_value") if isinstance(summary.get("continuity_value"), dict) else {}
+    sources = _compact_list(continuity_value.get("loaded_sources"), limit=6)
+    if not sources:
+        source_keys = ["handoff", "decisions", "preferences", "failures", "semantic_repo", "procedural_reuse", "work_state"]
+        sources = [key for key in source_keys if loaded.get(key)]
+    return [source for source in sources if str(source).strip() and str(source).strip() != "unknown"]
+
+
+def _summary_context_line(summary: dict[str, Any]) -> str:
+    parts: list[str] = []
+    if summary.get("strategy_reused"):
+        points = _compact_list(summary.get("strategy_entry_points"), limit=2)
+        if points:
+            parts.append(f"reused previous strategy based on {', '.join(points)}")
+        else:
+            parts.append("reused previous strategy")
+    loaded_sources = _loaded_continuity_sources(summary)
+    if loaded_sources:
+        parts.append("loaded " + "/".join(loaded_sources))
+    avoided = _compact_list(summary.get("avoided"), limit=2)
+    if avoided:
+        parts.append("used failure context: " + ", ".join(avoided))
+    if summary.get("failure_recorded"):
+        failure = summary.get("failure_record") if isinstance(summary.get("failure_record"), dict) else {}
+        descriptor = _failure_descriptor(failure)
+        label = "recognized existing failure pattern" if failure.get("existing") else "recorded new failure pattern"
+        parts.append(f"{label}: {descriptor}")
+    if not parts:
+        files_count = int(summary.get("files_opened", 0) or 0)
+        tests_count = len(summary.get("tests_observed", [])) if isinstance(summary.get("tests_observed"), list) else 0
+        if files_count or tests_count:
+            parts.append("registered this execution")
+        else:
+            parts.append("registered this execution without reusable context")
+    return "Context: " + " + ".join(parts) + "."
+
+
+def _summary_map_line(summary: dict[str, Any]) -> str:
+    repo_map = summary.get("repo_map_status") if isinstance(summary.get("repo_map_status"), dict) else {}
+    if not repo_map.get("used"):
+        return ""
+    mode = str(repo_map.get("refresh_mode") or "quick").strip()
+    status = str(repo_map.get("refresh_status") or "ok").strip()
+    if not mode or mode == "unknown" or not status or status == "unknown":
+        return ""
+    return f"Map: RepoMap {mode} {status}."
+
+
+def _summary_saved_line(summary: dict[str, Any]) -> str:
+    saved: list[str] = []
+    if summary.get("handoff_stored"):
+        saved.append("updated handoff")
+    if summary.get("decision_stored"):
+        saved.append("updated decision memory")
+    if summary.get("failure_recorded"):
+        saved.append("recorded failure pattern")
+    work_state_updated = summary.get("work_state_updated") if isinstance(summary.get("work_state_updated"), dict) else {}
+    if work_state_updated.get("updated"):
+        saved.append("updated Work State")
+    if not saved:
+        return ""
+    if len(saved) == 1:
+        text = saved[0]
+    else:
+        text = ", ".join(saved[:-1]) + " and " + saved[-1]
+    return f"Saved: {text}."
+
+
+def _real_next_items(summary: dict[str, Any]) -> list[str]:
+    handoff = summary.get("handoff_payload") if isinstance(summary.get("handoff_payload"), dict) else {}
+    for key in ("next_steps", "open_items", "blocked"):
+        values = _compact_list(handoff.get(key), limit=2)
+        if values:
+            return values
+    active = summary.get("active_work_state") if isinstance(summary.get("active_work_state"), dict) else {}
+    next_action = str(active.get("next_action") or "").strip()
+    if next_action:
+        return [next_action]
+    return []
+
+
+def _entry_points(summary: dict[str, Any]) -> list[str]:
+    handoff = summary.get("handoff_payload") if isinstance(summary.get("handoff_payload"), dict) else {}
+    points = _compact_list(handoff.get("recommended_starting_points"), limit=2)
+    if points:
+        return points
+    next_guidance = summary.get("next_guidance") if isinstance(summary.get("next_guidance"), dict) else {}
+    for key in ("recommended_starting_points", "where_to_continue", "probable_paths"):
+        points = _compact_list(next_guidance.get(key), limit=2)
+        if points:
+            return points
+    points = _compact_list(summary.get("strategy_entry_points"), limit=2)
+    return points
+
+
+def _summary_next_or_entry_line(summary: dict[str, Any]) -> str:
+    next_items = _real_next_items(summary)
+    if next_items:
+        return "Next: " + "; ".join(next_items) + "."
+    points = _entry_points(summary)
+    if points:
+        return "Entry point: " + ", ".join(points) + "."
+    return ""
+
+
+def _summary_details_line(details_path: str) -> str:
+    link = _render_details_link(details_path)
+    return f"Details: {link}" if link else ""
+
+
+def build_polished_agent_summary(summary: dict[str, Any], *, details_path: str) -> dict[str, Any]:
+    next_or_entry = _summary_next_or_entry_line(summary)
+    kind = ""
+    value = ""
+    if next_or_entry.startswith("Next: "):
+        kind = "next"
+        value = next_or_entry.removeprefix("Next: ").removesuffix(".")
+    elif next_or_entry.startswith("Entry point: "):
+        kind = "entry_point"
+        value = next_or_entry.removeprefix("Entry point: ").removesuffix(".")
+    return {
+        "context": _summary_context_line(summary).removeprefix("Context: ").removesuffix("."),
+        "map": _summary_map_line(summary).removeprefix("Map: ").removesuffix("."),
+        "saved": _summary_saved_line(summary).removeprefix("Saved: ").removesuffix("."),
+        "next": {"kind": kind, "value": value},
+        "details_path": str(details_path or "").strip(),
+    }
 
 
 def build_agent_summary(
@@ -1244,6 +1322,9 @@ def build_agent_summary(
 
 def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     repo_root = Path(str(prepared.get("envelope", {}).get("repo_root") or ".")).resolve()
+    prepared_message_visibility = prepared.get("message_visibility") if isinstance(prepared.get("message_visibility"), dict) else {}
+    message_mode = str(prepared_message_visibility.get("mode") or MESSAGE_MODE_UNMUTED)
+    message_output_muted = message_mode == MESSAGE_MODE_MUTED
     startup_banner_policy = prepared.get("startup_banner_policy") if isinstance(prepared.get("startup_banner_policy"), dict) else {}
     if prepared.get("startup_banner_text") and not startup_banner_policy.get("already_shown"):
         context = prepared.get("continuity_context") if isinstance(prepared.get("continuity_context"), dict) else {}
@@ -1330,7 +1411,10 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
                 details_path = Path(resolved_path).relative_to(repo_root).as_posix()
             except ValueError:
                 details_path = resolved_path
-    agent_summary_text = render_compact_agent_summary(agent_summary["structured"], details_path=details_path)
+    agent_summary["structured"]["polished_summary"] = build_polished_agent_summary(agent_summary["structured"], details_path=details_path)
+    agent_summary_render_payload = build_agent_summary_render_payload(agent_summary["structured"], details_path=details_path)
+    agent_summary_text = prepend_aictx_text_separator(str(agent_summary_render_payload.get("canonical_text") or ""))
+    returned_agent_summary_text = "" if message_output_muted else agent_summary_text
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     used_packet = bool(prepared.get("last_execution_log", {}).get("used_packet")) if isinstance(prepared.get("last_execution_log"), dict) else False
     return {
@@ -1356,7 +1440,13 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "continuity_metrics_persisted": continuity_metrics,
         "work_state_updated": work_state_updated,
         "agent_summary": agent_summary["structured"],
-        "agent_summary_text": agent_summary_text,
+        "agent_summary_text": returned_agent_summary_text,
+        "agent_summary_render_payload": agent_summary_render_payload,
+        "message_visibility": {
+            "mode": message_mode,
+            "startup_banner_suppressed": bool(prepared_message_visibility.get("startup_banner_suppressed")),
+            "agent_summary_suppressed": message_output_muted,
+        },
         "continuity_value": agent_summary["structured"].get("continuity_value", {}),
         "reuse_confidence": agent_summary["structured"].get("reuse_confidence", "low"),
         "capture_quality": agent_summary["structured"].get("capture_quality", {}),
@@ -1365,10 +1455,18 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "render_in_user_language": True,
             "target_language": "current_user_language",
             "fallback_language": str(prepared.get("preferred_language") or "unknown"),
-            "allow_enrichment": True,
+            "allow_enrichment": False,
+            "allow_language_adaptation": True,
+            "allow_semantic_localization": True,
+            "localize_from_structured_fields": True,
+            "allow_fact_enrichment": False,
+            "allow_structure_changes": False,
             "preserve_facts": True,
+            "preserve_canonical_payload": True,
             "do_not_invent": True,
-            "instruction": "Append the AICTX final summary in the language currently used with the user. Preserve all factual runtime details. You may enrich slightly for clarity using agent_summary and value_evidence when doing so does not invent facts.",
+            "preserve_technical_tokens": True,
+            "render_payload_field": "agent_summary_render_payload",
+            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, or other technical tokens. Do not invent or enrich facts.",
         },
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),

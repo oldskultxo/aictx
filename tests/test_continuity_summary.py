@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, SEMANTIC_REPO_PATH
+from aictx.continuity import AICTX_TEXT_SEPARATOR, DECISIONS_PATH, HANDOFF_PATH, SEMANTIC_REPO_PATH
 from aictx.middleware import prepare_execution
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import write_json
@@ -29,25 +29,25 @@ def test_prepare_execution_reports_empty_continuity_summary(tmp_path: Path):
     prepared = prepare_execution(_payload(repo, "exec-empty"))
 
     expected = (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "Cargado:\n"
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        "Loaded:\n"
         "- handoff: no\n"
         "- decisions: no\n"
         "- failures: no\n"
-        "- preferences: sí\n"
+        "- preferences: yes\n"
         "- semantic_repo: no\n"
         "- procedural_reuse: no"
     )
     assert prepared["continuity_summary_text"] == expected
     assert prepared["continuity_context"]["continuity_summary_text"] == expected
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "En la sesión anterior no había handoff previo que retomar."
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        f"No previous handoff to resume.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
     assert prepared["startup_banner_policy"]["show_in_first_user_visible_response"] is True
     assert prepared["continuity_context"]["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "En la sesión anterior no había handoff previo que retomar."
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        f"No previous handoff to resume.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
 
 
@@ -95,19 +95,20 @@ def test_prepare_execution_reports_rich_continuity_summary(tmp_path: Path):
     )
 
     expected = (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "Cargado:\n"
-        "- handoff: sí\n"
-        "- decisions: sí\n"
-        "- failures: sí\n"
-        "- preferences: sí\n"
-        "- semantic_repo: sí\n"
-        "- procedural_reuse: sí"
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        "Loaded:\n"
+        "- handoff: yes\n"
+        "- decisions: yes\n"
+        "- failures: yes\n"
+        "- preferences: yes\n"
+        "- semantic_repo: yes\n"
+        "- procedural_reuse: yes"
     )
     assert prepared["continuity_summary_text"] == expected
     assert prepared["startup_banner_text"] == (
-        f"codex@{repo.name} (session #1) - despierto\n\n"
-        "En la sesión anterior, lo dejamos resuelto: resume continuity task."
+        f"codex@{repo.name} · session #1 · awake\n\n"
+        "Resuming: resume continuity task.\n"
+        f"Last progress: resume continuity task.\n\n{AICTX_TEXT_SEPARATOR}\n\n"
     )
     assert prepared["continuity_context"]["loaded"] == {
         "session": True,
@@ -127,5 +128,27 @@ def test_prepare_execution_continuity_summary_reports_work_state_when_active(tmp
 
     prepared = prepare_execution(_payload(repo, "exec-work-state-summary"))
 
-    assert "- work_state: sí" in prepared["continuity_summary_text"]
+    assert "- work_state: yes" in prepared["continuity_summary_text"]
     assert prepared["continuity_context"]["loaded"]["work_state"] is True
+
+
+def test_startup_banner_canonical_english_with_spanish_preferences(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
+    prefs = json.loads(prefs_path.read_text(encoding="utf-8"))
+    prefs["preferred_language"] = "es"
+    write_json(prefs_path, prefs)
+
+    prepared = prepare_execution(_payload(repo, "exec-spanish-prefs"))
+    policy = prepared["startup_banner_policy"]
+
+    assert "· session #" in prepared["startup_banner_text"]
+    assert "awake" in prepared["startup_banner_text"]
+    assert "despierto" not in prepared["startup_banner_text"]
+    assert policy["allow_language_adaptation"] is True
+    assert policy["allow_semantic_localization"] is True
+    assert policy["localize_from_structured_fields"] is True
+    assert policy["allow_fact_enrichment"] is False
+    assert policy["preserve_technical_tokens"] is True
+    assert prepared["startup_banner_render_payload"]["header"]["canonical_text"].endswith("awake")

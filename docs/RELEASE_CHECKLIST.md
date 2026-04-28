@@ -33,6 +33,11 @@
 - [ ] `aictx init --yes` does not enable portability by default
 - [ ] portability can be enabled after local-only init
 - [ ] portability can be disabled after being enabled
+- [ ] messages mute/unmute/status tested
+- [ ] default message mode is unmuted
+- [ ] muted mode suppresses startup banner
+- [ ] muted mode suppresses agent summary text
+- [ ] explicit command output still works
 
 ## Validation
 

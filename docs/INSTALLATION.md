@@ -31,7 +31,10 @@ From inside the target repository:
 pip install aictx
 aictx install
 aictx init
+aictx --version
 ```
+
+Use `aictx --version` to verify the installed CLI version.
 
 Equivalent explicit repo form:
 
@@ -322,6 +325,8 @@ The agent must cooperate with the runtime contract for best results.
 ## After setup
 
 Use your coding agent normally.
+
+AICTX is unmuted by default after init. Use `aictx messages mute` if you want to suppress automatic startup and summary messages.
 
 Manual inspection commands:
 

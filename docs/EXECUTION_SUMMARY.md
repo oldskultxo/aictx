@@ -1,6 +1,8 @@
 # Execution Summary
 
 AICTX finalization returns a deterministic summary for the coding agent.
+`agent_summary_text` is the compact user-facing surface. `last_execution_summary.md`
+is the detailed diagnostic surface.
 
 ---
 
@@ -25,28 +27,50 @@ AICTX summary unavailable
 
 ---
 
+When `.aictx/continuity/last_execution_summary.md` is generated, the user-facing
+summary should keep the final details line as a clickable Markdown link:
+
+```text
+Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)
+```
+
 ## Recommended shape
 
 ```text
 AICTX summary
 
-Captured:
-- command: pytest -q
+Context: reused previous strategy + loaded handoff/decisions/preferences.
+Map: RepoMap quick ok.
+Saved: updated handoff.
+Entry point: src/aictx/continuity.py, src/aictx/middleware.py.
+Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)
+```
 
-Updated:
-- Work State: next action preserved
+With real pending work:
 
-Learned:
-- no new failure pattern
+```text
+AICTX summary
 
-Next:
-- continue from src/aictx/work_state.py
+Context: loaded handoff/preferences.
+Saved: updated Work State.
+Next: update docs examples for summary output.
+Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)
 ```
 
 ---
 
 ## Rules
 
-The summary must be factual, compact, useful for the next session, clear about Work State/failure memory changes, and free of unsupported productivity claims.
+The summary must be factual, compact, useful for the next session, clear about
+Work State/failure memory changes, and free of unsupported productivity claims.
 
 Do not invent missing data.
+
+Do not show low-signal diagnostic internals such as `unknown` task type/area in
+`agent_summary_text`; keep those details in `last_execution_summary.md`.
+
+Use `Next:` only for real pending work such as `next_steps`, `open_items`,
+`blocked`, or active Work State `next_action`.
+
+Use `Entry point:` for technical resume locations such as
+`recommended_starting_points`.

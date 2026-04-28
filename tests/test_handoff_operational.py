@@ -57,4 +57,24 @@ def test_startup_banner_uses_compact_handoff_history_clause(tmp_path: Path):
     banner = render_startup_banner({"session": {"agent_label": "codex@repo", "session_count": 2}}, repo)
 
     assert "Compact done" in banner
-    assert "Very long fallback" not in banner
+    assert "Last progress: Compact done." in banner
+
+
+def test_startup_banner_gives_last_progress_more_space_before_truncating(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / HANDOFFS_HISTORY_PATH).parent.mkdir(parents=True, exist_ok=True)
+    progress = (
+        "Polished AICTX agent_summary_text into a canonical multiline user-facing summary, "
+        "preserved diagnostic last_execution_summary.md, updated runtime instructions/docs, "
+        "and added regression coverage."
+    )
+    (repo / HANDOFFS_HISTORY_PATH).write_text(
+        f'{{"summary":"{progress}","completed":["{progress}"],"status":"resolved","recommended_starting_points":["src/aictx/middleware.py"]}}\n',
+        encoding="utf-8",
+    )
+
+    banner = render_startup_banner({"session": {"agent_label": "codex@repo", "session_count": 2}}, repo)
+
+    assert "Last progress: Polished AICTX agent_summary_text into a canonical multiline user-facing summary" in banner
+    assert "updated runtime instructions/docs" in banner

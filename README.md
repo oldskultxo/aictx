@@ -8,7 +8,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `4.6.0`
+Current documented implementation: `4.7.0`
 
 ---
 
@@ -74,7 +74,10 @@ From inside the repository, the normal setup is:
 pip install aictx
 aictx install
 aictx init
+aictx --version
 ```
+
+`aictx --version` prints the installed CLI version so you can verify which AICTX release is active.
 
 `aictx init --repo .` is the explicit form and is useful in scripts, CI, documentation, or when running from outside the target repository. When you are already inside the repo, `aictx init` is the simplest path.
 
@@ -185,35 +188,34 @@ Any coding agent can use AICTX if it can read repo instructions, call CLI comman
 
 ### Startup continuity
 
-AICTX startup continuity includes the runner identity, repo name, session number, and wake state.
+AICTX produces a compact canonical startup banner in English. Supported agents may localize labels and connective wording to the current user language, but must preserve facts, file paths, commands, flags, test names, package names, and code identifiers.
 
-Codex example:
-
-```text
-codex@aictx (session #40) - awake
-
-In the previous session, we made progress on: branch-safe Work State finalize behavior.
-Next recommended focus: tests/test_work_state_runtime.py.
-Active work state: Improve public docs. Next: update installation guide.
-```
-
-Claude example:
+Canonical runtime example:
 
 ```text
-claude@aictx (session #41) - awake
+codex@aictx · session #40 · awake
 
-In the previous session, we left this progress: we made progress on documentation UX.
-Active work state: Public release docs. Next: clarify agent-driven workflow.
+Resuming: branch-safe Work State finalize behavior.
+Last progress: finalize behavior aligned with tests.
+Entry point: tests/test_work_state_runtime.py
+Active task: Improve public docs. Next: update installation guide.
 ```
 
-Spanish UI example:
+Optional agent-rendered localized example:
 
 ```text
-codex@aictx (session #42) - despierto
+codex@aictx · sesión #40 · despierto
 
-En la sesión anterior, avanzamos en: pulir README y guía de instalación.
-Estado activo: Public release docs. Siguiente paso: revisar RepoMap.
+Retomando: branch-safe Work State finalize behavior.
+Último avance: finalize behavior aligned with tests.
+Punto de entrada: tests/test_work_state_runtime.py
+Tarea activa: Improve public docs. Siguiente: update installation guide.
 ```
+
+Semantics:
+
+- `Next:` means real pending work, for example `next_steps`, `open_items`, `blocked` items, or an active Work State `next_action`.
+- `Entry point:` means a technical resume location from `recommended_starting_points` when there is no real pending work.
 
 ### Final summary
 
@@ -224,17 +226,11 @@ Example shape:
 ```text
 AICTX summary
 
-Captured:
-- command: pytest -q
-
-Updated:
-- Work State: next action preserved
-
-Learned:
-- no new failure pattern
-
-Next:
-- continue from src/aictx/work_state.py
+Context: reused previous strategy + loaded handoff/decisions/preferences.
+Map: RepoMap quick ok.
+Saved: updated handoff.
+Entry point: src/aictx/continuity.py, src/aictx/middleware.py.
+Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)
 ```
 
 ---
@@ -263,7 +259,7 @@ This is safety, not branch-aware task management.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.6.0` is:
+The stable repo-local continuity artifact contract in `4.7.0` is:
 
 ```text
 .aictx/continuity/session.json

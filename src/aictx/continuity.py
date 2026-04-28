@@ -26,6 +26,16 @@ DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
 STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
 CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
 LAST_EXECUTION_SUMMARY_PATH = REPO_CONTINUITY_DIR / "last_execution_summary.md"
+AICTX_TEXT_SEPARATOR = "────────────────────────────────"
+
+
+def append_aictx_text_separator(text: str) -> str:
+    cleaned = str(text or "").rstrip()
+    if not cleaned:
+        return ""
+    if cleaned.endswith(AICTX_TEXT_SEPARATOR):
+        return f"{cleaned}\n\n"
+    return f"{cleaned}\n\n{AICTX_TEXT_SEPARATOR}\n\n"
 
 
 def _read_optional_json(repo_root: Path, relative_path: Path, expected_type: type, warnings: list[str]) -> Any:
@@ -92,139 +102,16 @@ def _session_summary_parts(session: dict[str, Any], repo_root: Path) -> tuple[st
     return agent_label, max(session_count, 0)
 
 
-def _ui_language(context: dict[str, Any]) -> str:
-    preferences = context.get("preferences") if isinstance(context.get("preferences"), dict) else {}
-    preferred = str(
-        context.get("preferred_language")
-        or preferences.get("preferred_language")
-        or (preferences.get("profile", {}) if isinstance(preferences.get("profile"), dict) else {}).get("preferred_language")
-        or "en"
-    ).strip().lower()
-    return "es" if preferred.startswith("es") else "en"
+def _canonical_banner_header(agent_label: str, session_count: int) -> str:
+    return f"{agent_label} · session #{session_count} · awake"
 
 
-def _banner_header(agent_label: str, session_count: int, lang: str) -> str:
-    state = "despierto" if lang == "es" else "awake"
-    return f"{agent_label} (session #{session_count}) - {state}"
+def _banner_header(agent_label: str, session_count: int) -> str:
+    return _canonical_banner_header(agent_label, session_count)
 
 
-def _active_work_state_line(context: dict[str, Any]) -> str:
-    state = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
-    if not state:
-        return ""
-    lang = _ui_language(context)
-    goal = str(state.get("goal") or state.get("task_id") or "").strip()
-    next_action = str(state.get("next_action") or "").strip()
-    hypothesis = str(state.get("current_hypothesis") or "").strip()
-    parts = []
-    if goal:
-        parts.append(("Estado activo: " if lang == "es" else "Active work state: ") + goal.rstrip("."))
-    if next_action:
-        parts.append(("Siguiente paso: " if lang == "es" else "Next: ") + next_action.rstrip("."))
-    if hypothesis and len(hypothesis) <= 120:
-        parts.append(("Hipótesis: " if lang == "es" else "Hypothesis: ") + hypothesis.rstrip("."))
-    return ". ".join(parts).strip() + ("." if parts else "")
-
-
-def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
-    session = context.get("session") if isinstance(context.get("session"), dict) else {}
-    loaded = context.get("loaded") if isinstance(context.get("loaded"), dict) else {}
-    lang = _ui_language(context)
-    agent_label, session_count = _session_summary_parts(session, repo_root)
-    lines = [
-        _banner_header(agent_label, session_count, lang),
-        "",
-        "Cargado:" if lang == "es" else "Loaded:",
-        f"- handoff: {'sí' if loaded.get('handoff') and lang == 'es' else 'yes' if loaded.get('handoff') else 'no'}",
-        f"- decisions: {'sí' if loaded.get('decisions') and lang == 'es' else 'yes' if loaded.get('decisions') else 'no'}",
-        f"- failures: {'sí' if loaded.get('failures') and lang == 'es' else 'yes' if loaded.get('failures') else 'no'}",
-        f"- preferences: {'sí' if loaded.get('preferences') and lang == 'es' else 'yes' if loaded.get('preferences') else 'no'}",
-        f"- semantic_repo: {'sí' if loaded.get('semantic_repo') and lang == 'es' else 'yes' if loaded.get('semantic_repo') else 'no'}",
-        f"- procedural_reuse: {'sí' if loaded.get('procedural_reuse') and lang == 'es' else 'yes' if loaded.get('procedural_reuse') else 'no'}",
-    ]
-    if "work_state" in loaded:
-        lines.append(f"- work_state: {'sí' if loaded.get('work_state') and lang == 'es' else 'yes' if loaded.get('work_state') else 'no'}")
-    return "\n".join(lines)
-
-
-def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
-    session = context.get("session") if isinstance(context.get("session"), dict) else {}
-    lang = _ui_language(context)
-    agent_label, session_count = _session_summary_parts(session, repo_root)
-    header = _banner_header(agent_label, session_count, lang)
-    work_line = _active_work_state_line(context)
-    recent = load_handoff_history(repo_root, limit=5)
-    if recent:
-        standup = _render_handoff_standup(recent, lang=lang)
-        starts = _clean_string_list(recent[-1].get("recommended_starting_points"), limit=2)
-        next_part = (
-            f" Siguiente foco recomendado: {', '.join(starts)}."
-            if starts and lang == "es"
-            else f" Next recommended focus: {', '.join(starts)}."
-            if starts
-            else ""
-        )
-        banner = (
-            f"{header}\n\nEn la sesión anterior dejamos este progreso: {standup}.{next_part}"
-            if lang == "es"
-            else f"{header}\n\nIn the previous session, we left this progress: {standup}.{next_part}"
-        )
-        return banner if not work_line else banner + f"\n{work_line}"
-    latest = latest_handoff_record(repo_root)
-    if not latest:
-        banner = (
-            f"{header}\n\nEn la sesión anterior no había handoff previo que retomar."
-            if lang == "es"
-            else f"{header}\n\nIn the previous session, there was no prior handoff to resume."
-        )
-        return banner if not work_line else banner + f"\n{work_line}"
-    summary = str(latest.get("summary") or "").strip() or "there was no prior handoff"
-    status = str(latest.get("status") or "").strip().lower()
-    if status == "resolved":
-        status_text = "lo dejamos resuelto" if lang == "es" else "we left resolved"
-    elif status in {"failed", "unresolved", "blocked"}:
-        status_text = "quedó bloqueado durante la depuración" if lang == "es" else "it remained blocked while debugging"
-    else:
-        status_text = "avanzamos en" if lang == "es" else "we made progress on"
-    starts = _clean_string_list(latest.get("recommended_starting_points"), limit=2)
-    next_part = (
-        f" Siguiente foco recomendado: {', '.join(starts)}."
-        if starts and lang == "es"
-        else f" Next recommended focus: {', '.join(starts)}."
-        if starts
-        else ""
-    )
-    banner = (
-        f"{header}\n\nEn la sesión anterior, {status_text}: {summary}.{next_part}"
-        if lang == "es"
-        else f"{header}\n\nIn the previous session, {status_text}: {summary}.{next_part}"
-    )
-    return banner if not work_line else banner + f"\n{work_line}"
-
-
-def _render_handoff_standup(rows: list[dict[str, Any]], *, lang: str = "en") -> str:
-    clauses = [_render_handoff_standup_clause(row, lang=lang) for row in rows if isinstance(row, dict)]
-    compact = [item for item in clauses if item]
-    if not compact:
-        return "there was no prior handoff"
-    return "; ".join(compact)
-
-
-def _render_handoff_standup_clause(row: dict[str, Any], *, lang: str = "en") -> str:
-    completed = _clean_string_list(row.get("completed"), limit=1)
-    summary = _compact_handoff_summary(completed[0] if completed else str(row.get("summary") or ""))
-    if not summary:
-        return ""
-    status = str(row.get("status") or "").strip().lower()
-    if status == "resolved":
-        return summary
-    if status in {"failed", "unresolved", "blocked"}:
-        return f"quedó bloqueado en {summary}" if lang == "es" else f"it remained blocked on {summary}"
-    return f"avanzamos en {summary}" if lang == "es" else f"we made progress on {summary}"
-
-
-def _compact_handoff_summary(text: str, *, max_len: int = 88) -> str:
-    summary = " ".join(str(text or "").strip().split())
+def _compact_banner_text(text: str, *, max_len: int = 88) -> str:
+    compact = " ".join(str(text or "").strip().split()).rstrip(". ")
     for prefix in (
         "Phase 1 complete:",
         "Phase 1 completed:",
@@ -236,14 +123,183 @@ def _compact_handoff_summary(text: str, *, max_len: int = 88) -> str:
         "Phase 4 completed:",
         "Final phase executed:",
     ):
-        if summary.startswith(prefix):
-            summary = summary[len(prefix):].strip()
+        if compact.startswith(prefix):
+            compact = compact[len(prefix):].strip().rstrip(". ")
             break
-    summary = summary.rstrip(". ")
-    if len(summary) <= max_len:
-        return summary
-    shortened = summary[: max_len - 1].rsplit(" ", 1)[0].strip()
-    return (shortened or summary[: max_len - 1].strip()) + "…"
+    if len(compact) <= max_len:
+        return compact
+    shortened = compact[: max_len - 1].rsplit(" ", 1)[0].strip()
+    return (shortened or compact[: max_len - 1].strip()) + "…"
+
+
+def _compact_topic(row: dict[str, Any]) -> str:
+    for key in ("reason", "summary", "task_type"):
+        value = _compact_banner_text(str(row.get(key) or ""), max_len=120)
+        if value:
+            return value
+    return "previous work"
+
+
+def _compact_progress(row: dict[str, Any]) -> str:
+    items = [_compact_banner_text(item, max_len=220) for item in _clean_string_list(row.get("completed"), limit=3)]
+    items = [item for item in items if item]
+    if items:
+        return ", ".join(items)
+    return _compact_banner_text(str(row.get("summary") or ""), max_len=240) or "previous work"
+
+
+def _compact_blocker(row: dict[str, Any]) -> str:
+    items = [_compact_banner_text(item, max_len=88) for item in _clean_string_list(row.get("blocked"), limit=2)]
+    items = [item for item in items if item]
+    if items:
+        return ", ".join(items)
+    return _compact_banner_text(str(row.get("summary") or ""), max_len=120) or "previous work"
+
+
+def _next_focus(row: dict[str, Any]) -> str:
+    for key in ("next_steps", "open_items", "blocked"):
+        items = _clean_string_list(row.get(key), limit=1)
+        if items:
+            return items[0]
+    return ""
+
+
+def _entry_point_focus(row: dict[str, Any]) -> str:
+    points = _clean_string_list(row.get("recommended_starting_points"), limit=1)
+    return points[0] if points else ""
+
+
+def _entry_point_is_redundant(row: dict[str, Any], entry_point: str) -> bool:
+    if not entry_point:
+        return False
+    points = _clean_string_list(row.get("recommended_starting_points"), limit=2)
+    if len(points) != 1:
+        return False
+    topic = _compact_topic(row)
+    progress = _compact_progress(row)
+    needle = entry_point.casefold()
+    return needle in topic.casefold() or needle in progress.casefold()
+
+
+def _active_work_state_payload(context: dict[str, Any]) -> dict[str, str]:
+    state = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    if not state:
+        return {}
+    goal = _compact_banner_text(str(state.get("goal") or state.get("task_id") or ""), max_len=96)
+    next_action = _compact_banner_text(str(state.get("next_action") or ""), max_len=96)
+    if not goal:
+        return {}
+    return {"goal": goal, "next_action": next_action}
+
+
+def _active_work_state_line(context: dict[str, Any]) -> str:
+    payload = _active_work_state_payload(context)
+    if not payload:
+        return ""
+    line = f"Active task: {payload['goal']}."
+    if payload.get("next_action"):
+        line += f" Next: {payload['next_action']}."
+    return line
+
+
+def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
+    session = context.get("session") if isinstance(context.get("session"), dict) else {}
+    loaded = context.get("loaded") if isinstance(context.get("loaded"), dict) else {}
+    agent_label, session_count = _session_summary_parts(session, repo_root)
+    lines = [
+        _banner_header(agent_label, session_count),
+        "",
+        "Loaded:",
+        f"- handoff: {'yes' if loaded.get('handoff') else 'no'}",
+        f"- decisions: {'yes' if loaded.get('decisions') else 'no'}",
+        f"- failures: {'yes' if loaded.get('failures') else 'no'}",
+        f"- preferences: {'yes' if loaded.get('preferences') else 'no'}",
+        f"- semantic_repo: {'yes' if loaded.get('semantic_repo') else 'no'}",
+        f"- procedural_reuse: {'yes' if loaded.get('procedural_reuse') else 'no'}",
+    ]
+    if "work_state" in loaded:
+        lines.append(f"- work_state: {'yes' if loaded.get('work_state') else 'no'}")
+    return "\n".join(lines)
+
+
+def build_startup_banner_render_payload(context: dict[str, Any], repo_root: Path) -> dict[str, Any]:
+    session = context.get("session") if isinstance(context.get("session"), dict) else {}
+    agent_label, session_count = _session_summary_parts(session, repo_root)
+    header = _banner_header(agent_label, session_count)
+    latest = latest_handoff_record(repo_root)
+    lines: list[dict[str, Any]] = []
+    if not latest:
+        lines.append({
+            "kind": "no_previous_handoff",
+            "canonical_text": "No previous handoff to resume.",
+            "message": "No previous handoff to resume.",
+        })
+    else:
+        topic = _compact_topic(latest)
+        lines.append({
+            "kind": "resuming",
+            "canonical_text": f"Resuming: {topic}.",
+            "topic": topic,
+        })
+        status = str(latest.get("status") or "").strip().lower()
+        if status in {"failed", "unresolved", "blocked"}:
+            blocker = _compact_blocker(latest)
+            lines.append({
+                "kind": "blocked",
+                "canonical_text": f"Blocked: {blocker}.",
+                "status": status or "blocked",
+                "blocker": blocker,
+            })
+        else:
+            progress = _compact_progress(latest)
+            lines.append({
+                "kind": "last_progress",
+                "canonical_text": f"Last progress: {progress}.",
+                "progress": progress,
+            })
+        next_focus = _next_focus(latest)
+        if next_focus:
+            lines.append({
+                "kind": "next",
+                "canonical_text": f"Next: {next_focus}",
+                "items": [next_focus],
+            })
+        else:
+            entry_point = _entry_point_focus(latest)
+            if entry_point and not _entry_point_is_redundant(latest, entry_point):
+                lines.append({
+                    "kind": "entry_point",
+                    "canonical_text": f"Entry point: {entry_point}",
+                    "paths": [entry_point],
+                })
+    work_payload = _active_work_state_payload(context)
+    if work_payload:
+        work_line = f"Active task: {work_payload['goal']}."
+        if work_payload.get("next_action"):
+            work_line += f" Next: {work_payload['next_action']}."
+        lines.append({
+            "kind": "active_task",
+            "canonical_text": work_line,
+            "goal": work_payload["goal"],
+            "next_action": work_payload.get("next_action", ""),
+        })
+    rendered_lines = lines[:4]
+    return {
+        "header": {
+            "agent_label": agent_label,
+            "session_count": session_count,
+            "canonical_text": header,
+        },
+        "lines": rendered_lines,
+        "canonical_text": append_aictx_text_separator(
+            header + "\n\n" + "\n".join(str(item.get("canonical_text") or "") for item in rendered_lines)
+        ),
+    }
+
+
+def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
+    payload = build_startup_banner_render_payload(context, repo_root)
+    return append_aictx_text_separator(str(payload.get("canonical_text") or ""))
 
 
 def _summary_next_points(summary: dict[str, Any], *, limit: int = 2) -> list[str]:
@@ -393,6 +449,9 @@ def latest_handoff_record(repo_root: Path) -> dict[str, Any]:
         "status": "resolved",
         "reason": "",
         "task_type": "",
+        "completed": _clean_string_list(fallback.get("completed"), limit=5),
+        "next_steps": _clean_string_list(fallback.get("next_steps"), limit=5),
+        "blocked": _clean_string_list(fallback.get("blocked") or fallback.get("open_items"), limit=5),
         "recommended_starting_points": _clean_string_list(fallback.get("recommended_starting_points"), limit=5),
         "files_observed": 0,
         "tests_observed": [],
@@ -1755,6 +1814,7 @@ def load_continuity_context(
         "recent_work_state": recent_work_state,
         "warnings": warnings,
     }
+    context["startup_banner_render_payload"] = build_startup_banner_render_payload(context, repo_root)
     context["startup_banner_text"] = render_startup_banner(context, repo_root)
     context["continuity_summary_text"] = render_continuity_summary(context, repo_root)
     return context

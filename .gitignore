@@ -26,6 +26,9 @@ compaction_report.json
 README.es.md
 .tmp/
 /.vscode
-.aictx/
 .claude/
 CLAUDE.md
+# AICTX:START gitignore
+# mode: local-only
+.aictx/
+# AICTX:END gitignore

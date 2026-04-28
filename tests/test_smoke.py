@@ -140,17 +140,23 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "agent_summary_text" in repo_block
     assert "startup_banner_text" in repo_block
     assert "current user language" in repo_block
+    assert "startup_banner_render_payload" in repo_block
+    assert "agent_summary_render_payload" in repo_block
     assert "AICTX summary unavailable" in repo_block
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in repo_block
     claude_block = render_claude_md_block()
     assert "agent_summary_text" in claude_block
     assert "startup_banner_text" in claude_block
     assert "current user language" in claude_block
+    assert "startup_banner_render_payload" in claude_block
+    assert "agent_summary_render_payload" in claude_block
     assert "AICTX summary unavailable" in claude_block
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in claude_block
     prompt_hook = render_user_prompt_submit_script()
     assert "localized to the current user language" in prompt_hook
     assert "startup_banner_text" in prompt_hook
+    assert "startup_banner_render_payload" in prompt_hook
+    assert "agent_summary_render_payload" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in prompt_hook
 
@@ -177,7 +183,16 @@ def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path
     assert runtime_policy["allow_enrichment"] is True
     assert runtime_policy["preserve_facts"] is True
     assert startup_policy["render_in_user_language"] is True
+    assert startup_policy["allow_language_adaptation"] is True
+    assert startup_policy["allow_semantic_localization"] is True
+    assert startup_policy["localize_from_structured_fields"] is True
+    assert startup_policy["allow_fact_enrichment"] is False
+    assert startup_policy["allow_structure_changes"] is False
+    assert startup_policy["preserve_technical_tokens"] is True
+    assert startup_policy["preserve_canonical_payload"] is True
+    assert startup_policy["render_payload_field"] == "startup_banner_render_payload"
     assert startup_policy["do_not_invent"] is True
+    assert prepared["startup_banner_render_payload"]["header"]["agent_label"]
 
     finalized = finalize_execution(
         prepared,
@@ -192,8 +207,16 @@ def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path
     summary_policy = finalized["agent_summary_policy"]
     assert summary_policy["append_to_final_response"] is True
     assert summary_policy["render_in_user_language"] is True
-    assert summary_policy["allow_enrichment"] is True
+    assert summary_policy["allow_language_adaptation"] is True
+    assert summary_policy["allow_semantic_localization"] is True
+    assert summary_policy["localize_from_structured_fields"] is True
+    assert summary_policy["allow_fact_enrichment"] is False
+    assert summary_policy["allow_enrichment"] is False
     assert summary_policy["preserve_facts"] is True
+    assert summary_policy["preserve_canonical_payload"] is True
+    assert summary_policy["render_payload_field"] == "agent_summary_render_payload"
+    assert summary_policy["do_not_invent"] is True
+    assert finalized["agent_summary_render_payload"]["title"] == "AICTX summary"
 
 
 def test_communication_policy_uses_disabled_template_default():
@@ -816,6 +839,25 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
     assert finalized_output["aictx_feedback"]["reopened_files"] == 1
 
 
+def test_prepare_execution_accepts_legacy_agent_and_task_aliases(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "task": "review middleware behavior",
+            "agent": "agent-test",
+            "execution_id": "exec-legacy-aliases",
+            "status": "started",
+        }
+    )
+
+    assert prepared["envelope"]["user_request"] == "review middleware behavior"
+    assert prepared["envelope"]["agent_id"] == "agent-test"
+    assert prepared["envelope"]["execution_id"] == "exec-legacy-aliases"
+
+
 def test_persist_repo_communication_mode_disabled(tmp_path: Path):
     repo = tmp_path / "repo"
     prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
@@ -1257,6 +1299,8 @@ def test_cli_main_help_shows_simple_surface_only():
     assert "workspace" not in help_text
     assert "boot" not in help_text
     assert "memory-graph" not in help_text
+    assert "--version" in help_text
+    assert "-v" in help_text
 
 
 def test_should_render_banner_defaults_to_tty_when_not_suppressed():
@@ -1397,11 +1441,11 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
     assert args.func(args) == 0
     output = capsys.readouterr().out
     assert output.startswith(
-        f"codex@{repo.name} (session #1) - despierto\n\nEn la sesión anterior no había handoff previo que retomar.\n"
+        f"codex@{repo.name} · session #1 · awake\n\nNo previous handoff to resume.\n"
     )
     assert "wrapped ok" in output
-    assert "AICTX summary: " in output
-    assert "Details: [`.aictx/continuity/last_execution_summary.md`](.aictx/continuity/last_execution_summary.md)" in output
+    assert "AICTX summary\n" in output
+    assert "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)" in output
 
 
 def test_runtime_capture_provenance_and_prepare_fields(tmp_path: Path):
@@ -1459,7 +1503,7 @@ def test_run_execution_captures_command_tests_errors_and_agent_summary(tmp_path:
     finalized = payload["finalized"]
     assert finalized["failure_persisted"]["failure_id"]
     assert finalized["agent_summary"]["failure_recorded"] is True
-    assert "AICTX summary:" in finalized["agent_summary_text"]
+    assert finalized["agent_summary_text"].startswith("────────────────────────────────\nAICTX summary\n")
     log_rows = [
         json.loads(line)
         for line in (repo / ".aictx" / "metrics" / "execution_logs.jsonl").read_text(encoding="utf-8").splitlines()
@@ -2077,8 +2121,10 @@ def test_finalize_execution_recalculates_final_task_type_and_area_from_observed_
     assert finalized["final_area_id"] == "src/aictx"
     assert finalized["effective_area_id"] == "src/aictx"
     assert finalized["final_task_resolution"]["source"] == "observed_signals"
-    assert "clasificación final de tarea: refactoring" in finalized["agent_summary_text"]
-    assert "área final: src/aictx" in finalized["agent_summary_text"]
+    assert "unknown" not in finalized["agent_summary_text"]
+    detailed = (repo / ".aictx" / "continuity" / "last_execution_summary.md").read_text(encoding="utf-8")
+    assert "- Final task type: refactoring" in detailed
+    assert "- Final area: src/aictx" in detailed
 
     log_rows = [
         json.loads(line)

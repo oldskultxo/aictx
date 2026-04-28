@@ -62,7 +62,7 @@ def test_old_failure_pattern_can_load_into_startup_context(tmp_path: Path):
     failures = prepared["continuity_context"]["failures"]
     assert [row["failure_id"] for row in failures] == ["failure::old"]
     assert prepared["continuity_context"]["loaded"]["failures"] is True
-    assert "- failures: sí" in prepared["continuity_summary_text"]
+    assert "- failures: yes" in prepared["continuity_summary_text"]
 
 
 def test_relevant_failure_patterns_are_bounded_to_five(tmp_path: Path):

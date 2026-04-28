@@ -130,7 +130,8 @@ After work, integrations can call:
 aictx internal execution finalize ...
 ```
 
-`finalize_execution()` stores observed evidence and returns `agent_summary_text`.
+`finalize_execution()` stores observed evidence and returns `agent_summary_text`,
+the compact user-facing final summary.
 
 ### 7. Next session
 
@@ -219,16 +220,10 @@ Startup identity is based on session context.
 
 The visible startup continuity banner is produced through prepare/startup continuity, not by the raw `internal boot` diagnostic payload.
 
-The banner header shape is:
+The canonical runtime banner header shape is:
 
 ```text
-<agent_label> (session #<n>) - awake
-```
-
-Spanish UI:
-
-```text
-<agent_label> (session #<n>) - despierto
+<agent_label> · session #<n> · awake
 ```
 
 Typical labels:
@@ -239,23 +234,24 @@ claude@repo-name
 agent@repo-name
 ```
 
-The startup banner can include:
+The banner is a compact resumption card. It can include:
 
-- previous handoff summary;
-- recommended starting points;
-- active Work State;
-- next action;
-- hypothesis;
-- language-specific wording.
+- `Resuming: ...`
+- `Last progress: ...` or `Blocked: ...`
+- `Next: ...`
+- `Active task: ... Next: ...`
+
+The runtime canonical banner is English. Agents may localize labels and connective wording to the current user language, but must preserve facts, structure, file paths, commands, flags, test names, package names, and code identifiers.
 
 Example:
 
 ```text
-codex@aictx (session #40) - awake
+codex@aictx · session #40 · awake
 
-In the previous session, we made progress on: branch-safe Work State finalize behavior.
-Next recommended focus: tests/test_work_state_runtime.py.
-Active work state: Improve public docs. Next: update installation guide.
+Resuming: branch-safe Work State finalize behavior.
+Last progress: finalize behavior aligned with tests.
+Next: tests/test_work_state_runtime.py
+Active task: Improve public docs. Next: update installation guide.
 ```
 
 ---
@@ -291,8 +287,11 @@ The visible agent startup banner is the compact continuity message intended for 
 Example shape:
 
 ```text
-codex@repo (session #40) - awake
-...
+codex@repo · session #40 · awake
+
+Resuming: previous work.
+Last progress: aligned runtime behavior with tests.
+Next: tests/test_smoke.py
 ```
 
 ---
@@ -572,7 +571,12 @@ The detailed latest summary may be written to:
 .aictx/continuity/last_execution_summary.md
 ```
 
-Agents should treat `agent_summary_text` as the canonical factual final summary source. If finalize output is unavailable, the agent should say:
+Agents should treat `agent_summary_text` as the canonical compact user-facing
+final summary source. `.aictx/continuity/last_execution_summary.md` is the
+detailed diagnostic latest-run summary and should remain linked from the final
+summary when generated.
+
+If finalize output is unavailable, the agent should say:
 
 ```text
 AICTX summary unavailable
