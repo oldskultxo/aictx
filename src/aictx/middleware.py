@@ -12,6 +12,7 @@ from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
 from .continuity import (
+    build_startup_banner_render_payload,
     load_continuity_context,
     persist_decision_memory,
     persist_handoff_memory,
@@ -489,7 +490,10 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     session_id = str(session.get("session_id") or "")
     banner_text = str(continuity_context.get("startup_banner_text") or "").strip()
     banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
+    startup_banner_render_payload = dict(continuity_context.get("startup_banner_render_payload", {})) if isinstance(continuity_context.get("startup_banner_render_payload"), dict) else build_startup_banner_render_payload(continuity_context, repo_root)
     startup_banner_text = "" if banner_already_shown else (banner_text or _fallback_startup_banner_text(repo_root, session))
+    if startup_banner_text and startup_banner_render_payload and not startup_banner_render_payload.get("canonical_text"):
+        startup_banner_render_payload["canonical_text"] = startup_banner_text
     banner_required = bool(startup_banner_text)
     if message_output_muted:
         startup_banner_text = ""
@@ -552,6 +556,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "agent_label": str(session.get("agent_label") or ""),
         "session_count": int(session.get("session_count") or 0),
         "startup_banner_text": startup_banner_text,
+        "startup_banner_render_payload": startup_banner_render_payload,
         "startup_banner_policy": {
             "show_in_first_user_visible_response": banner_required,
             "show_once_per_session": True,
@@ -566,13 +571,17 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "fallback_language_source": preferred_language_source,
             "allow_enrichment": False,
             "allow_language_adaptation": True,
+            "allow_semantic_localization": True,
+            "localize_from_structured_fields": True,
             "allow_fact_enrichment": False,
             "allow_structure_changes": False,
             "preserve_facts": True,
+            "preserve_canonical_payload": True,
             "do_not_invent": True,
             "preserve_technical_tokens": True,
+            "render_payload_field": "startup_banner_render_payload",
             "muted": message_output_muted,
-            "instruction": "Render this startup banner in the current user language. You may translate or adapt labels and connective wording only. Do not add, remove, reorder, reinterpret, or enrich facts. Do not translate file paths, commands, flags, package names, test names, code identifiers, or other technical tokens. Keep the same compact structure.",
+            "instruction": "Render this startup banner in the current user language. Prefer startup_banner_render_payload when available. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown link targets, or other technical tokens. Do not add, remove, reorder, reinterpret, or invent facts.",
         },
         "message_visibility": {
             "mode": message_mode,
@@ -1001,20 +1010,91 @@ def render_agent_summary(summary: dict[str, Any]) -> str:
     return render_compact_agent_summary(summary, details_path=".aictx/continuity/last_execution_summary.md")
 
 
-def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) -> str:
-    lines = ["AICTX summary", ""]
-    for line in [
-        _summary_context_line(summary),
-        _summary_map_line(summary),
-        _summary_saved_line(summary),
-        _summary_next_or_entry_line(summary),
-    ]:
-        if line:
-            lines.append(line)
+def build_agent_summary_render_payload(summary: dict[str, Any], *, details_path: str) -> dict[str, Any]:
+    context_parts: list[dict[str, Any]] = []
+    if summary.get("strategy_reused"):
+        context_parts.append({
+            "kind": "strategy_reused",
+            "entry_points": _compact_list(summary.get("strategy_entry_points"), limit=2),
+        })
+    loaded_sources = _loaded_continuity_sources(summary)
+    if loaded_sources:
+        context_parts.append({"kind": "loaded_sources", "sources": loaded_sources})
+    avoided = _compact_list(summary.get("avoided"), limit=2)
+    if avoided:
+        context_parts.append({"kind": "failure_context", "items": avoided})
+    if summary.get("failure_recorded"):
+        failure = summary.get("failure_record") if isinstance(summary.get("failure_record"), dict) else {}
+        context_parts.append({
+            "kind": "failure_recorded",
+            "existing": bool(failure.get("existing")),
+            "descriptor": _failure_descriptor(failure),
+        })
+    if not context_parts:
+        files_count = int(summary.get("files_opened", 0) or 0)
+        tests_count = len(summary.get("tests_observed", [])) if isinstance(summary.get("tests_observed"), list) else 0
+        context_parts.append({
+            "kind": "execution_registered",
+            "has_observed_activity": bool(files_count or tests_count),
+        })
+
+    saved_items: list[str] = []
+    if summary.get("handoff_stored"):
+        saved_items.append("updated handoff")
+    if summary.get("decision_stored"):
+        saved_items.append("updated decision memory")
+    if summary.get("failure_recorded"):
+        saved_items.append("recorded failure pattern")
+    work_state_updated = summary.get("work_state_updated") if isinstance(summary.get("work_state_updated"), dict) else {}
+    if work_state_updated.get("updated"):
+        saved_items.append("updated Work State")
+
+    next_items = _real_next_items(summary)
+    entry_points = _entry_points(summary)
+    details_link = _render_details_link(details_path)
+    sections: list[dict[str, Any]] = []
+    context_line = _summary_context_line(summary)
+    if context_line:
+        sections.append({"kind": "context", "canonical_text": context_line, "parts": context_parts})
+    map_line = _summary_map_line(summary)
+    if map_line:
+        repo_map = summary.get("repo_map_status") if isinstance(summary.get("repo_map_status"), dict) else {}
+        sections.append({
+            "kind": "map",
+            "canonical_text": map_line,
+            "mode": str(repo_map.get("refresh_mode") or ""),
+            "status": str(repo_map.get("refresh_status") or ""),
+        })
+    saved_line = _summary_saved_line(summary)
+    if saved_line:
+        sections.append({"kind": "saved", "canonical_text": saved_line, "items": saved_items})
+    next_or_entry_line = _summary_next_or_entry_line(summary)
+    if next_or_entry_line:
+        if next_items:
+            sections.append({"kind": "next", "canonical_text": next_or_entry_line, "items": next_items})
+        elif entry_points:
+            sections.append({"kind": "entry_point", "canonical_text": next_or_entry_line, "paths": entry_points})
     details_line = _summary_details_line(details_path)
     if details_line:
-        lines.append(details_line)
-    return "\n".join(lines)
+        sections.append({
+            "kind": "details",
+            "canonical_text": details_line,
+            "path": str(details_path or ""),
+            "link_text": "last_execution_summary.md",
+            "markdown_link": details_link,
+        })
+    lines = ["AICTX summary", ""] + [str(section.get("canonical_text") or "") for section in sections]
+    return {
+        "title": "AICTX summary",
+        "sections": sections,
+        "details_path": str(details_path or ""),
+        "canonical_text": "\n".join(lines),
+    }
+
+
+def render_compact_agent_summary(summary: dict[str, Any], *, details_path: str) -> str:
+    payload = build_agent_summary_render_payload(summary, details_path=details_path)
+    return str(payload.get("canonical_text") or "")
 
 
 def _render_details_link(details_path: str) -> str:
@@ -1322,7 +1402,8 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             except ValueError:
                 details_path = resolved_path
     agent_summary["structured"]["polished_summary"] = build_polished_agent_summary(agent_summary["structured"], details_path=details_path)
-    agent_summary_text = render_compact_agent_summary(agent_summary["structured"], details_path=details_path)
+    agent_summary_render_payload = build_agent_summary_render_payload(agent_summary["structured"], details_path=details_path)
+    agent_summary_text = str(agent_summary_render_payload.get("canonical_text") or "")
     returned_agent_summary_text = "" if message_output_muted else agent_summary_text
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     used_packet = bool(prepared.get("last_execution_log", {}).get("used_packet")) if isinstance(prepared.get("last_execution_log"), dict) else False
@@ -1350,6 +1431,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "work_state_updated": work_state_updated,
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": returned_agent_summary_text,
+        "agent_summary_render_payload": agent_summary_render_payload,
         "message_visibility": {
             "mode": message_mode,
             "startup_banner_suppressed": bool(prepared_message_visibility.get("startup_banner_suppressed")),
@@ -1365,12 +1447,16 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "fallback_language": str(prepared.get("preferred_language") or "unknown"),
             "allow_enrichment": False,
             "allow_language_adaptation": True,
+            "allow_semantic_localization": True,
+            "localize_from_structured_fields": True,
             "allow_fact_enrichment": False,
             "allow_structure_changes": False,
             "preserve_facts": True,
+            "preserve_canonical_payload": True,
             "do_not_invent": True,
             "preserve_technical_tokens": True,
-            "instruction": "Append the AICTX final summary in the language currently used with the user. Use agent_summary_text as the canonical compact user-facing source. Translate or adapt labels and human prose only. Preserve facts, structure, file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, and other technical tokens. Do not invent or enrich facts.",
+            "render_payload_field": "agent_summary_render_payload",
+            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, or other technical tokens. Do not invent or enrich facts.",
         },
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),

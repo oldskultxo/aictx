@@ -178,10 +178,15 @@ def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path
     assert runtime_policy["preserve_facts"] is True
     assert startup_policy["render_in_user_language"] is True
     assert startup_policy["allow_language_adaptation"] is True
+    assert startup_policy["allow_semantic_localization"] is True
+    assert startup_policy["localize_from_structured_fields"] is True
     assert startup_policy["allow_fact_enrichment"] is False
     assert startup_policy["allow_structure_changes"] is False
     assert startup_policy["preserve_technical_tokens"] is True
+    assert startup_policy["preserve_canonical_payload"] is True
+    assert startup_policy["render_payload_field"] == "startup_banner_render_payload"
     assert startup_policy["do_not_invent"] is True
+    assert prepared["startup_banner_render_payload"]["header"]["agent_label"]
 
     finalized = finalize_execution(
         prepared,
@@ -197,10 +202,15 @@ def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path
     assert summary_policy["append_to_final_response"] is True
     assert summary_policy["render_in_user_language"] is True
     assert summary_policy["allow_language_adaptation"] is True
+    assert summary_policy["allow_semantic_localization"] is True
+    assert summary_policy["localize_from_structured_fields"] is True
     assert summary_policy["allow_fact_enrichment"] is False
     assert summary_policy["allow_enrichment"] is False
     assert summary_policy["preserve_facts"] is True
+    assert summary_policy["preserve_canonical_payload"] is True
+    assert summary_policy["render_payload_field"] == "agent_summary_render_payload"
     assert summary_policy["do_not_invent"] is True
+    assert finalized["agent_summary_render_payload"]["title"] == "AICTX summary"
 
 
 def test_communication_policy_uses_disabled_template_default():

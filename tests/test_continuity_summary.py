@@ -147,5 +147,8 @@ def test_startup_banner_canonical_english_with_spanish_preferences(tmp_path: Pat
     assert "awake" in prepared["startup_banner_text"]
     assert "despierto" not in prepared["startup_banner_text"]
     assert policy["allow_language_adaptation"] is True
+    assert policy["allow_semantic_localization"] is True
+    assert policy["localize_from_structured_fields"] is True
     assert policy["allow_fact_enrichment"] is False
     assert policy["preserve_technical_tokens"] is True
+    assert prepared["startup_banner_render_payload"]["header"]["canonical_text"].endswith("awake")

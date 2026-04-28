@@ -171,17 +171,24 @@ def _entry_point_is_redundant(row: dict[str, Any], entry_point: str) -> bool:
     return needle in topic.casefold() or needle in progress.casefold()
 
 
-def _active_work_state_line(context: dict[str, Any]) -> str:
+def _active_work_state_payload(context: dict[str, Any]) -> dict[str, str]:
     state = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
     if not state:
-        return ""
+        return {}
     goal = _compact_banner_text(str(state.get("goal") or state.get("task_id") or ""), max_len=96)
     next_action = _compact_banner_text(str(state.get("next_action") or ""), max_len=96)
     if not goal:
+        return {}
+    return {"goal": goal, "next_action": next_action}
+
+
+def _active_work_state_line(context: dict[str, Any]) -> str:
+    payload = _active_work_state_payload(context)
+    if not payload:
         return ""
-    line = f"Active task: {goal}."
-    if next_action:
-        line += f" Next: {next_action}."
+    line = f"Active task: {payload['goal']}."
+    if payload.get("next_action"):
+        line += f" Next: {payload['next_action']}."
     return line
 
 
@@ -205,32 +212,82 @@ def render_continuity_summary(context: dict[str, Any], repo_root: Path) -> str:
     return "\n".join(lines)
 
 
-def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
+def build_startup_banner_render_payload(context: dict[str, Any], repo_root: Path) -> dict[str, Any]:
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     agent_label, session_count = _session_summary_parts(session, repo_root)
     header = _banner_header(agent_label, session_count)
-    work_line = _active_work_state_line(context)
     latest = latest_handoff_record(repo_root)
-    body: list[str] = []
+    lines: list[dict[str, Any]] = []
     if not latest:
-        body.append("No previous handoff to resume.")
+        lines.append({
+            "kind": "no_previous_handoff",
+            "canonical_text": "No previous handoff to resume.",
+            "message": "No previous handoff to resume.",
+        })
     else:
-        body.append(f"Resuming: {_compact_topic(latest)}.")
+        topic = _compact_topic(latest)
+        lines.append({
+            "kind": "resuming",
+            "canonical_text": f"Resuming: {topic}.",
+            "topic": topic,
+        })
         status = str(latest.get("status") or "").strip().lower()
         if status in {"failed", "unresolved", "blocked"}:
-            body.append(f"Blocked: {_compact_blocker(latest)}.")
+            blocker = _compact_blocker(latest)
+            lines.append({
+                "kind": "blocked",
+                "canonical_text": f"Blocked: {blocker}.",
+                "status": status or "blocked",
+                "blocker": blocker,
+            })
         else:
-            body.append(f"Last progress: {_compact_progress(latest)}.")
+            progress = _compact_progress(latest)
+            lines.append({
+                "kind": "last_progress",
+                "canonical_text": f"Last progress: {progress}.",
+                "progress": progress,
+            })
         next_focus = _next_focus(latest)
         if next_focus:
-            body.append(f"Next: {next_focus}")
+            lines.append({
+                "kind": "next",
+                "canonical_text": f"Next: {next_focus}",
+                "items": [next_focus],
+            })
         else:
             entry_point = _entry_point_focus(latest)
             if entry_point and not _entry_point_is_redundant(latest, entry_point):
-                body.append(f"Entry point: {entry_point}")
-    if work_line:
-        body.append(work_line)
-    return header + "\n\n" + "\n".join(body[:4])
+                lines.append({
+                    "kind": "entry_point",
+                    "canonical_text": f"Entry point: {entry_point}",
+                    "paths": [entry_point],
+                })
+    work_payload = _active_work_state_payload(context)
+    if work_payload:
+        work_line = f"Active task: {work_payload['goal']}."
+        if work_payload.get("next_action"):
+            work_line += f" Next: {work_payload['next_action']}."
+        lines.append({
+            "kind": "active_task",
+            "canonical_text": work_line,
+            "goal": work_payload["goal"],
+            "next_action": work_payload.get("next_action", ""),
+        })
+    rendered_lines = lines[:4]
+    return {
+        "header": {
+            "agent_label": agent_label,
+            "session_count": session_count,
+            "canonical_text": header,
+        },
+        "lines": rendered_lines,
+        "canonical_text": header + "\n\n" + "\n".join(str(item.get("canonical_text") or "") for item in rendered_lines),
+    }
+
+
+def render_startup_banner(context: dict[str, Any], repo_root: Path) -> str:
+    payload = build_startup_banner_render_payload(context, repo_root)
+    return str(payload.get("canonical_text") or "")
 
 
 def _summary_next_points(summary: dict[str, Any], *, limit: int = 2) -> list[str]:
@@ -1745,6 +1802,7 @@ def load_continuity_context(
         "recent_work_state": recent_work_state,
         "warnings": warnings,
     }
-    context["startup_banner_text"] = render_startup_banner(context, repo_root)
+    context["startup_banner_render_payload"] = build_startup_banner_render_payload(context, repo_root)
+    context["startup_banner_text"] = str(context["startup_banner_render_payload"].get("canonical_text") or "")
     context["continuity_summary_text"] = render_continuity_summary(context, repo_root)
     return context

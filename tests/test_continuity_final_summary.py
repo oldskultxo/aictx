@@ -68,9 +68,14 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     policy = finalized["agent_summary_policy"]
     assert policy["render_in_user_language"] is True
     assert policy["allow_language_adaptation"] is True
+    assert policy["allow_semantic_localization"] is True
+    assert policy["localize_from_structured_fields"] is True
     assert policy["allow_fact_enrichment"] is False
     assert policy["preserve_facts"] is True
+    assert policy["preserve_canonical_payload"] is True
+    assert policy["render_payload_field"] == "agent_summary_render_payload"
     assert policy["do_not_invent"] is True
+    assert finalized["agent_summary_render_payload"]["sections"][0]["kind"] == "context"
     detailed_path = repo / ".aictx" / "continuity" / "last_execution_summary.md"
     assert detailed_path.exists()
     detailed = detailed_path.read_text(encoding="utf-8")
