@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from . import core_runtime
+from ._version import __version__
 from .adapters import install_global_adapters
 from .area_memory import derive_area_id
 from .agent_runtime import (
@@ -1017,7 +1018,7 @@ def should_render_banner(argv: list[str], stdout_is_tty: bool) -> bool:
     effective = argv
     if "--" in effective:
         effective = effective[: effective.index("--")]
-    suppressed_flags = {"--json", "--quiet", "-q", "-h", "--help"}
+    suppressed_flags = {"--json", "--quiet", "-q", "-h", "--help", "-v", "--version"}
     return not any(flag in effective for flag in suppressed_flags)
 
 
@@ -1030,6 +1031,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
     sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,suggest,reflect,reuse,task,next,messages,map,report,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
@@ -1362,3 +1364,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

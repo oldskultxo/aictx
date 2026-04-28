@@ -74,7 +74,10 @@ From inside the repository, the normal setup is:
 pip install aictx
 aictx install
 aictx init
+aictx --version
 ```
+
+`aictx --version` prints the installed CLI version so you can verify which AICTX release is active.
 
 `aictx init --repo .` is the explicit form and is useful in scripts, CI, documentation, or when running from outside the target repository. When you are already inside the repo, `aictx init` is the simplest path.
 

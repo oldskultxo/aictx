@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from aictx._version import __version__
 from aictx.cli import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,6 +92,26 @@ def test_deprecated_wrappers_exit_with_clear_message():
         output = result.stdout + result.stderr
         assert result.returncode == 2, (rel_path, output)
         assert "deprecated" in output.lower()
+
+
+def test_public_cli_version_flags_work_without_side_effects(tmp_path: Path):
+    env = _env()
+    env["PYTHONPATH"] = str(ROOT / "src")
+    for flag in ["--version", "-v"]:
+        result = subprocess.run(
+            [sys.executable, "-m", "aictx.cli", flag],
+            cwd=tmp_path,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        assert result.returncode == 0, (flag, result.stdout, result.stderr)
+        assert result.stdout == f"aictx {__version__}\n"
+        assert result.stderr == ""
+        assert not (tmp_path / ".aictx").exists()
+
 
 
 def test_public_cli_help_surface_is_stable_and_hides_internal_commands():

@@ -31,7 +31,10 @@ From inside the target repository:
 pip install aictx
 aictx install
 aictx init
+aictx --version
 ```
+
+Use `aictx --version` to verify the installed CLI version.
 
 Equivalent explicit repo form:
 

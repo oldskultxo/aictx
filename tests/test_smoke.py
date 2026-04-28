@@ -1283,6 +1283,8 @@ def test_cli_main_help_shows_simple_surface_only():
     assert "workspace" not in help_text
     assert "boot" not in help_text
     assert "memory-graph" not in help_text
+    assert "--version" in help_text
+    assert "-v" in help_text
 
 
 def test_should_render_banner_defaults_to_tty_when_not_suppressed():
