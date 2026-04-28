@@ -20,6 +20,7 @@ from .continuity import (
     write_last_execution_summary,
 )
 from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
+from .messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, messages_muted
 from .runtime_capture import SIGNAL_FIELDS, build_capture, normalize_error_events
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
 from .runtime_io import slugify
@@ -404,6 +405,8 @@ def load_bootstrap_sources(repo_root: Path) -> dict[str, Any]:
 def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     envelope = build_execution_envelope(payload)
     repo_root = Path(envelope["repo_root"])
+    message_output_muted = messages_muted(repo_root)
+    message_mode = MESSAGE_MODE_MUTED if message_output_muted else MESSAGE_MODE_UNMUTED
     boot_sources = load_bootstrap_sources(repo_root)
     adapter_profile = resolve_adapter_profile(envelope.get("adapter_id"), envelope.get("agent_id"), repo_root=repo_root)
     execution = classify_execution(envelope)
@@ -488,6 +491,9 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     banner_already_shown = bool(session_id and str(session.get("banner_shown_session_id") or "") == session_id)
     startup_banner_text = "" if banner_already_shown else (banner_text or _fallback_startup_banner_text(repo_root, session))
     banner_required = bool(startup_banner_text)
+    if message_output_muted:
+        startup_banner_text = ""
+        banner_required = False
     packet: dict[str, Any] = {}
     packet_path = ""
     if should_prepare_packet(envelope["user_request"], envelope["execution_mode"], task_resolution["task_type"]):
@@ -561,7 +567,13 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
             "allow_enrichment": False,
             "preserve_facts": True,
             "do_not_invent": True,
+            "muted": message_output_muted,
             "instruction": "On the first execution of each visible session, always render this startup banner exactly as provided at the start of the first user-visible response. If first-session text is unavailable, render '{agent_label} (session #{session_count}) - awake' from the prepared identity fields. Do not render it again after already_shown is true.",
+        },
+        "message_visibility": {
+            "mode": message_mode,
+            "startup_banner_suppressed": message_output_muted,
+            "agent_summary_suppressed": message_output_muted,
         },
         "continuity_summary_text": str(continuity_context.get("continuity_summary_text") or ""),
         "runtime_text_policy": {
@@ -1244,6 +1256,9 @@ def build_agent_summary(
 
 def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     repo_root = Path(str(prepared.get("envelope", {}).get("repo_root") or ".")).resolve()
+    prepared_message_visibility = prepared.get("message_visibility") if isinstance(prepared.get("message_visibility"), dict) else {}
+    message_mode = str(prepared_message_visibility.get("mode") or MESSAGE_MODE_UNMUTED)
+    message_output_muted = message_mode == MESSAGE_MODE_MUTED
     startup_banner_policy = prepared.get("startup_banner_policy") if isinstance(prepared.get("startup_banner_policy"), dict) else {}
     if prepared.get("startup_banner_text") and not startup_banner_policy.get("already_shown"):
         context = prepared.get("continuity_context") if isinstance(prepared.get("continuity_context"), dict) else {}
@@ -1331,6 +1346,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             except ValueError:
                 details_path = resolved_path
     agent_summary_text = render_compact_agent_summary(agent_summary["structured"], details_path=details_path)
+    returned_agent_summary_text = "" if message_output_muted else agent_summary_text
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     used_packet = bool(prepared.get("last_execution_log", {}).get("used_packet")) if isinstance(prepared.get("last_execution_log"), dict) else False
     return {
@@ -1356,7 +1372,12 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "continuity_metrics_persisted": continuity_metrics,
         "work_state_updated": work_state_updated,
         "agent_summary": agent_summary["structured"],
-        "agent_summary_text": agent_summary_text,
+        "agent_summary_text": returned_agent_summary_text,
+        "message_visibility": {
+            "mode": message_mode,
+            "startup_banner_suppressed": bool(prepared_message_visibility.get("startup_banner_suppressed")),
+            "agent_summary_suppressed": message_output_muted,
+        },
         "continuity_value": agent_summary["structured"].get("continuity_value", {}),
         "reuse_confidence": agent_summary["structured"].get("reuse_confidence", "low"),
         "capture_quality": agent_summary["structured"].get("capture_quality", {}),

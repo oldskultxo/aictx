@@ -40,6 +40,9 @@ aictx suggest
 aictx reflect
 aictx reuse
 aictx next
+aictx messages status
+aictx messages mute
+aictx messages unmute
 aictx task start "Fix login token refresh"
 aictx task status --json
 aictx task list --json
@@ -55,6 +58,20 @@ aictx report real-usage
 aictx clean --repo .
 aictx uninstall
 ```
+
+---
+
+## Message controls
+
+AICTX is unmuted by default.
+
+```bash
+aictx messages status
+aictx messages mute
+aictx messages unmute
+```
+
+Muted mode suppresses AICTX’s automatic startup banner and execution summary. It does not disable AICTX, memory, telemetry, errors, or explicit command output.
 
 ---
 

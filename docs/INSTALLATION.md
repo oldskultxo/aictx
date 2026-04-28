@@ -323,6 +323,8 @@ The agent must cooperate with the runtime contract for best results.
 
 Use your coding agent normally.
 
+AICTX is unmuted by default after init. Use `aictx messages mute` if you want to suppress automatic startup and summary messages.
+
 Manual inspection commands:
 
 ```bash

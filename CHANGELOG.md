@@ -4,6 +4,9 @@
 
 ### Added
 - Added opt-in git-portable continuity using an AICTX-managed `.gitignore` block and `.aictx/continuity/portability.json` without duplicating canonical artifacts.
+- Added `aictx messages mute`.
+- Added `aictx messages unmute`.
+- Added `aictx messages status`.
 
 ## 4.5.3 - 2026-04-28
 
