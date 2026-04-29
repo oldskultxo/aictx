@@ -26,6 +26,7 @@ from .messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, messages_muted
 from .runtime_capture import SIGNAL_FIELDS, build_capture, normalize_error_events
 from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
 from .runtime_io import slugify
+from .runtime_compact import evaluate_maintenance_notice
 from .runtime_memory import rank_records
 from .runtime_tasks import resolve_observed_task_type, resolve_task_type
 from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, mark_startup_banner_shown, read_json, touch_session_identity, write_json
@@ -1078,6 +1079,16 @@ def build_agent_summary_render_payload(summary: dict[str, Any], *, details_path:
     saved_line = _summary_saved_line(summary)
     if saved_line:
         sections.append({"kind": "saved", "canonical_text": saved_line, "items": saved_items})
+    maintenance_line = _summary_maintenance_line(summary)
+    if maintenance_line:
+        maintenance = summary.get("maintenance_notice") if isinstance(summary.get("maintenance_notice"), dict) else {}
+        sections.append({
+            "kind": "maintenance",
+            "canonical_text": maintenance_line,
+            "severity": str(maintenance.get("severity") or ""),
+            "command": str(maintenance.get("command") or ""),
+            "reason": str(maintenance.get("reason") or ""),
+        })
     next_or_entry_line = _summary_next_or_entry_line(summary)
     if next_or_entry_line:
         if next_items:
@@ -1226,6 +1237,13 @@ def _summary_details_line(details_path: str) -> str:
     return f"Details: {link}" if link else ""
 
 
+def _summary_maintenance_line(summary: dict[str, Any]) -> str:
+    maintenance = summary.get("maintenance_notice") if isinstance(summary.get("maintenance_notice"), dict) else {}
+    if not maintenance.get("active"):
+        return ""
+    return str(maintenance.get("message") or "").strip()
+
+
 def build_polished_agent_summary(summary: dict[str, Any], *, details_path: str) -> dict[str, Any]:
     next_or_entry = _summary_next_or_entry_line(summary)
     kind = ""
@@ -1240,6 +1258,7 @@ def build_polished_agent_summary(summary: dict[str, Any], *, details_path: str) 
         "context": _summary_context_line(summary).removeprefix("Context: ").removesuffix("."),
         "map": _summary_map_line(summary).removeprefix("Map: ").removesuffix("."),
         "saved": _summary_saved_line(summary).removeprefix("Saved: ").removesuffix("."),
+        "maintenance": _summary_maintenance_line(summary).removeprefix("Maintenance: ").removesuffix("."),
         "next": {"kind": kind, "value": value},
         "details_path": str(details_path or "").strip(),
     }
@@ -1316,6 +1335,7 @@ def build_agent_summary(
         "repo_map_status": dict(prepared.get("repo_map_status", {})) if isinstance(prepared.get("repo_map_status"), dict) else {},
         "work_state_updated": dict(prepared.get("work_state_updated", {})) if isinstance(prepared.get("work_state_updated"), dict) else {},
         "active_work_state": dict(continuity.get("active_work_state", {})) if isinstance(continuity.get("active_work_state"), dict) else {},
+        "maintenance_notice": dict(prepared.get("maintenance_notice", {})) if isinstance(prepared.get("maintenance_notice"), dict) else {},
     }
     return {"structured": summary, "rendered": render_agent_summary(summary)}
 
@@ -1393,6 +1413,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "fields": fields,
         }
     prepared["work_state_updated"] = work_state_updated
+    prepared["maintenance_notice"] = evaluate_maintenance_notice(repo_root)
     agent_summary = build_agent_summary(
         prepared,
         learning,

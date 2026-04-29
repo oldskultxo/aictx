@@ -966,6 +966,7 @@ def refresh_staleness(
     now: datetime | None = None,
     handoff_max_age_days: int = 14,
     subsystem_max_age_days: int = 60,
+    persist: bool = True,
 ) -> dict[str, Any]:
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:
@@ -1047,7 +1048,8 @@ def refresh_staleness(
             strategy_rows.append({"task_id": task_id, "stale": True, "reasons": ["all_paths_missing:" + ",".join(missing[:5])]})
     report["strategies"] = strategy_rows
 
-    write_json(repo_root / STALENESS_PATH, report)
+    if persist:
+        write_json(repo_root / STALENESS_PATH, report)
     return {"path": (repo_root / STALENESS_PATH).as_posix(), "staleness": report}
 
 

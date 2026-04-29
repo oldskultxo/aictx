@@ -1039,8 +1039,8 @@ def detect_stale_records() -> dict[str, Any]:
 
 
 def compact_records(apply: bool = False) -> dict[str, Any]:
-    from .runtime_tasks import compact_records as _impl
-    return _impl(apply=apply)
+    from .runtime_compact import compact_repo_records as _impl
+    return _impl(BASE, apply=apply)
 
 
 def append_if_missing(path: Path, line: str) -> None:

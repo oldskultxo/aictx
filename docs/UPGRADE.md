@@ -2,7 +2,7 @@
 
 ## Current line: 4.7.x
 
-Current documented runtime: `4.7.0`.
+Current documented runtime: `4.7.1`.
 
 For users already on recent `4.x`, there is no special manual migration command. Re-run normal setup when needed:
 
@@ -27,6 +27,7 @@ Changed:
 
 Fixed:
 - Restored compatibility for legacy `task` and `agent` aliases in execution middleware flows.
+- Introduce a new runtime_compact module to plan and perform compaction of repo runtime artifacts.
 
 No manual migration is expected.
 

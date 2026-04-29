@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.7.1 - 2026-04-29
+
+### Fixed
+- Introduce a new runtime_compact module to plan and perform compaction of repo runtime artifacts.
+- Implements dry-run vs apply modes.
+- Wire CLI: add internal compact command (--repo, --apply) and a cli_compact entrypoint.
+- Surface maintenance notices in middleware and agent summaries
+- Improve report.read_jsonl to skip invalid JSON lines. 
+
 ## 4.7.0 - 2026-04-29
 
 ### Added

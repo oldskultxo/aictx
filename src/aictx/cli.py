@@ -24,6 +24,7 @@ from .portability import detect_portable_continuity_from_gitignore, load_portabi
 from .continuity import load_continuity_context, render_next_text
 from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from .runtime_launcher import cli_run_execution
+from .runtime_compact import compact_repo_records
 from .runtime_versioning import compat_version_payload
 from .scaffold import TEMPLATES_DIR, ensure_repomap_scaffold, ensure_repo_user_preferences, init_repo_scaffold
 from .report import build_real_usage_report
@@ -597,6 +598,13 @@ def cmd_reflect(args: argparse.Namespace) -> int:
         "reason": reason,
     }
     print(__import__("json").dumps(payload, ensure_ascii=False))
+    return 0
+
+
+def cli_compact(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = compact_repo_records(repo, apply=bool(getattr(args, "apply", False)))
+    print(json.dumps(payload, ensure_ascii=False))
     return 0
 
 
@@ -1231,8 +1239,9 @@ def build_parser() -> argparse.ArgumentParser:
     stale.set_defaults(func=core_runtime.cli_stale)
 
     compact = internal_sub.add_parser("compact", help=argparse.SUPPRESS)
-    compact.add_argument("--apply", action="store_true", help="Reserved for future non-dry-run compaction.")
-    compact.set_defaults(func=core_runtime.cli_compact)
+    compact.add_argument("--repo", default=".", help="Repository root.")
+    compact.add_argument("--apply", action="store_true", help="Apply the compaction plan. Without this flag, compact runs as dry-run.")
+    compact.set_defaults(func=cli_compact)
 
     gitignore = internal_sub.add_parser("ensure-gitignore", help=argparse.SUPPRESS)
     gitignore.add_argument("--repo", required=True, help="Repository root to update.")

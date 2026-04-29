@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from aictx.continuity import AICTX_TEXT_SEPARATOR
 from aictx.middleware import finalize_execution, prepare_execution
+from aictx import runtime_compact
 from aictx.scaffold import init_repo_scaffold
 from aictx.work_state import start_work_state
 
@@ -165,3 +168,80 @@ def test_final_summary_omits_map_when_not_used(tmp_path: Path):
     )
 
     assert "Map:" not in finalized["agent_summary_text"]
+
+
+def test_final_summary_uses_live_bytes_for_maintenance_warning_and_payload(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    monkeypatch.setattr(runtime_compact, "_now", lambda: datetime(2026, 4, 29, 10, 0, tzinfo=timezone.utc))
+    baseline_notice = runtime_compact.evaluate_maintenance_notice(repo, update_status=False)
+    baseline_live_bytes = int(baseline_notice["live_bytes"])
+    monkeypatch.setattr(runtime_compact, "MAINTENANCE_WARNING_THRESHOLD_BYTES", baseline_live_bytes + 64 * 1024)
+    monkeypatch.setattr(runtime_compact, "MAINTENANCE_STRONG_THRESHOLD_BYTES", baseline_live_bytes + 128 * 1024)
+
+    (repo / ".aictx" / "archive" / "big.bin").parent.mkdir(parents=True, exist_ok=True)
+    (repo / ".aictx" / "archive" / "big.bin").write_bytes(b"x" * (128 * 1024))
+    archive_only = finalize_execution(
+        prepare_execution(_payload(repo, "exec-summary-maintenance-archive-only")),
+        {"success": True, "result_summary": "Done.", "validated_learning": False},
+    )
+    assert "Maintenance:" not in archive_only["agent_summary_text"]
+    archive_notice = archive_only["agent_summary"]["maintenance_notice"]
+    assert archive_notice["live_bytes"] < runtime_compact.MAINTENANCE_WARNING_THRESHOLD_BYTES
+    assert archive_notice["archive_bytes"] >= 128 * 1024
+    assert archive_notice["total_bytes"] == archive_notice["live_bytes"] + archive_notice["archive_bytes"]
+
+    (repo / ".aictx" / "big-live.bin").write_bytes(b"x" * (96 * 1024))
+    monkeypatch.setattr(runtime_compact, "_now", lambda: datetime(2026, 5, 3, 10, 0, tzinfo=timezone.utc))
+    prepared = prepare_execution(_payload(repo, "exec-summary-maintenance-live"))
+    finalized = finalize_execution(
+        prepared,
+        {"success": True, "result_summary": "Done.", "validated_learning": False},
+    )
+
+    text = finalized["agent_summary_text"]
+    assert "Maintenance: .aictx live history high (" in text
+    assert "Recommend: aictx internal compact --repo ." in text
+    assert any(section["kind"] == "maintenance" for section in finalized["agent_summary_render_payload"]["sections"])
+    notice = finalized["agent_summary"]["maintenance_notice"]
+    assert notice["live_bytes"] >= baseline_live_bytes + 64 * 1024
+    assert notice["archive_bytes"] >= 128 * 1024
+    assert notice["total_bytes"] == notice["live_bytes"] + notice["archive_bytes"]
+    assert notice["live_size_display"].endswith("MB")
+    assert notice["archive_size_display"].endswith("MB")
+    status = json.loads((repo / ".aictx" / "metrics" / "maintenance_status.json").read_text(encoding="utf-8"))
+    assert status["last_warning_reason"] == "aictx_size_high"
+
+
+def test_final_summary_omits_maintenance_warning_below_threshold_and_during_cooldown(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / ".aictx" / "blob.bin").write_bytes(b"x" * 2048)
+    monkeypatch.setattr(runtime_compact, "MAINTENANCE_WARNING_THRESHOLD_BYTES", 1024)
+    monkeypatch.setattr(runtime_compact, "MAINTENANCE_STRONG_THRESHOLD_BYTES", 4096)
+
+    first_now = datetime(2026, 4, 29, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(runtime_compact, "_now", lambda: first_now)
+    first = finalize_execution(
+        prepare_execution(_payload(repo, "exec-summary-maintenance-first")),
+        {"success": True, "result_summary": "Done.", "validated_learning": False},
+    )
+    assert "Maintenance: .aictx live history high (" in first["agent_summary_text"]
+
+    second_now = datetime(2026, 4, 30, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(runtime_compact, "_now", lambda: second_now)
+    second = finalize_execution(
+        prepare_execution(_payload(repo, "exec-summary-maintenance-second")),
+        {"success": True, "result_summary": "Done again.", "validated_learning": False},
+    )
+    assert "Maintenance:" not in second["agent_summary_text"]
+
+    small_repo = tmp_path / "small-repo"
+    init_repo_scaffold(small_repo, update_gitignore=False)
+    monkeypatch.setattr(runtime_compact, "MAINTENANCE_WARNING_THRESHOLD_BYTES", 10 * 1024 * 1024)
+    monkeypatch.setattr(runtime_compact, "MAINTENANCE_STRONG_THRESHOLD_BYTES", 20 * 1024 * 1024)
+    third = finalize_execution(
+        prepare_execution(_payload(small_repo, "exec-summary-maintenance-small")),
+        {"success": True, "result_summary": "Small.", "validated_learning": False},
+    )
+    assert "Maintenance:" not in third["agent_summary_text"]

@@ -27,7 +27,12 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
         line = line.strip()
         if not line:
             continue
-        rows.append(json.loads(line))
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            rows.append(payload)
     return rows
 
 
