@@ -116,10 +116,18 @@ def test_public_cli_version_flags_work_without_side_effects(tmp_path: Path):
 
 def test_public_cli_help_surface_is_stable_and_hides_internal_commands():
     help_text = build_parser().format_help()
-    for command in ["install", "init", "suggest", "reflect", "reuse", "report", "clean", "uninstall"]:
+    for command in ["install", "init", "resume", "advanced", "clean", "uninstall"]:
         assert command in help_text
     help_lines = help_text.splitlines()
     for hidden in [
+        "suggest",
+        "reflect",
+        "reuse",
+        "report",
+        "next",
+        "task",
+        "messages",
+        "map",
         "internal",
         "boot",
         "packet",

@@ -46,6 +46,8 @@ These remain ignored even when portability is enabled:
 .aictx/continuity/continuity_metrics.json
 .aictx/continuity/dedupe_report.json
 .aictx/continuity/staleness.json
+.aictx/continuity/resume_capsule.md
+.aictx/continuity/resume_capsule.json
 .aictx/repo_map/index.json
 .aictx/repo_map/manifest.json
 .aictx/repo_map/status.json

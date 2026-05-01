@@ -13,6 +13,7 @@ from .state import (
     append_jsonl,
     read_json,
     read_jsonl,
+    touch_session_identity,
     write_json,
 )
 from .strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
@@ -1840,6 +1841,25 @@ def _resume_entry(path: str, reason: str) -> dict[str, str]:
     return {"path": str(path or "").strip(), "reason": str(reason or "").strip() or "relevant continuity signal"}
 
 
+def _resume_is_action_path(path: str) -> bool:
+    normalized = str(path or "").strip().replace("\\", "/")
+    return bool(normalized) and normalized != ".aictx" and not normalized.startswith(".aictx/")
+
+
+def _resume_clean_entries(entries: list[dict[str, str]], *, limit: int) -> list[dict[str, str]]:
+    cleaned: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for entry in entries:
+        path = str(entry.get("path") or "").strip()
+        if not _resume_is_action_path(path) or path in seen:
+            continue
+        cleaned.append(entry)
+        seen.add(path)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
 def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, limit: int) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
     warnings: list[str] = []
     ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
@@ -1866,15 +1886,16 @@ def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, li
     seen: set[str] = set()
     for candidate in candidates:
         path = candidate["path"]
-        if not path or path in seen:
+        if not _resume_is_action_path(path) or path in seen:
             continue
         seen.add(path)
         if _path_exists(repo_root, path):
             live.append(candidate)
         else:
-            fallback.append(candidate)
             if "previous handoff" in candidate["reason"]:
                 warnings.append(f"missing_entry_point:{path}")
+                continue
+            fallback.append(candidate)
         if len(live) >= limit and len(fallback) >= limit:
             break
     return live[:limit], fallback[:limit], _clean_string_list(warnings, limit=5)
@@ -1888,11 +1909,13 @@ def _resume_repo_map_slice(context: dict[str, Any], *, limit: int) -> dict[str, 
     for index, item in enumerate(repo_items[: max(limit, 1)]):
         reason = ", ".join(_clean_string_list(item.get("reasons"), limit=3)) or "RepoMap match"
         for path in _clean_string_list(item.get("paths"), limit=2):
+            if not _resume_is_action_path(path):
+                continue
             target = primary if index == 0 else secondary
             target.append(_resume_entry(path, reason))
     return {
-        "primary": primary[:1],
-        "secondary": secondary[: max(0, limit - 1)],
+        "primary": _resume_clean_entries(primary, limit=1),
+        "secondary": _resume_clean_entries(secondary, limit=max(0, limit - 1)),
         "avoid": [],
     }
 
@@ -1944,9 +1967,18 @@ def _resume_strategy_text(strategy: dict[str, Any]) -> str:
         return "None relevant"
     confidence = strategy_reuse_confidence(strategy)
     reason = str(strategy.get("selection_reason") or "").strip()
-    points = _clean_string_list(strategy.get("entry_points"), limit=2) or _clean_string_list(strategy.get("files_used"), limit=2)
-    suffix = f" Use {', '.join(points)}." if points else ""
-    return f"Reuse confidence {confidence}. {reason or 'Prior successful strategy matched.'}{suffix}".strip()
+    points = _resume_clean_entries(
+        [_resume_entry(path, "strategy path") for path in (
+            _clean_string_list(strategy.get("entry_points"), limit=4)
+            + _clean_string_list(strategy.get("files_used"), limit=4)
+            + _clean_string_list(strategy.get("tests_executed"), limit=4)
+        )],
+        limit=3,
+    )
+    starting = ", ".join(entry["path"] for entry in points)
+    if starting:
+        return f"Start from {starting}; matched prior successful work ({confidence} confidence: {reason or 'strategy reuse'})."
+    return f"Reuse confidence {confidence}. {reason or 'Prior successful strategy matched.'}".strip()
 
 
 def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = False) -> str:
@@ -2041,10 +2073,32 @@ def _resume_with_budget(payload: dict[str, Any], *, full: bool, max_chars: int) 
     return rendered[:max_chars].rstrip() + "\n", compact
 
 
-def build_resume_capsule(repo_root: Path, request_text: str = "", *, full: bool = False, task_type: str = "") -> dict[str, Any]:
+def build_resume_capsule(
+    repo_root: Path,
+    request_text: str = "",
+    *,
+    full: bool = False,
+    task_type: str = "",
+    agent_id: str = "generic",
+    adapter_id: str = "",
+    session_id: str = "",
+) -> dict[str, Any]:
     repo_root = Path(repo_root).expanduser().resolve()
     request = str(request_text or "").strip()
-    context = load_continuity_context(repo_root, request_text=request, task_type=task_type, max_decisions=8 if full else 5, max_failures=8 if full else 5)
+    session_identity = touch_session_identity(
+        repo_root,
+        agent_id=agent_id,
+        adapter_id=adapter_id or agent_id,
+        session_id=session_id,
+    )
+    context = load_continuity_context(
+        repo_root,
+        session_identity=session_identity,
+        request_text=request,
+        task_type=task_type,
+        max_decisions=8 if full else 5,
+        max_failures=8 if full else 5,
+    )
     limit = 8 if full else 4
     entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit)
     repo_map = _resume_repo_map_slice(context, limit=limit)
@@ -2067,11 +2121,15 @@ def build_resume_capsule(repo_root: Path, request_text: str = "", *, full: bool 
 
     last_progress = "; ".join(_clean_string_list(handoff.get("completed"), limit=3)) or str(handoff.get("summary") or "").strip()
     next_action = str(active.get("next_action") or recent.get("next_action") or "").strip()
-    if not next_action:
+    if not next_action and not (task_state["status"] == "completed" and request):
         next_action = _clean_string_list(handoff.get("next_steps"), limit=1)[0] if _clean_string_list(handoff.get("next_steps"), limit=1) else ""
-    if not next_action:
+    if not next_action and task_state["status"] == "completed" and request and entry_points:
+        next_action = f"Use current request; start from {entry_points[0]['path']}"
+    if not next_action and not (task_state["status"] == "completed" and request):
         where = _clean_string_list(brief.get("where_to_continue"), limit=1)
-        next_action = where[0] if where else ""
+        next_action = where[0] if where and _resume_is_action_path(where[0]) else ""
+    if not next_action and task_state["status"] == "completed" and request:
+        next_action = "Use the current request; previous task is background."
 
     validated = _clean_string_list(
         list(active.get("verified", []) or [])
@@ -2105,13 +2163,30 @@ def build_resume_capsule(repo_root: Path, request_text: str = "", *, full: bool 
         "last_execution_summary": _resume_source(LAST_EXECUTION_SUMMARY_PATH, repo_root),
         "work_state": ".aictx/tasks/active.json" if active else "",
         "repo_map": _resume_source(Path(".aictx/repo_map/index.json"), repo_root),
+        "startup_banner": "load_continuity_context.startup_banner_text",
+        "final_summary": "finalize_execution.agent_summary_text",
     }
+    session = context.get("session") if isinstance(context.get("session"), dict) else {}
+    session_key = str(session.get("session_id") or "")
+    banner_already_shown = bool(session_key and str(session.get("banner_shown_session_id") or "") == session_key)
+    startup_banner_text = "" if banner_already_shown else str(context.get("startup_banner_text") or "")
+    startup_banner_render_payload = context.get("startup_banner_render_payload") if isinstance(context.get("startup_banner_render_payload"), dict) else {}
     payload: dict[str, Any] = {
         "schema_version": "1.0",
         "generated_at": _now_iso(),
         "mode": "agent_brief",
         "repo": repo_root.as_posix(),
         "request": request,
+        "startup_banner_text": startup_banner_text,
+        "startup_banner_render_payload": startup_banner_render_payload,
+        "startup_banner_policy": {
+            "source": "resume",
+            "show_in_first_user_visible_response": bool(startup_banner_text.strip()),
+            "already_shown": banner_already_shown,
+            "render_payload_field": "startup_banner_render_payload",
+            "data_source": "load_continuity_context",
+            "does_not_replace_prepare_execution": True,
+        },
         "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
         "task_state": task_state,
         "capsule": {

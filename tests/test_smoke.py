@@ -1289,10 +1289,12 @@ def test_cli_main_help_shows_simple_surface_only():
     help_text = parser.format_help()
     assert "install" in help_text
     assert "init" in help_text
-    assert "suggest" in help_text
-    assert "reflect" in help_text
-    assert "reuse" in help_text
-    assert "report" in help_text
+    assert "resume" in help_text
+    assert "advanced" in help_text
+    assert "suggest" not in help_text
+    assert "reflect" not in help_text
+    assert "reuse" not in help_text
+    assert "report" not in help_text
     assert "clean" in help_text
     assert "uninstall" in help_text
     assert "benchmark" not in help_text

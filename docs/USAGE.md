@@ -18,11 +18,36 @@ aictx init
 
 Then keep using the coding agent.
 
+At normal task startup, supported agents should use one public continuity query:
+
+```bash
+aictx resume --repo . --request "<current user request>"
+```
+
+`resume` compiles Work State, handoffs, last summary, Strategy Memory, Failure Memory, Decisions, and RepoMap into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
+
+The normal startup banner source is `resume.startup_banner_text` or
+`resume.startup_banner_render_payload`. In wrapped execution flows, the source
+remains `prepare_execution().startup_banner_text`.
+
+The final summary source remains `finalize_execution().agent_summary_text`.
+
+For JSON inspection, use a JSON parser:
+
+```bash
+aictx resume --repo . --request "continue current work" --json | python3 -m json.tool
+```
+
+Do not pipe `--json` into `python3 -`; that asks Python to execute JSON as
+Python source, where JSON booleans such as `true` are not valid Python names.
+
 ---
 
 ## Advanced inspection commands
 
 ```bash
+aictx advanced
+aictx resume --repo . --request "continue current work"
 aictx next
 aictx task status --json
 aictx map status
@@ -36,6 +61,8 @@ aictx report real-usage
 ```bash
 aictx install
 aictx init
+aictx resume --repo . --request "continue current work"
+aictx advanced
 aictx suggest
 aictx reflect
 aictx reuse
@@ -92,6 +119,14 @@ Agents/integrations use these to load and update continuity, including handoffs,
 
 The visible startup continuity banner is not the raw boot payload. It is surfaced through prepare/startup continuity as `startup_banner_text`.
 
+The normal agent-facing continuity query is not `internal boot`; it is:
+
+```bash
+aictx resume --repo . --request "<current user request>"
+```
+
+Normal agents should not inspect `.aictx/` or run exploratory AICTX commands at startup. Advanced commands remain available for diagnostics, demos, and explicit user requests.
+
 See [Handoffs and Decisions](HANDOFFS.md) for the continuity artifacts behind startup context.
 
 ---
@@ -104,6 +139,8 @@ aictx reuse --request "fix startup banner" --json
 ```
 
 These commands expose successful historical execution patterns. See [Strategy Memory](STRATEGY_MEMORY.md).
+
+In normal agent startup, Strategy Memory is consumed through `aictx resume`; agents do not need to call `suggest` or `reuse` first.
 
 ---
 

@@ -467,7 +467,15 @@ def cmd_resume(args: argparse.Namespace) -> int:
     explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
     resolved = resolve_task_type(request, explicit_task_type=explicit_task_type or None, touched_files=[])
     task_type = str(resolved.get("task_type") or explicit_task_type or "")
-    payload = build_resume_capsule(repo, request_text=request, full=bool(getattr(args, "full", False)), task_type=task_type)
+    payload = build_resume_capsule(
+        repo,
+        request_text=request,
+        full=bool(getattr(args, "full", False)),
+        task_type=task_type,
+        agent_id=str(getattr(args, "agent_id", "") or "generic"),
+        adapter_id=str(getattr(args, "adapter_id", "") or ""),
+        session_id=str(getattr(args, "session_id", "") or ""),
+    )
     if bool(getattr(args, "json", False)):
         _print_json(payload)
     else:
@@ -492,6 +500,7 @@ def cmd_advanced(args: argparse.Namespace) -> int:
                 "- messages: automatic runtime message visibility",
                 "- map: RepoMap operations",
                 "- report: real runtime usage reports",
+                "- reflect: exploration pattern diagnostics",
                 "- internal: internal runtime/building-block commands",
             ]
         )
@@ -1078,7 +1087,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,advanced,suggest,reflect,reuse,task,next,messages,map,report,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,advanced,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1106,6 +1115,9 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--json", action="store_true", help="Print structured continuity capsule JSON")
     resume.add_argument("--full", action="store_true", help="Include a larger continuity capsule")
     resume.add_argument("--task-type", default="", help="Optional task type override")
+    resume.add_argument("--agent-id", default="generic", help=argparse.SUPPRESS)
+    resume.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
+    resume.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     resume.set_defaults(func=cmd_resume)
 
     advanced = sub.add_parser(
@@ -1115,11 +1127,12 @@ def build_parser() -> argparse.ArgumentParser:
             "Advanced/diagnostic/building-block commands. Normal agents should use "
             'aictx resume --repo . --request "<current user request>" at startup.'
         ),
-        epilog="Commands: suggest, reuse, next, task, messages, map, report, internal.",
+        epilog="Commands: suggest, reuse, next, task, messages, map, report, reflect, internal.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     advanced.set_defaults(func=cmd_advanced)
 
-    suggest = sub.add_parser("suggest", help="Advanced: get deterministic next-step guidance from strategy memory")
+    suggest = sub.add_parser("suggest", help=argparse.SUPPRESS)
     suggest.add_argument("--repo", default=".", help="Repository root")
     suggest.add_argument("--task-type", default="", help="Optional task type filter")
     suggest.add_argument("--request", default="", help="Optional request text for contextual ranking")
@@ -1129,11 +1142,11 @@ def build_parser() -> argparse.ArgumentParser:
     suggest.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     suggest.set_defaults(func=cmd_suggest)
 
-    reflect = sub.add_parser("reflect", help="Advanced: reflect on recent exploration patterns from real execution logs")
+    reflect = sub.add_parser("reflect", help=argparse.SUPPRESS)
     reflect.add_argument("--repo", default=".", help="Repository root")
     reflect.set_defaults(func=cmd_reflect)
 
-    reuse = sub.add_parser("reuse", help="Advanced: return the latest reusable successful strategy")
+    reuse = sub.add_parser("reuse", help=argparse.SUPPRESS)
     reuse.add_argument("--repo", default=".", help="Repository root")
     reuse.add_argument("--task-type", default="", help="Optional task type filter")
     reuse.add_argument("--request", default="", help="Optional request text for contextual ranking")
@@ -1143,7 +1156,7 @@ def build_parser() -> argparse.ArgumentParser:
     reuse.add_argument("--notable-errors", nargs="*", default=[], help="Optional notable errors observed")
     reuse.set_defaults(func=cmd_reuse)
 
-    task_cmd = sub.add_parser("task", help="Advanced: manage repo-local work state")
+    task_cmd = sub.add_parser("task", help=argparse.SUPPRESS)
     task_sub = task_cmd.add_subparsers(dest="task_command", required=True)
 
     task_start = task_sub.add_parser("start", help="Start a repo-local active task")
@@ -1194,7 +1207,7 @@ def build_parser() -> argparse.ArgumentParser:
     task_close.add_argument("--json", action="store_true", help="Print task state as JSON")
     task_close.set_defaults(func=cmd_task_close)
 
-    next_cmd = sub.add_parser("next", help="Advanced: show compact actionable continuity guidance")
+    next_cmd = sub.add_parser("next", help=argparse.SUPPRESS)
     next_cmd.add_argument("--repo", default=".", help="Repository root")
     next_cmd.add_argument("--request", default="", help="Optional request text for contextual continuity ranking")
     next_cmd.add_argument("--task-type", default="", help="Optional task type filter")
@@ -1205,7 +1218,7 @@ def build_parser() -> argparse.ArgumentParser:
     next_cmd.add_argument("--json", action="store_true", help="Print structured continuity brief JSON")
     next_cmd.set_defaults(func=cmd_next)
 
-    messages = sub.add_parser("messages", help="Advanced: control automatic AICTX runtime message visibility")
+    messages = sub.add_parser("messages", help=argparse.SUPPRESS)
     messages_sub = messages.add_subparsers(dest="messages_command", required=True)
 
     messages_mute = messages_sub.add_parser("mute", help="Suppress automatic startup banner and execution summary")
@@ -1223,7 +1236,7 @@ def build_parser() -> argparse.ArgumentParser:
     messages_status.add_argument("--json", action="store_true", help="Print status as JSON")
     messages_status.set_defaults(func=cmd_messages_status)
 
-    map_cmd = sub.add_parser("map", help="Advanced: RepoMap operations")
+    map_cmd = sub.add_parser("map", help=argparse.SUPPRESS)
     map_sub = map_cmd.add_subparsers(dest="map_command", required=True)
 
     map_status = map_sub.add_parser("status", help="Show RepoMap status")
@@ -1251,7 +1264,7 @@ def build_parser() -> argparse.ArgumentParser:
     uninstall = sub.add_parser("uninstall", help="Remove AICTX content from all registered repos and global config")
     uninstall.set_defaults(func=cmd_uninstall)
 
-    report = sub.add_parser("report", help="Advanced: report real aggregated runtime usage")
+    report = sub.add_parser("report", help=argparse.SUPPRESS)
     report_sub = report.add_subparsers(dest="report_command", required=True)
     report_real_usage = report_sub.add_parser("real-usage", help="Aggregate real execution logs and feedback")
     report_real_usage.add_argument("--repo", default=".", help="Repository root")

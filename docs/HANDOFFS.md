@@ -21,9 +21,12 @@ Handoff = how the previous execution ended.
 Decision = explicit project/architecture fact.
 Semantic repo memory = compact repo-level continuity context.
 Execution Summary = factual latest finalize output.
+Resume capsule = compiled agent-facing startup brief.
 ```
 
 Handoffs are historical continuity. Work State is live operational continuity.
+The resume capsule selects across these sources so agents do not need to inspect
+the raw artifacts at normal startup.
 
 ---
 
@@ -45,7 +48,13 @@ Related continuity artifacts:
 .aictx/continuity/dedupe_report.json
 .aictx/continuity/continuity_metrics.json
 .aictx/continuity/last_execution_summary.md
+.aictx/continuity/resume_capsule.md
+.aictx/continuity/resume_capsule.json
 ```
+
+`resume_capsule.*` files are generated trace artifacts. They are useful for
+debugging and repeatability, but they are local runtime output rather than
+durable portable continuity.
 
 ---
 
