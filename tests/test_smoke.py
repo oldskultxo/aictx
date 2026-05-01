@@ -116,16 +116,16 @@ def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkey
 
 def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     text = render_agent_runtime()
-    assert ".aictx/metrics/execution_logs.jsonl" in text
-    assert ".aictx/metrics/execution_feedback.jsonl" in text
-    assert ".aictx/strategy_memory/strategies.jsonl" in text
+    assert 'aictx resume --repo . --request "<current user request>"' in text
+    assert ".aictx/continuity/resume_capsule.md" in text
+    assert ".aictx/continuity/resume_capsule.json" in text
     assert "unknown" in text
     assert "## Communication mode" in text
     assert "## Execution middleware" in text
     assert "## aictx usage rules" in text
-    assert "aictx suggest --repo ." in text
-    assert "aictx reflect --repo ." in text
-    assert "aictx reuse --repo ." in text
+    assert "Do not inspect `.aictx/`" in text
+    assert "`aictx suggest`" in text
+    assert "`aictx reuse`" in text
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in text
     assert "enabled` or `disabled" in text
     assert "caveman_lite" in text
@@ -1629,7 +1629,7 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert CLAUDE_GITIGNORE_COMMENT in gitignore
     assert CLAUDE_DIR_GITIGNORE_LINE in gitignore
     assert CLAUDE_MD_GITIGNORE_LINE in gitignore
-    assert "aictx suggest --repo ." in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    assert 'aictx resume --repo . --request "<current user request>"' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tmp_path: Path):
@@ -1780,7 +1780,7 @@ def test_install_codex_native_integration_writes_home_override(tmp_path: Path, m
     assert (tmp_path / ".codex" / "config.toml") in created
     instructions = (tmp_path / ".codex" / "AICTX_Codex.md").read_text(encoding="utf-8")
     assert "Use AICTX in every Codex session" in instructions
-    assert "aictx suggest --repo ." in instructions
+    assert 'aictx resume --repo . --request "<current user request>"' in instructions
     text = (tmp_path / ".codex" / "AGENTS.override.md").read_text(encoding="utf-8")
     assert "AICTX Codex integration" in text
     config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
