@@ -1846,6 +1846,58 @@ def _resume_is_action_path(path: str) -> bool:
     return bool(normalized) and normalized != ".aictx" and not normalized.startswith(".aictx/")
 
 
+def _resume_task_bias(*texts: Any) -> str:
+    haystack = " ".join(str(text or "") for text in texts).lower()
+    impl_signals = (
+        "test",
+        "tests",
+        "pytest",
+        "parser",
+        "cli",
+        "fix",
+        "bug",
+        "implement",
+        "validate",
+        "edge case",
+        "coverage",
+        "function",
+        "module",
+    )
+    docs_signals = ("readme", "docs", "documentation", "quickstart", "usage guide", "copy")
+    impl_score = sum(1 for signal in impl_signals if signal in haystack)
+    docs_score = sum(1 for signal in docs_signals if signal in haystack)
+    if impl_score > docs_score:
+        return "implementation"
+    if docs_score > impl_score:
+        return "docs"
+    return "neutral"
+
+
+def _resume_path_priority(path: str, bias: str) -> int:
+    normalized = str(path or "").strip().replace("\\", "/").lower()
+    if not _resume_is_action_path(normalized):
+        return 99
+    if bias == "implementation":
+        if normalized.startswith("tests/") or "/tests/" in f"/{normalized}":
+            return 0
+        if normalized.startswith("src/") or "/src/" in f"/{normalized}":
+            return 1
+        if normalized == "readme.md" or normalized.startswith("docs/") or normalized.startswith(".demo_metrics/"):
+            return 4
+        return 2
+    if bias == "docs":
+        if normalized == "readme.md" or normalized.startswith("docs/"):
+            return 0
+        return 1
+    return 1
+
+
+def _resume_rank_entries(entries: list[dict[str, str]], *, bias: str, limit: int) -> list[dict[str, str]]:
+    indexed = [(index, entry) for index, entry in enumerate(_resume_clean_entries(entries, limit=max(limit * 4, limit)))]
+    indexed.sort(key=lambda row: (_resume_path_priority(row[1].get("path", ""), bias), row[0]))
+    return [entry for _, entry in indexed[:limit]]
+
+
 def _resume_clean_entries(entries: list[dict[str, str]], *, limit: int) -> list[dict[str, str]]:
     cleaned: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -1860,7 +1912,7 @@ def _resume_clean_entries(entries: list[dict[str, str]], *, limit: int) -> list[
     return cleaned
 
 
-def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, limit: int) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
+def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, limit: int, bias: str) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
     warnings: list[str] = []
     ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
     handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
@@ -1898,10 +1950,10 @@ def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, li
             fallback.append(candidate)
         if len(live) >= limit and len(fallback) >= limit:
             break
-    return live[:limit], fallback[:limit], _clean_string_list(warnings, limit=5)
+    return _resume_rank_entries(live, bias=bias, limit=limit), _resume_rank_entries(fallback, bias=bias, limit=limit), _clean_string_list(warnings, limit=5)
 
 
-def _resume_repo_map_slice(context: dict[str, Any], *, limit: int) -> dict[str, list[dict[str, str]]]:
+def _resume_repo_map_slice(context: dict[str, Any], *, limit: int, bias: str) -> dict[str, list[dict[str, str]]]:
     ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
     repo_items = [item for item in ranked if isinstance(item, dict) and str(item.get("kind") or "") == "repo_map"]
     primary: list[dict[str, str]] = []
@@ -1913,10 +1965,58 @@ def _resume_repo_map_slice(context: dict[str, Any], *, limit: int) -> dict[str, 
                 continue
             target = primary if index == 0 else secondary
             target.append(_resume_entry(path, reason))
+    rows = _resume_rank_entries(primary + secondary, bias=bias, limit=limit)
+    return {"primary": rows[:1], "secondary": rows[1:], "avoid": []}
+
+
+def _resume_startup_guard() -> dict[str, Any]:
     return {
-        "primary": _resume_clean_entries(primary, limit=1),
-        "secondary": _resume_clean_entries(secondary, limit=max(0, limit - 1)),
-        "avoid": [],
+        "resume_is_self_contained": True,
+        "do_not_read_runtime_files": True,
+        "do_not_inspect_aictx_installation": True,
+        "allowed_aictx_commands_before_first_task_action": ["resume"],
+        "forbidden_before_first_task_action": [
+            ".aictx/agent_runtime.md",
+            ".aictx/**",
+            "local/global AICTX installation files",
+            "aictx -h",
+            "aictx internal",
+            "aictx reuse",
+            "aictx suggest",
+            "aictx next",
+            "aictx task",
+            "aictx messages",
+            "aictx report",
+            "aictx reflect",
+        ],
+        "exceptions": [
+            "user explicitly asks for AICTX diagnostics",
+            "current task is about AICTX itself",
+            "resume output is missing/corrupt/contradictory",
+            "finalization/update lifecycle requires it",
+        ],
+    }
+
+
+def _resume_first_action(
+    *,
+    entry_points: list[dict[str, str]],
+    fallback_entry_points: list[dict[str, str]],
+    repo_map: dict[str, list[dict[str, str]]],
+) -> dict[str, str]:
+    candidates: list[dict[str, str]] = []
+    candidates.extend(entry_points)
+    candidates.extend(list(repo_map.get("primary") or []))
+    candidates.extend(list(repo_map.get("secondary") or []))
+    candidates.extend(fallback_entry_points)
+    cleaned = _resume_clean_entries(candidates, limit=1)
+    if cleaned:
+        first = cleaned[0]
+        return {"type": "open_file", "path": first["path"], "reason": first["reason"]}
+    return {
+        "type": "inspect_entry_points",
+        "path": "",
+        "reason": "No single high-confidence entry point was available; inspect the listed primary entry points.",
     }
 
 
@@ -1986,6 +2086,7 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     task_state = payload.get("task_state") if isinstance(payload.get("task_state"), dict) else {}
     sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
     written = payload.get("written_files") if isinstance(payload.get("written_files"), dict) else {}
+    first_action = capsule.get("first_action") if isinstance(capsule.get("first_action"), dict) else {}
     startup_banner_text = str(payload.get("startup_banner_text") or "").strip()
     lines = [
         "AICTX continuity capsule",
@@ -1996,6 +2097,32 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
         lines.extend(startup_banner_text.splitlines())
     else:
         lines.append("- None; startup_banner_policy.show_in_first_user_visible_response is false.")
+    lines.extend([
+        "",
+        "Startup rule",
+        "This capsule is the operational brief for this task.",
+        "Do not read `.aictx/agent_runtime.md` during normal startup.",
+        "Do not inspect `.aictx/**`.",
+        "Do not inspect local/global AICTX installation files.",
+        "Do not inspect AICTX source unless the current user task is about AICTX itself.",
+        "Run no further AICTX discovery commands before opening the first action target.",
+        "",
+        "First action",
+    ])
+    if first_action:
+        action_type = str(first_action.get("type") or "inspect_entry_points")
+        action_path = str(first_action.get("path") or "").strip()
+        if action_type == "open_file" and action_path:
+            lines.append(f"Open {action_path}.")
+        elif action_type == "follow_current_request":
+            lines.append("Follow the current user request.")
+        elif action_type == "ask_clarification":
+            lines.append("Ask the user for clarification.")
+        else:
+            lines.append("Inspect the listed primary entry points.")
+        lines.extend(["", "Reason", str(first_action.get("reason") or "No reason provided.")])
+    else:
+        lines.extend(["Inspect the listed primary entry points.", "", "Reason", "No first action was provided."])
     lines.extend([
         "",
         "Current request",
@@ -2109,8 +2236,16 @@ def build_resume_capsule(
         max_failures=8 if full else 5,
     )
     limit = 8 if full else 4
-    entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit)
-    repo_map = _resume_repo_map_slice(context, limit=limit)
+    bias = _resume_task_bias(
+        request,
+        json.dumps(context.get("continuity_brief", {}), sort_keys=True),
+        json.dumps(context.get("handoff", {}), sort_keys=True),
+        json.dumps(context.get("active_work_state", {}), sort_keys=True),
+        json.dumps(context.get("recent_work_state", {}), sort_keys=True),
+        json.dumps(context.get("ranked_items", []), sort_keys=True),
+    )
+    entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit, bias=bias)
+    repo_map = _resume_repo_map_slice(context, limit=limit, bias=bias)
     task_state = _resume_task_state(repo_root, context, request, entry_points, entry_warnings)
 
     active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
@@ -2139,6 +2274,7 @@ def build_resume_capsule(
         next_action = where[0] if where and _resume_is_action_path(where[0]) else ""
     if not next_action and task_state["status"] == "completed" and request:
         next_action = "Use the current request; previous task is background."
+    first_action = _resume_first_action(entry_points=entry_points, fallback_entry_points=fallback_entry_points, repo_map=repo_map)
 
     validated = _clean_string_list(
         list(active.get("verified", []) or [])
@@ -2197,10 +2333,12 @@ def build_resume_capsule(
             "does_not_replace_prepare_execution": True,
             "instruction": "Render this startup banner in the current user language at the top of the first substantive user-visible response. Prefer startup_banner_render_payload when available and use startup_banner_text only as fallback. Preserve exact facts, paths, commands, flags, package names, test names, code identifiers, and link targets. Do not satisfy this requirement only with a transient progress/status message that will be omitted from the final task response; if unsure, preserve the banner at the top of the final response.",
         },
+        "startup_guard": _resume_startup_guard(),
         "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
         "task_state": task_state,
         "capsule": {
             "current_request": request,
+            "first_action": first_action,
             "resuming": resuming,
             "last_progress": last_progress,
             "next_action": next_action,

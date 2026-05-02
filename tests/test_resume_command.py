@@ -60,6 +60,38 @@ def _seed_repomap(repo: Path) -> None:
     )
 
 
+def _seed_parser_fixture(repo: Path) -> None:
+    (repo / "src/taskflow").mkdir(parents=True)
+    (repo / "src/taskflow/parser.py").write_text("def parse_blocked():\n    pass\n", encoding="utf-8")
+    (repo / "tests").mkdir(exist_ok=True)
+    (repo / "tests/test_parser.py").write_text("def test_blocked_edge_cases():\n    pass\n", encoding="utf-8")
+    (repo / "README.md").write_text("# Quickstart\n", encoding="utf-8")
+    write_repomap_config(repo, {"enabled": True})
+    write_repomap_index(
+        repo,
+        {
+            "version": 1,
+            "files": [
+                {
+                    "path": "README.md",
+                    "language": "markdown",
+                    "symbols": [{"name": "Quickstart", "kind": "heading", "line": 1, "language": "markdown"}],
+                },
+                {
+                    "path": "src/taskflow/parser.py",
+                    "language": "python",
+                    "symbols": [{"name": "parse_blocked", "kind": "function", "line": 1, "language": "python"}],
+                },
+                {
+                    "path": "tests/test_parser.py",
+                    "language": "python",
+                    "symbols": [{"name": "test_blocked_edge_cases", "kind": "function", "line": 1, "language": "python"}],
+                },
+            ],
+        },
+    )
+
+
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
@@ -75,6 +107,13 @@ def test_resume_default_markdown_and_budget(tmp_path: Path, capsys):
     output = capsys.readouterr().out
     assert output.startswith("AICTX continuity capsule\n")
     assert "Startup banner to render" in output
+    assert "Startup rule" in output
+    assert "This capsule is the operational brief" in output
+    assert "Do not read `.aictx/agent_runtime.md`" in output
+    assert "Do not inspect `.aictx/**`" in output
+    assert "Do not inspect local/global AICTX installation files" in output
+    assert "Run no further AICTX discovery commands" in output
+    assert "First action" in output
     assert "startup_banner_policy.show_in_first_user_visible_response" not in output
     assert "Current request" in output
     assert "Avoid" in output
@@ -129,6 +168,13 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
     assert payload["startup_banner_policy"]["does_not_replace_prepare_execution"] is True
     assert payload["sources"]["startup_banner"] == "load_continuity_context.startup_banner_text"
     assert payload["sources"]["final_summary"] == "finalize_execution.agent_summary_text"
+    assert payload["startup_guard"]["resume_is_self_contained"] is True
+    assert payload["startup_guard"]["do_not_read_runtime_files"] is True
+    assert payload["startup_guard"]["do_not_inspect_aictx_installation"] is True
+    assert payload["startup_guard"]["allowed_aictx_commands_before_first_task_action"] == ["resume"]
+    assert ".aictx/agent_runtime.md" in payload["startup_guard"]["forbidden_before_first_task_action"]
+    assert "local/global AICTX installation files" in payload["startup_guard"]["forbidden_before_first_task_action"]
+    assert payload["capsule"]["first_action"]["type"] in {"open_file", "inspect_entry_points", "follow_current_request", "ask_clarification"}
     assert payload["task_state"]["status"] in {"active", "completed", "blocked", "unknown"}
     assert payload["written_files"] == {
         "markdown": ".aictx/continuity/resume_capsule.md",
@@ -209,6 +255,56 @@ def test_resume_active_work_state_drives_task_state(tmp_path: Path, capsys):
     assert payload["task_state"]["status"] == "active"
     assert payload["task_state"]["confidence"] == "high"
     assert payload["capsule"]["next_action"] == "inspect src/aictx/continuity.py"
+    assert payload["capsule"]["first_action"]["path"] == "src/aictx/continuity.py"
+
+
+def test_resume_first_action_prefers_tests_for_implementation_task(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate BLOCKED parser edge cases", "--json"])
+    assert args.func(args) == 0
+
+    first_action = json.loads(capsys.readouterr().out)["capsule"]["first_action"]
+    assert first_action["type"] == "open_file"
+    assert first_action["path"] == "tests/test_parser.py"
+
+
+def test_resume_first_action_text_precedes_source_index(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases"])
+    assert args.func(args) == 0
+
+    output = capsys.readouterr().out
+    assert output.index("First action") < output.index("Source index")
+
+
+def test_resume_implementation_task_does_not_choose_readme_first(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+    write_json(repo / HANDOFF_PATH, {"summary": "readme stale", "recommended_starting_points": ["README.md", "src/taskflow/parser.py"]})
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+
+    assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] != "README.md"
+
+
+def test_resume_docs_task_can_choose_readme(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+    write_json(repo / HANDOFF_PATH, {"summary": "docs", "recommended_starting_points": ["src/taskflow/parser.py", "README.md"]})
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "update README quickstart documentation", "--json"])
+    assert args.func(args) == 0
+
+    assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] == "README.md"
 
 
 def test_resume_completed_previous_task_is_background(tmp_path: Path, capsys):
@@ -255,11 +351,11 @@ def test_resume_repomap_slice_has_primary_and_secondary(tmp_path: Path, capsys):
     init_repo_scaffold(repo, update_gitignore=False)
     _seed_repomap(repo)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume command test", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume command", "--json"])
     assert args.func(args) == 0
 
     repo_map = json.loads(capsys.readouterr().out)["capsule"]["repo_map"]
-    assert repo_map["primary"][0]["path"] == "src/aictx/continuity.py"
+    assert repo_map["primary"][0]["path"] in {"src/aictx/continuity.py", "tests/test_resume_command.py"}
     assert repo_map["secondary"]
 
 
@@ -363,7 +459,9 @@ def test_resume_excludes_aictx_paths_from_action_candidates(tmp_path: Path, caps
     args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume capsule", "--json"])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
+    assert payload["capsule"]["first_action"]["path"] == "src/resume.py"
     paths = []
+    paths.append(payload["capsule"]["first_action"]["path"])
     paths.extend(item["path"] for item in payload["capsule"]["entry_points"])
     paths.extend(item["path"] for item in payload["capsule"]["fallback_entry_points"])
     repo_map = payload["capsule"]["repo_map"]
@@ -434,7 +532,7 @@ def test_rich_resume_fixture_stays_compact_and_compiled(tmp_path: Path, capsys):
     assert args.func(args) == 0
     output = capsys.readouterr().out
     assert len(output) <= 6000
-    for section in ["Current request", "Task state", "Next action", "Entry points", "Relevant RepoMap", "Relevant failures", "Relevant decisions", "Strategy", "Avoid"]:
+    for section in ["Startup rule", "First action", "Current request", "Task state", "Next action", "Entry points", "Relevant RepoMap", "Relevant failures", "Relevant decisions", "Strategy", "Avoid"]:
         assert section in output
     assert '{"' not in output
     payload = json.loads((repo / RESUME_CAPSULE_JSON_PATH).read_text(encoding="utf-8"))
