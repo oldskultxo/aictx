@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -42,11 +43,12 @@ from .cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_a
 from .strategy_memory import select_strategy
 from .runtime_tasks import resolve_task_type
 from .work_state import changed_work_state_fields, close_work_state, list_work_states, load_active_work_state, load_work_state, render_work_state_summary, resume_work_state, start_work_state, update_work_state
+
 from .state import (
     CONFIG_PATH,
     ENGINE_HOME,
     PROJECTS_REGISTRY_PATH,
-        REPO_MEMORY_DIR,
+    REPO_MEMORY_DIR,
     REPO_METRICS_DIR,
     REPO_STRATEGY_MEMORY_DIR,
     REPO_STATE_PATH,
@@ -58,6 +60,17 @@ from .state import (
     write_json,
     workspace_path,
 )
+
+
+def _infer_agent_id(explicit: str = "") -> str:
+    value = str(explicit or "").strip()
+    if value:
+        return value
+    if any(os.environ.get(key) for key in ("CODEX_THREAD_ID", "CODEX_SESSION_ID", "CODEX_CONVERSATION_ID", "CODEX_CI")):
+        return "codex"
+    if any(os.environ.get(key) for key in ("CLAUDE_SESSION_ID", "CLAUDE_CONVERSATION_ID", "CLAUDE_THREAD_ID", "CLAUDE_CODE_SESSION_ID")):
+        return "claude"
+    return "generic"
 
 
 COMMUNICATION_MODE_OPTIONS = [
@@ -472,7 +485,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
         request_text=request,
         full=bool(getattr(args, "full", False)),
         task_type=task_type,
-        agent_id=str(getattr(args, "agent_id", "") or "generic"),
+        agent_id=_infer_agent_id(str(getattr(args, "agent_id", "") or "")),
         adapter_id=str(getattr(args, "adapter_id", "") or ""),
         session_id=str(getattr(args, "session_id", "") or ""),
     )
@@ -490,7 +503,7 @@ def cmd_advanced(args: argparse.Namespace) -> int:
                 "AICTX advanced commands",
                 "",
                 "Normal agent startup uses:",
-                '  aictx resume --repo . --request "<current user request>"',
+                '  aictx resume --repo . --request "<current user request>" --json',
                 "",
                 "Advanced/diagnostic/building-block commands:",
                 "- suggest: deterministic next-step guidance from strategy memory",
@@ -1115,7 +1128,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--json", action="store_true", help="Print structured continuity capsule JSON")
     resume.add_argument("--full", action="store_true", help="Include a larger continuity capsule")
     resume.add_argument("--task-type", default="", help="Optional task type override")
-    resume.add_argument("--agent-id", default="generic", help=argparse.SUPPRESS)
+    resume.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
     resume.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
     resume.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     resume.set_defaults(func=cmd_resume)
@@ -1125,7 +1138,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show advanced/diagnostic AICTX commands",
         description=(
             "Advanced/diagnostic/building-block commands. Normal agents should use "
-            'aictx resume --repo . --request "<current user request>" at startup.'
+            'aictx resume --repo . --request "<current user request>" --json at startup.'
         ),
         epilog="Commands: suggest, reuse, next, task, messages, map, report, reflect, internal.",
         formatter_class=argparse.RawDescriptionHelpFormatter,

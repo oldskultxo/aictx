@@ -1986,8 +1986,17 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     task_state = payload.get("task_state") if isinstance(payload.get("task_state"), dict) else {}
     sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
     written = payload.get("written_files") if isinstance(payload.get("written_files"), dict) else {}
+    startup_banner_text = str(payload.get("startup_banner_text") or "").strip()
     lines = [
         "AICTX continuity capsule",
+        "",
+        "Startup banner to render",
+    ]
+    if startup_banner_text:
+        lines.extend(startup_banner_text.splitlines())
+    else:
+        lines.append("- None; startup_banner_policy.show_in_first_user_visible_response is false.")
+    lines.extend([
         "",
         "Current request",
         str(capsule.get("current_request") or "None provided"),
@@ -2007,7 +2016,7 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
         str(capsule.get("next_action") or "Use the current request and entry points below."),
         "",
         "Entry points",
-    ]
+    ])
     entry_points = list(capsule.get("entry_points") or []) + list(capsule.get("fallback_entry_points") or [])
     if entry_points:
         for index, item in enumerate(entry_points[: (8 if full else 5)], start=1):
@@ -2079,7 +2088,7 @@ def build_resume_capsule(
     *,
     full: bool = False,
     task_type: str = "",
-    agent_id: str = "generic",
+    agent_id: str = "",
     adapter_id: str = "",
     session_id: str = "",
 ) -> dict[str, Any]:
@@ -2186,6 +2195,7 @@ def build_resume_capsule(
             "render_payload_field": "startup_banner_render_payload",
             "data_source": "load_continuity_context",
             "does_not_replace_prepare_execution": True,
+            "instruction": "Render this startup banner in the current user language at the top of the first substantive user-visible response. Prefer startup_banner_render_payload when available and use startup_banner_text only as fallback. Preserve exact facts, paths, commands, flags, package names, test names, code identifiers, and link targets. Do not satisfy this requirement only with a transient progress/status message that will be omitted from the final task response; if unsure, preserve the banner at the top of the final response.",
         },
         "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
         "task_state": task_state,

@@ -74,11 +74,42 @@ def test_resume_default_markdown_and_budget(tmp_path: Path, capsys):
 
     output = capsys.readouterr().out
     assert output.startswith("AICTX continuity capsule\n")
+    assert "Startup banner to render" in output
+    assert "startup_banner_policy.show_in_first_user_visible_response" not in output
     assert "Current request" in output
     assert "Avoid" in output
     assert len(output) <= 6000
     assert (repo / RESUME_CAPSULE_MARKDOWN_PATH).exists()
     assert (repo / RESUME_CAPSULE_JSON_PATH).exists()
+
+
+def test_resume_infers_codex_identity_from_environment(tmp_path: Path, capsys, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "thread-from-env")
+    for key in ("CLAUDE_SESSION_ID", "CLAUDE_CONVERSATION_ID", "CLAUDE_THREAD_ID", "CLAUDE_CODE_SESSION_ID"):
+        monkeypatch.delenv(key, raising=False)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "identity", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["startup_banner_render_payload"]["header"]["agent_label"].startswith("codex@")
+    assert payload["startup_banner_text"].startswith("codex@")
+
+
+def test_resume_policy_requires_localized_substantive_banner(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "policy", "--json", "--agent-id", "codex"])
+    assert args.func(args) == 0
+
+    policy = json.loads(capsys.readouterr().out)["startup_banner_policy"]
+    assert policy["render_payload_field"] == "startup_banner_render_payload"
+    assert "current user language" in policy["instruction"]
+    assert "first substantive user-visible response" in policy["instruction"]
+    assert "transient progress/status message" in policy["instruction"]
 
 
 def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
@@ -265,12 +296,21 @@ def test_top_level_help_hides_advanced_commands(capsys):
 
 def test_runtime_contract_says_resume_does_not_replace_lifecycle():
     text = render_agent_runtime()
-    for term in ["prepare", "finalize", "startup banner", "final AICTX summary", "aictx resume --repo ."]:
+    for term in [
+        "Render exactly one startup banner source",
+        "resume.startup_banner_text",
+        "resume.startup_banner_render_payload",
+        "prepare_execution().startup_banner_text",
+        "prepare_execution().startup_banner_render_payload",
+        "Do not render both",
+        "does not replace",
+        "finalize",
+        "final AICTX summary",
+        "aictx resume --repo .",
+        "--json",
+        "prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence",
+    ]:
         assert term in text
-    assert "does not replace" in text
-    assert "resume.startup_banner_text" in text
-    assert "prepare_execution().startup_banner_text" in text
-    assert "prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence" in text
 
 
 def test_resume_startup_source_and_finalize_summary_source_are_separate(tmp_path: Path, capsys):
