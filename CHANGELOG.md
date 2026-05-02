@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.2.0 - 2026-05-02
+
+### Added
+- Added top-level `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` as the canonical agent-facing end-of-task command.
+- Added resume startup guard fields that keep `resume` as the only pre-task AICTX command and `finalize` as the normal post-task command.
+
+### Changed
+- Updated generated runtime/AGENTS instructions so agents use `aictx finalize` instead of discovering internal execution finalization paths.
+- Updated top-level CLI help to include `finalize` in the normal lifecycle command list while keeping advanced commands hidden under `aictx advanced`.
+
+### Fixed
+- Removed ambiguous runtime wording that could lead agents to shell-call `finalize_execution` or use `aictx internal execution finalize` during normal task flow.
+- Removed the accidental prompt artifact from the release branch.
+
 ## 5.1.0 - 2026-05-02
 
 ### Changed

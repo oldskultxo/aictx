@@ -8,7 +8,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `5.1.0`
+Current documented implementation: `5.2.0`
 
 ---
 
@@ -294,7 +294,7 @@ This is safety, not branch-aware task management.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `5.1.0` is:
+The stable repo-local continuity artifact contract in `5.2.0` is:
 
 ```text
 .aictx/continuity/session.json

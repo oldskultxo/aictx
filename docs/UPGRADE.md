@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 5.0.x
+## Current line: 5.2.x
 
-Current documented runtime: `5.1.0`.
+Current documented runtime: `5.2.0`.
 
 For users already on recent `4.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the v5 startup contract:
 
@@ -10,6 +10,20 @@ For users already on recent `4.x`, there is no special data migration command. R
 aictx install
 aictx init
 ```
+
+---
+## 5.2.x
+
+Added:
+- Added top-level `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` as the normal post-task lifecycle command.
+
+Changed:
+- Runtime and managed AGENTS instructions now tell agents to use `aictx finalize` rather than internal execution finalization commands.
+- Top-level help lists `finalize` with the normal lifecycle commands while advanced commands remain under `aictx advanced`.
+
+Compatibility notes:
+- No manual continuity data migration is expected.
+- Re-run `aictx install` and `aictx init` after upgrading so generated runtime instructions are refreshed.
 
 ---
 ## 5.0.x
