@@ -29,21 +29,23 @@ def render_agent_runtime(engine_home: Path | None = None) -> str:
 Use this runtime guide after repository initialization with `aictx init`.
 
 ## Runtime loop
-1. Run `prepare_execution` before non-trivial work.
-2. On the first execution of each visible session, always show the startup banner at the start of the first user-visible response. If `prepared.startup_banner_text` exists, render the startup banner in the current user language. When `prepared.startup_banner_policy.render_payload_field` points to `prepared.startup_banner_render_payload`, prefer that structured payload for localization and use `prepared.startup_banner_text` only as the compact fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from prepared identity fields. Do not render it again after `already_shown` is true.
-3. Execute the task.
-4. Run `finalize_execution` with the real outcome.
-5. Append the final AICTX summary to the final user response. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization and use `finalized.agent_summary_text` only as the compact fallback source. Localize human-readable prose while preserving exact facts, technical tokens, and the details link/path.
-6. If no finalize output exists, say `AICTX summary unavailable`.
-7. Reuse previous successful strategies when available.
+1. The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
+2. At session start, run exactly one AICTX continuity command: `aictx resume --repo . --request "<current user request>" --json`.
+3. Use the returned continuity capsule as the operational brief during normal agent startup.
+4. Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
+5. `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
+6. Do not inspect `.aictx/`, do not run exploratory AICTX commands, do not run `aictx internal`, do not run `aictx -h`, and do not run `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, or `aictx report` during normal task startup unless the user asks for AICTX diagnostics, the task is about AICTX itself, resume is missing/corrupt/contradictory, or finalization/update lifecycle requires it.
+7. Execute the task.
+8. Run `finalize_execution` with the real outcome when using the execution middleware.
+9. Append the final AICTX summary to the final user response. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization and use `finalized.agent_summary_text` only as the compact fallback source. Localize human-readable prose while preserving exact facts, technical tokens, and the details link/path.
+10. If no finalize output exists, say `AICTX summary unavailable`.
 
 ## Execution middleware
 - Enter the runtime for every execution in initialized repos.
-- Read `.aictx/metrics/execution_logs.jsonl` for real execution history.
-- Read `.aictx/metrics/execution_feedback.jsonl` for real feedback.
-- Read `.aictx/strategy_memory/strategies.jsonl` for reusable successful patterns.
+- Use `aictx resume --repo . --request "<current user request>" --json` for real execution history, feedback, Work State, handoff, RepoMap, failure memory, decision memory, and strategy memory.
+- Treat `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, `aictx report`, and `aictx internal` as advanced/diagnostic/building-block commands, not normal startup commands.
 - Report missing data as `unknown` instead of inventing values.
-- The startup banner is mandatory on the first execution of each visible session: when `prepared.startup_banner_text` is available, render the startup banner in the current user language. When `prepared.startup_banner_policy.render_payload_field` points to `prepared.startup_banner_render_payload`, prefer that structured payload for localization and use `prepared.startup_banner_text` only as the compact fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from prepared identity fields.
+- The startup banner is mandatory on the first execution of each visible session: render the selected resume/prepare startup banner in the current user language at the start of the first substantive user-visible response; do not consume it with a transient progress/status message that will be omitted from the final task response. When the selected startup banner policy points to a structured render payload, prefer that structured payload for localization and use compact text only as the fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from selected identity fields.
 - Final responses for non-trivial tasks must include the AICTX summary from finalize; treat `agent_summary_text` as the canonical compact user-facing source.
 - For AICTX-originated user-visible texts, prefer `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
 - Localize AICTX-originated user-visible texts to the current user language without hardcoding a fixed language list.
@@ -51,10 +53,9 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## aictx usage rules
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
-- Before opening more than 3 files: run `aictx suggest --repo .`
-- If you reopen the same file: run `aictx reflect --repo .`
-- If the task seems similar to a previous one: run `aictx reuse --repo .`
-- If you are unsure about the next step: run `aictx suggest --repo .`
+- At normal startup, run only `aictx resume --repo . --request "<current user request>" --json`.
+- Render exactly one startup banner source. Normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`. Wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
+- Do not inspect `.aictx/` during normal startup; `aictx resume` already compiles the relevant continuity.
 
 ## Communication mode
 - `communication.layer` supports `enabled` or `disabled`.
@@ -62,9 +63,9 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Explicit current-user instruction overrides persisted defaults.
 
 ## Sources of truth
-- `.aictx/metrics/execution_logs.jsonl`
-- `.aictx/metrics/execution_feedback.jsonl`
-- `.aictx/strategy_memory/strategies.jsonl`
+- `aictx resume --repo . --request "<current user request>" --json` for the operational capsule and `startup_banner_text` during normal agent startup.
+- `.aictx/continuity/resume_capsule.md`
+- `.aictx/continuity/resume_capsule.json`
 """
 
 
@@ -76,18 +77,23 @@ This repository is initialized for `aictx`.
 
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
-- On the first execution of each visible session, always show the startup banner at the start of the first user-visible response. If `prepare_execution` returns `startup_banner_text`, render the startup banner in the current user language. When `prepared.startup_banner_policy.render_payload_field` points to `prepared.startup_banner_render_payload`, prefer that structured payload for localization and use `prepared.startup_banner_text` only as the compact fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from prepared identity fields. Do not render it again after `already_shown` is true.
+- The AICTX lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
+- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --request "<current user request>" --json`.
+- Use the returned continuity capsule as the operational brief during normal agent startup.
+- Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
+- `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
+- Do not inspect `.aictx/`.
+- Do not run exploratory AICTX commands.
+- Do not run `aictx internal`, `aictx -h`, `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, or `aictx report` during normal task startup unless the user asks for AICTX diagnostics, the task is about AICTX itself, resume is missing/corrupt/contradictory, or finalization/update lifecycle requires it.
+- On the first execution of each visible session, always show the startup banner at the start of the first substantive user-visible response; do not consume it with a transient progress/status message that will be omitted from the final task response. Render the selected resume/prepare startup banner in the current user language. When the selected startup banner policy points to a structured render payload, prefer that structured payload for localization and use compact text only as the fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from selected identity fields. Do not render it again after `already_shown` is true.
 - After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the compact fallback user-facing source. When `agent_summary_policy.render_payload_field` points to `agent_summary_render_payload`, prefer that structured payload for localization while preserving exact facts, technical tokens, and the details link/path.
 - If no finalize output exists, say `AICTX summary unavailable`.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
-- Use repo-local execution history and strategy memory before deeper repo analysis.
+- Use the `aictx resume` capsule before deeper repo analysis.
 - `.aictx/memory/source/` is editable source knowledge; do not hand-edit generated derived artifacts under `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders.
 - Use `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
 - You may enrich AICTX-originated user-visible texts if helpful, but you must preserve real facts and never invent missing data.
-- Before opening more than 3 files: run `aictx suggest --repo .`
-- If you reopen the same file: run `aictx reflect --repo .`
-- If the task seems similar to a previous one: run `aictx reuse --repo .`
-- If you are unsure about the next step: run `aictx suggest --repo .`
+- Advanced/diagnostic/building-block commands remain available for humans and diagnostics, but normal agents should not use them during startup.
 
 Detailed runtime instructions:
 - `.aictx/agent_runtime.md`

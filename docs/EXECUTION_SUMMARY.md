@@ -4,6 +4,10 @@ AICTX finalization returns a deterministic summary for the coding agent.
 `agent_summary_text` is the compact user-facing surface. `last_execution_summary.md`
 is the detailed diagnostic surface.
 
+The summary source is the finalize lifecycle. `aictx resume` can compile and
+display prior continuity, but it does not produce the final AICTX summary and
+does not replace `finalize_execution()`.
+
 ---
 
 ## Outputs

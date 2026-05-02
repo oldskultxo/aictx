@@ -15,7 +15,7 @@ AICTX is composed of:
 - repo scaffold and managed instruction files;
 - runner integrations for Codex, Claude, and generic agents;
 - internal runtime commands used by agents/hooks;
-- public CLI commands used for setup, inspection, and debugging;
+- public CLI commands used for setup, the `resume` capsule, inspection, and debugging;
 - middleware around prepare/finalize execution;
 - repo-local continuity artifacts;
 - active Work State runtime;
@@ -32,7 +32,7 @@ install -> init -> use your coding agent
 The technical runtime underneath is:
 
 ```text
-boot -> prepare -> execution -> finalize -> persist continuity -> next session
+prepare/startup context -> resume capsule -> execution -> finalize -> persist continuity -> next session
 ```
 
 ---
@@ -44,13 +44,14 @@ boot -> prepare -> execution -> finalize -> persist continuity -> next session
 | Repo scaffold | Creates `.aictx/` and managed runner files |
 | Runner integrations | Writes `AGENTS.md`, `CLAUDE.md`, and Claude hook configuration |
 | Internal runtime CLI | Provides `boot`, `prepare`, `finalize`, and `run-execution` |
-| Public CLI | Provides install/init/next/task/map/report/cleanup commands |
+| Public CLI | Provides install/init/resume/advanced/cleanup commands plus compatible diagnostic commands |
 | Middleware | Loads continuity before work and records evidence after work |
 | Work State | Stores active suspended task state |
 | Failure Memory | Stores observed failure patterns |
 | Strategy Memory | Stores successful reusable execution patterns |
 | Area Memory | Groups signals by repo area |
 | RepoMap | Optional structural file/symbol lookup |
+| Resume capsule | Compiles rich continuity into one agent-facing operational brief |
 | Execution Summary | Produces factual final runtime output |
 | Cleanup | Removes managed repo/global content |
 
@@ -90,21 +91,9 @@ It can:
 - register the repo unless disabled;
 - optionally switch the AICTX-managed `.gitignore` block between local-only and git-portable continuity without moving canonical artifacts.
 
-### 3. Boot runtime state
+### 3. Prepare/startup context
 
 Runner integrations or advanced users may call:
-
-```bash
-aictx internal boot --repo .
-```
-
-`internal boot` loads bootstrap/runtime state and prints a diagnostic payload, including effective preferences, communication policy, model routing, task/failure/memory graph status, repo bootstrap state, and consistency checks.
-
-It is not the same thing as the user-visible startup continuity banner.
-
-### 4. Prepare execution
-
-Before meaningful work, integrations can call:
 
 ```bash
 aictx internal execution prepare ...
@@ -112,11 +101,33 @@ aictx internal execution prepare ...
 
 `prepare_execution()` loads bounded continuity context and can return the user-visible startup continuity payload, including `startup_banner_text`, `startup_banner_policy`, session identity, continuity brief, active Work State, and skipped Work State details.
 
-### 5. Agent execution
+The startup banner remains part of the lifecycle.
 
-The agent works normally. It can inspect public AICTX surfaces when useful:
+### 4. Resume capsule
+
+At normal task startup, the agent-facing continuity query is:
 
 ```bash
+aictx resume --repo . --request "<current user request>"
+```
+
+`resume` compiles Work State, handoff, recent summaries, failures, decisions, strategy hints, RepoMap, preferences, and warnings into one compact operational capsule. It also writes generated local trace artifacts:
+
+```text
+.aictx/continuity/resume_capsule.md
+.aictx/continuity/resume_capsule.json
+```
+
+`resume` does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence. It is the canonical agent-facing continuity query.
+
+### 5. Agent execution
+
+The agent works normally from the resume capsule. It should not inspect `.aictx/` or run exploratory AICTX commands during normal startup.
+
+Advanced public AICTX surfaces remain available for diagnostics, demos, and explicit user requests:
+
+```bash
+aictx advanced
 aictx next --json
 aictx map query "..."
 aictx task status --json
@@ -135,7 +146,7 @@ the compact user-facing final summary.
 
 ### 7. Next session
 
-The next session can load continuity from repo-local artifacts instead of starting from scratch.
+The next session can consume `aictx resume --repo . --request "<current user request>"` instead of discovering AICTX internals or starting from scratch.
 
 ---
 
@@ -148,6 +159,8 @@ Human-facing and advanced integration commands:
 ```bash
 aictx install
 aictx init
+aictx resume --repo . --request "<current user request>"
+aictx advanced
 aictx next
 aictx task ...
 aictx map ...
@@ -156,7 +169,7 @@ aictx clean
 aictx uninstall
 ```
 
-These are for setup, inspection, explicit control, debugging, demos, and cleanup.
+`resume` is the normal agent-facing continuity command. The other public surfaces are for setup, inspection, explicit control, debugging, demos, and cleanup.
 
 ### Internal runtime CLI
 
@@ -176,6 +189,7 @@ Important distinction:
 ```text
 internal boot = bootstrap/runtime diagnostic payload.
 prepare_execution startup_banner_text = user-visible startup continuity banner.
+aictx resume = compiled operational continuity capsule for the agent.
 ```
 
 ---
@@ -208,7 +222,8 @@ Claude support uses:
 Generic agents use:
 
 - repo instructions;
-- public inspection commands;
+- `aictx resume --repo . --request "<current user request>"`;
+- public inspection commands for diagnostics;
 - internal prepare/finalize/run-execution commands;
 - JSON/Markdown outputs.
 
@@ -253,6 +268,8 @@ Last progress: finalize behavior aligned with tests.
 Next: tests/test_work_state_runtime.py
 Active task: Improve public docs. Next: update installation guide.
 ```
+
+The banner is intentionally not the whole handoff. The richer operational brief is the `aictx resume` capsule.
 
 ---
 

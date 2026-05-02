@@ -8,7 +8,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `4.7.1`
+Current documented implementation: `5.0.0`
 
 ---
 
@@ -34,7 +34,7 @@ Without AICTX:
 
 With AICTX:
 
-- the next session can load a compact continuity brief;
+- the next session can load one compiled continuity capsule with `aictx resume`;
 - active Work State preserves goal, hypothesis, files, next action, risks, and verified/unverified work;
 - Failure Memory warns about known patterns;
 - RepoMap can provide structural entry points so agents know where to look first;
@@ -53,6 +53,7 @@ With AICTX:
 | **Strategy Memory** | Reuses successful prior execution patterns | Known-good approaches can be suggested again |
 | **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
 | **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
+| **Resume capsule** | Compiles Work State, handoff, failures, decisions, strategies, and RepoMap into one agent brief | Agents do not need to discover AICTX internals at startup |
 
 ```text
 Work State = what is currently in progress.
@@ -60,6 +61,7 @@ Failure Memory = what failed before.
 RepoMap = where useful code likely lives.
 Strategy Memory = what worked before.
 Execution Summary = what changed in the last run.
+Resume capsule = the one operational brief the agent consumes.
 ```
 
 ---
@@ -83,7 +85,13 @@ aictx --version
 
 After that, keep using your coding agent.
 
-The generated repo instructions and hooks guide supported agents to call AICTX automatically. The user should not have to run AICTX command after command during normal work.
+The generated repo instructions and hooks guide supported agents to call AICTX automatically. At normal task startup, supported agents should use one agent-facing continuity command:
+
+```bash
+aictx resume --repo . --request "<current user request>"
+```
+
+The user should not have to run AICTX command after command during normal work.
 
 ---
 
@@ -91,30 +99,50 @@ The generated repo instructions and hooks guide supported agents to call AICTX a
 
 In normal supported workflows, AICTX is runtime plumbing for the agent.
 
-The agent or runner integration may call:
+At normal task startup, the agent-facing continuity query is:
 
 ```bash
-aictx internal boot --repo .
-aictx internal execution prepare ...
-aictx internal execution finalize ...
+aictx resume --repo . --request "<current user request>"
 ```
 
-For wrapped execution it may use:
+`resume` compiles Work State, handoffs, the latest execution summary, Strategy Memory, Failure Memory, Decisions, RepoMap, preferences, and relevant warnings into one compact operational capsule. It writes trace artifacts:
+
+```text
+.aictx/continuity/resume_capsule.md
+.aictx/continuity/resume_capsule.json
+```
+
+Those capsule files are generated/local runtime artifacts, not durable portable continuity.
+
+The runtime lifecycle still remains:
+
+```text
+prepare/startup context -> resume capsule -> work -> finalize -> final AICTX summary/persistence
+```
+
+`resume` does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
+
+For normal agent startup, the startup banner data source is `resume.startup_banner_text` or `resume.startup_banner_render_payload`. In wrapped execution flows, it remains `prepare_execution().startup_banner_text`.
+
+The final AICTX summary data source remains `finalize_execution().agent_summary_text`.
+
+For wrapped execution, integrations may use:
 
 ```bash
 aictx internal run-execution --repo . --request "..." -- ...
 ```
 
-For inspection or explicit guidance, it may call public surfaces:
+For diagnostics, demos, and power-user inspection, advanced surfaces remain callable:
 
 ```bash
+aictx advanced
 aictx next --json
 aictx map query "..."
 aictx task status --json
 aictx report real-usage
 ```
 
-Manual commands remain available for debugging, demos, power users, and integrations, but the product experience is:
+Manual commands remain available for debugging, demos, power users, and integrations, but they are not the normal agent startup contract. The product experience is:
 
 ```text
 install -> init -> use your coding agent
@@ -188,6 +216,13 @@ Any coding agent can use AICTX if it can read repo instructions, call CLI comman
 
 ### Startup continuity
 
+AICTX startup has two complementary surfaces:
+
+- a compact startup banner from the prepare/startup lifecycle;
+- a richer `aictx resume` capsule for the operational brief.
+
+The banner is not the full handoff and does not replace `resume`.
+
 AICTX produces a compact canonical startup banner in English. Supported agents may localize labels and connective wording to the current user language, but must preserve facts, file paths, commands, flags, test names, package names, and code identifiers.
 
 Canonical runtime example:
@@ -259,7 +294,7 @@ This is safety, not branch-aware task management.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `4.7.1` is:
+The stable repo-local continuity artifact contract in `5.0.0` is:
 
 ```text
 .aictx/continuity/session.json
@@ -282,6 +317,8 @@ Optional or latest-run artifacts may also appear:
 ```text
 .aictx/continuity/handoffs.jsonl
 .aictx/continuity/last_execution_summary.md
+.aictx/continuity/resume_capsule.md
+.aictx/continuity/resume_capsule.json
 .aictx/area_memory/areas.json
 .aictx/repo_map/config.json
 .aictx/repo_map/manifest.json

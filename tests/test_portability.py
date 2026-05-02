@@ -33,6 +33,8 @@ LOCAL_ONLY_FILES = {
     ".aictx/continuity/session.json": '{"session": 1}\n',
     ".aictx/continuity/last_execution_summary.md": '# summary\n',
     ".aictx/continuity/continuity_metrics.json": '{"metrics": true}\n',
+    ".aictx/continuity/resume_capsule.md": '# generated\n',
+    ".aictx/continuity/resume_capsule.json": '{"generated": true}\n',
     ".aictx/repo_map/index.json": '{"index": true}\n',
     ".aictx/repo_map/manifest.json": '{"manifest": true}\n',
     ".aictx/repo_map/status.json": '{"status": true}\n',

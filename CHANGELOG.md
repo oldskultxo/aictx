@@ -1,5 +1,35 @@
 # Changelog
 
+## 5.0.0 - 2026-05-02
+
+### Added
+- Added the public `aictx resume --repo . --request "<current user request>"` command as the canonical agent-facing continuity query.
+- Added structured `aictx resume --json` output for startup automation and JSON tooling.
+- Added local generated resume trace artifacts:
+  - `.aictx/continuity/resume_capsule.md`
+  - `.aictx/continuity/resume_capsule.json`
+- Added `aictx advanced` as the public index for diagnostic/building-block commands.
+- Added tests covering resume capsule shape, startup/final-summary source separation, JSON pipe validity, compact/full resume output, RepoMap slicing, generated artifact portability, hidden advanced help behavior, agent identity inference, and startup banner policy instructions.
+
+### Changed
+- Bumped the documented/runtime package version from `4.7.1` to `5.0.0`.
+- Updated generated agent instructions so normal startup runs exactly one continuity command with JSON output:
+  - `aictx resume --repo . --request "<current user request>" --json`
+- Clarified the lifecycle as `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
+- Clarified startup banner ownership: normal startup renders `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution renders `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`; agents must not render both.
+- Repositioned `suggest`, `reuse`, `next`, `task`, `messages`, `map`, `report`, `reflect`, and `internal` as advanced/diagnostic/building-block commands instead of normal startup commands.
+- Simplified top-level CLI help to the primary public surface: `install`, `init`, `resume`, `advanced`, `clean`, and `uninstall`.
+- Updated docs to steer JSON inspection through `python3 -m json.tool` instead of piping JSON into `python3 -`.
+
+### Fixed
+- Fixed `aictx resume` default identity detection so Codex environments produce `codex@<repo>` startup banner labels instead of falling back to `generic@<repo>`.
+- Strengthened startup banner policy so agents localize the banner to the user's language and do not consume it with transient progress/status messages that are absent from the final task response.
+
+### Compatibility notes
+- Existing advanced commands remain callable; they are hidden from top-level help and listed under `aictx advanced`.
+- `aictx resume` does not replace `prepare_execution()`, `finalize_execution()`, startup banner rendering, final AICTX summary generation, or persistence.
+- `resume_capsule.*` files are generated local runtime traces and remain excluded from portable continuity.
+
 ## 4.7.1 - 2026-04-29
 
 ### Fixed

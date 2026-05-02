@@ -13,6 +13,7 @@ from .state import (
     append_jsonl,
     read_json,
     read_jsonl,
+    touch_session_identity,
     write_json,
 )
 from .strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
@@ -26,6 +27,8 @@ DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
 STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
 CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
 LAST_EXECUTION_SUMMARY_PATH = REPO_CONTINUITY_DIR / "last_execution_summary.md"
+RESUME_CAPSULE_MARKDOWN_PATH = REPO_CONTINUITY_DIR / "resume_capsule.md"
+RESUME_CAPSULE_JSON_PATH = REPO_CONTINUITY_DIR / "resume_capsule.json"
 AICTX_TEXT_SEPARATOR = "────────────────────────────────"
 
 
@@ -1820,3 +1823,417 @@ def load_continuity_context(
     context["startup_banner_text"] = render_startup_banner(context, repo_root)
     context["continuity_summary_text"] = render_continuity_summary(context, repo_root)
     return context
+
+
+def _resume_source(relative_path: Path, repo_root: Path) -> str:
+    return relative_path.as_posix() if (repo_root / relative_path).exists() else ""
+
+
+def _resume_item_text(item: dict[str, Any]) -> str:
+    title = str(item.get("title") or item.get("id") or "").strip()
+    reasons = _clean_string_list(item.get("reasons"), limit=2)
+    if reasons:
+        return f"{title} ({', '.join(reasons)})" if title else ", ".join(reasons)
+    return title
+
+
+def _resume_entry(path: str, reason: str) -> dict[str, str]:
+    return {"path": str(path or "").strip(), "reason": str(reason or "").strip() or "relevant continuity signal"}
+
+
+def _resume_is_action_path(path: str) -> bool:
+    normalized = str(path or "").strip().replace("\\", "/")
+    return bool(normalized) and normalized != ".aictx" and not normalized.startswith(".aictx/")
+
+
+def _resume_clean_entries(entries: list[dict[str, str]], *, limit: int) -> list[dict[str, str]]:
+    cleaned: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for entry in entries:
+        path = str(entry.get("path") or "").strip()
+        if not _resume_is_action_path(path) or path in seen:
+            continue
+        cleaned.append(entry)
+        seen.add(path)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, limit: int) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
+    warnings: list[str] = []
+    ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
+    handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
+    active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
+
+    candidates: list[dict[str, str]] = []
+    for path in _clean_string_list(active.get("active_files"), limit=5):
+        candidates.append(_resume_entry(path, "active Work State file"))
+    for path in _clean_string_list(handoff.get("recommended_starting_points"), limit=5):
+        candidates.append(_resume_entry(path, "previous handoff starting point"))
+    for item in ranked:
+        if not isinstance(item, dict):
+            continue
+        reason = str(item.get("kind") or "continuity")
+        for path in _clean_string_list(item.get("paths"), limit=3):
+            candidates.append(_resume_entry(path, f"{reason}: {_resume_item_text(item)}"))
+    for path in _clean_string_list(brief.get("probable_paths"), limit=8):
+        candidates.append(_resume_entry(path, "probable continuity path"))
+
+    live: list[dict[str, str]] = []
+    fallback: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        path = candidate["path"]
+        if not _resume_is_action_path(path) or path in seen:
+            continue
+        seen.add(path)
+        if _path_exists(repo_root, path):
+            live.append(candidate)
+        else:
+            if "previous handoff" in candidate["reason"]:
+                warnings.append(f"missing_entry_point:{path}")
+                continue
+            fallback.append(candidate)
+        if len(live) >= limit and len(fallback) >= limit:
+            break
+    return live[:limit], fallback[:limit], _clean_string_list(warnings, limit=5)
+
+
+def _resume_repo_map_slice(context: dict[str, Any], *, limit: int) -> dict[str, list[dict[str, str]]]:
+    ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
+    repo_items = [item for item in ranked if isinstance(item, dict) and str(item.get("kind") or "") == "repo_map"]
+    primary: list[dict[str, str]] = []
+    secondary: list[dict[str, str]] = []
+    for index, item in enumerate(repo_items[: max(limit, 1)]):
+        reason = ", ".join(_clean_string_list(item.get("reasons"), limit=3)) or "RepoMap match"
+        for path in _clean_string_list(item.get("paths"), limit=2):
+            if not _resume_is_action_path(path):
+                continue
+            target = primary if index == 0 else secondary
+            target.append(_resume_entry(path, reason))
+    return {
+        "primary": _resume_clean_entries(primary, limit=1),
+        "secondary": _resume_clean_entries(secondary, limit=max(0, limit - 1)),
+        "avoid": [],
+    }
+
+
+def _resume_task_state(repo_root: Path, context: dict[str, Any], request_text: str, entry_points: list[dict[str, str]], broken: list[str]) -> dict[str, str]:
+    active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    recent = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
+    handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
+    ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
+
+    status = "unknown"
+    reason = "No active Work State or handoff status available."
+    if active:
+        status = "active"
+        reason = "Active Work State is present."
+    elif str(recent.get("status") or "").strip() in {"blocked", "paused"}:
+        status = "blocked"
+        reason = f"Recent Work State is {recent.get('status')}."
+    elif handoff:
+        handoff_status = str(handoff.get("status") or "resolved").strip().lower()
+        if handoff_status in {"resolved", "completed", "success"}:
+            status = "completed"
+            reason = "Previous handoff is completed; use as background."
+        elif handoff_status in {"failed", "unresolved", "blocked"}:
+            status = "blocked"
+            reason = f"Previous handoff status is {handoff_status}."
+        else:
+            status = "unknown"
+            reason = f"Previous handoff status is {handoff_status or 'unknown'}."
+
+    confidence = "low"
+    if active and (active.get("next_action") or entry_points):
+        confidence = "high"
+    elif entry_points or ranked:
+        confidence = "medium"
+    if broken:
+        confidence = "low" if not entry_points else "medium"
+        reason += " Some prior entry points are missing."
+    if request_text and status == "completed":
+        confidence = "medium" if entry_points or ranked else "low"
+        reason += " Current request wins over completed prior work."
+    if active and entry_points and not _path_exists(repo_root, str(entry_points[0].get("path") or "")):
+        confidence = "medium"
+    return {"status": status, "confidence": confidence, "reason": reason.strip()}
+
+
+def _resume_strategy_text(strategy: dict[str, Any]) -> str:
+    if not strategy:
+        return "None relevant"
+    confidence = strategy_reuse_confidence(strategy)
+    reason = str(strategy.get("selection_reason") or "").strip()
+    points = _resume_clean_entries(
+        [_resume_entry(path, "strategy path") for path in (
+            _clean_string_list(strategy.get("entry_points"), limit=4)
+            + _clean_string_list(strategy.get("files_used"), limit=4)
+            + _clean_string_list(strategy.get("tests_executed"), limit=4)
+        )],
+        limit=3,
+    )
+    starting = ", ".join(entry["path"] for entry in points)
+    if starting:
+        return f"Start from {starting}; matched prior successful work ({confidence} confidence: {reason or 'strategy reuse'})."
+    return f"Reuse confidence {confidence}. {reason or 'Prior successful strategy matched.'}".strip()
+
+
+def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = False) -> str:
+    capsule = payload.get("capsule") if isinstance(payload.get("capsule"), dict) else {}
+    task_state = payload.get("task_state") if isinstance(payload.get("task_state"), dict) else {}
+    sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
+    written = payload.get("written_files") if isinstance(payload.get("written_files"), dict) else {}
+    startup_banner_text = str(payload.get("startup_banner_text") or "").strip()
+    lines = [
+        "AICTX continuity capsule",
+        "",
+        "Startup banner to render",
+    ]
+    if startup_banner_text:
+        lines.extend(startup_banner_text.splitlines())
+    else:
+        lines.append("- None; startup_banner_policy.show_in_first_user_visible_response is false.")
+    lines.extend([
+        "",
+        "Current request",
+        str(capsule.get("current_request") or "None provided"),
+        "",
+        "Task state",
+        f"status: {task_state.get('status', 'unknown')}",
+        f"confidence: {task_state.get('confidence', 'low')}",
+        f"reason: {task_state.get('reason', 'unknown')}",
+        "",
+        "Resuming",
+        str(capsule.get("resuming") or "No active continuation selected."),
+        "",
+        "Last progress",
+        str(capsule.get("last_progress") or "None available"),
+        "",
+        "Next action",
+        str(capsule.get("next_action") or "Use the current request and entry points below."),
+        "",
+        "Entry points",
+    ])
+    entry_points = list(capsule.get("entry_points") or []) + list(capsule.get("fallback_entry_points") or [])
+    if entry_points:
+        for index, item in enumerate(entry_points[: (8 if full else 5)], start=1):
+            if isinstance(item, dict):
+                lines.append(f"{index}. {item.get('path')} — {item.get('reason')}")
+    else:
+        lines.append("- None identified")
+
+    repo_map = capsule.get("repo_map") if isinstance(capsule.get("repo_map"), dict) else {}
+    lines.extend(["", "Relevant RepoMap"])
+    repo_rows = list(repo_map.get("primary") or []) + list(repo_map.get("secondary") or [])
+    if repo_rows:
+        for item in repo_rows[: (8 if full else 4)]:
+            if isinstance(item, dict):
+                lines.append(f"- {item.get('path')}: {item.get('reason')}")
+    else:
+        lines.append("- None relevant")
+
+    for title, key in (
+        ("Already validated", "validated"),
+        ("Relevant failures", "failures"),
+        ("Relevant decisions", "decisions"),
+    ):
+        lines.extend(["", title])
+        values = _clean_string_list(capsule.get(key), limit=(8 if full else 3))
+        lines.extend([f"- {item}" for item in values] if values else ["- None relevant"])
+
+    lines.extend(["", "Strategy", str(capsule.get("strategy") or "None relevant"), "", "Avoid"])
+    for item in _clean_string_list(capsule.get("avoid"), limit=(10 if full else 6)):
+        lines.append(f"- {item}")
+
+    lines.extend(["", "Source index"])
+    source_lines = [
+        ("Full capsule", written.get("markdown")),
+        ("Structured capsule", written.get("json")),
+        ("Handoff", sources.get("handoff")),
+        ("Last summary", sources.get("last_execution_summary")),
+        ("Work state", sources.get("work_state")),
+        ("RepoMap", sources.get("repo_map")),
+    ]
+    for label, value in source_lines:
+        if value:
+            lines.append(f"- {label}: {value}")
+    warnings = _clean_string_list(payload.get("warnings"), limit=8)
+    if warnings:
+        lines.extend(["", "Warnings"])
+        lines.extend([f"- {warning}" for warning in warnings])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _resume_with_budget(payload: dict[str, Any], *, full: bool, max_chars: int) -> tuple[str, dict[str, Any]]:
+    rendered = _render_resume_capsule_markdown(payload, full=full)
+    if full or len(rendered) <= max_chars:
+        return rendered, payload
+    compact = json.loads(json.dumps(payload))
+    capsule = compact.get("capsule") if isinstance(compact.get("capsule"), dict) else {}
+    capsule["validated"] = _clean_string_list(capsule.get("validated"), limit=2)
+    capsule["failures"] = _clean_string_list(capsule.get("failures"), limit=2)
+    capsule["decisions"] = _clean_string_list(capsule.get("decisions"), limit=2)
+    capsule["fallback_entry_points"] = list(capsule.get("fallback_entry_points") or [])[:1]
+    compact.setdefault("warnings", []).append("budget_trimmed")
+    rendered = _render_resume_capsule_markdown(compact, full=False)
+    return rendered[:max_chars].rstrip() + "\n", compact
+
+
+def build_resume_capsule(
+    repo_root: Path,
+    request_text: str = "",
+    *,
+    full: bool = False,
+    task_type: str = "",
+    agent_id: str = "",
+    adapter_id: str = "",
+    session_id: str = "",
+) -> dict[str, Any]:
+    repo_root = Path(repo_root).expanduser().resolve()
+    request = str(request_text or "").strip()
+    session_identity = touch_session_identity(
+        repo_root,
+        agent_id=agent_id,
+        adapter_id=adapter_id or agent_id,
+        session_id=session_id,
+    )
+    context = load_continuity_context(
+        repo_root,
+        session_identity=session_identity,
+        request_text=request,
+        task_type=task_type,
+        max_decisions=8 if full else 5,
+        max_failures=8 if full else 5,
+    )
+    limit = 8 if full else 4
+    entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit)
+    repo_map = _resume_repo_map_slice(context, limit=limit)
+    task_state = _resume_task_state(repo_root, context, request, entry_points, entry_warnings)
+
+    active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    recent = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
+    handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
+    brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
+    strategy = context.get("procedural_reuse") if isinstance(context.get("procedural_reuse"), dict) else {}
+
+    if active:
+        resuming = str(active.get("goal") or active.get("task_id") or "active Work State").strip()
+    elif task_state["status"] == "completed":
+        resuming = "Previous task is completed; treat continuity as background for the current request."
+    elif recent:
+        resuming = str(recent.get("goal") or recent.get("task_id") or "recent paused/blocked Work State").strip()
+    else:
+        resuming = str(handoff.get("summary") or "No active previous task detected.").strip()
+
+    last_progress = "; ".join(_clean_string_list(handoff.get("completed"), limit=3)) or str(handoff.get("summary") or "").strip()
+    next_action = str(active.get("next_action") or recent.get("next_action") or "").strip()
+    if not next_action and not (task_state["status"] == "completed" and request):
+        next_action = _clean_string_list(handoff.get("next_steps"), limit=1)[0] if _clean_string_list(handoff.get("next_steps"), limit=1) else ""
+    if not next_action and task_state["status"] == "completed" and request and entry_points:
+        next_action = f"Use current request; start from {entry_points[0]['path']}"
+    if not next_action and not (task_state["status"] == "completed" and request):
+        where = _clean_string_list(brief.get("where_to_continue"), limit=1)
+        next_action = where[0] if where and _resume_is_action_path(where[0]) else ""
+    if not next_action and task_state["status"] == "completed" and request:
+        next_action = "Use the current request; previous task is background."
+
+    validated = _clean_string_list(
+        list(active.get("verified", []) or [])
+        + list(recent.get("verified", []) or [])
+        + list(handoff.get("completed", []) or [])
+        + [f"Test observed: {item}" for item in _clean_string_list(handoff.get("tests_observed"), limit=3)],
+        limit=8 if full else 3,
+    )
+    failures = []
+    for failure in context.get("failures", []) if isinstance(context.get("failures"), list) else []:
+        if isinstance(failure, dict):
+            text = str(failure.get("error_text") or failure.get("signature") or failure.get("failure_signature") or failure.get("failure_id") or "").strip()
+            if text:
+                failures.append(text)
+    decisions = []
+    for decision in context.get("decisions", []) if isinstance(context.get("decisions"), list) else []:
+        if isinstance(decision, dict):
+            text = str(decision.get("decision") or "").strip()
+            if text:
+                decisions.append(text)
+    avoid = [
+        "Do not inspect `.aictx/` during normal task execution.",
+        "Do not run exploratory AICTX commands.",
+        "Do not run `aictx internal` during normal task startup.",
+        "Do not run `aictx -h`, `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, or `aictx report` during normal task startup.",
+    ]
+    avoid.extend(f"Do not rely on missing prior entry point: {item.split(':', 1)[-1]}" for item in entry_warnings)
+
+    sources = {
+        "handoff": _resume_source(HANDOFF_PATH, repo_root),
+        "last_execution_summary": _resume_source(LAST_EXECUTION_SUMMARY_PATH, repo_root),
+        "work_state": ".aictx/tasks/active.json" if active else "",
+        "repo_map": _resume_source(Path(".aictx/repo_map/index.json"), repo_root),
+        "startup_banner": "load_continuity_context.startup_banner_text",
+        "final_summary": "finalize_execution.agent_summary_text",
+    }
+    session = context.get("session") if isinstance(context.get("session"), dict) else {}
+    session_key = str(session.get("session_id") or "")
+    banner_already_shown = bool(session_key and str(session.get("banner_shown_session_id") or "") == session_key)
+    startup_banner_text = "" if banner_already_shown else str(context.get("startup_banner_text") or "")
+    startup_banner_render_payload = context.get("startup_banner_render_payload") if isinstance(context.get("startup_banner_render_payload"), dict) else {}
+    payload: dict[str, Any] = {
+        "schema_version": "1.0",
+        "generated_at": _now_iso(),
+        "mode": "agent_brief",
+        "repo": repo_root.as_posix(),
+        "request": request,
+        "startup_banner_text": startup_banner_text,
+        "startup_banner_render_payload": startup_banner_render_payload,
+        "startup_banner_policy": {
+            "source": "resume",
+            "show_in_first_user_visible_response": bool(startup_banner_text.strip()),
+            "already_shown": banner_already_shown,
+            "render_payload_field": "startup_banner_render_payload",
+            "data_source": "load_continuity_context",
+            "does_not_replace_prepare_execution": True,
+            "instruction": "Render this startup banner in the current user language at the top of the first substantive user-visible response. Prefer startup_banner_render_payload when available and use startup_banner_text only as fallback. Preserve exact facts, paths, commands, flags, package names, test names, code identifiers, and link targets. Do not satisfy this requirement only with a transient progress/status message that will be omitted from the final task response; if unsure, preserve the banner at the top of the final response.",
+        },
+        "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
+        "task_state": task_state,
+        "capsule": {
+            "current_request": request,
+            "resuming": resuming,
+            "last_progress": last_progress,
+            "next_action": next_action,
+            "entry_points": entry_points,
+            "fallback_entry_points": fallback_entry_points,
+            "repo_map": repo_map,
+            "validated": validated,
+            "failures": _clean_string_list(failures, limit=8 if full else 3),
+            "decisions": _clean_string_list(decisions, limit=8 if full else 3),
+            "strategy": _resume_strategy_text(strategy),
+            "avoid": avoid,
+        },
+        "sources": sources,
+        "written_files": {
+            "markdown": RESUME_CAPSULE_MARKDOWN_PATH.as_posix(),
+            "json": RESUME_CAPSULE_JSON_PATH.as_posix(),
+        },
+        "warnings": _clean_string_list(list(context.get("warnings", []) or []) + entry_warnings, limit=12),
+    }
+    max_chars = 12000 if full else 6000
+    markdown, payload = _resume_with_budget(payload, full=full, max_chars=max_chars)
+    payload["budget"] = {
+        "target_tokens": 2400 if full else 1200,
+        "estimated_tokens": max(1, len(markdown) // 4),
+        "chars": len(markdown),
+    }
+    json_path = repo_root / RESUME_CAPSULE_JSON_PATH
+    markdown_path = repo_root / RESUME_CAPSULE_MARKDOWN_PATH
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.write_text(markdown, encoding="utf-8")
+    write_json(json_path, payload)
+    return payload
+
+
+def render_resume_capsule(payload: dict[str, Any], *, full: bool = False) -> str:
+    return _render_resume_capsule_markdown(payload, full=full)

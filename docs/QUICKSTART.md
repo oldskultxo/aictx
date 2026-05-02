@@ -37,13 +37,20 @@ After this, keep using your coding agent. AICTX is designed to be agent-driven.
 Manual inspection is optional:
 
 ```bash
-aictx next
+aictx resume --repo . --request "continue current work"
 ```
 
 Structured output:
 
 ```bash
-aictx next --json
+aictx resume --repo . --request "continue current work" --json
+```
+
+To inspect that JSON with Python, pipe it to a JSON reader, not to `python3 -`
+as a script:
+
+```bash
+aictx resume --repo . --request "continue current work" --json | python3 -m json.tool
 ```
 
 A fresh repo may have little continuity. That is expected.
@@ -65,7 +72,7 @@ aictx task update --json   --json-patch '{"current_hypothesis":"token refresh re
 Inspect:
 
 ```bash
-aictx next
+aictx resume --repo . --request "continue token refresh work"
 ```
 
 ---
@@ -89,14 +96,17 @@ RepoMap is optional. Core continuity works without it.
 Supported agents should follow generated runtime guidance:
 
 ```text
-boot or load startup continuity
-prepare before meaningful work
+prepare/startup context remains available
+run one agent-facing continuity query: aictx resume --repo . --request "<current user request>"
+use the returned capsule as the operational brief
 execute the task
 finalize after execution
 use agent_summary_text as the factual final summary source
 ```
 
-The user does not need to call these internal commands in normal use.
+`resume` does not replace prepare/finalize, the startup banner, the final AICTX summary, or persistence. It compiles continuity so the agent does not discover AICTX internals at startup.
+
+The user does not need to call internal commands in normal use.
 
 ---
 
