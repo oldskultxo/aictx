@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -1846,55 +1847,141 @@ def _resume_is_action_path(path: str) -> bool:
     return bool(normalized) and normalized != ".aictx" and not normalized.startswith(".aictx/")
 
 
-def _resume_task_bias(*texts: Any) -> str:
-    haystack = " ".join(str(text or "") for text in texts).lower()
-    impl_signals = (
-        "test",
-        "tests",
-        "pytest",
-        "parser",
-        "cli",
-        "fix",
-        "bug",
-        "implement",
-        "validate",
-        "edge case",
-        "coverage",
-        "function",
-        "module",
-    )
-    docs_signals = ("readme", "docs", "documentation", "quickstart", "usage guide", "copy")
-    impl_score = sum(1 for signal in impl_signals if signal in haystack)
-    docs_score = sum(1 for signal in docs_signals if signal in haystack)
-    if impl_score > docs_score:
-        return "implementation"
-    if docs_score > impl_score:
-        return "docs"
-    return "neutral"
+_RESUME_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into", "is", "it", "of", "on", "or", "the", "to", "with",
+    "this", "that", "these", "those", "current", "previous", "task", "work", "file", "files", "please", "run", "execute",
+}
 
 
-def _resume_path_priority(path: str, bias: str) -> int:
+def _resume_request_terms(text: str) -> set[str]:
+    terms = re.findall(r"[a-z0-9]+", str(text or "").lower())
+    return {term for term in terms if len(term) > 2 and term not in _RESUME_STOPWORDS}
+
+
+def _resume_task_profile(request_text: str) -> dict[str, Any]:
+    haystack = str(request_text or "").lower()
+    categories: dict[str, tuple[str, ...]] = {
+        "implementation": (
+            "fix", "bug", "implement", "change", "add", "update behavior", "refactor", "function", "module", "code",
+        ),
+        "testing": (
+            "validate", "test", "tests", "pytest", "coverage", "edge case", "edge cases", "failing test",
+        ),
+        "documentation": (
+            "readme", "docs", "documentation", "quickstart", "usage guide", "copy", "markdown", "instructions",
+        ),
+        "config": (
+            "config", "configuration", "pyproject", "package", "dependency", "dependencies", "ci", "workflow", "github actions", "build", "lint", "ruff", "pytest config",
+        ),
+        "release": (
+            "release", "version", "changelog", "tag", "publish", "pypi", "packaging",
+        ),
+        "analysis": (
+            "metrics", "report", "usage report", "codex_usage", "session metrics", "demo metrics", "analysis", "analyze", "compare", "benchmark", "token usage",
+        ),
+    }
+    scores = {category: sum(1 for signal in signals if signal in haystack) for category, signals in categories.items()}
+    best_category = "unknown"
+    best_score = 0
+    for category in ("analysis", "release", "config", "documentation", "testing", "implementation"):
+        score = scores.get(category, 0)
+        if score > best_score:
+            best_category = category
+            best_score = score
+    return {
+        "task_category": best_category,
+        "request_terms": _resume_request_terms(request_text),
+        "explicit_metrics": scores.get("analysis", 0) > 0,
+    }
+
+
+def _resume_path_category(path: str) -> str:
     normalized = str(path or "").strip().replace("\\", "/").lower()
-    if not _resume_is_action_path(normalized):
-        return 99
-    if bias == "implementation":
-        if normalized.startswith("tests/") or "/tests/" in f"/{normalized}":
-            return 0
-        if normalized.startswith("src/") or "/src/" in f"/{normalized}":
-            return 1
-        if normalized == "readme.md" or normalized.startswith("docs/") or normalized.startswith(".demo_metrics/"):
-            return 4
-        return 2
-    if bias == "docs":
-        if normalized == "readme.md" or normalized.startswith("docs/"):
-            return 0
-        return 1
-    return 1
+    name = normalized.rsplit("/", 1)[-1]
+    if normalized == ".aictx" or normalized.startswith(".aictx/"):
+        return "runtime_internal"
+    if name in {"resume_capsule.md", "resume_capsule.json"} or normalized.endswith("/resume_capsule.md") or normalized.endswith("/resume_capsule.json"):
+        return "generated_artifact"
+    if (
+        normalized.startswith(".demo_metrics/")
+        or normalized.startswith("demo_metrics/")
+        or normalized.startswith(".demo_results/")
+        or normalized.startswith("demo_results/")
+        or name.startswith("codex_usage") and name.endswith(".json")
+        or "usage_report" in name and name.endswith(".json")
+        or re.fullmatch(r"session_[^/]*_metrics\.json", name)
+        or name.endswith("_metrics.json")
+    ):
+        return "telemetry_metrics"
+    if normalized.startswith("tests/") or "/tests/" in f"/{normalized}":
+        return "tests"
+    if normalized.startswith("src/") or "/src/" in f"/{normalized}":
+        return "source"
+    if normalized == "readme.md" or normalized.startswith("docs/") or name.endswith(".md"):
+        return "docs"
+    if normalized.startswith(".github/workflows/"):
+        return "ci"
+    if name in {"pyproject.toml", "setup.cfg", "setup.py", "tox.ini", "pytest.ini", "ruff.toml", ".pre-commit-config.yaml"}:
+        return "config"
+    if normalized.startswith("examples/"):
+        return "examples"
+    return "unknown"
 
 
-def _resume_rank_entries(entries: list[dict[str, str]], *, bias: str, limit: int) -> list[dict[str, str]]:
-    indexed = [(index, entry) for index, entry in enumerate(_resume_clean_entries(entries, limit=max(limit * 4, limit)))]
-    indexed.sort(key=lambda row: (_resume_path_priority(row[1].get("path", ""), bias), row[0]))
+def _resume_path_score(entry: dict[str, str], *, profile: dict[str, Any], index: int, repo_root: Path | None = None) -> int:
+    path = str(entry.get("path") or "").strip()
+    if not _resume_is_action_path(path):
+        return -10000
+    category = str(profile.get("task_category") or "unknown")
+    path_category = _resume_path_category(path)
+    terms = profile.get("request_terms") if isinstance(profile.get("request_terms"), set) else set()
+    searchable = " ".join([path, path.replace("/", " ").replace("_", " ").replace("-", " "), str(entry.get("reason") or "")]).lower()
+    overlap = sum(1 for term in terms if term in searchable)
+    score = 100 - index
+    score += overlap * 8
+    if repo_root is not None and _path_exists(repo_root, path):
+        score += 5
+
+    reason = str(entry.get("reason") or "").lower()
+    if "active work state" in reason:
+        score += 25
+    elif "previous handoff" in reason:
+        score += 15
+    elif "repo_map" in reason or "repomap" in reason:
+        score += 10
+    elif "probable continuity" in reason:
+        score += 5
+
+    if category == "testing":
+        score += {"tests": 35, "source": 24, "config": 4, "ci": 4, "docs": -18, "examples": -4}.get(path_category, 0)
+    elif category == "implementation":
+        score += {"source": 34, "tests": 30, "config": 4, "ci": 4, "docs": -18, "examples": -4}.get(path_category, 0)
+    elif category == "documentation":
+        score += {"docs": 35, "examples": 10, "source": -6, "tests": -8}.get(path_category, 0)
+    elif category == "config":
+        score += {"config": 35, "ci": 32, "source": -2, "tests": -4, "docs": -8}.get(path_category, 0)
+    elif category == "release":
+        score += {"config": 16, "docs": 12, "ci": 8, "source": -4, "tests": -6}.get(path_category, 0)
+    elif category == "analysis":
+        score += {"telemetry_metrics": 35, "docs": 8, "source": -8, "tests": -8}.get(path_category, 0)
+
+    if path_category == "runtime_internal":
+        score -= 10000
+    elif path_category == "generated_artifact":
+        score -= 90
+    elif path_category == "telemetry_metrics" and not bool(profile.get("explicit_metrics")):
+        score -= 90
+    elif path_category == "telemetry_metrics":
+        score += 15
+    if category in {"implementation", "testing"} and path_category == "docs":
+        score -= 12
+    return score
+
+
+def _resume_rank_entries(entries: list[dict[str, str]], *, profile: dict[str, Any], limit: int, repo_root: Path | None = None) -> list[dict[str, str]]:
+    cleaned = _resume_clean_entries(entries, limit=max(len(entries), limit))
+    indexed = [(index, entry) for index, entry in enumerate(cleaned)]
+    indexed.sort(key=lambda row: (-_resume_path_score(row[1], profile=profile, index=row[0], repo_root=repo_root), row[0]))
     return [entry for _, entry in indexed[:limit]]
 
 
@@ -1912,7 +1999,7 @@ def _resume_clean_entries(entries: list[dict[str, str]], *, limit: int) -> list[
     return cleaned
 
 
-def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, limit: int, bias: str) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
+def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, limit: int, profile: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
     warnings: list[str] = []
     ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
     handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
@@ -1950,24 +2037,25 @@ def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, li
             fallback.append(candidate)
         if len(live) >= limit and len(fallback) >= limit:
             break
-    return _resume_rank_entries(live, bias=bias, limit=limit), _resume_rank_entries(fallback, bias=bias, limit=limit), _clean_string_list(warnings, limit=5)
+    return (
+        _resume_rank_entries(live, profile=profile, limit=limit, repo_root=repo_root),
+        _resume_rank_entries(fallback, profile=profile, limit=limit, repo_root=repo_root),
+        _clean_string_list(warnings, limit=5),
+    )
 
 
-def _resume_repo_map_slice(context: dict[str, Any], *, limit: int, bias: str) -> dict[str, list[dict[str, str]]]:
+def _resume_repo_map_slice(context: dict[str, Any], *, limit: int, profile: dict[str, Any], repo_root: Path | None = None) -> dict[str, list[dict[str, str]]]:
     ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
     repo_items = [item for item in ranked if isinstance(item, dict) and str(item.get("kind") or "") == "repo_map"]
-    primary: list[dict[str, str]] = []
-    secondary: list[dict[str, str]] = []
-    for index, item in enumerate(repo_items[: max(limit, 1)]):
+    candidates: list[dict[str, str]] = []
+    for item in repo_items[: max(limit * 2, 1)]:
         reason = ", ".join(_clean_string_list(item.get("reasons"), limit=3)) or "RepoMap match"
         for path in _clean_string_list(item.get("paths"), limit=2):
             if not _resume_is_action_path(path):
                 continue
-            target = primary if index == 0 else secondary
-            target.append(_resume_entry(path, reason))
-    rows = _resume_rank_entries(primary + secondary, bias=bias, limit=limit)
+            candidates.append(_resume_entry(path, reason))
+    rows = _resume_rank_entries(candidates, profile=profile, limit=limit, repo_root=repo_root)
     return {"primary": rows[:1], "secondary": rows[1:], "avoid": []}
-
 
 def _resume_startup_guard() -> dict[str, Any]:
     return {
@@ -2236,16 +2324,9 @@ def build_resume_capsule(
         max_failures=8 if full else 5,
     )
     limit = 8 if full else 4
-    bias = _resume_task_bias(
-        request,
-        json.dumps(context.get("continuity_brief", {}), sort_keys=True),
-        json.dumps(context.get("handoff", {}), sort_keys=True),
-        json.dumps(context.get("active_work_state", {}), sort_keys=True),
-        json.dumps(context.get("recent_work_state", {}), sort_keys=True),
-        json.dumps(context.get("ranked_items", []), sort_keys=True),
-    )
-    entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit, bias=bias)
-    repo_map = _resume_repo_map_slice(context, limit=limit, bias=bias)
+    profile = _resume_task_profile(request)
+    entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit, profile=profile)
+    repo_map = _resume_repo_map_slice(context, limit=limit, profile=profile, repo_root=repo_root)
     task_state = _resume_task_state(repo_root, context, request, entry_points, entry_warnings)
 
     active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}

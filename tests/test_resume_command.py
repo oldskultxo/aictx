@@ -92,6 +92,40 @@ def _seed_parser_fixture(repo: Path) -> None:
     )
 
 
+def _seed_generic_repomap(repo: Path, files: dict[str, tuple[str, str]]) -> None:
+    for rel_path, (language, symbol) in files.items():
+        target = repo / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if language == "markdown":
+            target.write_text(f"# {symbol}\n", encoding="utf-8")
+        elif language in {"toml", "yaml"}:
+            target.write_text(f"# {symbol}\n", encoding="utf-8")
+        else:
+            target.write_text(f"def {symbol}():\n    pass\n", encoding="utf-8")
+    write_repomap_config(repo, {"enabled": True})
+    write_repomap_index(
+        repo,
+        {
+            "version": 1,
+            "files": [
+                {
+                    "path": rel_path,
+                    "language": language,
+                    "symbols": [
+                        {
+                            "name": symbol,
+                            "kind": "heading" if language == "markdown" else "function",
+                            "line": 1,
+                            "language": language,
+                        }
+                    ],
+                }
+                for rel_path, (language, symbol) in files.items()
+            ],
+        },
+    )
+
+
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
@@ -305,6 +339,110 @@ def test_resume_docs_task_can_choose_readme(tmp_path: Path, capsys):
     assert args.func(args) == 0
 
     assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] == "README.md"
+
+
+def test_resume_generic_bugfix_prefers_source_or_tests_over_readme(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(
+        repo,
+        {
+            "README.md": ("markdown", "Payment validation docs"),
+            "src/payments/validation.py": ("python", "validate_payment"),
+            "tests/test_payment_validation.py": ("python", "test_payment_validation_bug"),
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "fix payment validation bug", "--json"])
+    assert args.func(args) == 0
+
+    first_path = json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"]
+    assert first_path in {"tests/test_payment_validation.py", "src/payments/validation.py"}
+    assert first_path != "README.md"
+
+
+def test_resume_documentation_task_prefers_readme_over_code(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(
+        repo,
+        {
+            "README.md": ("markdown", "Install instructions"),
+            "src/payments/validation.py": ("python", "validate_payment"),
+            "tests/test_payment_validation.py": ("python", "test_payment_validation"),
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "update README install instructions", "--json"])
+    assert args.func(args) == 0
+
+    assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] == "README.md"
+
+
+def test_resume_config_task_can_choose_config_or_ci(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(
+        repo,
+        {
+            "README.md": ("markdown", "Configuration docs"),
+            "pyproject.toml": ("toml", "pytest config"),
+            ".github/workflows/test.yml": ("yaml", "pytest workflow"),
+            "src/aictx/cli.py": ("python", "build_parser"),
+            "tests/test_cli.py": ("python", "test_cli"),
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "adjust pytest config", "--json"])
+    assert args.func(args) == 0
+
+    assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] in {
+        "pyproject.toml",
+        ".github/workflows/test.yml",
+    }
+
+
+def test_resume_metrics_analysis_task_can_choose_metrics(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(
+        repo,
+        {
+            ".demo_metrics/with_aictx_v5/session_2_metrics.json": ("json", "session metrics"),
+            ".demo_metrics/with_aictx_v5/codex_usage_session_2.json": ("json", "codex usage"),
+            "src/taskflow/parser.py": ("python", "parse_tasks"),
+            "tests/test_parser.py": ("python", "test_parser"),
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "analyze demo metrics and compare token usage", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    paths = [payload["capsule"]["first_action"]["path"]]
+    paths.extend(item["path"] for item in payload["capsule"]["repo_map"]["primary"] + payload["capsule"]["repo_map"]["secondary"])
+    assert any(path.startswith(".demo_metrics/") for path in paths)
+
+
+def test_resume_normal_coding_task_does_not_choose_metrics(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(
+        repo,
+        {
+            ".demo_metrics/with_aictx_v5/session_2_metrics.json": ("json", "parser metrics"),
+            ".demo_metrics/with_aictx_v5/codex_usage_session_2.json": ("json", "parser usage"),
+            "src/taskflow/parser.py": ("python", "parse_tasks"),
+            "tests/test_parser.py": ("python", "test_parser_edge_cases"),
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+
+    first_path = json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"]
+    assert not first_path.startswith(".demo_metrics/")
+    assert "metrics" not in first_path
 
 
 def test_resume_completed_previous_task_is_background(tmp_path: Path, capsys):
