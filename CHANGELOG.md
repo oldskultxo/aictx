@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.1.0 - 2026-05-02
+
+### Changed
+- Implemented self-contained resume capsule first_action, startup guard, anti-runtime startup rule, task-biased entry ranking, and regression tests.
+
+### Fixed
+- Replaced parser/CLI-specific resume bias with generic task profile + request-term matching.
+- Added path categories/penalties for runtime/generated/metrics/docs/config/source/tests.
+- Kept .aictx/** excluded from action targets.
+- Allows docs/config/metrics to win only for matching task intent.
+
 ## 5.0.0 - 2026-05-02
 
 ### Added
@@ -12,7 +23,7 @@
 - Added tests covering resume capsule shape, startup/final-summary source separation, JSON pipe validity, compact/full resume output, RepoMap slicing, generated artifact portability, hidden advanced help behavior, agent identity inference, and startup banner policy instructions.
 
 ### Changed
-- Bumped the documented/runtime package version from `4.7.1` to `5.0.0`.
+- Bumped the documented/runtime package version from `4.7.1` to `5.1.0`.
 - Updated generated agent instructions so normal startup runs exactly one continuity command with JSON output:
   - `aictx resume --repo . --request "<current user request>" --json`
 - Clarified the lifecycle as `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.

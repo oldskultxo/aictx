@@ -2,7 +2,7 @@
 
 ## Current line: 5.0.x
 
-Current documented runtime: `5.0.0`.
+Current documented runtime: `5.1.0`.
 
 For users already on recent `4.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the v5 startup contract:
 
@@ -14,22 +14,15 @@ aictx init
 ---
 ## 5.0.x
 
-Added:
-- Added `aictx resume --repo . --request "<current user request>"` as the canonical agent-facing continuity query.
-- Added `aictx resume --json` for structured startup automation.
-- Added generated local resume trace artifacts at `.aictx/continuity/resume_capsule.md` and `.aictx/continuity/resume_capsule.json`.
-- Added `aictx advanced` to list advanced/diagnostic/building-block commands.
 
 Changed:
-- Normal agent startup should run exactly one continuity command: `aictx resume --repo . --request "<current user request>" --json`.
-- The runtime contract now explicitly separates resume, prepare/finalize, startup banner rendering, final summary generation, and persistence.
-- Startup banner rendering must use exactly one source: `resume.startup_banner_text` or `resume.startup_banner_render_payload` during normal startup; `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload` during wrapped execution. Do not render both.
-- Top-level CLI help now focuses on primary commands: `install`, `init`, `resume`, `advanced`, `clean`, and `uninstall`. Advanced commands remain callable but are hidden from top-level help.
-- Docs now prefer `python3 -m json.tool` for inspecting `--json` output.
+- Implemented self-contained resume capsule first_action, startup guard, anti-runtime startup rule, task-biased entry ranking, and regression tests.
 
 Fixed:
-- Codex environments now infer `codex` as the default resume agent identity when `--agent-id` is omitted.
-- Startup banner policy now explicitly requires localization to the user's language and preservation in a substantive/final user-visible response, not only a transient progress/status message.
+- Replaced parser/CLI-specific resume bias with generic task profile + request-term matching.
+- Added path categories/penalties for runtime/generated/metrics/docs/config/source/tests.
+- Kept .aictx/** excluded from action targets.
+- Allows docs/config/metrics to win only for matching task intent.
 
 Compatibility notes:
 - No manual continuity data migration is expected.
