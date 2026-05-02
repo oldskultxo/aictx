@@ -19,7 +19,7 @@ from .agent_runtime import (
     resolve_workspace_root,
     upsert_marked_block,
 )
-from .middleware import cli_finalize_execution, cli_prepare_execution
+from .middleware import cli_finalize_execution, cli_prepare_execution, finalize_execution, now_iso, prepare_execution
 from .messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
 from .portability import detect_portable_continuity_from_gitignore, load_portability_state
 from .continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
@@ -474,6 +474,52 @@ def cmd_next(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_finalize(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    status = str(getattr(args, "status", "") or "")
+    summary = str(getattr(args, "summary", "") or "")
+    error = str(getattr(args, "error", "") or "").strip()
+    notable_errors = _list_arg(args, "notable_errors")
+    if error:
+        notable_errors.append(error)
+    request = str(getattr(args, "request", "") or summary).strip()
+    prepared = prepare_execution(
+        {
+            "repo_root": repo.as_posix(),
+            "user_request": request,
+            "agent_id": _infer_agent_id(str(getattr(args, "agent_id", "") or "")),
+            "adapter_id": str(getattr(args, "adapter_id", "") or getattr(args, "agent_id", "") or "generic"),
+            "execution_id": str(getattr(args, "session_id", "") or f"cli-finalize-{now_iso()}"),
+            "timestamp": now_iso(),
+            "declared_task_type": str(getattr(args, "task_type", "") or "") or None,
+            "execution_mode": "plain",
+            "files_opened": _list_arg(args, "files_opened"),
+            "files_edited": _list_arg(args, "files_edited"),
+            "files_reopened": [],
+            "commands_executed": _list_arg(args, "commands_executed"),
+            "tests_executed": _list_arg(args, "tests_executed"),
+            "notable_errors": notable_errors,
+            "error_events": [],
+            "work_state": {},
+            "skill_metadata": {},
+        }
+    )
+    result = {
+        "success": status == "success",
+        "result_summary": summary,
+        "validated_learning": False,
+        "decisions": [],
+        "semantic_repo": [],
+        "work_state": {},
+    }
+    payload = finalize_execution(prepared, result)
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print(str(payload.get("agent_summary_text") or "AICTX summary unavailable"))
+    return 0
+
+
 def cmd_resume(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     request = str(getattr(args, "request", "") or "").strip()
@@ -502,8 +548,9 @@ def cmd_advanced(args: argparse.Namespace) -> int:
             [
                 "AICTX advanced commands",
                 "",
-                "Normal agent startup uses:",
+                "Normal agent lifecycle:",
                 '  aictx resume --repo . --request "<current user request>" --json',
+                '  aictx finalize --repo . --status success|failure --summary "<what happened>" --json',
                 "",
                 "Advanced/diagnostic/building-block commands:",
                 "- suggest: deterministic next-step guidance from strategy memory",
@@ -1100,7 +1147,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,advanced,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,finalize,advanced,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1133,12 +1180,31 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     resume.set_defaults(func=cmd_resume)
 
+    finalize = sub.add_parser("finalize", help="Finalize an AICTX task execution and produce the final summary")
+    finalize.add_argument("--repo", default=".", help="Repository root")
+    finalize.add_argument("--status", choices=["success", "failure"], required=True, help="Task outcome")
+    finalize.add_argument("--summary", required=True, help="What happened")
+    finalize.add_argument("--json", action="store_true", help="Print structured finalization JSON")
+    finalize.add_argument("--request", default="", help="Original user request")
+    finalize.add_argument("--task-type", default="", help="Optional task type override")
+    finalize.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
+    finalize.add_argument("--files-edited", nargs="*", default=[], help="Explicit files edited during execution")
+    finalize.add_argument("--commands-executed", nargs="*", default=[], help="Explicit commands executed during execution")
+    finalize.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
+    finalize.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
+    finalize.add_argument("--error", default="", help="Compact failure/error detail")
+    finalize.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
+    finalize.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
+    finalize.add_argument("--session-id", default="", help=argparse.SUPPRESS)
+    finalize.set_defaults(func=cmd_finalize)
+
     advanced = sub.add_parser(
         "advanced",
         help="Show advanced/diagnostic AICTX commands",
         description=(
             "Advanced/diagnostic/building-block commands. Normal agents should use "
-            'aictx resume --repo . --request "<current user request>" --json at startup.'
+            'aictx resume --repo . --request "<current user request>" --json at startup '
+            'and aictx finalize --repo . --status success|failure --summary "<what happened>" --json after task work.'
         ),
         epilog="Commands: suggest, reuse, next, task, messages, map, report, reflect, internal.",
         formatter_class=argparse.RawDescriptionHelpFormatter,

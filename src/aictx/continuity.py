@@ -2063,6 +2063,11 @@ def _resume_startup_guard() -> dict[str, Any]:
         "do_not_read_runtime_files": True,
         "do_not_inspect_aictx_installation": True,
         "allowed_aictx_commands_before_first_task_action": ["resume"],
+        "allowed_aictx_commands_after_task_action": ["finalize"],
+        "forbidden_normal_flow": [
+            "aictx internal execution finalize",
+            "direct shell calls to finalize_execution",
+        ],
         "forbidden_before_first_task_action": [
             ".aictx/agent_runtime.md",
             ".aictx/**",
@@ -2194,6 +2199,7 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
         "Do not inspect local/global AICTX installation files.",
         "Do not inspect AICTX source unless the current user task is about AICTX itself.",
         "Run no further AICTX discovery commands before opening the first action target.",
+        'After completing the task, use `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.',
         "",
         "First action",
     ])

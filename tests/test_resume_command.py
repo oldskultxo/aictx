@@ -147,6 +147,9 @@ def test_resume_default_markdown_and_budget(tmp_path: Path, capsys):
     assert "Do not inspect `.aictx/**`" in output
     assert "Do not inspect local/global AICTX installation files" in output
     assert "Run no further AICTX discovery commands" in output
+    assert "aictx finalize --repo ." in output
+    assert "--status success|failure" in output
+    assert "--summary" in output
     assert "First action" in output
     assert "startup_banner_policy.show_in_first_user_visible_response" not in output
     assert "Current request" in output
@@ -206,6 +209,9 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
     assert payload["startup_guard"]["do_not_read_runtime_files"] is True
     assert payload["startup_guard"]["do_not_inspect_aictx_installation"] is True
     assert payload["startup_guard"]["allowed_aictx_commands_before_first_task_action"] == ["resume"]
+    assert payload["startup_guard"]["allowed_aictx_commands_after_task_action"] == ["finalize"]
+    assert "aictx internal execution finalize" in payload["startup_guard"]["forbidden_normal_flow"]
+    assert "direct shell calls to finalize_execution" in payload["startup_guard"]["forbidden_normal_flow"]
     assert ".aictx/agent_runtime.md" in payload["startup_guard"]["forbidden_before_first_task_action"]
     assert "local/global AICTX installation files" in payload["startup_guard"]["forbidden_before_first_task_action"]
     assert payload["capsule"]["first_action"]["type"] in {"open_file", "inspect_entry_points", "follow_current_request", "ask_clarification"}
@@ -497,6 +503,44 @@ def test_resume_repomap_slice_has_primary_and_secondary(tmp_path: Path, capsys):
     assert repo_map["secondary"]
 
 
+
+def test_finalize_json_smoke(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    args = _parser().parse_args(["finalize", "--repo", str(repo), "--status", "success", "--summary", "Implemented parser edge tests", "--json"])
+    assert args.func(args) == 0
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert payload.get("agent_summary_text") or payload.get("agent_summary")
+    assert "invalid choice" not in output
+
+
+def test_finalize_text_smoke(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    args = _parser().parse_args(["finalize", "--repo", str(repo), "--status", "success", "--summary", "Done"])
+    assert args.func(args) == 0
+
+    output = capsys.readouterr().out
+    assert "AICTX summary" in output or "AICTX summary unavailable" in output
+
+
+def test_parser_accepts_finalize_regression(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    args = _parser().parse_args([
+        "finalize",
+        "--repo", str(repo),
+        "--status", "success",
+        "--summary", "Done",
+        "--json",
+    ])
+    assert args.func(args) == 0
+    assert json.loads(capsys.readouterr().out).get("agent_summary_text")
+
 def test_advanced_help_lists_advanced_commands(capsys):
     with pytest.raises(SystemExit) as exc:
         _parser().parse_args(["advanced", "--help"])
@@ -505,6 +549,7 @@ def test_advanced_help_lists_advanced_commands(capsys):
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert command in output
     assert 'aictx resume --repo . --request "<current user request>"' in output
+    assert "finalize" not in [line.strip() for line in output.splitlines() if line.strip().startswith("-")]
 
 
 def test_advanced_command_without_help_lists_commands(capsys):
@@ -514,6 +559,8 @@ def test_advanced_command_without_help_lists_commands(capsys):
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert f"- {command}:" in output
     assert 'aictx resume --repo . --request "<current user request>"' in output
+    assert "aictx finalize --repo . --status success|failure" in output
+    assert "- finalize:" not in output
 
 
 def test_top_level_help_hides_advanced_commands(capsys):
@@ -522,8 +569,9 @@ def test_top_level_help_hides_advanced_commands(capsys):
     assert exc.value.code == 0
     output = capsys.readouterr().out
     assert "resume" in output
+    assert "finalize" in output
     assert "advanced" in output
-    assert "{install,init,resume,advanced,clean,uninstall}" in output
+    assert "{install,init,resume,finalize,advanced,clean,uninstall}" in output
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert f"    {command}" not in output
 
@@ -541,6 +589,10 @@ def test_runtime_contract_says_resume_does_not_replace_lifecycle():
         "finalize",
         "final AICTX summary",
         "aictx resume --repo .",
+        "aictx finalize --repo .",
+        "finalize_execution` is the middleware API behind that command",
+        "do not call it directly from the shell",
+        "Do not render both",
         "--json",
         "prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence",
     ]:
