@@ -162,6 +162,10 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "agent_summary_render_payload" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in prompt_hook
+    assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in prompt_hook
+    assert "Do not pass the full user prompt to resume" in prompt_hook
+    assert 'run_json(["aictx", "resume"' not in prompt_hook
+    assert '"--request", prompt' not in prompt_hook
 
 
 def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path: Path):
@@ -1636,6 +1640,11 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert CLAUDE_MD_GITIGNORE_LINE in gitignore
     assert 'aictx resume --repo . --task "<task goal>"' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
     assert 'aictx resume --repo . --task "<task goal>" --json' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    user_prompt_hook = (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").read_text(encoding="utf-8")
+    assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in user_prompt_hook
+    assert "Do not pass the full user prompt to resume" in user_prompt_hook
+    assert 'run_json(["aictx", "resume"' not in user_prompt_hook
+    assert '"--request", prompt' not in user_prompt_hook
 
 
 def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tmp_path: Path):
