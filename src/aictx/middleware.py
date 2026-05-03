@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import re
 import time
@@ -13,6 +14,7 @@ from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
 from .continuity import (
     AICTX_TEXT_SEPARATOR,
+    RESUME_CAPSULE_JSON_PATH,
     build_startup_banner_render_payload,
     load_continuity_context,
     persist_decision_memory,
@@ -553,6 +555,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_path": packet_path,
         "packet": packet,
         "continuity_context": continuity_context,
+        "resume_contract": load_latest_resume_contract(repo_root, envelope["user_request"]),
         "active_work_state": active_work_state,
         "continuity_brief": continuity_context.get("continuity_brief", {}) if isinstance(continuity_context.get("continuity_brief"), dict) else {},
         "agent_label": str(session.get("agent_label") or ""),
@@ -701,6 +704,124 @@ def _effective_task_type(prepared: dict[str, Any], final_task_resolution: dict[s
     return str(prepared.get("prepared_task_type") or prepared.get("resolved_task_type") or "unknown")
 
 
+def _task_goal_matches_contract(task_goal: str, contract_goal: str) -> bool:
+    left = re.sub(r"\s+", " ", str(task_goal or "").strip().lower())
+    right = re.sub(r"\s+", " ", str(contract_goal or "").strip().lower())
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    return min(len(left), len(right)) >= 16 and (left in right or right in left)
+
+
+def load_latest_resume_contract(repo_root: Path, task_goal: str = "") -> dict[str, Any]:
+    payload = read_json(repo_root / RESUME_CAPSULE_JSON_PATH, {})
+    if not isinstance(payload, dict):
+        return {}
+    contract = payload.get("execution_contract") if isinstance(payload.get("execution_contract"), dict) else {}
+    if not contract:
+        return {}
+    contract_goal = str(contract.get("task_goal") or payload.get("request") or "")
+    if task_goal and not _task_goal_matches_contract(task_goal, contract_goal):
+        return {}
+    return {
+        "execution_contract": contract,
+        "contract_checks": payload.get("contract_checks") if isinstance(payload.get("contract_checks"), dict) else {},
+        "generated_at": str(payload.get("generated_at") or ""),
+        "task_goal": contract_goal,
+    }
+
+
+def _command_matches(command: str, expected: str) -> bool:
+    command_text = str(command or "").strip()
+    expected_text = str(expected or "").strip()
+    return bool(command_text and expected_text and (command_text == expected_text or expected_text in command_text))
+
+
+def _command_contains(command: str, needle: str) -> bool:
+    return str(needle or "").lower() in str(command or "").lower()
+
+
+def build_contract_adherence(prepared: dict[str, Any], execution_log: dict[str, Any]) -> dict[str, Any]:
+    source = prepared.get("resume_contract") if isinstance(prepared.get("resume_contract"), dict) else {}
+    contract = source.get("execution_contract") if isinstance(source.get("execution_contract"), dict) else {}
+    if not contract:
+        return {
+            "contract_available": False,
+            "opened_first_action": False,
+            "edited_within_scope": False,
+            "canonical_test_used": False,
+            "finalize_called": True,
+            "violations": ["contract_missing"],
+        }
+
+    files_opened = [str(item) for item in execution_log.get("files_opened", [])] if isinstance(execution_log.get("files_opened"), list) else []
+    files_edited = [str(item) for item in execution_log.get("files_edited", [])] if isinstance(execution_log.get("files_edited"), list) else []
+    commands = [str(item) for item in execution_log.get("commands_executed", [])] if isinstance(execution_log.get("commands_executed"), list) else []
+    tests = [str(item) for item in execution_log.get("tests_executed", [])] if isinstance(execution_log.get("tests_executed"), list) else []
+    first_action = contract.get("first_action") if isinstance(contract.get("first_action"), dict) else {}
+    first_path = str(first_action.get("path") or "").strip()
+    opened_first_action = bool(first_path and first_path in files_opened)
+    if not first_path and files_opened:
+        opened_first_action = True
+
+    edit_scope = contract.get("edit_scope") if isinstance(contract.get("edit_scope"), dict) else {}
+    allowed_edits = set(str(item) for item in (edit_scope.get("primary") or []) + (edit_scope.get("secondary_if_needed") or []) if str(item).strip())
+    avoid_patterns = [str(item) for item in edit_scope.get("avoid", []) if str(item).strip()] if isinstance(edit_scope.get("avoid"), list) else []
+    outside_scope = [path for path in files_edited if allowed_edits and path not in allowed_edits]
+    avoided_edits = [path for path in files_edited if any(fnmatch.fnmatch(path, pattern) for pattern in avoid_patterns)]
+    edited_within_scope = not outside_scope and not avoided_edits
+
+    test_command = contract.get("test_command") if isinstance(contract.get("test_command"), dict) else {}
+    expected_test = str(test_command.get("command") or "").strip()
+    observed_test_commands = commands + tests
+    canonical_test_used = bool(expected_test and any(_command_matches(command, expected_test) for command in observed_test_commands))
+    alternative_tests = [
+        command
+        for command in observed_test_commands
+        if any(token in command.lower() for token in ("pytest", "make test", "tox", "unittest"))
+        and expected_test
+        and not _command_matches(command, expected_test)
+    ]
+
+    violations: list[str] = []
+    if first_path and not opened_first_action:
+        violations.append("missing_first_action_open")
+    if outside_scope:
+        violations.append("edit_outside_scope")
+    if avoided_edits:
+        violations.append("edited_avoided_path")
+    if expected_test and not canonical_test_used:
+        violations.append("canonical_test_not_observed")
+    if alternative_tests and not canonical_test_used:
+        violations.append("alternative_test_command_before_canonical_test")
+    orientation_checks = {
+        "git_status_before_first_edit": "git status",
+        "git_diff_before_first_edit": "git diff",
+        "ls_or_find_before_first_edit": "find",
+        "manual_probe_before_first_edit": "python -",
+    }
+    for violation, needle in orientation_checks.items():
+        if any(_command_contains(command, needle) for command in commands):
+            violations.append(violation)
+    if any(command.strip() == "ls" or command.strip().startswith("ls ") for command in commands):
+        violations.append("ls_or_find_before_first_edit")
+
+    return {
+        "contract_available": True,
+        "task_goal": str(contract.get("task_goal") or source.get("task_goal") or ""),
+        "contract_generated_at": str(source.get("generated_at") or ""),
+        "first_action_path": first_path,
+        "opened_first_action": opened_first_action,
+        "edited_within_scope": edited_within_scope,
+        "canonical_test_command": expected_test,
+        "canonical_test_used": canonical_test_used,
+        "finalize_called": True,
+        "violations": sorted(set(violations)),
+        "sequence_observable": False,
+    }
+
+
 def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     log_path = repo_root / EXECUTION_LOG_PATH
     real_log_path = repo_root / REAL_EXECUTION_LOG_PATH
@@ -761,6 +882,9 @@ def append_execution_telemetry(repo_root: Path, prepared: dict[str, Any], result
         "success": bool(result.get("success")),
         "used_packet": used_packet,
     }
+    contract_adherence = build_contract_adherence(prepared, real_entry)
+    entry["contract_adherence"] = contract_adherence
+    real_entry["contract_adherence"] = contract_adherence
     rows.append(entry)
     write_jsonl(log_path, rows)
     append_jsonl(real_log_path, real_entry)
@@ -844,7 +968,7 @@ def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, An
     used_packet = bool(execution_log.get("used_packet")) or bool(prepared.get("retrieval_summary", {}).get("packet_built"))
     files_opened_count = len(files_opened)
     files_reopened_count = len(files_reopened)
-    return {
+    feedback = {
         "files_opened": files_opened_count,
         "reopened_files": files_reopened_count,
         "used_strategy": used_strategy,
@@ -854,6 +978,10 @@ def build_aictx_feedback(prepared: dict[str, Any], telemetry_entry: dict[str, An
         "commands_observed": len(commands_executed),
         "tests_observed": len(tests_executed),
     }
+    contract_adherence = execution_log.get("contract_adherence") if isinstance(execution_log.get("contract_adherence"), dict) else {}
+    if contract_adherence.get("contract_available"):
+        feedback["contract_adherence"] = contract_adherence
+    return feedback
 
 
 def build_capture_quality(execution_log: dict[str, Any]) -> dict[str, Any]:
@@ -1329,6 +1457,7 @@ def build_agent_summary(
         "commands_observed": list(execution_log.get("commands_executed", [])) if isinstance(execution_log.get("commands_executed"), list) else [],
         "tests_observed": list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else [],
         "error_events_observed": list(execution_log.get("error_events", [])) if isinstance(execution_log.get("error_events"), list) else [],
+        "contract_adherence": dict(execution_log.get("contract_adherence", {})) if isinstance(execution_log.get("contract_adherence"), dict) else {},
         "next_guidance": dict(continuity.get("continuity_brief", {})) if isinstance(continuity.get("continuity_brief"), dict) else {},
         "continuity_value": build_continuity_value(prepared, execution_log, bool(handoff), bool(decisions), bool(failure)),
         "capture_quality": build_capture_quality(execution_log),
@@ -1454,6 +1583,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "failure_persisted": failure,
         "resolved_failures": resolved_failures,
         "aictx_feedback": aictx_feedback,
+        "contract_adherence": agent_summary["structured"].get("contract_adherence", {}),
         "feedback_persisted": persisted_feedback,
         "handoff_persisted": handoff,
         "decisions_persisted": decisions,
@@ -1501,6 +1631,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "commands_executed": list(prepared.get("last_execution_log", {}).get("commands_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("commands_executed"), list) else [],
             "tests_executed": list(prepared.get("last_execution_log", {}).get("tests_executed", [])) if isinstance(prepared.get("last_execution_log", {}).get("tests_executed"), list) else [],
             "error_events": list(prepared.get("last_execution_log", {}).get("error_events", [])) if isinstance(prepared.get("last_execution_log", {}).get("error_events"), list) else [],
+            "contract_adherence": agent_summary["structured"].get("contract_adherence", {}),
         },
         "finalized_at": finalized_at,
     }

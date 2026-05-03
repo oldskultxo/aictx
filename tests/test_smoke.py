@@ -116,8 +116,10 @@ def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkey
 
 def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     text = render_agent_runtime()
-    assert 'aictx resume --repo . --request "<current user request>"' in text
-    assert 'aictx resume --repo . --request "<current user request>" --json' in text
+    assert 'aictx resume --repo . --task "<task goal>"' in text
+    assert 'aictx resume --repo . --task "<task goal>" --json' in text
+    assert "Do not pass the full user prompt to resume" in text
+    assert "execution_contract.first_action" in text
     assert ".aictx/continuity/resume_capsule.md" in text
     assert ".aictx/continuity/resume_capsule.json" in text
     assert "unknown" in text

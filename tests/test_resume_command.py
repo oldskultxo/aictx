@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from aictx import cli
-from aictx.agent_runtime import render_agent_runtime
+from aictx.agent_runtime import render_agent_runtime, render_repo_agents_block
 from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, LAST_EXECUTION_SUMMARY_PATH, RESUME_CAPSULE_JSON_PATH, RESUME_CAPSULE_MARKDOWN_PATH
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.repo_map.config import write_repomap_config, write_repomap_index
@@ -223,6 +223,39 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
     assert json.loads((repo / RESUME_CAPSULE_JSON_PATH).read_text(encoding="utf-8"))["schema_version"] == "1.0"
 
 
+def test_resume_task_flag_wins_over_legacy_request(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    args = _parser().parse_args([
+        "resume",
+        "--repo",
+        str(repo),
+        "--task",
+        "Fix parser tests",
+        "--request",
+        "FULL PROMPT WITH REPORTING AND OUTPUT FORMAT",
+        "--json",
+    ])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["request"] == "Fix parser tests"
+    assert payload["execution_contract"]["task_goal"] == "Fix parser tests"
+    assert "FULL PROMPT" not in payload["execution_contract"]["task_goal"]
+
+
+def test_runtime_instructions_require_task_goal_only():
+    for text in (render_agent_runtime(), render_repo_agents_block()):
+        assert 'aictx resume --repo . --task "<task goal>" --json' in text
+        assert "Do not pass the full user prompt to resume" in text
+        assert "reporting instructions" in text
+        assert "metrics schemas" in text
+        assert "output format rules" in text
+        assert "aictx finalize --repo ." in text
+        assert "final AICTX summary" in text
+
+
 def test_resume_json_stdout_is_valid_for_json_tool(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -294,6 +327,8 @@ def test_resume_active_work_state_drives_task_state(tmp_path: Path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["task_state"]["status"] == "active"
     assert payload["task_state"]["confidence"] == "high"
+    assert payload["continuity_match"]["level"] == "high"
+    assert payload["execution_contract"]["contract_strength"] == "strict"
     assert payload["capsule"]["next_action"] == "inspect src/aictx/continuity.py"
     assert payload["capsule"]["first_action"]["path"] == "src/aictx/continuity.py"
 
@@ -311,6 +346,57 @@ def test_resume_first_action_prefers_tests_for_implementation_task(tmp_path: Pat
     assert first_action["path"] == "tests/test_parser.py"
 
 
+def test_resume_json_includes_closed_loop_execution_contract(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+    (repo / "Makefile").write_text("test:\n\tpytest -q\n", encoding="utf-8")
+    (repo / "examples").mkdir()
+    (repo / "examples/tasks.txt").write_text("demo", encoding="utf-8")
+    (repo / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
+
+    args = _parser().parse_args([
+        "resume",
+        "--repo",
+        str(repo),
+        "--task",
+        "Continue previous task: handle BLOCKED parser edge cases",
+        "--json",
+    ])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    contract = payload["execution_contract"]
+    assert contract["mode"] == "closed_loop"
+    assert contract["task_goal"] == "Continue previous task: handle BLOCKED parser edge cases"
+    assert payload["continuity_match"]["level"] == "high"
+    assert contract["continuity_match"]["level"] == "high"
+    assert contract["contract_strength"] == "strict"
+    assert contract["first_action"]["binding"] == "must_open_first"
+    assert contract["first_action_policy"]["must_follow"] is True
+    assert contract["test_command"]["command"] == "make test"
+    for forbidden in [
+        "git status",
+        "git diff",
+        "ls",
+        "find",
+        "repo-wide grep",
+        "read README.md",
+        "read docs/**",
+        "read examples/**",
+        "manual Python probes",
+        "test command before first edit",
+        "alternative test command discovery",
+        "inspect .aictx/**",
+        "inspect local/global AICTX installation files",
+    ]:
+        assert forbidden in contract["forbidden_before_first_edit"]
+    assert "tests/test_parser.py" in contract["edit_scope"]["primary"]
+    assert "src/taskflow/parser.py" in contract["edit_scope"]["secondary_if_needed"]
+    assert "README.md" in contract["edit_scope"]["avoid"]
+    assert "aictx finalize" in contract["finalize_command"]
+
+
 def test_resume_first_action_text_precedes_source_index(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -321,6 +407,46 @@ def test_resume_first_action_text_precedes_source_index(tmp_path: Path, capsys):
 
     output = capsys.readouterr().out
     assert output.index("First action") < output.index("Source index")
+
+
+def test_resume_execution_contract_text_precedes_source_index(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases"])
+    assert args.func(args) == 0
+
+    output = capsys.readouterr().out
+    assert output.index("Execution contract") < output.index("Source index")
+    assert output.index("Continuity match") < output.index("Source index")
+    assert "Contract strength" in output
+    for phrase in [
+        "Open first action",
+        "Do not perform repo-wide orientation before first edit",
+        "Validate with",
+        "Finalize with",
+    ]:
+        assert phrase in output
+
+
+def test_resume_contract_selects_makefile_then_pytest_fallback(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+    (repo / "Makefile").write_text("test:\n\tpytest -q\n", encoding="utf-8")
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+    assert json.loads(capsys.readouterr().out)["execution_contract"]["test_command"]["command"] == "make test"
+
+    repo2 = tmp_path / "repo2"
+    init_repo_scaffold(repo2, update_gitignore=False)
+    _seed_parser_fixture(repo2)
+    (repo2 / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
+    args = _parser().parse_args(["resume", "--repo", str(repo2), "--request", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+    assert "pytest" in json.loads(capsys.readouterr().out)["execution_contract"]["test_command"]["command"]
 
 
 def test_resume_implementation_task_does_not_choose_readme_first(tmp_path: Path, capsys):
@@ -367,6 +493,56 @@ def test_resume_generic_bugfix_prefers_source_or_tests_over_readme(tmp_path: Pat
     assert first_path != "README.md"
 
 
+def test_resume_relevant_repomap_without_work_state_is_medium_soft(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(
+        repo,
+        {
+            "src/payments/validation.py": ("python", "validate_payment"),
+            "tests/test_payment_validation.py": ("python", "test_payment_validation_bug"),
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "fix payment validation bug", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["continuity_match"]["level"] == "medium"
+    assert payload["execution_contract"]["contract_strength"] == "soft"
+    assert payload["execution_contract"]["first_action"]["binding"] == "must_open_first"
+
+
+def test_resume_unrelated_completed_handoff_is_low_exploratory(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / "src/taskflow").mkdir(parents=True)
+    (repo / "src/taskflow/parser.py").write_text("def parse_task():\n    pass\n", encoding="utf-8")
+    write_json(
+        repo / HANDOFF_PATH,
+        {
+            "status": "completed",
+            "summary": "Finished parser work.",
+            "recommended_starting_points": ["src/taskflow/parser.py"],
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "update button colors", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    contract = payload["execution_contract"]
+    assert payload["continuity_match"]["level"] == "low"
+    assert contract["contract_strength"] == "exploratory"
+    assert contract["first_action"]["type"] == "inspect_entry_points"
+    assert contract["first_action"]["path"] == ""
+    assert contract["first_action"]["binding"] == "must_inspect_listed_entry_points_only"
+    assert contract["first_action_policy"]["must_follow"] is False
+    assert contract["edit_scope"]["primary"] == []
+    assert "src/taskflow/parser.py" not in contract["edit_scope"]["primary"]
+    assert "inspect .aictx/**" in contract["forbidden_before_first_edit"]
+
+
 def test_resume_documentation_task_prefers_readme_over_code(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -383,6 +559,28 @@ def test_resume_documentation_task_prefers_readme_over_code(tmp_path: Path, caps
     assert args.func(args) == 0
 
     assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] == "README.md"
+
+
+def test_resume_docs_task_contract_allows_readme_first_action(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(
+        repo,
+        {
+            "README.md": ("markdown", "Install instructions"),
+            "src/payments/validation.py": ("python", "validate_payment"),
+            "tests/test_payment_validation.py": ("python", "test_payment_validation"),
+        },
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "Update README install instructions", "--json"])
+    assert args.func(args) == 0
+
+    contract = json.loads(capsys.readouterr().out)["execution_contract"]
+    assert contract["first_action"]["path"] == "README.md"
+    assert contract["first_action"]["binding"] == "must_open_first"
+    assert "README.md" in contract["edit_scope"]["primary"]
+    assert "read README.md" not in contract["forbidden_before_first_edit"]
 
 
 def test_resume_config_task_can_choose_config_or_ci(tmp_path: Path, capsys):
@@ -449,6 +647,102 @@ def test_resume_normal_coding_task_does_not_choose_metrics(tmp_path: Path, capsy
     first_path = json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"]
     assert not first_path.startswith(".demo_metrics/")
     assert "metrics" not in first_path
+
+
+def test_resume_contract_checks_present(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+
+    checks = json.loads(capsys.readouterr().out)["contract_checks"]
+    assert checks["expected_first_action"] == "open:first_action.path"
+    assert checks["expected_test_command"]
+    assert checks["expected_final_command"] == "aictx finalize"
+    for violation in [
+        "missing_finalize",
+        "repo_wide_orientation_before_first_edit",
+        "alternative_test_command_before_canonical_test",
+    ]:
+        assert violation in checks["violations_to_report"]
+
+
+def test_finalize_records_contract_adherence_success(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+    (repo / "Makefile").write_text("test:\n\tpytest -q\n", encoding="utf-8")
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+    capsys.readouterr()
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "validate parser edge cases",
+            "agent_id": "codex",
+            "execution_id": "exec-contract-ok",
+            "files_opened": ["tests/test_parser.py"],
+            "files_edited": ["tests/test_parser.py"],
+            "commands_executed": ["make test"],
+            "tests_executed": ["make test"],
+        }
+    )
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "validated parser edge cases"})
+
+    adherence = finalized["contract_adherence"]
+    assert adherence["contract_available"] is True
+    assert adherence["opened_first_action"] is True
+    assert adherence["edited_within_scope"] is True
+    assert adherence["canonical_test_used"] is True
+    assert adherence["finalize_called"] is True
+    assert adherence["violations"] == []
+    assert finalized["aictx_feedback"]["contract_adherence"] == adherence
+    assert finalized["agent_summary"]["contract_adherence"] == adherence
+    assert finalized["value_evidence"]["contract_adherence"] == adherence
+
+
+def test_finalize_records_contract_adherence_violations(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+    (repo / "Makefile").write_text("test:\n\tpytest -q\n", encoding="utf-8")
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+    capsys.readouterr()
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "validate parser edge cases",
+            "agent_id": "codex",
+            "execution_id": "exec-contract-violations",
+            "files_opened": ["README.md"],
+            "files_edited": ["README.md"],
+            "commands_executed": ["git status", "python -m pytest -q"],
+            "tests_executed": ["python -m pytest -q"],
+        }
+    )
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "validated parser edge cases"})
+
+    adherence = finalized["contract_adherence"]
+    assert adherence["contract_available"] is True
+    assert adherence["opened_first_action"] is False
+    assert adherence["edited_within_scope"] is False
+    assert adherence["canonical_test_used"] is False
+    for violation in [
+        "missing_first_action_open",
+        "edit_outside_scope",
+        "edited_avoided_path",
+        "canonical_test_not_observed",
+        "git_status_before_first_edit",
+        "alternative_test_command_before_canonical_test",
+    ]:
+        assert violation in adherence["violations"]
 
 
 def test_resume_completed_previous_task_is_background(tmp_path: Path, capsys):

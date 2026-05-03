@@ -14,9 +14,12 @@ This repository is initialized for `aictx`.
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
 - The AICTX lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
-- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --request "<current user request>" --json`.
+- At session start:
+  1. Extract the task goal from the user prompt.
+  2. Run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
+  3. Do not pass the full user prompt to resume; exclude reporting instructions, metrics schemas, output format rules, final answer format, benchmark/evaluation harness text, logging instructions, and meta-instructions about how to report the work.
 - After task work, run exactly one AICTX finalization command: `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
-- Use the returned continuity capsule as the operational brief during normal agent startup.
+- Use the returned continuity capsule as the operational brief during normal agent startup; follow `execution_contract.first_action` before repo-wide orientation, edit within `execution_contract.edit_scope`, run `execution_contract.test_command.command`, then finalize.
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `aictx finalize`, the startup banner, the final AICTX summary, or persistence.
 - Do not inspect `.aictx/`.
