@@ -2217,8 +2217,8 @@ def _infer_edit_scope(
 
 def _resume_forbidden_before_first_edit(first_action: dict[str, str]) -> list[str]:
     forbidden = [
-        "git status",
-        "git diff",
+        "git status for orientation",
+        "git diff for orientation",
         "ls",
         "find",
         "repo-wide grep",
@@ -2533,9 +2533,11 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
             "Execution contract",
             f"Continuity match: {continuity_match.get('level') or 'unknown'}",
             f"Contract strength: {contract.get('contract_strength') or continuity_match.get('contract_strength') or 'unknown'}",
+            "Contract modes: strict=binding, soft=guided with fallback, exploratory=guardrails plus minimal task-driven discovery.",
             f"1. Open first action: {action_line}",
             "2. Do not perform repo-wide orientation before first edit.",
-            "   Do not run git status, git diff, ls/find, README/examples/docs reads, manual probes, or alternative test discovery unless explicitly allowed by this contract.",
+            "   Safety checks are allowed: git status for safety, and git diff to protect user changes on scoped files.",
+            "   Do not use git status/git diff for orientation, or run ls/find, README/examples/docs reads, manual probes, or alternative test discovery unless explicitly allowed by this contract.",
             "   If continuity match is low, perform minimal task-driven discovery instead of binding to prior files.",
             f"3. Edit scope: Primary: {primary}; Secondary if needed: {secondary}; Avoid: {avoid}",
             f"4. Validate with: {test_command.get('command') or 'pytest -q'}",

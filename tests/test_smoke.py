@@ -1634,8 +1634,8 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert CLAUDE_GITIGNORE_COMMENT in gitignore
     assert CLAUDE_DIR_GITIGNORE_LINE in gitignore
     assert CLAUDE_MD_GITIGNORE_LINE in gitignore
-    assert 'aictx resume --repo . --request "<current user request>"' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
-    assert 'aictx resume --repo . --request "<current user request>" --json' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    assert 'aictx resume --repo . --task "<task goal>"' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    assert 'aictx resume --repo . --task "<task goal>" --json' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tmp_path: Path):
@@ -1786,8 +1786,8 @@ def test_install_codex_native_integration_writes_home_override(tmp_path: Path, m
     assert (tmp_path / ".codex" / "config.toml") in created
     instructions = (tmp_path / ".codex" / "AICTX_Codex.md").read_text(encoding="utf-8")
     assert "Use AICTX in every Codex session" in instructions
-    assert 'aictx resume --repo . --request "<current user request>"' in instructions
-    assert 'aictx resume --repo . --request "<current user request>" --json' in instructions
+    assert 'aictx resume --repo . --task "<task goal>"' in instructions
+    assert 'aictx resume --repo . --task "<task goal>" --json' in instructions
     text = (tmp_path / ".codex" / "AGENTS.override.md").read_text(encoding="utf-8")
     assert "AICTX Codex integration" in text
     config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")

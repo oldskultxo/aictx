@@ -376,8 +376,8 @@ def test_resume_json_includes_closed_loop_execution_contract(tmp_path: Path, cap
     assert contract["first_action_policy"]["must_follow"] is True
     assert contract["test_command"]["command"] == "make test"
     for forbidden in [
-        "git status",
-        "git diff",
+        "git status for orientation",
+        "git diff for orientation",
         "ls",
         "find",
         "repo-wide grep",
@@ -421,6 +421,8 @@ def test_resume_execution_contract_text_precedes_source_index(tmp_path: Path, ca
     assert output.index("Execution contract") < output.index("Source index")
     assert output.index("Continuity match") < output.index("Source index")
     assert "Contract strength" in output
+    assert "strict=binding, soft=guided with fallback, exploratory=guardrails" in output
+    assert "git status for safety" in output
     for phrase in [
         "Open first action",
         "Do not perform repo-wide orientation before first edit",
@@ -842,7 +844,7 @@ def test_advanced_help_lists_advanced_commands(capsys):
     output = capsys.readouterr().out
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert command in output
-    assert 'aictx resume --repo . --request "<current user request>"' in output
+    assert 'aictx resume --repo . --task "<task goal>"' in output
     assert "finalize" not in [line.strip() for line in output.splitlines() if line.strip().startswith("-")]
 
 
@@ -852,7 +854,7 @@ def test_advanced_command_without_help_lists_commands(capsys):
     output = capsys.readouterr().out
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert f"- {command}:" in output
-    assert 'aictx resume --repo . --request "<current user request>"' in output
+    assert 'aictx resume --repo . --task "<task goal>"' in output
     assert "aictx finalize --repo . --status success|failure" in output
     assert "- finalize:" not in output
 

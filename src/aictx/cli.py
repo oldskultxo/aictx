@@ -550,7 +550,7 @@ def cmd_advanced(args: argparse.Namespace) -> int:
                 "AICTX advanced commands",
                 "",
                 "Normal agent lifecycle:",
-                '  aictx resume --repo . --request "<current user request>" --json',
+                '  aictx resume --repo . --task "<task goal>" --json',
                 '  aictx finalize --repo . --status success|failure --summary "<what happened>" --json',
                 "",
                 "Advanced/diagnostic/building-block commands:",
@@ -1205,7 +1205,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show advanced/diagnostic AICTX commands",
         description=(
             "Advanced/diagnostic/building-block commands. Normal agents should use "
-            'aictx resume --repo . --request "<current user request>" --json at startup '
+            'aictx resume --repo . --task "<task goal>" --json at startup '
             'and aictx finalize --repo . --status success|failure --summary "<what happened>" --json after task work.'
         ),
         epilog="Commands: suggest, reuse, next, task, messages, map, report, reflect, internal.",
