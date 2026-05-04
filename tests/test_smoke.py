@@ -2550,3 +2550,52 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     codex_override = codex_home / 'AGENTS.override.md'
     assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
     assert str(repo) in payload['repos_cleaned']
+
+
+def test_finalize_execution_persists_contract_compliance_and_report_metrics(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix parser",
+            "agent_id": "agent-test",
+            "execution_id": "contract-1",
+            "files_opened": ["tests/test_parser.py"],
+            "files_edited": ["src/taskflow/parser.py"],
+            "commands_executed": ["make test"],
+            "tests_executed": ["make test"],
+        }
+    )
+    prepared["resume_contract"] = {
+        "execution_contract": {
+            "task_goal": "fix parser",
+            "first_action": {"path": "tests/test_parser.py", "binding": "must_open_first"},
+            "edit_scope": {"primary": ["tests/test_parser.py"], "secondary_if_needed": ["src/taskflow/parser.py"]},
+            "test_command": {"command": "make test"},
+        },
+        "contract_checks": {},
+        "generated_at": "2026-05-04T00:00:00Z",
+        "task_goal": "fix parser",
+    }
+
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "ok", "validated_learning": False})
+
+    assert finalized["contract_compliance"]["status"] == "followed"
+    assert "Contract: followed." in finalized["agent_summary_text"]
+    assert finalized["agent_summary"]["contract_compliance"]["status"] == "followed"
+    compliance_log = repo / ".aictx" / "metrics" / "contract_compliance.jsonl"
+    assert compliance_log.exists()
+    assert json.loads(compliance_log.read_text(encoding="utf-8").splitlines()[-1])["status"] == "followed"
+    report = report_module.build_real_usage_report(repo)
+    assert report["contract_compliance"]["evaluated"] == 1
+    assert report["contract_compliance"]["followed"] == 1
+
+
+def test_claude_hook_does_not_resume_with_request_prompt(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    install_repo_runner_integrations(repo)
+    user_prompt_hook = (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").read_text(encoding="utf-8")
+    assert 'run_json(["aictx", "resume"' not in user_prompt_hook
+    assert '"--request", prompt' not in user_prompt_hook

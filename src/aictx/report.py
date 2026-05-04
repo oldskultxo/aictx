@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .area_memory import load_area_memory
+from .contract_compliance import load_contract_compliance_history, summarize_contract_compliance_history
 from .failure_memory import load_failures
 from .state import REPO_CONTINUITY_DIR, REPO_MAP_CONFIG_PATH, REPO_MAP_MANIFEST_PATH, REPO_MAP_STATUS_PATH, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, read_json, write_json
 from .work_state import list_work_states, load_active_work_state, work_state_paths
@@ -114,6 +115,7 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
     )
     repo_map = build_repo_map_report(repo_root)
     work_state = build_work_state_report(repo_root)
+    contract_compliance = summarize_contract_compliance_history(load_contract_compliance_history(repo_root, limit=500))
 
     return {
         "total_executions": len(logs),
@@ -150,6 +152,7 @@ def build_real_usage_report(repo_root: Path) -> dict[str, Any]:
         "continuity_health": continuity_health,
         "repo_map": repo_map,
         "work_state": work_state,
+        "contract_compliance": contract_compliance,
     }
 
 

@@ -12,6 +12,7 @@ from typing import Any
 from . import core_runtime
 from .area_memory import area_hints, derive_area_id, update_area_memory
 from .adapters import resolve_adapter_profile
+from .contract_compliance import append_contract_compliance, evaluate_contract_compliance
 from .continuity import (
     AICTX_TEXT_SEPARATOR,
     RESUME_CAPSULE_JSON_PATH,
@@ -1207,6 +1208,16 @@ def build_agent_summary_render_payload(summary: dict[str, Any], *, details_path:
     saved_line = _summary_saved_line(summary)
     if saved_line:
         sections.append({"kind": "saved", "canonical_text": saved_line, "items": saved_items})
+    contract_line = _summary_contract_line(summary)
+    if contract_line:
+        compliance = summary.get("contract_compliance") if isinstance(summary.get("contract_compliance"), dict) else {}
+        sections.append({
+            "kind": "contract_compliance",
+            "canonical_text": contract_line,
+            "status": str(compliance.get("status") or ""),
+            "score": compliance.get("score"),
+            "main_issue": str(compliance.get("main_issue") or ""),
+        })
     maintenance_line = _summary_maintenance_line(summary)
     if maintenance_line:
         maintenance = summary.get("maintenance_notice") if isinstance(summary.get("maintenance_notice"), dict) else {}
@@ -1301,6 +1312,17 @@ def _summary_map_line(summary: dict[str, Any]) -> str:
     if not mode or mode == "unknown" or not status or status == "unknown":
         return ""
     return f"Map: RepoMap {mode} {status}."
+
+
+def _summary_contract_line(summary: dict[str, Any]) -> str:
+    compliance = summary.get("contract_compliance") if isinstance(summary.get("contract_compliance"), dict) else {}
+    text = str(compliance.get("compact_summary") or "").strip()
+    if text:
+        return text
+    status = str(compliance.get("status") or "").strip()
+    if status:
+        return f"Contract: {status}."
+    return ""
 
 
 def _summary_saved_line(summary: dict[str, Any]) -> str:
@@ -1458,6 +1480,7 @@ def build_agent_summary(
         "tests_observed": list(execution_log.get("tests_executed", [])) if isinstance(execution_log.get("tests_executed"), list) else [],
         "error_events_observed": list(execution_log.get("error_events", [])) if isinstance(execution_log.get("error_events"), list) else [],
         "contract_adherence": dict(execution_log.get("contract_adherence", {})) if isinstance(execution_log.get("contract_adherence"), dict) else {},
+        "contract_compliance": dict(prepared.get("contract_compliance", {})) if isinstance(prepared.get("contract_compliance"), dict) else {},
         "next_guidance": dict(continuity.get("continuity_brief", {})) if isinstance(continuity.get("continuity_brief"), dict) else {},
         "continuity_value": build_continuity_value(prepared, execution_log, bool(handoff), bool(decisions), bool(failure)),
         "capture_quality": build_capture_quality(execution_log),
@@ -1493,6 +1516,26 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "work_state": result.get("work_state", {}) if isinstance(result.get("work_state"), dict) else {},
     }
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
+    contract_compliance = evaluate_contract_compliance(
+        prepared.get("resume_contract", {}) if isinstance(prepared.get("resume_contract"), dict) else {},
+        prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {},
+        finalize_status="success" if normalized_result["success"] else "failure",
+    )
+    contract_row = {
+        "timestamp": now_iso(),
+        "execution_id": str(prepared.get("envelope", {}).get("execution_id") or ""),
+        "task_goal": str(contract_compliance.get("task_goal") or ""),
+        "contract_present": bool(contract_compliance.get("contract_present")),
+        "status": str(contract_compliance.get("status") or "not_evaluated"),
+        "score": contract_compliance.get("score"),
+        "main_issue": str(contract_compliance.get("main_issue") or ""),
+        "checks": dict(contract_compliance.get("checks", {})) if isinstance(contract_compliance.get("checks"), dict) else {},
+        "violations": list(contract_compliance.get("violations", [])) if isinstance(contract_compliance.get("violations"), list) else [],
+        "warnings": list(contract_compliance.get("warnings", [])) if isinstance(contract_compliance.get("warnings"), list) else [],
+        "compact_summary": str(contract_compliance.get("compact_summary") or ""),
+    }
+    prepared["contract_compliance"] = contract_compliance
+    prepared["contract_compliance_row"] = append_contract_compliance(repo_root, contract_row)
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
     strategy = persist_strategy_memory(repo_root, prepared, normalized_result)
     failure = None
@@ -1584,6 +1627,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "resolved_failures": resolved_failures,
         "aictx_feedback": aictx_feedback,
         "contract_adherence": agent_summary["structured"].get("contract_adherence", {}),
+        "contract_compliance": contract_compliance,
         "feedback_persisted": persisted_feedback,
         "handoff_persisted": handoff,
         "decisions_persisted": decisions,

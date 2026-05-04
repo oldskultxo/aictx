@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .contract_compliance import compact_previous_contract_result
 from .failure_memory import FAILURE_PATTERNS_PATH, lookup_failures
 from .state import (
     REPO_CONTINUITY_DIR,
@@ -2506,6 +2507,7 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
     written = payload.get("written_files") if isinstance(payload.get("written_files"), dict) else {}
     contract = payload.get("execution_contract") if isinstance(payload.get("execution_contract"), dict) else {}
+    previous_contract = payload.get("previous_contract_result") if isinstance(payload.get("previous_contract_result"), dict) else {}
     first_action = capsule.get("first_action") if isinstance(capsule.get("first_action"), dict) else {}
     startup_banner_text = str(payload.get("startup_banner_text") or "").strip()
     lines = [
@@ -2544,6 +2546,9 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
             "   Do not try alternatives unless it fails.",
             f"5. Finalize with: {finalize_command}",
         ])
+        previous_summary = str(previous_contract.get("compact_summary") or "").strip()
+        if previous_summary and str(previous_contract.get("status") or "") != "unknown":
+            lines.append(f"Previous contract: {previous_summary.removeprefix('Contract: ').strip()}")
     lines.extend([
         "",
         "Startup rule",
@@ -2733,6 +2738,7 @@ def build_resume_capsule(
         repo_map=repo_map,
         broken=entry_warnings,
     )
+    previous_contract_result = compact_previous_contract_result(repo_root)
     execution_contract = _build_execution_contract(
         repo_root,
         task_goal=request,
@@ -2805,6 +2811,7 @@ def build_resume_capsule(
         "continuity_match": continuity_match,
         "execution_contract": execution_contract,
         "contract_checks": _build_contract_checks(execution_contract),
+        "previous_contract_result": previous_contract_result,
         "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
         "task_state": task_state,
         "capsule": {

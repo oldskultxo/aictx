@@ -108,8 +108,12 @@ The startup banner remains part of the lifecycle.
 At normal task startup, the agent-facing continuity query is:
 
 ```bash
-aictx resume --repo . --request "<current user request>"
+aictx resume --repo . --task "<task goal>" --json
 ```
+
+`--task` is the preferred normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. `--request` remains supported as legacy/raw input for compatibility.
+
+In v5.3+, `resume` also emits an execution contract: first action, edit scope, canonical test command, and finalize command. At finalize time, AICTX can evaluate whether the observed execution followed that contract and persist compact compliance metrics. The next resume shows only a compact previous-contract signal; detailed aggregates live in `aictx report real-usage`.
 
 `resume` compiles Work State, handoff, recent summaries, failures, decisions, strategy hints, RepoMap, preferences, and warnings into one compact operational capsule. It also writes generated local trace artifacts:
 
@@ -146,7 +150,7 @@ the compact user-facing final summary.
 
 ### 7. Next session
 
-The next session can consume `aictx resume --repo . --request "<current user request>"` instead of discovering AICTX internals or starting from scratch.
+The next session can consume `aictx resume --repo . --task "<task goal>" --json` instead of discovering AICTX internals or starting from scratch.
 
 ---
 
@@ -159,7 +163,7 @@ Human-facing and advanced integration commands:
 ```bash
 aictx install
 aictx init
-aictx resume --repo . --request "<current user request>"
+aictx resume --repo . --task "<task goal>" --json
 aictx advanced
 aictx next
 aictx task ...
@@ -222,7 +226,7 @@ Claude support uses:
 Generic agents use:
 
 - repo instructions;
-- `aictx resume --repo . --request "<current user request>"`;
+- `aictx resume --repo . --task "<task goal>" --json`;
 - public inspection commands for diagnostics;
 - internal prepare/finalize/run-execution commands;
 - JSON/Markdown outputs.

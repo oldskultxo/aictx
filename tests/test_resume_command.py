@@ -210,6 +210,7 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
     assert payload["startup_guard"]["do_not_inspect_aictx_installation"] is True
     assert payload["startup_guard"]["allowed_aictx_commands_before_first_task_action"] == ["resume"]
     assert payload["startup_guard"]["allowed_aictx_commands_after_task_action"] == ["finalize"]
+    assert payload["previous_contract_result"]["status"] == "unknown"
     assert "aictx internal execution finalize" in payload["startup_guard"]["forbidden_normal_flow"]
     assert "direct shell calls to finalize_execution" in payload["startup_guard"]["forbidden_normal_flow"]
     assert ".aictx/agent_runtime.md" in payload["startup_guard"]["forbidden_before_first_task_action"]
@@ -222,6 +223,34 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
     }
     assert json.loads((repo / RESUME_CAPSULE_JSON_PATH).read_text(encoding="utf-8"))["schema_version"] == "1.0"
 
+
+
+def test_resume_includes_compact_previous_contract_line_once(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    metrics = repo / ".aictx" / "metrics" / "contract_compliance.jsonl"
+    metrics.parent.mkdir(parents=True, exist_ok=True)
+    metrics.write_text(
+        json.dumps({
+            "status": "partial",
+            "score": 0.9,
+            "main_issue": "canonical_test_not_observed",
+            "compact_summary": "Contract: partial — canonical_test_not_observed.",
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "fix parser", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["previous_contract_result"]["status"] == "partial"
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "fix parser"])
+    assert args.func(args) == 0
+    output = capsys.readouterr().out
+    assert output.count("Previous contract:") == 1
+    assert "Previous contract: partial — canonical_test_not_observed." in output
+    assert len(output) <= 6000
 
 def test_resume_task_flag_wins_over_legacy_request(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
@@ -1043,3 +1072,15 @@ def test_resume_capsules_are_local_generated_in_portable_mode(tmp_path: Path):
         path.write_text("generated", encoding="utf-8")
         completed = subprocess.run(["git", "check-ignore", rel_path], cwd=repo, text=True, capture_output=True, check=False)
         assert completed.returncode == 0, rel_path
+
+
+def test_public_docs_prefer_task_for_normal_startup():
+    readme = Path("README.md").read_text(encoding="utf-8")
+    technical = Path("docs/TECHNICAL_OVERVIEW.md").read_text(encoding="utf-8")
+    forbidden = 'aictx resume --repo . --request "<current user request>"'
+    assert forbidden not in readme
+    assert forbidden not in technical
+    assert 'aictx resume --repo . --task "<task goal>" --json' in readme
+    assert 'aictx resume --repo . --task "<task goal>" --json' in technical
+    assert "--request` remains supported" in readme
+    assert "--request` remains supported" in technical
