@@ -32,7 +32,7 @@ def render_codex_home_block() -> str:
 
 When Codex is running inside a repository initialized with `aictx`:
 - the lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`
-- at session start, run exactly one AICTX continuity command: `aictx resume --repo . --request "<current user request>" --json`
+- at session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`
 - use the returned continuity capsule as the operational brief before broad repo scanning
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence
@@ -55,7 +55,7 @@ Use AICTX in every Codex session for repositories initialized with `aictx`.
 Required behavior:
 - Do not decide whether AICTX applies. If the repository contains `.aictx/`, use it.
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
-- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --request "<current user request>" --json`.
+- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
 - Use the returned continuity capsule as the operational brief.
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
@@ -77,7 +77,7 @@ def render_claude_md_block() -> str:
 This repository is initialized with `aictx`.
 
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
-- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --request "<current user request>" --json`.
+- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
 - Use the returned continuity capsule as the operational brief.
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
@@ -92,7 +92,7 @@ This repository is initialized with `aictx`.
 
 ## aictx usage rules
 
-- At normal startup, run only `aictx resume --repo . --request "<current user request>" --json`
+- At normal startup, run only `aictx resume --repo . --task "<task goal>" --json`
 - Render exactly one startup banner source. Normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`. Wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - Treat `aictx reflect` and other AICTX commands as advanced diagnostics, not normal startup commands.
 {AICTX_END}
@@ -186,7 +186,7 @@ import json
 summary = [
     "AICTX runtime loaded for this Claude session.",
     "Lifecycle remains prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence.",
-    "At prompt start, use one continuity command: aictx resume --repo . --request \\\"<current user request>\\\" --json.",
+    "At prompt start, use one continuity command: aictx resume --repo . --task \\\"<task goal>\\\" --json.",
     "Use the returned capsule as the operational brief.",
     "Render exactly one startup banner source: normal agent startup uses resume.startup_banner_text or resume.startup_banner_render_payload; wrapped execution uses prepare_execution().startup_banner_text or prepare_execution().startup_banner_render_payload. Do not render both.",
     "resume does not replace prepare_execution, finalize_execution, the startup banner, the final AICTX summary, or persistence.",
@@ -205,49 +205,26 @@ print(json.dumps({
 def render_user_prompt_submit_script() -> str:
     return """#!/usr/bin/env python3
 import json
-import os
-import subprocess
 import sys
-
-
-def run_json(cmd):
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    except FileNotFoundError:
-        return {}
-    if proc.returncode != 0:
-        return {}
-    try:
-        return json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return {}
 
 
 payload = json.load(sys.stdin)
 prompt = str(payload.get("prompt") or "").strip()
-repo = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 if not prompt:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "AICTX: empty prompt"}}))
     raise SystemExit(0)
 
-resume = run_json(["aictx", "resume", "--repo", repo, "--request", prompt, "--json", "--agent-id", "claude"])
 summary = [
     "AICTX runtime guidance loaded for this prompt.",
     "Lifecycle remains prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence.",
-    "Use the aictx resume continuity capsule before broad repo scanning.",
+    "Extract the task goal only from the user prompt.",
+    "Run exactly one continuity command: aictx resume --repo . --task \\\"<task goal>\\\" --json --agent-id claude.",
+    "Do not pass the full user prompt to resume.",
+    "Exclude reporting instructions, metrics schemas, output format rules, final answer format, benchmark/evaluation harness text, logging instructions, and meta-instructions about how to report the work.",
+    "Use the returned aictx resume continuity capsule before broad repo scanning.",
     "Render exactly one startup banner source: normal agent startup uses resume.startup_banner_text or resume.startup_banner_render_payload; wrapped execution uses prepare_execution().startup_banner_text or prepare_execution().startup_banner_render_payload. Do not render both.",
     "resume does not replace prepare_execution, finalize_execution, the startup banner, the final AICTX summary, or persistence.",
 ]
-startup_banner = resume.get("startup_banner_text") if isinstance(resume, dict) else ""
-if startup_banner:
-    summary.append("Startup banner to render in the first visible response:\\n" + str(startup_banner).strip())
-capsule = resume.get("capsule", {}) if isinstance(resume, dict) else {}
-entry_points = capsule.get("entry_points", []) if isinstance(capsule, dict) else []
-if entry_points:
-    summary.append("Entry points: " + ", ".join(str(item.get("path") if isinstance(item, dict) else item) for item in entry_points[:5]))
-next_action = capsule.get("next_action") if isinstance(capsule, dict) else ""
-if next_action:
-    summary.append("Next action: " + str(next_action))
 summary.append("Do not inspect .aictx/ during normal startup.")
 summary.append("Do not run exploratory AICTX commands during normal startup.")
 summary.append("Do not run aictx internal, aictx -h, aictx reuse, aictx suggest, aictx next, aictx task, aictx messages, aictx reflect, or aictx report during normal startup unless diagnostics, AICTX-internal work, corrupt resume, or finalization/update lifecycle requires it.")

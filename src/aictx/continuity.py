@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .contract_compliance import compact_previous_contract_result
 from .failure_memory import FAILURE_PATTERNS_PATH, lookup_failures
 from .state import (
     REPO_CONTINUITY_DIR,
@@ -2105,11 +2107,336 @@ def _resume_first_action(
     cleaned = _resume_clean_entries(candidates, limit=1)
     if cleaned:
         first = cleaned[0]
-        return {"type": "open_file", "path": first["path"], "reason": first["reason"]}
+        return {"type": "open_file", "path": first["path"], "binding": "must_open_first", "reason": first["reason"]}
     return {
         "type": "inspect_entry_points",
         "path": "",
+        "binding": "must_inspect_listed_entry_points_only",
         "reason": "No single high-confidence entry point was available; inspect the listed primary entry points.",
+    }
+
+
+def _resume_pytest_project(repo_root: Path) -> bool:
+    if (repo_root / "pytest.ini").exists() or (repo_root / "tox.ini").exists():
+        return True
+    pyproject = repo_root / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            text = pyproject.read_text(encoding="utf-8")
+        except OSError:
+            return True
+        return "pytest" in text or "[tool.pytest" in text
+    return (repo_root / "tests").exists()
+
+
+def _command_looks_like_test(command: str) -> bool:
+    lowered = command.lower()
+    return any(token in lowered for token in ("pytest", "make test", "tox", "unittest"))
+
+
+def _select_canonical_test_command(repo_root: Path, context: dict[str, Any]) -> dict[str, str]:
+    handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
+    strategy = context.get("procedural_reuse") if isinstance(context.get("procedural_reuse"), dict) else {}
+    brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
+    for source_name, values in (
+        ("previous_successful_command", strategy.get("commands_executed")),
+        ("previous_successful_command", strategy.get("related_commands")),
+        ("previous_successful_command", handoff.get("tests_observed")),
+        ("previous_successful_command", brief.get("commands")),
+        ("previous_successful_command", brief.get("tests")),
+    ):
+        for command in _clean_string_list(values, limit=5):
+            if _command_looks_like_test(command):
+                return {
+                    "command": command,
+                    "source": source_name,
+                    "policy": "Do not try alternative test commands unless this command fails.",
+                }
+    if (repo_root / "Makefile").exists():
+        return {"command": "make test", "source": "makefile", "policy": "Do not try alternative test commands unless this command fails."}
+    if _resume_pytest_project(repo_root):
+        if (repo_root / ".venv/bin/python").exists():
+            return {
+                "command": ".venv/bin/python -m pytest -q",
+                "source": "project_convention",
+                "policy": "Do not try alternative test commands unless this command fails.",
+            }
+        return {
+            "command": "python -m pytest -q",
+            "source": "project_convention",
+            "policy": "Do not try alternative test commands unless this command fails.",
+        }
+    return {"command": "pytest -q", "source": "fallback", "policy": "Do not try alternative test commands unless this command fails."}
+
+
+def _resume_all_contract_paths(
+    *,
+    first_action: dict[str, str],
+    entry_points: list[dict[str, str]],
+    fallback_entry_points: list[dict[str, str]],
+    repo_map: dict[str, list[dict[str, str]]],
+) -> list[str]:
+    paths: list[str] = []
+    if first_action.get("path"):
+        paths.append(str(first_action.get("path") or ""))
+    for entry in entry_points + list(repo_map.get("primary") or []) + list(repo_map.get("secondary") or []) + fallback_entry_points:
+        if isinstance(entry, dict):
+            paths.append(str(entry.get("path") or ""))
+    return _clean_string_list(paths, limit=12)
+
+
+def _infer_edit_scope(
+    repo_root: Path,
+    *,
+    first_action: dict[str, str],
+    entry_points: list[dict[str, str]],
+    fallback_entry_points: list[dict[str, str]],
+    repo_map: dict[str, list[dict[str, str]]],
+) -> dict[str, list[str]]:
+    primary = _clean_string_list([first_action.get("path")] if first_action.get("path") else [], limit=3)
+    all_paths = _resume_all_contract_paths(
+        first_action=first_action,
+        entry_points=entry_points,
+        fallback_entry_points=fallback_entry_points,
+        repo_map=repo_map,
+    )
+    secondary = [path for path in all_paths if path not in set(primary) and _resume_path_category(path) in {"source", "tests", "docs", "config", "ci"}]
+    avoid = ["README.md", "docs/**", "examples/**"]
+    if primary and primary[0] == "README.md":
+        avoid.remove("README.md")
+    if primary and _resume_path_category(primary[0]) == "docs":
+        avoid = [item for item in avoid if item != "docs/**"]
+    for candidate in ("summary/**", "src/**/summary.py"):
+        if not any(fnmatch.fnmatch(path, candidate) for path in primary + secondary):
+            avoid.append(candidate)
+    return {
+        "primary": primary,
+        "secondary_if_needed": _clean_string_list(secondary, limit=4),
+        "avoid": _clean_string_list(avoid, limit=6),
+    }
+
+
+def _resume_forbidden_before_first_edit(first_action: dict[str, str]) -> list[str]:
+    forbidden = [
+        "git status for orientation",
+        "git diff for orientation",
+        "ls",
+        "find",
+        "repo-wide grep",
+        "read README.md",
+        "read docs/**",
+        "read examples/**",
+        "read Makefile",
+        "read pyproject.toml",
+        "manual Python probes",
+        "test command before first edit",
+        "alternative test command discovery",
+        "inspect .aictx/**",
+        "inspect local/global AICTX installation files",
+    ]
+    path = str(first_action.get("path") or "")
+    if path == "README.md":
+        forbidden.remove("read README.md")
+    if _resume_path_category(path) == "docs":
+        forbidden = [item for item in forbidden if item != "read docs/**"]
+    return forbidden
+
+
+def _resume_entry_overlap(entry: dict[str, str], terms: set[str]) -> int:
+    searchable = " ".join(
+        [
+            str(entry.get("path") or ""),
+            str(entry.get("path") or "").replace("/", " ").replace("_", " ").replace("-", " "),
+            str(entry.get("reason") or ""),
+        ]
+    ).lower()
+    return sum(1 for term in terms if term in searchable)
+
+
+def _resume_continuity_match(
+    *,
+    context: dict[str, Any],
+    task_state: dict[str, str],
+    profile: dict[str, Any],
+    first_action: dict[str, str],
+    entry_points: list[dict[str, str]],
+    repo_map: dict[str, list[dict[str, str]]],
+    broken: list[str],
+) -> dict[str, Any]:
+    terms = profile.get("request_terms") if isinstance(profile.get("request_terms"), set) else set()
+    active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    recent = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
+    handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
+    strategy = context.get("procedural_reuse") if isinstance(context.get("procedural_reuse"), dict) else {}
+    score = 0
+    signals: list[str] = []
+
+    if active:
+        score += 6
+        signals.append("active_work_state")
+    if str(recent.get("status") or "").strip().lower() in {"blocked", "paused"}:
+        score += 4
+        signals.append("recent_work_state_blocked_or_paused")
+
+    first_overlap = _resume_entry_overlap(first_action, terms)
+    if first_overlap >= 2:
+        score += 4
+        signals.append("first_action_term_overlap")
+    elif first_overlap == 1:
+        score += 2
+        signals.append("first_action_partial_overlap")
+
+    first_reason = str(first_action.get("reason") or "").lower()
+    if "active work state" in first_reason:
+        score += 3
+        signals.append("first_action_from_active_work_state")
+    elif "previous handoff" in first_reason:
+        score += 2
+        signals.append("first_action_from_handoff")
+
+    category = str(profile.get("task_category") or "")
+    first_category = _resume_path_category(str(first_action.get("path") or ""))
+    if category == "testing" and first_category == "tests" and first_overlap >= 1:
+        score += 2
+        signals.append("testing_task_test_entrypoint")
+
+    repo_entries = list(repo_map.get("primary") or []) + list(repo_map.get("secondary") or [])
+    if any(_resume_entry_overlap(entry, terms) > 0 for entry in repo_entries):
+        score += 2
+        signals.append("repomap_term_overlap")
+    elif repo_entries:
+        score += 1
+        signals.append("repomap_candidate")
+
+    if strategy and strategy_reuse_confidence(strategy) == "high":
+        score += 3
+        signals.append("high_confidence_strategy_reuse")
+
+    handoff_status = str(handoff.get("status") or "resolved").strip().lower() if handoff else ""
+    has_overlap = first_overlap > 0 or any(_resume_entry_overlap(entry, terms) > 0 for entry in entry_points + repo_entries)
+    if task_state.get("status") == "completed" and handoff_status in {"resolved", "completed", "success"} and not has_overlap:
+        score -= 4
+        signals.append("completed_handoff_without_task_overlap")
+    if broken:
+        score -= 2
+        signals.append("missing_entry_points")
+
+    if score >= 7:
+        level = "high"
+        strength = "strict"
+    elif score >= 3:
+        level = "medium"
+        strength = "soft"
+    else:
+        level = "low"
+        strength = "exploratory"
+    reason = f"score={score}; " + (", ".join(signals) if signals else "no strong continuity signal")
+    return {
+        "level": level,
+        "contract_strength": strength,
+        "score": score,
+        "reason": reason,
+        "signals": signals,
+    }
+
+
+def _build_execution_contract(
+    repo_root: Path,
+    *,
+    task_goal: str,
+    context: dict[str, Any],
+    continuity_match: dict[str, Any],
+    first_action: dict[str, str],
+    entry_points: list[dict[str, str]],
+    fallback_entry_points: list[dict[str, str]],
+    repo_map: dict[str, list[dict[str, str]]],
+) -> dict[str, Any]:
+    strength = str(continuity_match.get("contract_strength") or "soft")
+    first = dict(first_action)
+    if strength == "exploratory":
+        first = {
+            "type": "inspect_entry_points",
+            "path": "",
+            "binding": "must_inspect_listed_entry_points_only",
+            "reason": "Continuity match was low; use task-driven minimal discovery instead of binding to prior files.",
+        }
+        edit_scope = {
+            "primary": [],
+            "secondary_if_needed": [],
+            "avoid": [".aictx/**", "local/global AICTX installation files"],
+        }
+        first_action_policy = {
+            "must_follow": False,
+            "if_uncertain": "Perform minimal task-driven discovery; do not bind to previous-task files.",
+            "allowed_before_first_edit": [
+                "minimal_task_driven_discovery",
+                "open:fallback_entry_points_only_if_task_relevant",
+            ],
+        }
+    else:
+        edit_scope = _infer_edit_scope(
+            repo_root,
+            first_action=first,
+            entry_points=entry_points,
+            fallback_entry_points=fallback_entry_points,
+            repo_map=repo_map,
+        )
+        first_action_policy = {
+            "must_follow": strength == "strict",
+            "if_uncertain": (
+                "Inspect only fallback_entry_points; do not perform repo-wide orientation."
+                if strength == "strict"
+                else "Open first_action first; if it does not match the task, inspect fallback_entry_points only."
+            ),
+            "allowed_before_first_edit": [
+                "open:first_action.path",
+                "open:paired_source_or_test_if_needed",
+                "open:fallback_entry_points_only_if_first_action_is_missing_or_invalid",
+            ],
+        }
+    if first.get("type") == "open_file" and first.get("path"):
+        first["binding"] = "must_open_first"
+    else:
+        first["binding"] = "must_inspect_listed_entry_points_only"
+        first.setdefault("type", "inspect_entry_points")
+        first.setdefault("path", "")
+        first.setdefault("reason", "No single high-confidence entry point was available.")
+    forbidden = (
+        ["inspect .aictx/**", "inspect local/global AICTX installation files"]
+        if strength == "exploratory"
+        else _resume_forbidden_before_first_edit(first)
+    )
+    return {
+        "mode": "closed_loop",
+        "task_goal": task_goal,
+        "continuity_match": continuity_match,
+        "contract_strength": strength,
+        "first_action": first,
+        "first_action_policy": first_action_policy,
+        "forbidden_before_first_edit": forbidden,
+        "edit_scope": edit_scope,
+        "test_command": _select_canonical_test_command(repo_root, context),
+        "finalize_command": 'aictx finalize --repo . --status success|failure --summary "<what changed and what passed>" --json',
+    }
+
+
+def _build_contract_checks(contract: dict[str, Any]) -> dict[str, Any]:
+    test_command = contract.get("test_command") if isinstance(contract.get("test_command"), dict) else {}
+    return {
+        "expected_first_action": "open:first_action.path",
+        "expected_test_command": str(test_command.get("command") or ""),
+        "expected_final_command": "aictx finalize",
+        "violations_to_report": [
+            "repo_wide_orientation_before_first_edit",
+            "git_status_before_first_edit",
+            "git_diff_before_first_edit",
+            "ls_or_find_before_first_edit",
+            "read_docs_before_first_edit",
+            "read_examples_before_first_edit",
+            "manual_probe_before_first_edit",
+            "alternative_test_command_before_canonical_test",
+            "missing_finalize",
+        ],
     }
 
 
@@ -2179,17 +2506,49 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     task_state = payload.get("task_state") if isinstance(payload.get("task_state"), dict) else {}
     sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
     written = payload.get("written_files") if isinstance(payload.get("written_files"), dict) else {}
+    contract = payload.get("execution_contract") if isinstance(payload.get("execution_contract"), dict) else {}
+    previous_contract = payload.get("previous_contract_result") if isinstance(payload.get("previous_contract_result"), dict) else {}
     first_action = capsule.get("first_action") if isinstance(capsule.get("first_action"), dict) else {}
     startup_banner_text = str(payload.get("startup_banner_text") or "").strip()
     lines = [
         "AICTX continuity capsule",
-        "",
-        "Startup banner to render",
     ]
-    if startup_banner_text:
-        lines.extend(startup_banner_text.splitlines())
-    else:
-        lines.append("- None; startup_banner_policy.show_in_first_user_visible_response is false.")
+    if contract:
+        contract_first = contract.get("first_action") if isinstance(contract.get("first_action"), dict) else {}
+        continuity_match = contract.get("continuity_match") if isinstance(contract.get("continuity_match"), dict) else {}
+        edit_scope = contract.get("edit_scope") if isinstance(contract.get("edit_scope"), dict) else {}
+        test_command = contract.get("test_command") if isinstance(contract.get("test_command"), dict) else {}
+        primary = ", ".join(_clean_string_list(edit_scope.get("primary"), limit=4)) or "None"
+        secondary = ", ".join(_clean_string_list(edit_scope.get("secondary_if_needed"), limit=4)) or "None"
+        avoid = ", ".join(_clean_string_list(edit_scope.get("avoid"), limit=6)) or "None"
+        action_path = str(contract_first.get("path") or "").strip()
+        finalize_command = str(
+            contract.get("finalize_command")
+            or 'aictx finalize --repo . --status success|failure --summary "<what changed and what passed>" --json'
+        )
+        if action_path:
+            action_line = action_path
+        else:
+            action_line = "listed entry_points/fallback_entry_points only"
+        lines.extend([
+            "",
+            "Execution contract",
+            f"Continuity match: {continuity_match.get('level') or 'unknown'}",
+            f"Contract strength: {contract.get('contract_strength') or continuity_match.get('contract_strength') or 'unknown'}",
+            "Contract modes: strict=binding, soft=guided with fallback, exploratory=guardrails plus minimal task-driven discovery.",
+            f"1. Open first action: {action_line}",
+            "2. Do not perform repo-wide orientation before first edit.",
+            "   Safety checks are allowed: git status for safety, and git diff to protect user changes on scoped files.",
+            "   Do not use git status/git diff for orientation, or run ls/find, README/examples/docs reads, manual probes, or alternative test discovery unless explicitly allowed by this contract.",
+            "   If continuity match is low, perform minimal task-driven discovery instead of binding to prior files.",
+            f"3. Edit scope: Primary: {primary}; Secondary if needed: {secondary}; Avoid: {avoid}",
+            f"4. Validate with: {test_command.get('command') or 'pytest -q'}",
+            "   Do not try alternatives unless it fails.",
+            f"5. Finalize with: {finalize_command}",
+        ])
+        previous_summary = str(previous_contract.get("compact_summary") or "").strip()
+        if previous_summary and str(previous_contract.get("status") or "") != "unknown":
+            lines.append(f"Previous contract: {previous_summary.removeprefix('Contract: ').strip()}")
     lines.extend([
         "",
         "Startup rule",
@@ -2221,6 +2580,14 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
         "",
         "Current request",
         str(capsule.get("current_request") or "None provided"),
+        "",
+        "Startup banner to render",
+    ])
+    if startup_banner_text:
+        lines.extend(startup_banner_text.splitlines())
+    else:
+        lines.append("- None")
+    lines.extend([
         "",
         "Task state",
         f"status: {task_state.get('status', 'unknown')}",
@@ -2362,6 +2729,26 @@ def build_resume_capsule(
     if not next_action and task_state["status"] == "completed" and request:
         next_action = "Use the current request; previous task is background."
     first_action = _resume_first_action(entry_points=entry_points, fallback_entry_points=fallback_entry_points, repo_map=repo_map)
+    continuity_match = _resume_continuity_match(
+        context=context,
+        task_state=task_state,
+        profile=profile,
+        first_action=first_action,
+        entry_points=entry_points,
+        repo_map=repo_map,
+        broken=entry_warnings,
+    )
+    previous_contract_result = compact_previous_contract_result(repo_root)
+    execution_contract = _build_execution_contract(
+        repo_root,
+        task_goal=request,
+        context=context,
+        continuity_match=continuity_match,
+        first_action=first_action,
+        entry_points=entry_points,
+        fallback_entry_points=fallback_entry_points,
+        repo_map=repo_map,
+    )
 
     validated = _clean_string_list(
         list(active.get("verified", []) or [])
@@ -2421,6 +2808,10 @@ def build_resume_capsule(
             "instruction": "Render this startup banner in the current user language at the top of the first substantive user-visible response. Prefer startup_banner_render_payload when available and use startup_banner_text only as fallback. Preserve exact facts, paths, commands, flags, package names, test names, code identifiers, and link targets. Do not satisfy this requirement only with a transient progress/status message that will be omitted from the final task response; if unsure, preserve the banner at the top of the final response.",
         },
         "startup_guard": _resume_startup_guard(),
+        "continuity_match": continuity_match,
+        "execution_contract": execution_contract,
+        "contract_checks": _build_contract_checks(execution_contract),
+        "previous_contract_result": previous_contract_result,
         "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
         "task_state": task_state,
         "capsule": {

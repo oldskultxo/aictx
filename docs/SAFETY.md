@@ -31,6 +31,12 @@ CLAUDE.md
 .gitignore entries for AICTX runtime paths
 ```
 
+Contract compliance history, when available, is stored repo-locally under:
+
+```text
+.aictx/metrics/contract_compliance.jsonl
+```
+
 ---
 
 ## Managed blocks
@@ -47,8 +53,18 @@ Cleanup should remove only AICTX-managed content.
 
 ---
 
+## Contract compliance safety posture
+
+Contract compliance is audit-only.
+
+It evaluates observed execution signals against the latest compatible resume contract, but it does not sandbox the agent, block edits, block commands, or guarantee that the resulting code is correct.
+
+If observable execution evidence is missing, AICTX should report compliance as `not_evaluated` rather than inventing conclusions.
+
+---
+
 ## Safety posture
 
 AICTX does not guarantee productivity or token savings, autonomously repair repositories, replace human review, hide cloud memory, or infer missing facts as truth.
 
-It keeps missing data empty or `unknown`.
+It keeps missing data empty, `unknown`, or `not_evaluated` depending on the surface.

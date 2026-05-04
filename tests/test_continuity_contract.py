@@ -45,9 +45,9 @@ def test_pyproject_describes_continuity_runtime():
 def test_readme_contract_section_mentions_current_runtime_and_optional_repomap_artifacts():
     text = README_PATH.read_text(encoding="utf-8")
 
-    assert "Current documented implementation: `5.2.0`" in text
+    assert "Current documented implementation: `5.3.0`" in text
     assert "## Artifact contract" in text
-    assert "The stable repo-local continuity artifact contract in `5.2.0` is:" in text
+    assert "The stable repo-local continuity artifact contract in `5.3.0` is:" in text
     assert ".aictx/repo_map/config.json" in text
     assert ".aictx/repo_map/manifest.json" in text
     assert ".aictx/repo_map/index.json" in text

@@ -36,6 +36,7 @@ from aictx.agent_runtime import (
 )
 from aictx.core_runtime import communication_policy_from_defaults
 from aictx.middleware import finalize_execution, prepare_execution
+from aictx.continuity import HANDOFF_PATH, build_resume_capsule
 from aictx.runner_integrations import (
     CLAUDE_GITIGNORE_COMMENT,
     CLAUDE_DIR_GITIGNORE_LINE,
@@ -116,8 +117,10 @@ def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkey
 
 def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     text = render_agent_runtime()
-    assert 'aictx resume --repo . --request "<current user request>"' in text
-    assert 'aictx resume --repo . --request "<current user request>" --json' in text
+    assert 'aictx resume --repo . --task "<task goal>"' in text
+    assert 'aictx resume --repo . --task "<task goal>" --json' in text
+    assert "Do not pass the full user prompt to resume" in text
+    assert "execution_contract.first_action" in text
     assert ".aictx/continuity/resume_capsule.md" in text
     assert ".aictx/continuity/resume_capsule.json" in text
     assert "unknown" in text
@@ -160,6 +163,10 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "agent_summary_render_payload" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
     assert "PYTHONPATH=src .venv/bin/python -m aictx" in prompt_hook
+    assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in prompt_hook
+    assert "Do not pass the full user prompt to resume" in prompt_hook
+    assert 'run_json(["aictx", "resume"' not in prompt_hook
+    assert '"--request", prompt' not in prompt_hook
 
 
 def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path: Path):
@@ -1632,8 +1639,13 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert CLAUDE_GITIGNORE_COMMENT in gitignore
     assert CLAUDE_DIR_GITIGNORE_LINE in gitignore
     assert CLAUDE_MD_GITIGNORE_LINE in gitignore
-    assert 'aictx resume --repo . --request "<current user request>"' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
-    assert 'aictx resume --repo . --request "<current user request>" --json' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    assert 'aictx resume --repo . --task "<task goal>"' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    assert 'aictx resume --repo . --task "<task goal>" --json' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    user_prompt_hook = (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").read_text(encoding="utf-8")
+    assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in user_prompt_hook
+    assert "Do not pass the full user prompt to resume" in user_prompt_hook
+    assert 'run_json(["aictx", "resume"' not in user_prompt_hook
+    assert '"--request", prompt' not in user_prompt_hook
 
 
 def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tmp_path: Path):
@@ -1784,8 +1796,8 @@ def test_install_codex_native_integration_writes_home_override(tmp_path: Path, m
     assert (tmp_path / ".codex" / "config.toml") in created
     instructions = (tmp_path / ".codex" / "AICTX_Codex.md").read_text(encoding="utf-8")
     assert "Use AICTX in every Codex session" in instructions
-    assert 'aictx resume --repo . --request "<current user request>"' in instructions
-    assert 'aictx resume --repo . --request "<current user request>" --json' in instructions
+    assert 'aictx resume --repo . --task "<task goal>"' in instructions
+    assert 'aictx resume --repo . --task "<task goal>" --json' in instructions
     text = (tmp_path / ".codex" / "AGENTS.override.md").read_text(encoding="utf-8")
     assert "AICTX Codex integration" in text
     config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
@@ -2539,3 +2551,117 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     codex_override = codex_home / 'AGENTS.override.md'
     assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
     assert str(repo) in payload['repos_cleaned']
+
+
+
+def test_contract_compliance_end_to_end_resume_finalize_report_next_resume(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / "tests").mkdir(exist_ok=True)
+    (repo / "tests" / "test_parser.py").write_text("def test_parser():\n    assert True\n", encoding="utf-8")
+    handoff_path = repo / HANDOFF_PATH
+    handoff_path.parent.mkdir(parents=True, exist_ok=True)
+    handoff_path.write_text(
+        json.dumps({
+            "summary": "parser tests were active",
+            "recommended_starting_points": ["tests/test_parser.py"],
+            "tests_observed": ["pytest -q tests/test_parser.py"],
+            "updated_at": "2026-05-04T00:00:00Z",
+        }),
+        encoding="utf-8",
+    )
+
+    resumed = build_resume_capsule(repo, request_text="fix parser", agent_id="agent-test")
+    contract = resumed["execution_contract"]
+    assert contract["first_action"]["path"] == "tests/test_parser.py"
+    expected_test = contract["test_command"]["command"]
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix parser",
+            "agent_id": "agent-test",
+            "execution_id": "contract-e2e-1",
+            "files_opened": ["tests/test_parser.py"],
+            "files_edited": ["tests/test_parser.py"],
+            "commands_executed": [expected_test],
+            "tests_executed": [expected_test],
+        }
+    )
+    assert prepared["resume_contract"]["execution_contract"]["task_goal"] == "fix parser"
+
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "fixed parser", "validated_learning": False})
+
+    assert finalized["contract_compliance"]["status"] == "followed"
+    assert finalized["contract_compliance"]["checks"] == {
+        "followed_first_action": True,
+        "edited_within_scope": True,
+        "canonical_test_used": True,
+        "finalize_used": True,
+    }
+    assert "Contract: followed." in finalized["agent_summary_text"]
+    assert finalized["agent_summary"]["contract_compliance"]["status"] == "followed"
+
+    compliance_log = repo / ".aictx" / "metrics" / "contract_compliance.jsonl"
+    rows = [json.loads(line) for line in compliance_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert rows[-1]["status"] == "followed"
+    assert rows[-1]["checks"]["canonical_test_used"] is True
+
+    report = report_module.build_real_usage_report(repo)
+    assert report["contract_compliance"]["evaluated"] == 1
+    assert report["contract_compliance"]["followed"] == 1
+    assert report["contract_compliance"]["latest"]["status"] == "followed"
+
+    next_resume = build_resume_capsule(repo, request_text="next parser task", agent_id="agent-test")
+    assert next_resume["previous_contract_result"]["status"] == "followed"
+    rendered = (repo / ".aictx" / "continuity" / "resume_capsule.md").read_text(encoding="utf-8")
+    assert rendered.count("Previous contract:") == 1
+    assert "Previous contract: followed." in rendered
+
+def test_finalize_execution_persists_contract_compliance_and_report_metrics(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix parser",
+            "agent_id": "agent-test",
+            "execution_id": "contract-1",
+            "files_opened": ["tests/test_parser.py"],
+            "files_edited": ["src/taskflow/parser.py"],
+            "commands_executed": ["make test"],
+            "tests_executed": ["make test"],
+        }
+    )
+    prepared["resume_contract"] = {
+        "execution_contract": {
+            "task_goal": "fix parser",
+            "first_action": {"path": "tests/test_parser.py", "binding": "must_open_first"},
+            "edit_scope": {"primary": ["tests/test_parser.py"], "secondary_if_needed": ["src/taskflow/parser.py"]},
+            "test_command": {"command": "make test"},
+        },
+        "contract_checks": {},
+        "generated_at": "2026-05-04T00:00:00Z",
+        "task_goal": "fix parser",
+    }
+
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "ok", "validated_learning": False})
+
+    assert finalized["contract_compliance"]["status"] == "followed"
+    assert "Contract: followed." in finalized["agent_summary_text"]
+    assert finalized["agent_summary"]["contract_compliance"]["status"] == "followed"
+    compliance_log = repo / ".aictx" / "metrics" / "contract_compliance.jsonl"
+    assert compliance_log.exists()
+    assert json.loads(compliance_log.read_text(encoding="utf-8").splitlines()[-1])["status"] == "followed"
+    report = report_module.build_real_usage_report(repo)
+    assert report["contract_compliance"]["evaluated"] == 1
+    assert report["contract_compliance"]["followed"] == 1
+
+
+def test_claude_hook_does_not_resume_with_request_prompt(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    install_repo_runner_integrations(repo)
+    user_prompt_hook = (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").read_text(encoding="utf-8")
+    assert 'run_json(["aictx", "resume"' not in user_prompt_hook
+    assert '"--request", prompt' not in user_prompt_hook

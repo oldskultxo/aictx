@@ -8,7 +8,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `5.2.0`
+Current documented implementation: `5.3.0`
 
 ---
 
@@ -88,7 +88,7 @@ After that, keep using your coding agent.
 The generated repo instructions and hooks guide supported agents to call AICTX automatically. At normal task startup, supported agents should use one agent-facing continuity command:
 
 ```bash
-aictx resume --repo . --request "<current user request>"
+aictx resume --repo . --task "<task goal>" --json
 ```
 
 The user should not have to run AICTX command after command during normal work.
@@ -102,8 +102,12 @@ In normal supported workflows, AICTX is runtime plumbing for the agent.
 At normal task startup, the agent-facing continuity query is:
 
 ```bash
-aictx resume --repo . --request "<current user request>"
+aictx resume --repo . --task "<task goal>" --json
 ```
+
+`--task` is the preferred normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. `--request` remains supported as legacy/raw input for compatibility.
+
+In v5.3+, `resume` also emits an execution contract: first action, edit scope, canonical test command, and finalize command. At finalize time, AICTX can evaluate whether the observed execution followed that contract and persist compact compliance metrics. The next resume shows only a compact previous-contract signal; detailed aggregates live in `aictx report real-usage`.
 
 `resume` compiles Work State, handoffs, the latest execution summary, Strategy Memory, Failure Memory, Decisions, RepoMap, preferences, and relevant warnings into one compact operational capsule. It writes trace artifacts:
 
@@ -294,7 +298,7 @@ This is safety, not branch-aware task management.
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `5.2.0` is:
+The stable repo-local continuity artifact contract in `5.3.0` is:
 
 ```text
 .aictx/continuity/session.json
