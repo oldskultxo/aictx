@@ -16,6 +16,27 @@ If the agent does not call prepare/finalize or pass observed facts, AICTX cannot
 
 File, command, test, and error capture depends on explicit runtime signals, wrapped execution, runner support, and user workflow discipline.
 
+Contract compliance also depends on these observed signals. If there is no compatible resume contract or no execution observation, compliance is reported as `not_evaluated`.
+
+---
+
+## Contract compliance
+
+Contract compliance is an audit signal, not proof of correctness.
+
+It can report whether observed execution appears to have followed the resume contract: first action, edit scope, canonical test command, and finalize lifecycle.
+
+It does not:
+
+- sandbox the agent;
+- block edits or commands;
+- prove code quality;
+- infer unobserved files, commands, or tests;
+- inspect hidden reasoning;
+- know exact command order unless ordered trace data exists.
+
+When orientation-like commands are observed without ordered trace data, AICTX should treat that as an order-unknown warning rather than hard proof of a pre-edit violation.
+
 ---
 
 ## Work State
@@ -45,6 +66,8 @@ Git-portable continuity is selective, opt-in, and Git-based. It does not sync an
 ## Metrics
 
 AICTX reports observed runtime evidence. It does not prove productivity gain, token savings, speed improvement, or code quality improvement.
+
+Contract compliance metrics show whether observed execution aligned with a generated contract; they are not a benchmark.
 
 ---
 

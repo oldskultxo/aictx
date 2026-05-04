@@ -20,6 +20,7 @@ AICTX is composed of:
 - repo-local continuity artifacts;
 - active Work State runtime;
 - failure, strategy, area, and semantic continuity memories;
+- execution contracts and compact contract-compliance auditing;
 - optional RepoMap structural index;
 - cleanup/uninstall machinery.
 
@@ -52,6 +53,8 @@ prepare/startup context -> resume capsule -> execution -> finalize -> persist co
 | Area Memory | Groups signals by repo area |
 | RepoMap | Optional structural file/symbol lookup |
 | Resume capsule | Compiles rich continuity into one agent-facing operational brief |
+| Execution Contract | Provides first action, edit scope, canonical test command, and finalize command |
+| Contract Compliance | Evaluates observed execution against the latest compatible resume contract |
 | Execution Summary | Produces factual final runtime output |
 | Cleanup | Removes managed repo/global content |
 
@@ -99,7 +102,7 @@ Runner integrations or advanced users may call:
 aictx internal execution prepare ...
 ```
 
-`prepare_execution()` loads bounded continuity context and can return the user-visible startup continuity payload, including `startup_banner_text`, `startup_banner_policy`, session identity, continuity brief, active Work State, and skipped Work State details.
+`prepare_execution()` loads bounded continuity context and can return the user-visible startup continuity payload, including `startup_banner_text`, `startup_banner_policy`, session identity, continuity brief, active Work State, skipped Work State details, and the latest compatible resume contract when present.
 
 The startup banner remains part of the lifecycle.
 
@@ -115,7 +118,7 @@ aictx resume --repo . --task "<task goal>" --json
 
 In v5.3+, `resume` also emits an execution contract: first action, edit scope, canonical test command, and finalize command. At finalize time, AICTX can evaluate whether the observed execution followed that contract and persist compact compliance metrics. The next resume shows only a compact previous-contract signal; detailed aggregates live in `aictx report real-usage`.
 
-`resume` compiles Work State, handoff, recent summaries, failures, decisions, strategy hints, RepoMap, preferences, and warnings into one compact operational capsule. It also writes generated local trace artifacts:
+`resume` compiles Work State, handoff, recent summaries, failures, decisions, strategy hints, RepoMap, preferences, contract signals, and warnings into one compact operational capsule. It also writes generated local trace artifacts:
 
 ```text
 .aictx/continuity/resume_capsule.md
@@ -145,12 +148,15 @@ After work, integrations can call:
 aictx internal execution finalize ...
 ```
 
-`finalize_execution()` stores observed evidence and returns `agent_summary_text`,
-the compact user-facing final summary.
+`finalize_execution()` stores observed evidence and returns `agent_summary_text`, the compact user-facing final summary.
+
+When a compatible resume contract and observable execution signals are available, `finalize_execution()` also evaluates contract compliance and appends a compact `Contract:` line to the final summary.
 
 ### 7. Next session
 
 The next session can consume `aictx resume --repo . --task "<task goal>" --json` instead of discovering AICTX internals or starting from scratch.
+
+If prior contract compliance data exists, the next resume includes only a compact previous-contract signal such as `Previous contract: followed.`.
 
 ---
 
@@ -359,12 +365,15 @@ Primary continuity artifacts:
 .aictx/area_memory/areas.json
 .aictx/metrics/execution_logs.jsonl
 .aictx/metrics/execution_feedback.jsonl
+.aictx/metrics/contract_compliance.jsonl
 ```
 
 Optional/latest-run artifacts:
 
 ```text
 .aictx/continuity/last_execution_summary.md
+.aictx/continuity/resume_capsule.md
+.aictx/continuity/resume_capsule.json
 .aictx/repo_map/config.json
 .aictx/repo_map/manifest.json
 .aictx/repo_map/index.json
@@ -387,6 +396,8 @@ Optional/latest-run artifacts:
 | Strategy Memory | `strategies.jsonl` | suggest, reuse, prepare |
 | Area Memory | `areas.json` | strategy/failure/report |
 | RepoMap | `.aictx/repo_map/*` | map commands, prepare |
+| Execution Contract | `resume_capsule.json.execution_contract` | agent startup |
+| Contract Compliance | `.aictx/metrics/contract_compliance.jsonl` | final summary, next resume, real-usage report |
 | Execution Summary | `agent_summary_text`, `last_execution_summary.md` | final response, next session |
 | Real usage report | metrics/memory artifacts | `report real-usage` |
 | Runner integrations | `AGENTS.md`, `CLAUDE.md`, `.claude/*` | Codex, Claude, generic agents |
@@ -471,6 +482,20 @@ Loading behavior:
 | saved state dirty and branch changed | skip |
 
 Finalize must not update a Work State that prepare skipped for unsafe branch mismatch.
+
+---
+
+## Execution contracts and compliance
+
+See [Execution Contracts and Compliance](EXECUTION_CONTRACTS.md) for the dedicated concept page.
+
+At a high level:
+
+```text
+resume -> execution_contract -> observed execution -> finalize compliance -> metrics -> next resume signal
+```
+
+Contract compliance is audit-only. It does not sandbox the agent or block execution. It evaluates only observed signals such as opened files, edited files, commands, tests, and errors.
 
 ---
 
@@ -592,10 +617,7 @@ The detailed latest summary may be written to:
 .aictx/continuity/last_execution_summary.md
 ```
 
-Agents should treat `agent_summary_text` as the canonical compact user-facing
-final summary source. `.aictx/continuity/last_execution_summary.md` is the
-detailed diagnostic latest-run summary and should remain linked from the final
-summary when generated.
+Agents should treat `agent_summary_text` as the canonical compact user-facing final summary source. `.aictx/continuity/last_execution_summary.md` is the detailed diagnostic latest-run summary and should remain linked from the final summary when generated.
 
 If finalize output is unavailable, the agent should say:
 
@@ -618,7 +640,8 @@ It may include:
 - error event metrics;
 - continuity health;
 - Work State visibility;
-- RepoMap status.
+- RepoMap status;
+- contract compliance history and aggregate rates.
 
 It is not a benchmark and does not prove productivity/token savings.
 
@@ -661,7 +684,8 @@ Heuristic:
 - strategy ranking;
 - failure similarity;
 - RepoMap query scoring;
-- next-action usefulness.
+- next-action usefulness;
+- contract compliance scoring from observable runtime signals.
 
 Heuristic outputs should remain bounded and explainable.
 
@@ -673,15 +697,17 @@ AICTX depends on agent/integration cooperation.
 
 If an agent does not call prepare/finalize or pass observed facts, AICTX cannot record them.
 
+Contract compliance depends on observed execution signals. If no compatible resume contract or no execution observation exists, compliance is reported as `not_evaluated`.
+
 AICTX does not:
 
 - guarantee correctness;
 - guarantee speedups;
 - guarantee token savings;
 - replace review;
+- sandbox or enforce agent behavior;
 - autonomously repair the repo;
 - infer facts that were not observed.
-
 
 ---
 
@@ -696,6 +722,7 @@ Product and setup:
 Core runtime concepts:
 
 - [Work State](WORK_STATE.md)
+- [Execution Contracts and Compliance](EXECUTION_CONTRACTS.md)
 - [RepoMap](REPOMAP.md)
 - [Failure Memory](FAILURE_MEMORY.md)
 - [Strategy Memory](STRATEGY_MEMORY.md)

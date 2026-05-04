@@ -2,7 +2,7 @@
 
 ## Current line: 5.2.x
 
-Current documented runtime: `5.2.0`.
+Current documented runtime: `5.3.0`.
 
 For users already on recent `4.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the v5 startup contract:
 
@@ -15,56 +15,20 @@ aictx init
 ## 5.2.x
 
 Added:
-- Added top-level `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` as the normal post-task lifecycle command.
+- Added the Contract Compliance Ledger, evaluated during `aictx finalize`, with compact JSONL audit rows at `.aictx/metrics/contract_compliance.jsonl`.
+- Added `contract_compliance` to finalize JSON output and a compact contract line in `agent_summary_text` / structured summary output.
+- Added historical contract compliance metrics to `aictx report real-usage`.
+- Added `previous_contract_result` to `aictx resume --json` and a single compact previous-contract line in default resume text.
+- Added focused and end-to-end tests for followed, partial, violated, not-evaluated, persistence, reporting, and next-resume behavior.
 
 Changed:
-- Runtime and managed AGENTS instructions now tell agents to use `aictx finalize` rather than internal execution finalization commands.
-- Top-level help lists `finalize` with the normal lifecycle commands while advanced commands remain under `aictx advanced`.
-
-Compatibility notes:
-- No manual continuity data migration is expected.
-- Re-run `aictx install` and `aictx init` after upgrading so generated runtime instructions are refreshed.
-
----
-## 5.0.x
-
-
-Changed:
-- Implemented self-contained resume capsule first_action, startup guard, anti-runtime startup rule, task-biased entry ranking, and regression tests.
+- Updated normal startup documentation to prefer `aictx resume --repo . --task "<task goal>" --json` and keep `--request` as legacy/raw compatibility input.
+- Improved user-facing contract summaries so visible text says the reason in human terms while `main_issue` keeps compact machine-readable codes.
 
 Fixed:
-- Replaced parser/CLI-specific resume bias with generic task profile + request-term matching.
-- Added path categories/penalties for runtime/generated/metrics/docs/config/source/tests.
-- Kept .aictx/** excluded from action targets.
-- Allows docs/config/metrics to win only for matching task intent.
+- Made not-evaluated contract summaries explicit about why evaluation was skipped, distinguishing missing matching resume contracts from missing execution observations.
+- Verified finalize compliance evaluation uses the populated execution observation (`files_opened`, `files_edited`, `commands_executed`, `tests_executed`) before writing metrics and final summaries.
 
-Compatibility notes:
-- No manual continuity data migration is expected.
-- Re-run `aictx install` and `aictx init` after upgrading so managed `AGENTS.md`, `CLAUDE.md`, Codex, and Claude integration text is refreshed.
-- Integrations that parsed top-level help to discover `suggest`, `reuse`, `next`, `task`, `messages`, `map`, `report`, `reflect`, or `internal` should use `aictx advanced` or call those commands directly.
-- `resume_capsule.*` files are generated local runtime output; do not treat them as durable portable continuity.
-
----
-## 4.7.x
-
-Added:
-- Added repo-local user-facing message controls with `aictx messages mute`, `aictx messages unmute`, and `aictx messages status`.
-- Added `aictx -v` and `aictx --version`.
-- Added docs coverage for the new message controls and version-check flows in installation, quickstart, usage, and release guidance.
-
-Changed:
-- Polished startup banner text and later-session continuity messaging.
-- Updated startup banner rendering semantics so runners prefer structured render payloads when the runtime policy points to them.
-- Polished final summary output and aligned the execution-summary docs with the current runtime behavior.
-- Hardened AICTX user-visible text localization/translation policy so localized output preserves exact facts and technical tokens.
-
-Fixed:
-- Restored compatibility for legacy `task` and `agent` aliases in execution middleware flows.
-- Introduce a new runtime_compact module to plan and perform compaction of repo runtime artifacts.
-
-No manual migration is expected.
-
----
 
 ## Safe upgrade checklist
 

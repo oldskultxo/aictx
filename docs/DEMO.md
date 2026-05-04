@@ -18,8 +18,61 @@ aictx init --yes --no-register
 
 ```bash
 aictx task start "Fix token refresh loop" --json
-aictx task update --json   --json-patch '{"current_hypothesis":"refresh replay happens before persisted token update","active_files":["src/api/client.ts"],"next_action":"inspect interceptor ordering","recommended_commands":["pytest -q tests/test_auth.py"]}'
+aictx task update --json --json-patch '{"current_hypothesis":"refresh replay happens before persisted token update","active_files":["src/api/client.ts"],"next_action":"inspect interceptor ordering","recommended_commands":["pytest -q tests/test_auth.py"]}'
 aictx next
+```
+
+---
+
+## Show execution contract and compliance
+
+Normal supported agent startup should use one continuity command:
+
+```bash
+aictx resume --repo . --task "fix parser test" --json | python3 -m json.tool
+```
+
+Look for the compact operational route in the JSON:
+
+```text
+execution_contract.first_action
+execution_contract.edit_scope
+execution_contract.test_command
+execution_contract.finalize_command
+contract_checks
+```
+
+After an execution is finalized with observable files/commands/tests, the final summary can include:
+
+```text
+Contract: followed.
+```
+
+or a compact partial/violated/not-evaluated line.
+
+Inspect contract compliance history and aggregates:
+
+```bash
+cat .aictx/metrics/contract_compliance.jsonl 2>/dev/null || true
+aictx report real-usage
+```
+
+Run another resume and look for the compact previous-contract signal:
+
+```bash
+aictx resume --repo . --task "next parser task" --json | python3 -m json.tool
+```
+
+The next resume may include:
+
+```text
+previous_contract_result
+```
+
+and the Markdown capsule may include:
+
+```text
+Previous contract: followed.
 ```
 
 ---
@@ -39,7 +92,7 @@ aictx map query "work state"
 ## Show failure capture
 
 ```bash
-aictx internal run-execution   --repo .   --request "run typecheck"   --agent-id demo   --json   -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
+aictx internal run-execution --repo . --request "run typecheck" --agent-id demo --json -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
 ```
 
 Inspect:
