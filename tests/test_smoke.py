@@ -36,6 +36,7 @@ from aictx.agent_runtime import (
 )
 from aictx.core_runtime import communication_policy_from_defaults
 from aictx.middleware import finalize_execution, prepare_execution
+from aictx.continuity import HANDOFF_PATH, build_resume_capsule
 from aictx.runner_integrations import (
     CLAUDE_GITIGNORE_COMMENT,
     CLAUDE_DIR_GITIGNORE_LINE,
@@ -2551,6 +2552,71 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
     assert str(repo) in payload['repos_cleaned']
 
+
+
+def test_contract_compliance_end_to_end_resume_finalize_report_next_resume(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / "tests").mkdir(exist_ok=True)
+    (repo / "tests" / "test_parser.py").write_text("def test_parser():\n    assert True\n", encoding="utf-8")
+    handoff_path = repo / HANDOFF_PATH
+    handoff_path.parent.mkdir(parents=True, exist_ok=True)
+    handoff_path.write_text(
+        json.dumps({
+            "summary": "parser tests were active",
+            "recommended_starting_points": ["tests/test_parser.py"],
+            "tests_observed": ["pytest -q tests/test_parser.py"],
+            "updated_at": "2026-05-04T00:00:00Z",
+        }),
+        encoding="utf-8",
+    )
+
+    resumed = build_resume_capsule(repo, request_text="fix parser", agent_id="agent-test")
+    contract = resumed["execution_contract"]
+    assert contract["first_action"]["path"] == "tests/test_parser.py"
+    expected_test = contract["test_command"]["command"]
+
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix parser",
+            "agent_id": "agent-test",
+            "execution_id": "contract-e2e-1",
+            "files_opened": ["tests/test_parser.py"],
+            "files_edited": ["tests/test_parser.py"],
+            "commands_executed": [expected_test],
+            "tests_executed": [expected_test],
+        }
+    )
+    assert prepared["resume_contract"]["execution_contract"]["task_goal"] == "fix parser"
+
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "fixed parser", "validated_learning": False})
+
+    assert finalized["contract_compliance"]["status"] == "followed"
+    assert finalized["contract_compliance"]["checks"] == {
+        "followed_first_action": True,
+        "edited_within_scope": True,
+        "canonical_test_used": True,
+        "finalize_used": True,
+    }
+    assert "Contract: followed." in finalized["agent_summary_text"]
+    assert finalized["agent_summary"]["contract_compliance"]["status"] == "followed"
+
+    compliance_log = repo / ".aictx" / "metrics" / "contract_compliance.jsonl"
+    rows = [json.loads(line) for line in compliance_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert rows[-1]["status"] == "followed"
+    assert rows[-1]["checks"]["canonical_test_used"] is True
+
+    report = report_module.build_real_usage_report(repo)
+    assert report["contract_compliance"]["evaluated"] == 1
+    assert report["contract_compliance"]["followed"] == 1
+    assert report["contract_compliance"]["latest"]["status"] == "followed"
+
+    next_resume = build_resume_capsule(repo, request_text="next parser task", agent_id="agent-test")
+    assert next_resume["previous_contract_result"]["status"] == "followed"
+    rendered = (repo / ".aictx" / "continuity" / "resume_capsule.md").read_text(encoding="utf-8")
+    assert rendered.count("Previous contract:") == 1
+    assert "Previous contract: followed." in rendered
 
 def test_finalize_execution_persists_contract_compliance_and_report_metrics(tmp_path: Path):
     repo = tmp_path / "repo"

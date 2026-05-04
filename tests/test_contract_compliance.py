@@ -33,7 +33,17 @@ def test_no_contract_returns_not_evaluated():
     assert payload["contract_present"] is False
     assert payload["status"] == "not_evaluated"
     assert payload["score"] is None
+    assert payload["main_issue"] == "no_resume_contract"
+    assert payload["compact_summary"] == "Contract: not evaluated — no matching resume contract."
 
+
+
+def test_contract_without_observation_returns_not_evaluated():
+    payload = evaluate_contract_compliance(_contract(), {}, finalize_status="success")
+    assert payload["contract_present"] is True
+    assert payload["status"] == "not_evaluated"
+    assert payload["main_issue"] == "no_execution_observation"
+    assert payload["compact_summary"] == "Contract: not evaluated — no execution observation."
 
 def test_compliant_execution_gets_followed_high_score():
     payload = evaluate_contract_compliance(
@@ -66,6 +76,7 @@ def test_edit_outside_scope_is_violation():
         finalize_status="success",
     )
     assert any(item["code"] == "edit_outside_scope" for item in payload["violations"])
+    assert payload["compact_summary"] == "Contract: violated — edited outside contract scope."
 
 
 def test_missing_canonical_test_is_violation_on_failure():
@@ -76,6 +87,7 @@ def test_missing_canonical_test_is_violation_on_failure():
 def test_missing_canonical_test_is_warning_on_success():
     payload = evaluate_contract_compliance(_contract(), {"files_opened": ["tests/test_parser.py"]}, finalize_status="success")
     assert any(item["code"] == "canonical_test_not_observed" for item in payload["warnings"])
+    assert payload["compact_summary"] == "Contract: partial — canonical test was not observed."
 
 
 def test_orientation_command_is_order_unknown_warning_not_violation():

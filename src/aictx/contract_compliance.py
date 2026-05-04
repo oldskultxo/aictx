@@ -61,18 +61,36 @@ def _issue(code: str, severity: str, detail: str = "", evidence: str = "") -> di
     }
 
 
-def _not_evaluated(task_goal: str = "") -> dict[str, Any]:
+def _human_issue(code: str) -> str:
+    return {
+        "missing_first_action": "first action was not observed",
+        "edit_outside_scope": "edited outside contract scope",
+        "canonical_test_missing": "canonical test was not observed",
+        "canonical_test_not_observed": "canonical test was not observed",
+        "orientation_command_order_unknown": "orientation command order is unknown",
+        "first_action_not_observable": "first action was not observable",
+    }.get(str(code or "").strip(), str(code or "").strip())
+
+
+def _not_evaluated(task_goal: str = "", *, contract_present: bool = False, main_issue: str = "") -> dict[str, Any]:
+    issue = str(main_issue or "").strip()
+    if issue == "no_execution_observation":
+        compact_summary = "Contract: not evaluated — no execution observation."
+    elif issue == "no_resume_contract":
+        compact_summary = "Contract: not evaluated — no matching resume contract."
+    else:
+        compact_summary = "Contract: not evaluated."
     return {
         "version": CONTRACT_COMPLIANCE_VERSION,
-        "contract_present": False,
+        "contract_present": bool(contract_present),
         "status": "not_evaluated",
         "score": None,
         "task_goal": str(task_goal or ""),
-        "main_issue": "",
+        "main_issue": issue,
         "checks": {},
         "violations": [],
         "warnings": [],
-        "compact_summary": "Contract: not evaluated.",
+        "compact_summary": compact_summary,
     }
 
 
@@ -133,13 +151,19 @@ def evaluate_contract_compliance(
     source = resume_contract if isinstance(resume_contract, dict) else {}
     contract = source.get("execution_contract") if isinstance(source.get("execution_contract"), dict) else {}
     if not contract:
-        return _not_evaluated(str(source.get("task_goal") or ""))
+        return _not_evaluated(str(source.get("task_goal") or ""), main_issue="no_resume_contract")
 
     observation = execution_observation if isinstance(execution_observation, dict) else {}
     files_opened = _clean_string_list(observation.get("files_opened"), limit=40)
     files_edited = _clean_string_list(observation.get("files_edited"), limit=40)
     commands = _clean_string_list(observation.get("commands_executed"), limit=60)
     tests = _clean_string_list(observation.get("tests_executed"), limit=60)
+    if not (files_opened or files_edited or commands or tests):
+        return _not_evaluated(
+            str(contract.get("task_goal") or source.get("task_goal") or ""),
+            contract_present=True,
+            main_issue="no_execution_observation",
+        )
 
     first_action = contract.get("first_action") if isinstance(contract.get("first_action"), dict) else {}
     first_path = str(first_action.get("path") or "").strip()
@@ -202,7 +226,7 @@ def evaluate_contract_compliance(
     else:
         status = "followed"
     main_issue = str((violations[0] if violations else warnings[0]).get("code") if (violations or warnings) else "")
-    compact_summary = f"Contract: {status}." if not main_issue else f"Contract: {status} — {main_issue}."
+    compact_summary = f"Contract: {status}." if not main_issue else f"Contract: {status} — {_human_issue(main_issue)}."
     if len(compact_summary) > 120:
         compact_summary = compact_summary[:117].rstrip() + "..."
 
@@ -274,7 +298,7 @@ def compact_previous_contract_result(repo_root: Path) -> dict[str, Any]:
     main_issue = str(latest.get("main_issue") or "")
     compact_summary = str(latest.get("compact_summary") or "").strip()
     if not compact_summary and status != "unknown":
-        compact_summary = f"Contract: {status}." if not main_issue else f"Contract: {status} — {main_issue}."
+        compact_summary = f"Contract: {status}." if not main_issue else f"Contract: {status} — {_human_issue(main_issue)}."
     return {"status": status, "score": score, "main_issue": main_issue, "compact_summary": compact_summary}
 
 
@@ -325,5 +349,5 @@ def compact_previous_contract_result_from_row(row: dict[str, Any]) -> dict[str, 
     main_issue = str(row.get("main_issue") or "")
     compact_summary = str(row.get("compact_summary") or "").strip()
     if not compact_summary and status != "unknown":
-        compact_summary = f"Contract: {status}." if not main_issue else f"Contract: {status} — {main_issue}."
+        compact_summary = f"Contract: {status}." if not main_issue else f"Contract: {status} — {_human_issue(main_issue)}."
     return {"status": status, "score": score, "main_issue": main_issue, "compact_summary": compact_summary}
