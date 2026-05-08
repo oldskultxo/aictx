@@ -382,6 +382,31 @@ Optional/latest-run artifacts:
 
 ---
 
+## Stale context handling
+
+AICTX does not inject one permanent memory dump into every agent session.
+
+Each `aictx resume --repo . --task "<task goal>" --json` call builds a fresh task-specific capsule from current repo-local artifacts:
+
+- active Work State;
+- latest execution summary;
+- handoffs and decisions;
+- known failures;
+- strategy hints;
+- preferences and warnings;
+- optional RepoMap data.
+
+Older context is treated as evidence, not truth:
+
+- Work State loading is branch-safe and can skip unsafe branch mismatches.
+- Failure Memory records observed failures; it does not prove future failures.
+- Strategy Memory records successful prior routes; it is a heuristic hint, not an instruction.
+- Resume capsules are generated trace artifacts and are regenerated per task.
+- Dedupe/staleness metadata keeps continuity bounded and inspectable.
+- Missing data remains missing, `unknown`, or `not_evaluated` depending on the surface.
+
+---
+
 ## Capability matrix
 
 | Capability | Main artifacts | Main consumers |

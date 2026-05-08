@@ -32,6 +32,14 @@ The normal startup banner source is `resume.startup_banner_text` or `resume.star
 
 The final summary source remains `finalize_execution().agent_summary_text`.
 
+After task work, supported agents should close the lifecycle with the public finalize wrapper:
+
+```bash
+aictx finalize --repo . --status success|failure --summary "<what happened>" --json
+```
+
+`aictx finalize` is the normal public CLI surface for finalization. Advanced integrations can still use `aictx internal execution finalize ...` when they already have a prepared execution payload.
+
 For JSON inspection, use a JSON parser:
 
 ```bash
@@ -61,6 +69,7 @@ aictx report real-usage
 aictx install
 aictx init
 aictx resume --repo . --task "continue current work" --json
+aictx finalize --repo . --status success --summary "targeted tests passed" --json
 aictx advanced
 aictx suggest
 aictx reflect

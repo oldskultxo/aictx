@@ -108,10 +108,9 @@ Current install decisions:
 
 | Setup decision | Example answer | Effect |
 |---|---|---|
-| Continue install | `Y` | Applies global/runtime setup |
 | Workspace id | `default` | Stores active workspace identity |
 | Workspace root | `/Users/me/dev` or empty | Defines workspace root when provided |
-| Cross-project mode | default `workspace` | Controls workspace-level cross-project behavior |
+| Cross-project mode | `--cross-project-mode workspace` | Controls workspace-level cross-project behavior; accepted values are `workspace`, `explicit`, and `disabled` |
 | Global Codex install | `--install-codex-global` | Allows AICTX-managed global Codex files |
 | RepoMap request | `--with-repomap` | Marks RepoMap as requested in global config |
 | Dry run | `--dry-run` | Shows intended changes without applying them |
@@ -122,16 +121,10 @@ Representative interactive flow:
 ```text
 aictx install
 
-This will prepare AICTX runtime files and configuration.
-Proceed with install? [Y/n]: y
-
-Workspace id [default]: default
-Workspace root []: /Users/me/dev
-
-Select cross-project mode:
-1. workspace (default)
-2. isolated
-Select option number: 1
+Default workspace name [default]: default
+Add a workspace root now? [Y/n]: y
+Workspace root [/Users/me/projects]: /Users/me/dev
+Enable RepoMap support using Tree-sitter? [y/N]: n
 ```
 
 Recommended simple answer pattern:
@@ -152,12 +145,12 @@ Current init decisions:
 
 | Setup decision | Example answer | Effect |
 |---|---|---|
-| Confirm repo initialization | `Y` | Allows `.aictx/` and repo instruction files |
 | Repo path | current directory or `--repo <path>` | Selects target repository |
+| Write `.gitignore` entries | default yes unless `--no-gitignore` | Keeps local runtime artifacts ignored or applies the portable-continuity policy |
 | Register repo | default yes unless `--no-register` | Adds repo to AICTX registry for cleanup/uninstall |
-| Communication mode | `caveman_full` | Stores repo preference under `.aictx/memory/user_preferences.json` |
-| Repo runner integrations | `Y` | Creates/updates `AGENTS.md`, `CLAUDE.md`, `.claude/*` |
 | Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy and writes `.aictx/continuity/portability.json` |
+| Communication mode | default `disabled`; optional `caveman_full` | Stores repo preference under `.aictx/memory/user_preferences.json` |
+| Initialize scaffold | `Y` | Creates/updates `.aictx/`, `AGENTS.md`, `CLAUDE.md`, `.claude/*`, and runtime scaffolding |
 | RepoMap initialization | default when globally requested | Writes/refreshes `.aictx/repo_map/*` if available |
 
 Representative interactive flow:
@@ -166,17 +159,18 @@ Representative interactive flow:
 aictx init
 
 This will initialize AICTX in the current repository.
-Proceed with repo initialization? [Y/n]: y
+Write .gitignore entries if missing? [Y/n]: y
+Register this repo in the active workspace? [Y/n]: y
+Enable AICTX git-portable continuity? [y/N]: n
 
 Select communication mode:
-1. disabled
+1. disabled (default)
 2. caveman_lite
-3. caveman_full (default)
+3. caveman_full
 4. caveman_ultra
-Select option number: 3
+Select option number: 1
 
-Register this repository for AICTX cleanup/uninstall? [Y/n]: y
-Install/update repo runner integrations? [Y/n]: y
+Initialize full starter scaffold now? [Y/n]: y
 ```
 
 Simple one-shot setup:
@@ -211,12 +205,12 @@ Available modes:
 
 | Mode | Intended use |
 |---|---|
-| `disabled` | No special communication layer |
+| `disabled` | No special communication layer; default |
 | `caveman_lite` | Slightly compressed communication |
-| `caveman_full` | Strong compact communication mode; default |
+| `caveman_full` | Strong compact communication mode |
 | `caveman_ultra` | Very aggressive compression |
 
-If unsure, use the default.
+If unsure, use the default. Choose `caveman_full` only if you want AICTX to ask supported agents for compact runtime communication.
 
 ---
 
@@ -313,12 +307,15 @@ aictx map query "startup banner"
 Any agent can use AICTX through the CLI/runtime contract:
 
 ```bash
-aictx next --json
-aictx internal execution prepare ...
-aictx internal execution finalize ...
+aictx resume --repo . --task "<task goal>" --json
+aictx finalize --repo . --status success|failure --summary "<what happened>" --json
 ```
 
 The agent must cooperate with the runtime contract for best results.
+
+Advanced integrations may also use `aictx internal execution prepare ...`,
+`aictx internal execution finalize ...`, or `aictx internal run-execution ...`
+when wrapping execution directly.
 
 ---
 

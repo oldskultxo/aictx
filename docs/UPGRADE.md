@@ -1,10 +1,10 @@
 # Upgrade guide
 
-## Current line: 5.2.x
+## Current line: 5.3.x
 
 Current documented runtime: `5.3.0`.
 
-For users already on recent `4.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the v5 startup contract:
+For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
 ```bash
 aictx install
@@ -12,7 +12,7 @@ aictx init
 ```
 
 ---
-## 5.2.x
+## 5.3.0
 
 Added:
 - Added the Contract Compliance Ledger, evaluated during `aictx finalize`, with compact JSONL audit rows at `.aictx/metrics/contract_compliance.jsonl`.
@@ -36,6 +36,6 @@ Fixed:
 python -m pip install --upgrade aictx
 aictx install
 aictx init
-aictx resume --repo . --request "continue current work" --json | python3 -m json.tool
+aictx resume --repo . --task "continue current work" --json | python3 -m json.tool
 aictx advanced
 ```
