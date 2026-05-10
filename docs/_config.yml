@@ -1,0 +1,40 @@
+title: AICTX
+description: Repo-local continuity runtime for coding agents
+theme: jekyll-theme-slate
+
+# Author information
+author:
+  name: AICTX Contributors
+  github: oldskultxo
+
+# GitHub repository
+repository: oldskultxo/aictx
+github_user: oldskultxo
+
+# Navigation
+navigation:
+  - title: Home
+    url: /
+  - title: Documentation
+    url: /docs/
+  - title: GitHub
+    url: https://github.com/oldskultxo/aictx
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+
+# Plugins
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# SEO
+social:
+  name: AICTX
+  links:
+    - https://github.com/oldskultxo/aictx
+    - https://pypi.org/project/aictx/
+
+# Analytics (optional - add your own)
+# google_analytics: UA-XXXXXXXXX-X
