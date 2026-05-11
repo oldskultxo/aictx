@@ -6,8 +6,8 @@ import json
 from .portability import (
     detect_portable_continuity_from_gitignore,
     load_portability_state,
-    remove_legacy_aictx_gitignore_lines,
     render_aictx_gitignore_block,
+    remove_unmanaged_aictx_gitignore_lines,
     strip_aictx_gitignore_block,
     write_portability_state,
 )
@@ -45,10 +45,8 @@ def ensure_repo_user_preferences(repo: Path) -> Path:
     target = repo / REPO_MEMORY_DIR / "user_preferences.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     template_payload = _read_json(TEMPLATES_DIR / "user_preferences.json")
-    legacy_root_payload = _read_json(repo / "user_preferences.json")
     current_payload = _read_json(target)
-    merged = _deep_merge(template_payload, legacy_root_payload)
-    merged = _deep_merge(merged, current_payload)
+    merged = _deep_merge(template_payload, current_payload)
     target.write_text(json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return target
 
@@ -105,63 +103,42 @@ def ensure_repo_memory_sources(repo: Path) -> list[str]:
         if not existed:
             created.append(str(path))
 
-    legacy_common = repo / "common" / "user_working_preferences.md"
-    target_common = common_dir / "user_working_preferences.md"
-    if legacy_common.exists():
-        _copy_text_if_missing(legacy_common, target_common, created)
-    else:
-        _write_text_if_missing(
-            target_common,
-            (
-                "---\n"
-                "priority: important\n"
-                "confidence: high\n"
-                "last_verified: 2026-04-23\n"
-                "tags: workflow, preferences, user\n"
-                "---\n\n"
-                "# common: user working preferences\n\n"
-                "- `.aictx/memory/user_preferences.json` is the canonical source of default user preferences.\n"
-                "- Explicit user instructions always override persisted defaults.\n"
-            ),
-            created,
-        )
-
-    copied_project_notes = False
-    legacy_projects_root = repo / "projects"
-    if legacy_projects_root.exists():
-        for source in sorted(legacy_projects_root.rglob("*.md")):
-            relative = source.relative_to(legacy_projects_root)
-            target = source_root / "projects" / relative
-            if not target.exists():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
-                created.append(str(target))
-            copied_project_notes = True
-    if not copied_project_notes:
-        _write_text_if_missing(
-            projects_dir / "overview.md",
-            (
-                "---\n"
-                "priority: important\n"
-                "confidence: medium\n"
-                "last_verified: 2026-04-23\n"
-                f"tags: {repo.name}, project, bootstrap\n"
-                "---\n\n"
-                f"# {repo.name}: project overview\n\n"
-                "- Capture durable project rules and architecture notes here.\n"
-                "- Prefer editing `.aictx/memory/source/**` for reusable project knowledge.\n"
-            ),
-            created,
-        )
-
-    legacy_index = repo / "index.json"
-    if legacy_index.exists():
-        payload = _rewrite_source_refs(_read_json(legacy_index))
-    else:
-        common_ref = ".aictx/memory/source/common/user_working_preferences.md"
-        project_ref = f".aictx/memory/source/projects/{repo.name}/overview.md"
-        payload = {
-            "version": 1,
+    common_ref = ".aictx/memory/source/common/user_working_preferences.md"
+    project_ref = f".aictx/memory/source/projects/{repo.name}/overview.md"
+    _write_text_if_missing(
+        common_dir / "user_working_preferences.md",
+        (
+            "---\n"
+            "priority: important\n"
+            "confidence: high\n"
+            "last_verified: 2026-04-23\n"
+            "tags: workflow, preferences, user\n"
+            "---\n\n"
+            "# common: user working preferences\n\n"
+            "- `.aictx/memory/user_preferences.json` is the canonical source of default user preferences.\n"
+            "- Explicit user instructions always override persisted defaults.\n"
+        ),
+        created,
+    )
+    _write_text_if_missing(
+        projects_dir / "overview.md",
+        (
+            "---\n"
+            "priority: important\n"
+            "confidence: medium\n"
+            "last_verified: 2026-04-23\n"
+            f"tags: {repo.name}, project, bootstrap\n"
+            "---\n\n"
+            f"# {repo.name}: project overview\n\n"
+            "- Capture durable project rules and architecture notes here.\n"
+            "- Prefer editing `.aictx/memory/source/**` for reusable project knowledge.\n"
+        ),
+        created,
+    )
+    _write_json_if_missing(
+        source_root / "index.json",
+        {
+            "version": 2,
             "lookup_order": ["projects", "common"],
             "projects": {
                 repo.name: {
@@ -170,40 +147,23 @@ def ensure_repo_memory_sources(repo: Path) -> list[str]:
                 }
             },
             "common": [common_ref],
-            "tags": {
-                "preferences": [common_ref],
-                repo.name: [project_ref],
-            },
-        }
-    _write_json_if_missing(source_root / "index.json", payload, created)
-
-    legacy_symptoms = repo / "symptoms.json"
-    if legacy_symptoms.exists():
-        symptoms_payload = _rewrite_source_refs(_read_json(legacy_symptoms))
-    else:
-        symptoms_payload = {"version": 1, "symptoms": {}}
-    _write_json_if_missing(source_root / "symptoms.json", symptoms_payload, created)
-
-    legacy_protocol = repo / "protocol.md"
-    if legacy_protocol.exists():
-        protocol_text = (
-            legacy_protocol.read_text(encoding="utf-8")
-            .replace(".aictx_memory/derived_boot_summary.json", ".aictx/boot/boot_summary.json")
-            .replace(".aictx_memory/user_preferences.json", ".aictx/memory/user_preferences.json")
-            .replace(".aictx_*", ".aictx/")
-        )
-    else:
-        protocol_text = (
+            "tags": {"preferences": [common_ref], repo.name: [project_ref]},
+        },
+        created,
+    )
+    _write_json_if_missing(source_root / "symptoms.json", {"version": 2, "symptoms": {}}, created)
+    _write_text_if_missing(
+        source_root / "protocol.md",
+        (
             "# aictx protocol\n\n"
             "Purpose:\n"
             "- keep durable, low-cost project knowledge inside `.aictx/`\n"
             "- treat `.aictx/memory/source/` as the editable knowledge source layer\n"
             "- keep `.aictx/boot`, `.aictx/store`, and `.aictx/indexes` as derived runtime layers\n"
-        )
-    _write_text_if_missing(source_root / "protocol.md", protocol_text, created)
-
+        ),
+        created,
+    )
     return created
-
 
 def _resolve_portable_continuity(repo: Path, portable_continuity: bool | None) -> bool:
     if portable_continuity is not None:
@@ -286,7 +246,7 @@ def ensure_gitignore(repo: Path, *, portable_continuity: bool = False) -> None:
     path = repo / ".gitignore"
     existing_text = path.read_text(encoding="utf-8") if path.exists() else ""
     cleaned = strip_aictx_gitignore_block(existing_text)
-    cleaned = remove_legacy_aictx_gitignore_lines(cleaned)
+    cleaned = remove_unmanaged_aictx_gitignore_lines(cleaned)
     lines = cleaned.splitlines() if cleaned else []
     if ".DS_Store" not in lines:
         lines.append(".DS_Store")

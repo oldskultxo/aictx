@@ -114,7 +114,7 @@ At normal task startup, the agent-facing continuity query is:
 aictx resume --repo . --task "<task goal>" --json
 ```
 
-`--task` is the preferred normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. `--request` remains supported as legacy/raw input for compatibility.
+`--task` is the normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. Legacy `--request` startup input has been removed in v6.
 
 In v5.3+, `resume` also emits an execution contract: first action, edit scope, canonical test command, and finalize command. At finalize time, AICTX can evaluate whether the observed execution followed that contract and persist compact compliance metrics. The next resume shows only a compact previous-contract signal; detailed aggregates live in `aictx report real-usage`.
 

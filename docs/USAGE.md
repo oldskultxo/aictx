@@ -24,7 +24,7 @@ At normal task startup, supported agents should use one public continuity query:
 aictx resume --repo . --task "<task goal>" --json
 ```
 
-`--task` is the preferred normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. `--request` remains supported as legacy/raw input for compatibility.
+`--task` is the normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. Legacy `--request` startup input has been removed in v6.
 
 `resume` compiles Work State, handoffs, last summary, Strategy Memory, Failure Memory, Decisions, RepoMap, previous contract signals, and an execution contract into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
 

@@ -46,7 +46,7 @@ To inspect that JSON with Python, pipe it to a JSON reader, not to `python3 -` a
 aictx resume --repo . --task "continue current work" --json | python3 -m json.tool
 ```
 
-`--request` remains available as legacy/raw input for compatibility, but `--task` is the preferred normal startup path.
+`--task` is the normal startup path; legacy `--request` startup input has been removed in v6.
 
 A fresh repo may have little continuity. That is expected.
 
@@ -113,7 +113,7 @@ The user does not need to call internal commands in normal use.
 Prepare:
 
 ```bash
-aictx internal execution prepare --repo . --request "continue token refresh work" --agent-id demo --execution-id demo-1 > prepared.json
+aictx internal execution prepare --repo . --task "continue token refresh work" --agent-id demo --execution-id demo-1 > prepared.json
 ```
 
 Finalize:

@@ -6,7 +6,7 @@ from typing import Any
 
 from .area_memory import load_area_memory
 from .contract_compliance import load_contract_compliance_history, summarize_contract_compliance_history
-from .failure_memory import load_failures
+from .failures import load_failures
 from .state import REPO_CONTINUITY_DIR, REPO_MAP_CONFIG_PATH, REPO_MAP_MANIFEST_PATH, REPO_MAP_STATUS_PATH, REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR, read_json, write_json
 from .work_state import list_work_states, load_active_work_state, work_state_paths
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_runtime import AGENTS_END, AGENTS_START
-from .portability import remove_legacy_aictx_gitignore_lines, strip_aictx_gitignore_block
+from .portability import remove_unmanaged_aictx_gitignore_lines, strip_aictx_gitignore_block
 from .runner_integrations import (
     AICTX_END,
     AICTX_START,
@@ -92,7 +92,7 @@ def remove_gitignore_aictx_entries(path: Path) -> bool:
         return False
     original_text = path.read_text(encoding='utf-8')
     text = strip_aictx_gitignore_block(original_text)
-    text = remove_legacy_aictx_gitignore_lines(text)
+    text = remove_unmanaged_aictx_gitignore_lines(text)
 
     lines = text.splitlines()
     filtered: list[str] = []

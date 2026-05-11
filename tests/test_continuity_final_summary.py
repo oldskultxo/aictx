@@ -111,9 +111,10 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
         f"{AICTX_TEXT_SEPARATOR}\n"
         "AICTX summary\n\n"
         "Context: loaded preferences.\n"
-        "Contract: not evaluated — no matching resume contract.\n"
         "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)"
     )
+    assert finalized["contract_compliance"]["status"] == "not_evaluated"
+    assert not (repo / ".aictx" / "metrics" / "contract_compliance.jsonl").exists()
 
 
 def test_final_summary_mentions_work_state_update_when_present(tmp_path: Path):

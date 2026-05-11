@@ -10,8 +10,14 @@ from .runtime_versioning import compat_version_payload
 
 def _cr():
     from . import core_runtime as cr
-
     return cr
+
+
+def _canonical_status(payload: dict[str, Any]) -> dict[str, Any]:
+    cleaned = dict(payload or {})
+    cleaned.pop('installed_iteration', None)
+    cleaned.pop('legacy_alias_writes_enabled', None)
+    return cleaned
 
 
 def graph_node_id(node_type: str, raw_id: str) -> str:
@@ -214,7 +220,7 @@ def build_memory_graph_artifacts(rows: list[dict[str, Any]]) -> dict[str, Any]:
     cr.write_json(cr.MEMORY_GRAPH_LABEL_INDEX_PATH, dict(sorted(label_index.items())))
     cr.write_json(cr.MEMORY_GRAPH_TYPE_INDEX_PATH, dict(sorted(type_index.items())))
     cr.write_json(cr.MEMORY_GRAPH_RELATION_INDEX_PATH, dict(sorted(relation_index.items())))
-    previous = cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {})
+    previous = _canonical_status(cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {}))
     status = {
         **previous,
         'version': 1,
@@ -329,7 +335,7 @@ def graph_expand(seed_ids: list[str], *, depth: int = 1, node_budget: int = 8, e
 
 def update_memory_graph_status(packet: dict[str, Any], packet_path: Path) -> None:
     cr = _cr()
-    status = cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {})
+    status = _canonical_status(cr.read_json(cr.MEMORY_GRAPH_STATUS_PATH, {}))
     graph_meta = packet.get('memory_graph', {})
     updated = {
         **status,

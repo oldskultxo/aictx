@@ -23,13 +23,24 @@ PORTABLE_CONTINUITY_PATTERNS = [
     ".aictx/continuity/decisions.jsonl",
     ".aictx/continuity/semantic_repo.json",
     ".aictx/failure_memory/failure_patterns.jsonl",
+    ".aictx/failure_memory/failure_index.json",
+    ".aictx/failure_memory/index.json",
+    ".aictx/failure_memory/failure_memory_status.json",
     ".aictx/strategy_memory/strategies.jsonl",
     ".aictx/area_memory/areas.json",
     ".aictx/repo_map/config.json",
 ]
 
 LOCAL_ONLY_PATTERNS = [
+    ".aictx/boot/**",
+    ".aictx/cost/**",
+    ".aictx/delta/**",
+    ".aictx/indexes/**",
+    ".aictx/logs/**",
     ".aictx/metrics/**",
+    ".aictx/store/**",
+    ".aictx/task_memory/**",
+    ".aictx/memory_graph/**",
     ".aictx/continuity/session.json",
     ".aictx/continuity/last_execution_summary.md",
     ".aictx/continuity/continuity_metrics.json",
@@ -108,7 +119,7 @@ def strip_aictx_gitignore_block(text: str) -> str:
     return ("\n".join(pieces) + ("\n" if pieces else ""))
 
 
-def remove_legacy_aictx_gitignore_lines(text: str) -> str:
+def remove_unmanaged_aictx_gitignore_lines(text: str) -> str:
     lines = text.splitlines()
     filtered = [line for line in lines if line.strip() != ".aictx/"]
     if not filtered:

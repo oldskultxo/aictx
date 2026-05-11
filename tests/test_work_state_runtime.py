@@ -212,13 +212,13 @@ def test_run_execution_propagates_work_state_json_and_records_success(tmp_path: 
 def test_internal_cli_accepts_work_state_json_args() -> None:
     parser = cli.build_parser()
     prepare = parser.parse_args([
-        "internal", "execution", "prepare", "--request", "x", "--agent-id", "codex", "--execution-id", "exec-1", "--work-state-json", '{"next_action":"x"}', "--work-state-file", "work-state.json",
+        "internal", "execution", "prepare", "--task", "x", "--agent-id", "codex", "--execution-id", "exec-1", "--work-state-json", '{"next_action":"x"}', "--work-state-file", "work-state.json",
     ])
     finalize = parser.parse_args([
         "internal", "execution", "finalize", "--prepared", "prepared.json", "--work-state-json", '{"next_action":"x"}', "--work-state-file", "work-state.json",
     ])
     run = parser.parse_args([
-        "internal", "run-execution", "--request", "x", "--agent-id", "codex", "--work-state-json", '{"next_action":"x"}', "--work-state-file", "work-state.json", "--", sys.executable, "-c", "pass",
+        "internal", "run-execution", "--task", "x", "--agent-id", "codex", "--work-state-json", '{"next_action":"x"}', "--work-state-file", "work-state.json", "--", sys.executable, "-c", "pass",
     ])
 
     assert prepare.work_state_json == '{"next_action":"x"}'

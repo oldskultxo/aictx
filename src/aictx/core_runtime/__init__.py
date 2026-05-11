@@ -9,20 +9,20 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
-from .runtime_contract import (
+from ..runtime_contract import (
     communication_policy_from_defaults,
     normalize_communication_layer,
     normalize_communication_mode,
     resolve_effective_preferences,
     runtime_consistency_report,
 )
-from .runtime_versioning import (
+from ..runtime_versioning import (
     compat_version_payload,
     current_engine_capability_version as runtime_current_engine_capability_version,
     current_installed_version as runtime_current_installed_version,
 )
 
-BASE = Path(__file__).resolve().parents[2]
+BASE = Path(__file__).resolve().parents[3]
 ENGINE_STATE_DIR = BASE / ".aictx"
 BOOT_DIR = ENGINE_STATE_DIR / "boot"
 STORE_DIR = ENGINE_STATE_DIR / "store"
@@ -42,13 +42,10 @@ MEMORY_SOURCE_DIR = ENGINE_STATE_DIR / "memory" / "source"
 MEMORY_SOURCE_COMMON_DIR = MEMORY_SOURCE_DIR / "common"
 MEMORY_SOURCE_PROJECTS_DIR = MEMORY_SOURCE_DIR / "projects"
 
-LEGACY_ROOT_INDEX_PATH = BASE / "index.json"
 ROOT_INDEX_PATH = MEMORY_SOURCE_DIR / "index.json"
 ROOT_PREFS_PATH = BASE / ".aictx" / "memory" / "user_preferences.json"
 ROOT_FAST_LOOKUP_PATH = BASE / "fast_lookup.json"
-LEGACY_ROOT_SYMPTOMS_PATH = BASE / "symptoms.json"
 ROOT_SYMPTOMS_PATH = MEMORY_SOURCE_DIR / "symptoms.json"
-LEGACY_ROOT_PROTOCOL_PATH = BASE / "protocol.md"
 ROOT_PROTOCOL_PATH = MEMORY_SOURCE_DIR / "protocol.md"
 ROOT_CHANGE_JOURNAL_PATH = BASE / "change_journal.md"
 
@@ -69,8 +66,6 @@ INDEX_BY_PREFERENCE_PATH = INDEXES_DIR / "by_preference.json"
 INDEX_RECENT_PATH = INDEXES_DIR / "recent_learnings.json"
 
 DELTA_SCHEMA_PATH = DELTA_DIR / "task_packet_schema.json"
-MIGRATION_REPORT_PATH = MIGRATION_DIR / "legacy_memory_migration_report.md"
-MIGRATION_IMPORT_MAP_PATH = MIGRATION_DIR / "legacy_memory_import_map.json"
 LOGS_CHANGE_JOURNAL_PATH = LOGS_DIR / "change_journal.md"
 LOGS_MAINTENANCE_PATH = LOGS_DIR / "maintenance_log.md"
 REPO_COMPAT_DIRNAME = ".aictx/memory"
@@ -251,22 +246,22 @@ def write_json(path: Path, payload: Any) -> None:
 
 
 def write_text(path: Path, content: str) -> None:
-    from .runtime_io import write_text as _impl
+    from ..runtime_io import write_text as _impl
     return _impl(path, content)
 
 
 def now_iso() -> str:
-    from .runtime_io import now_iso as _impl
+    from ..runtime_io import now_iso as _impl
     return _impl()
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    from .runtime_io import read_jsonl as _impl
+    from ..runtime_io import read_jsonl as _impl
     return _impl(path)
 
 
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    from .runtime_io import write_jsonl as _impl
+    from ..runtime_io import write_jsonl as _impl
     return _impl(path, rows)
 
 
@@ -277,14 +272,9 @@ def repo_root_for_project(project: str) -> Path | None:
     return candidate if candidate.exists() else None
 
 
-def ensure_repo_compat_readme(compat_dir: Path) -> None:
-    from .runtime_compat import ensure_repo_compat_readme as _impl
-    return _impl(compat_dir)
-
-
 
 def slugify(text: str) -> str:
-    from .runtime_io import slugify as _impl
+    from ..runtime_io import slugify as _impl
     return _impl(text)
 
 
@@ -310,117 +300,117 @@ def default_adapter_contract() -> dict[str, Any]:
 
 
 def relative_posix(path: Path, root: Path) -> str:
-    from .runtime_io import relative_posix as _impl
+    from ..runtime_io import relative_posix as _impl
     return _impl(path, root)
 
 
 def file_mtime(path: Path) -> float:
-    from .runtime_io import file_mtime as _impl
+    from ..runtime_io import file_mtime as _impl
     return _impl(path)
 
 
 def mtime_changed(previous: Any, current: float) -> bool:
-    from .runtime_io import mtime_changed as _impl
+    from ..runtime_io import mtime_changed as _impl
     return _impl(previous, current)
 
 
 def file_md5(path: Path) -> str:
-    from .runtime_io import file_md5 as _impl
+    from ..runtime_io import file_md5 as _impl
     return _impl(path)
 
 
 def load_mod_manifest(root: Path) -> dict[str, Any]:
-    from .runtime_knowledge import load_mod_manifest as _impl
+    from ..runtime_knowledge import load_mod_manifest as _impl
     return _impl(root)
 
 
 def save_mod_manifest(root: Path, manifest: dict[str, Any]) -> None:
-    from .runtime_knowledge import save_mod_manifest as _impl
+    from ..runtime_knowledge import save_mod_manifest as _impl
     return _impl(root, manifest)
 
 
 def default_mod_state() -> dict[str, Any]:
-    from .runtime_knowledge import default_mod_state as _impl
+    from ..runtime_knowledge import default_mod_state as _impl
     return _impl()
 
 
 def load_mod_state(root: Path) -> dict[str, Any]:
-    from .runtime_knowledge import load_mod_state as _impl
+    from ..runtime_knowledge import load_mod_state as _impl
     return _impl(root)
 
 
 def save_mod_state(root: Path, state: dict[str, Any]) -> None:
-    from .runtime_knowledge import save_mod_state as _impl
+    from ..runtime_knowledge import save_mod_state as _impl
     return _impl(root, state)
 
 
 def references_template_text() -> str:
-    from .runtime_knowledge import references_template_text as _impl
+    from ..runtime_knowledge import references_template_text as _impl
     return _impl()
 
 
 def references_stub_text(mod_id: str) -> str:
-    from .runtime_knowledge import references_stub_text as _impl
+    from ..runtime_knowledge import references_stub_text as _impl
     return _impl(mod_id)
 
 
 def ensure_references_template() -> None:
-    from .runtime_knowledge import ensure_references_template as _impl
+    from ..runtime_knowledge import ensure_references_template as _impl
     return _impl()
 
 
 def ensure_remote_manifest(root: Path) -> None:
-    from .runtime_knowledge import ensure_remote_manifest as _impl
+    from ..runtime_knowledge import ensure_remote_manifest as _impl
     return _impl(root)
 
 
 def should_process_inbox_file(path: Path) -> bool:
-    from .runtime_knowledge import should_process_inbox_file as _impl
+    from ..runtime_knowledge import should_process_inbox_file as _impl
     return _impl(path)
 
 
 def resolve_reference_path(raw_path: str) -> Path:
-    from .runtime_knowledge import resolve_reference_path as _impl
+    from ..runtime_knowledge import resolve_reference_path as _impl
     return _impl(raw_path)
 
 
 def parse_references_file(path: Path) -> list[dict[str, Any]]:
-    from .runtime_knowledge import parse_references_file as _impl
+    from ..runtime_knowledge import parse_references_file as _impl
     return _impl(path)
 
 
 def sanitize_source_name(value: str, fallback: str = "source") -> str:
-    from .runtime_knowledge import sanitize_source_name as _impl
+    from ..runtime_knowledge import sanitize_source_name as _impl
     return _impl(value, fallback=fallback)
 
 
 def delete_artifact_paths(root: Path, paths: list[str]) -> None:
-    from .runtime_knowledge import delete_artifact_paths as _impl
+    from ..runtime_knowledge import delete_artifact_paths as _impl
     return _impl(root, paths)
 
 
 def invalidate_source_artifacts(root: Path, previous: dict[str, Any]) -> None:
-    from .runtime_knowledge import invalidate_source_artifacts as _impl
+    from ..runtime_knowledge import invalidate_source_artifacts as _impl
     return _impl(root, previous)
 
 
 def rebuild_mod_indices(root: Path, state: dict[str, Any]) -> dict[str, list[str]]:
-    from .runtime_knowledge import rebuild_mod_indices as _impl
+    from ..runtime_knowledge import rebuild_mod_indices as _impl
     return _impl(root, state)
 
 
 def remote_manifest_path(root: Path) -> Path:
-    from .runtime_knowledge import remote_manifest_path as _impl
+    from ..runtime_knowledge import remote_manifest_path as _impl
     return _impl(root)
 
 
 def load_remote_sources_manifest(root: Path) -> dict[str, Any]:
-    from .runtime_knowledge import load_remote_sources_manifest as _impl
+    from ..runtime_knowledge import load_remote_sources_manifest as _impl
     return _impl(root)
 
 
 def save_remote_sources_manifest(root: Path, manifest: dict[str, Any]) -> None:
-    from .runtime_knowledge import save_remote_sources_manifest as _impl
+    from ..runtime_knowledge import save_remote_sources_manifest as _impl
     return _impl(root, manifest)
 
 
@@ -779,32 +769,32 @@ def note_to_record(note: NoteInfo) -> dict[str, Any]:
 
 
 def preference_records() -> list[dict[str, Any]]:
-    from .runtime_memory import preference_records as _impl
+    from ..runtime_memory import preference_records as _impl
     return _impl()
 
 
 def load_records() -> list[dict[str, Any]]:
-    from .runtime_memory import load_records as _impl
+    from ..runtime_memory import load_records as _impl
     return _impl()
 
 
 def iso_date_or_today(value: Any) -> str:
-    from .runtime_io import iso_date_or_today as _impl
+    from ..runtime_io import iso_date_or_today as _impl
     return _impl(value)
 
 
 def clamp(value: float, low: float, high: float) -> float:
-    from .runtime_io import clamp as _impl
+    from ..runtime_io import clamp as _impl
     return _impl(value, low, high)
 
 
 def normalize_record(record: dict[str, Any]) -> dict[str, Any]:
-    from .runtime_memory import normalize_record as _impl
+    from ..runtime_memory import normalize_record as _impl
     return _impl(record)
 
 
 def days_since(value: Any) -> int:
-    from .runtime_io import days_since as _impl
+    from ..runtime_io import days_since as _impl
     return _impl(value)
 
 
@@ -862,7 +852,7 @@ def infer_project_name(task: str, matches: list[dict[str, Any]], explicit_projec
 
 
 def rebuild_memory_store() -> dict[str, Any]:
-    from .runtime_memory import rebuild_memory_store as _impl
+    from ..runtime_memory import rebuild_memory_store as _impl
     return _impl()
 
 
@@ -872,8 +862,7 @@ def write_indexes(rows: list[dict[str, Any]]) -> None:
     by_project: dict[str, list[str]] = defaultdict(list)
     by_path: dict[str, dict[str, Any]] = {}
     by_preference: dict[str, dict[str, Any]] = {}
-    symptoms_path = ROOT_SYMPTOMS_PATH if ROOT_SYMPTOMS_PATH.exists() else LEGACY_ROOT_SYMPTOMS_PATH
-    symptoms = read_json(symptoms_path, {"symptoms": {}}).get("symptoms", {})
+    symptoms = read_json(ROOT_SYMPTOMS_PATH, {"symptoms": {}}).get("symptoms", {})
     by_symptom = {key: value for key, value in symptoms.items()}
 
     for row in rows:
@@ -903,56 +892,6 @@ def write_indexes(rows: list[dict[str, Any]]) -> None:
     write_json(INDEX_BY_SYMPTOM_PATH, by_symptom)
     write_json(INDEX_BY_PREFERENCE_PATH, by_preference)
     write_json(INDEX_RECENT_PATH, recent)
-
-
-def write_migration_report(import_map: list[dict[str, str]]) -> None:
-    from .runtime_compat import write_migration_report as _impl
-    return _impl(import_map)
-
-
-
-def sync_repo_compat_layers(
-    *,
-    project_rows: dict[str, list[dict[str, Any]]],
-    global_rows: list[dict[str, Any]],
-    defaults_payload: dict[str, Any],
-    project_registry: dict[str, Any],
-    boot_summary_payload: dict[str, Any],
-    model_routing: dict[str, Any],
-) -> list[str]:
-    from .runtime_compat import sync_repo_compat_layers as _impl
-    return _impl(project_rows=project_rows, global_rows=global_rows, defaults_payload=defaults_payload, project_registry=project_registry, boot_summary_payload=boot_summary_payload, model_routing=model_routing)
-
-
-
-def sync_repo_cost_status(project: str | None) -> None:
-    from .runtime_compat import sync_repo_cost_status as _impl
-    return _impl(project)
-
-
-
-def sync_repo_task_memory_status(project: str | None) -> None:
-    from .runtime_compat import sync_repo_task_memory_status as _impl
-    return _impl(project)
-
-
-
-def sync_repo_failure_memory_status(project: str | None) -> None:
-    from .runtime_compat import sync_repo_failure_memory_status as _impl
-    return _impl(project)
-
-
-
-def sync_repo_memory_graph_status(project: str | None) -> None:
-    from .runtime_compat import sync_repo_memory_graph_status as _impl
-    return _impl(project)
-
-
-
-def find_legacy_memory_dirs() -> list[str]:
-    from .runtime_compat import find_legacy_memory_dirs as _impl
-    return _impl()
-
 
 
 def default_model_routing() -> dict[str, Any]:
@@ -1003,17 +942,17 @@ def rank_records(
     task_type: str | None = None,
     project: str | None = None,
 ) -> list[dict[str, Any]]:
-    from .runtime_memory import rank_records as _impl
+    from ..runtime_memory import rank_records as _impl
     return _impl(query, record_type=record_type, task_type=task_type, project=project)
 
 
 def summarize_query(query: str, mode: str = "all") -> dict[str, Any]:
-    from .runtime_memory import summarize_query as _impl
+    from ..runtime_memory import summarize_query as _impl
     return _impl(query, mode=mode)
 
 
 def route_task(task: str) -> dict[str, Any]:
-    from .runtime_tasks import route_task as _impl
+    from ..runtime_tasks import route_task as _impl
     return _impl(task)
 
 
@@ -1024,106 +963,106 @@ def resolve_task_type(
     packet_metadata: dict[str, Any] | None = None,
     touched_files: list[str] | None = None,
 ) -> dict[str, Any]:
-    from .runtime_tasks import resolve_task_type as _impl
+    from ..runtime_tasks import resolve_task_type as _impl
     return _impl(task, explicit_task_type=explicit_task_type, packet_metadata=packet_metadata, touched_files=touched_files)
 
 
 def packet_for_task(task: str, project: str | None = None, task_type: str | None = None) -> dict[str, Any]:
-    from .runtime_tasks import packet_for_task as _impl
+    from ..runtime_tasks import packet_for_task as _impl
     return _impl(task, project=project, task_type=task_type)
 
 
 def detect_stale_records() -> dict[str, Any]:
-    from .runtime_tasks import detect_stale_records as _impl
+    from ..runtime_tasks import detect_stale_records as _impl
     return _impl()
 
 
 def compact_records(apply: bool = False) -> dict[str, Any]:
-    from .runtime_compact import compact_repo_records as _impl
+    from ..runtime_compact import compact_repo_records as _impl
     return _impl(BASE, apply=apply)
 
 
 def append_if_missing(path: Path, line: str) -> None:
-    from .runtime_io import append_if_missing as _impl
+    from ..runtime_io import append_if_missing as _impl
     return _impl(path, line)
 
 
 
 
 def yaml_scalar(value: Any) -> str:
-    from .runtime_cost import yaml_scalar as _impl
+    from ..runtime_cost import yaml_scalar as _impl
     return _impl(value)
 
 
 
 def render_simple_yaml(payload: dict[str, Any], indent: int = 0) -> str:
-    from .runtime_cost import render_simple_yaml as _impl
+    from ..runtime_cost import render_simple_yaml as _impl
     return _impl(payload, indent)
 
 
 
 def parse_simple_yaml(path: Path) -> dict[str, Any]:
-    from .runtime_cost import parse_simple_yaml as _impl
+    from ..runtime_cost import parse_simple_yaml as _impl
     return _impl(path)
 
 
 
 def cost_config() -> dict[str, Any]:
-    from .runtime_cost import cost_config as _impl
+    from ..runtime_cost import cost_config as _impl
     return _impl()
 
 
 
 def ensure_cost_artifacts() -> None:
-    from .runtime_cost import ensure_cost_artifacts as _impl
+    from ..runtime_cost import ensure_cost_artifacts as _impl
     return _impl()
 
 
 
 def ensure_task_memory_artifacts() -> None:
-    from .runtime_task_memory import ensure_task_memory_artifacts as _impl
+    from ..runtime_task_memory import ensure_task_memory_artifacts as _impl
     return _impl()
 
 
 
 def build_task_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, int]:
-    from .runtime_task_memory import build_task_memory_artifacts as _impl
+    from ..runtime_task_memory import build_task_memory_artifacts as _impl
     return _impl(rows)
 
 
 
 def update_task_memory_status(packet: dict[str, Any], packet_path: Path) -> None:
-    from .runtime_task_memory import update_task_memory_status as _impl
+    from ..runtime_task_memory import update_task_memory_status as _impl
     return _impl(packet, packet_path)
 
 
 
 def ensure_failure_memory_artifacts() -> None:
-    from .runtime_failure import ensure_failure_memory_artifacts as _impl
+    from ..runtime_failure import ensure_failure_memory_artifacts as _impl
     return _impl()
 
 
 
 def extract_related_commands(text: str) -> list[str]:
-    from .runtime_failure import extract_related_commands as _impl
+    from ..runtime_failure import extract_related_commands as _impl
     return _impl(text)
 
 
 
 def derive_failure_records(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    from .runtime_failure import derive_failure_records as _impl
+    from ..runtime_failure import derive_failure_records as _impl
     return _impl(rows)
 
 
 
 def manual_failure_records() -> list[dict[str, Any]]:
-    from .runtime_failure import manual_failure_records as _impl
+    from ..runtime_failure import manual_failure_records as _impl
     return _impl()
 
 
 
 def build_failure_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    from .runtime_failure import build_failure_memory_artifacts as _impl
+    from ..runtime_failure import build_failure_memory_artifacts as _impl
     return _impl(rows)
 
 
@@ -1141,121 +1080,121 @@ def record_failure(
     confidence: float = 0.75,
     notes: str = "",
 ) -> dict[str, Any]:
-    from .runtime_failure import record_failure as _impl
+    from ..runtime_failure import record_failure as _impl
     return _impl(failure_id=failure_id, category=category, title=title, symptoms=symptoms, root_cause=root_cause, solution=solution, files_involved=files_involved, related_commands=related_commands, confidence=confidence, notes=notes)
 
 
 
 def should_consult_failure_memory(task: str, task_type: str) -> bool:
-    from .runtime_failure import should_consult_failure_memory as _impl
+    from ..runtime_failure import should_consult_failure_memory as _impl
     return _impl(task, task_type)
 
 
 
 def rank_failure_records(task: str) -> list[dict[str, Any]]:
-    from .runtime_failure import rank_failure_records as _impl
+    from ..runtime_failure import rank_failure_records as _impl
     return _impl(task)
 
 
 
 def update_failure_memory_status(packet: dict[str, Any], packet_path: Path) -> None:
-    from .runtime_failure import update_failure_memory_status as _impl
+    from ..runtime_failure import update_failure_memory_status as _impl
     return _impl(packet, packet_path)
 
 
 
 def graph_node_id(node_type: str, raw_id: str) -> str:
-    from .runtime_graph import graph_node_id as _impl
+    from ..runtime_graph import graph_node_id as _impl
     return _impl(node_type, raw_id)
 
 
 
 def edge_identity(from_id: str, to_id: str, relation: str) -> str:
-    from .runtime_graph import edge_identity as _impl
+    from ..runtime_graph import edge_identity as _impl
     return _impl(from_id, to_id, relation)
 
 
 
 def infer_repository_area(row: dict[str, Any]) -> str | None:
-    from .runtime_graph import infer_repository_area as _impl
+    from ..runtime_graph import infer_repository_area as _impl
     return _impl(row)
 
 
 
 def graph_node_type_for_record(row: dict[str, Any]) -> str:
-    from .runtime_graph import graph_node_type_for_record as _impl
+    from ..runtime_graph import graph_node_type_for_record as _impl
     return _impl(row)
 
 
 
 def graph_label_index_key(label: str) -> str:
-    from .runtime_graph import graph_label_index_key as _impl
+    from ..runtime_graph import graph_label_index_key as _impl
     return _impl(label)
 
 
 
 def ensure_memory_graph_artifacts() -> None:
-    from .runtime_graph import ensure_memory_graph_artifacts as _impl
+    from ..runtime_graph import ensure_memory_graph_artifacts as _impl
     return _impl()
 
 
 
 def graph_add_node(nodes: dict[str, dict[str, Any]], *, node_id: str, node_type: str, label: str, source: str, confidence: float = 0.7, tags: list[str] | None = None, metadata: dict[str, Any] | None = None) -> None:
-    from .runtime_graph import graph_add_node as _impl
+    from ..runtime_graph import graph_add_node as _impl
     return _impl(nodes, node_id=node_id, node_type=node_type, label=label, source=source, confidence=confidence, tags=tags, metadata=metadata)
 
 
 
 def graph_add_edge(edges: dict[str, dict[str, Any]], *, from_id: str, to_id: str, relation: str, source: str, confidence: float = 0.65) -> None:
-    from .runtime_graph import graph_add_edge as _impl
+    from ..runtime_graph import graph_add_edge as _impl
     return _impl(edges, from_id=from_id, to_id=to_id, relation=relation, source=source, confidence=confidence)
 
 
 
 def build_memory_graph_artifacts(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    from .runtime_graph import build_memory_graph_artifacts as _impl
+    from ..runtime_graph import build_memory_graph_artifacts as _impl
     return _impl(rows)
 
 
 
 def graph_nodes() -> dict[str, dict[str, Any]]:
-    from .runtime_graph import graph_nodes as _impl
+    from ..runtime_graph import graph_nodes as _impl
     return _impl()
 
 
 
 def graph_edges() -> list[dict[str, Any]]:
-    from .runtime_graph import graph_edges as _impl
+    from ..runtime_graph import graph_edges as _impl
     return _impl()
 
 
 
 def graph_find_nodes(query: str) -> list[dict[str, Any]]:
-    from .runtime_graph import graph_find_nodes as _impl
+    from ..runtime_graph import graph_find_nodes as _impl
     return _impl(query)
 
 
 
 def graph_neighbors(node_id: str, relation: str | None = None) -> list[dict[str, Any]]:
-    from .runtime_graph import graph_neighbors as _impl
+    from ..runtime_graph import graph_neighbors as _impl
     return _impl(node_id, relation)
 
 
 
 def graph_expand(seed_ids: list[str], *, depth: int = 1, node_budget: int = 8, edge_budget: int = 12, task_type: str | None = None, repository_area: str | None = None) -> dict[str, Any]:
-    from .runtime_graph import graph_expand as _impl
+    from ..runtime_graph import graph_expand as _impl
     return _impl(seed_ids, depth=depth, node_budget=node_budget, edge_budget=edge_budget, task_type=task_type, repository_area=repository_area)
 
 
 
 def update_memory_graph_status(packet: dict[str, Any], packet_path: Path) -> None:
-    from .runtime_graph import update_memory_graph_status as _impl
+    from ..runtime_graph import update_memory_graph_status as _impl
     return _impl(packet, packet_path)
 
 
 
 def ensure_context_metrics_artifacts() -> None:
-    from .runtime_metrics import ensure_context_metrics_artifacts as _impl
+    from ..runtime_metrics import ensure_context_metrics_artifacts as _impl
     return _impl()
 
 
@@ -1269,13 +1208,13 @@ def estimate_tokens(value: Any) -> int:
 
 
 def summarize_granular_telemetry(log_rows: list[dict[str, Any]]) -> dict[str, Any]:
-    from .runtime_metrics import summarize_granular_telemetry as _impl
+    from ..runtime_metrics import summarize_granular_telemetry as _impl
     return _impl(log_rows)
 
 
 
 def record_granular_telemetry(packet: dict[str, Any], packet_path: Path, optimization_report: dict[str, Any]) -> dict[str, Any]:
-    from .runtime_metrics import record_granular_telemetry as _impl
+    from ..runtime_metrics import record_granular_telemetry as _impl
     return _impl(packet, packet_path, optimization_report)
 
 
@@ -1303,57 +1242,57 @@ def bootstrap_mod(
 
 
 def extract_text_from_html(raw_html: str) -> tuple[str, str]:
-    from .runtime_knowledge import extract_text_from_html as _impl
+    from ..runtime_knowledge import extract_text_from_html as _impl
     return _impl(raw_html)
 
 
 def extract_text_for_knowledge(path: Path) -> str:
-    from .runtime_knowledge import extract_text_for_knowledge as _impl
+    from ..runtime_knowledge import extract_text_for_knowledge as _impl
     return _impl(path)
 
 
 def clean_extracted_knowledge_text(text: str) -> str:
-    from .runtime_knowledge import clean_extracted_knowledge_text as _impl
+    from ..runtime_knowledge import clean_extracted_knowledge_text as _impl
     return _impl(text)
 
 
 def normalize_knowledge_text(text: str) -> str:
-    from .runtime_knowledge import normalize_knowledge_text as _impl
+    from ..runtime_knowledge import normalize_knowledge_text as _impl
     return _impl(text)
 
 
 def summarize_knowledge_text(text: str) -> str:
-    from .runtime_knowledge import summarize_knowledge_text as _impl
+    from ..runtime_knowledge import summarize_knowledge_text as _impl
     return _impl(text)
 
 
 def detect_main_content_start(text: str) -> str:
-    from .runtime_knowledge import detect_main_content_start as _impl
+    from ..runtime_knowledge import detect_main_content_start as _impl
     return _impl(text)
 
 
 def chapter_title_from_chunk(chunk: str, fallback_index: int) -> str:
-    from .runtime_knowledge import chapter_title_from_chunk as _impl
+    from ..runtime_knowledge import chapter_title_from_chunk as _impl
     return _impl(chunk, fallback_index)
 
 
 def section_title_from_keywords(text: str, fallback_index: int) -> str:
-    from .runtime_knowledge import section_title_from_keywords as _impl
+    from ..runtime_knowledge import section_title_from_keywords as _impl
     return _impl(text, fallback_index)
 
 
 def split_knowledge_sections(text: str) -> list[dict[str, Any]]:
-    from .runtime_knowledge import split_knowledge_sections as _impl
+    from ..runtime_knowledge import split_knowledge_sections as _impl
     return _impl(text)
 
 
 def topic_keywords(text: str, *, limit: int = 12) -> list[str]:
-    from .runtime_knowledge import topic_keywords as _impl
+    from ..runtime_knowledge import topic_keywords as _impl
     return _impl(text, limit=limit)
 
 
 def stable_source_name(source_path: Path, source_kind: str, source_key: str, previous: dict[str, Any] | None = None) -> str:
-    from .runtime_knowledge import stable_source_name as _impl
+    from ..runtime_knowledge import stable_source_name as _impl
     return _impl(source_path, source_kind, source_key, previous=previous)
 
 
@@ -1367,62 +1306,62 @@ def process_knowledge_source(
     label: str | None = None,
     previous: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from .runtime_knowledge import process_knowledge_source as _impl
+    from ..runtime_knowledge import process_knowledge_source as _impl
     return _impl(root, source_path=source_path, source_kind=source_kind, source_key=source_key, title=title, label=label, previous=previous)
 
 
 def canonicalize_url(raw_url: str) -> str:
-    from .runtime_knowledge import canonicalize_url as _impl
+    from ..runtime_knowledge import canonicalize_url as _impl
     return _impl(raw_url)
 
 
 def build_source_id(url: str, existing_sources: list[dict[str, Any]]) -> str:
-    from .runtime_knowledge import build_source_id as _impl
+    from ..runtime_knowledge import build_source_id as _impl
     return _impl(url, existing_sources)
 
 
 def detect_remote_type(url: str, declared_type: str, content_type_header: str, raw_bytes: bytes) -> str:
-    from .runtime_knowledge import detect_remote_type as _impl
+    from ..runtime_knowledge import detect_remote_type as _impl
     return _impl(url, declared_type, content_type_header, raw_bytes)
 
 
 def title_from_text(text: str, fallback: str) -> str:
-    from .runtime_knowledge import title_from_text as _impl
+    from ..runtime_knowledge import title_from_text as _impl
     return _impl(text, fallback)
 
 
 def extract_remote_payload(raw_path: Path, detected_type: str) -> tuple[str, str, list[str]]:
-    from .runtime_knowledge import extract_remote_payload as _impl
+    from ..runtime_knowledge import extract_remote_payload as _impl
     return _impl(raw_path, detected_type)
 
 
 def remote_frontmatter(tags: list[str]) -> str:
-    from .runtime_knowledge import remote_frontmatter as _impl
+    from ..runtime_knowledge import remote_frontmatter as _impl
     return _impl(tags)
 
 
 def parse_http_headers(raw_headers: str) -> tuple[int, dict[str, str]]:
-    from .runtime_knowledge import parse_http_headers as _impl
+    from ..runtime_knowledge import parse_http_headers as _impl
     return _impl(raw_headers)
 
 
 def fetch_remote_payload_bytes(url: str) -> tuple[bytes, int, dict[str, str]]:
-    from .runtime_knowledge import fetch_remote_payload_bytes as _impl
+    from ..runtime_knowledge import fetch_remote_payload_bytes as _impl
     return _impl(url)
 
 
 def register_remote_source(mod_id: str, url: str, declared_type: str = "auto", tags: list[str] | None = None) -> dict[str, Any]:
-    from .runtime_knowledge import register_remote_source as _impl
+    from ..runtime_knowledge import register_remote_source as _impl
     return _impl(mod_id, url, declared_type=declared_type, tags=tags)
 
 
 def fetch_remote_sources(mod_id: str, source_id: str | None = None, force: bool = False) -> dict[str, Any]:
-    from .runtime_knowledge import fetch_remote_sources as _impl
+    from ..runtime_knowledge import fetch_remote_sources as _impl
     return _impl(mod_id, source_id=source_id, force=force)
 
 
 def process_mod_documents(mod_id: str) -> dict[str, Any]:
-    from .runtime_knowledge import process_mod_documents as _impl
+    from ..runtime_knowledge import process_mod_documents as _impl
     return _impl(mod_id)
 
 
@@ -1465,6 +1404,7 @@ def ensure_engine_state() -> None:
 def refresh_engine_state() -> dict[str, Any]:
     ensure_engine_state()
     state = read_json(ENGINE_STATE_PATH, {})
+    state.pop("installed_iteration", None)
     defaults_payload = read_json(ROOT_PREFS_PATH, {})
     communication_policy = communication_policy_from_defaults(defaults_payload)
     adapter_contract = default_adapter_contract()
@@ -1512,8 +1452,8 @@ def repair_repo_runtime_contract(repo: Path | None = None) -> dict[str, Any]:
     state_path = target_repo / ".aictx" / "state.json"
     if not state_path.exists():
         return {"repo": target_repo.as_posix(), "repaired": False, "reason": "not_initialized", "created": [], "updated": []}
-    from .agent_runtime import render_repo_agents_block, upsert_marked_block, write_local_agent_runtime
-    from .runner_integrations import install_repo_runner_integrations
+    from ..agent_runtime import render_repo_agents_block, upsert_marked_block, write_local_agent_runtime
+    from ..runner_integrations import install_repo_runner_integrations
 
     created: list[str] = []
     updated: list[str] = []
@@ -1549,24 +1489,24 @@ def repair_repo_runtime_contract(repo: Path | None = None) -> dict[str, Any]:
 
 
 def truncate_words(text: str, max_words: int) -> str:
-    from .runtime_io import truncate_words as _impl
+    from ..runtime_io import truncate_words as _impl
     return _impl(text, max_words)
 
 
 def packet_item_text(item: Any) -> str:
-    from .runtime_cost import packet_item_text as _impl
+    from ..runtime_cost import packet_item_text as _impl
     return _impl(item)
 
 
 
 def estimate_tokens_from_text(text: str, structural_overhead: int = 0) -> int:
-    from .runtime_cost import estimate_tokens_from_text as _impl
+    from ..runtime_cost import estimate_tokens_from_text as _impl
     return _impl(text, structural_overhead)
 
 
 
 def estimate_packet_tokens(packet: dict[str, Any]) -> dict[str, Any]:
-    from .runtime_cost import estimate_packet_tokens as _impl
+    from ..runtime_cost import estimate_packet_tokens as _impl
     return _impl(packet)
 
 
@@ -1574,61 +1514,61 @@ def estimate_packet_tokens(packet: dict[str, Any]) -> dict[str, Any]:
 
 
 def item_identity(item: Any) -> str:
-    from .runtime_cost import item_identity as _impl
+    from ..runtime_cost import item_identity as _impl
     return _impl(item)
 
 
 
 def item_value(item: Any, section_name: str) -> float:
-    from .runtime_cost import item_value as _impl
+    from ..runtime_cost import item_value as _impl
     return _impl(item, section_name)
 
 
 
 def item_cost(item: Any) -> int:
-    from .runtime_cost import item_cost as _impl
+    from ..runtime_cost import item_cost as _impl
     return _impl(item)
 
 
 
 def compress_item(item: Any, max_words: int) -> Any:
-    from .runtime_cost import compress_item as _impl
+    from ..runtime_cost import compress_item as _impl
     return _impl(item, max_words)
 
 
 
 def dedupe_items(items: list[Any]) -> tuple[list[Any], list[dict[str, Any]]]:
-    from .runtime_cost import dedupe_items as _impl
+    from ..runtime_cost import dedupe_items as _impl
     return _impl(items)
 
 
 
 def optimize_list_section(section_name: str, items: list[Any], config: dict[str, Any], available_tokens: int) -> tuple[list[Any], list[dict[str, Any]], int]:
-    from .runtime_cost import optimize_list_section as _impl
+    from ..runtime_cost import optimize_list_section as _impl
     return _impl(section_name, items, config, available_tokens)
 
 
 
 def sync_packet_mirrors(packet: dict[str, Any]) -> None:
-    from .runtime_cost import sync_packet_mirrors as _impl
+    from ..runtime_cost import sync_packet_mirrors as _impl
     return _impl(packet)
 
 
 
 def update_cost_status(report: dict[str, Any], packet_path: Path) -> None:
-    from .runtime_cost import update_cost_status as _impl
+    from ..runtime_cost import update_cost_status as _impl
     return _impl(report, packet_path)
 
 
 
 def render_optimization_report(report: dict[str, Any]) -> str:
-    from .runtime_cost import render_optimization_report as _impl
+    from ..runtime_cost import render_optimization_report as _impl
     return _impl(report)
 
 
 
 def optimize_packet(packet: dict[str, Any]) -> dict[str, Any]:
-    from .runtime_cost import optimize_packet as _impl
+    from ..runtime_cost import optimize_packet as _impl
     return _impl(packet)
 
 
@@ -1803,7 +1743,7 @@ def cli_route(args: argparse.Namespace) -> int:
 
 
 def cli_migrate(_: argparse.Namespace) -> int:
-    from .scaffold import ensure_repo_memory_sources, ensure_repo_user_preferences
+    from ..scaffold import ensure_repo_memory_sources, ensure_repo_user_preferences
     ensure_repo_user_preferences(BASE)
     ensure_repo_memory_sources(BASE)
     repair = repair_repo_runtime_contract(BASE)

@@ -259,7 +259,7 @@ def test_run_execution_json_captures_error_events_and_report_metrics(tmp_path: P
             "run-execution",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "run failing tsc",
             "--agent-id",
             "codex",

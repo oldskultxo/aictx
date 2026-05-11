@@ -7,11 +7,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import core_runtime
-from ._version import __version__
-from .adapters import install_global_adapters
-from .area_memory import derive_area_id
-from .agent_runtime import (
+from .. import core_runtime
+from .._version import __version__
+from ..adapters import install_global_adapters
+from ..area_memory import derive_area_id
+from ..agent_runtime import (
     copy_local_agent_runtime,
     install_global_agent_runtime,
     render_repo_agents_block,
@@ -19,32 +19,32 @@ from .agent_runtime import (
     resolve_workspace_root,
     upsert_marked_block,
 )
-from .middleware import cli_finalize_execution, cli_prepare_execution, finalize_execution, now_iso, prepare_execution
-from .messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
-from .portability import detect_portable_continuity_from_gitignore, load_portability_state
-from .continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
-from .runner_integrations import install_codex_native_integration, install_repo_runner_integrations
-from .runtime_launcher import cli_run_execution
-from .runtime_compact import compact_repo_records
-from .runtime_versioning import compat_version_payload
-from .scaffold import TEMPLATES_DIR, ensure_repomap_scaffold, ensure_repo_user_preferences, init_repo_scaffold
-from .report import build_real_usage_report
-from .repo_map.config import load_repomap_config, load_repomap_manifest, load_repomap_status, resolve_repo_repomap_config, write_repomap_config, write_repomap_status
-from .repo_map.query import query_repo_map
-from .repo_map.refresh import refresh_repo_map
-from .repo_map.paths import repo_map_config_path, repo_map_index_path, repo_map_manifest_path, repo_map_status_path
-from .repo_map.provider import check_tree_sitter_available
-from .repo_map.setup import (
+from ..middleware import cli_finalize_execution, cli_prepare_execution, finalize_execution, now_iso, prepare_execution
+from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
+from ..portability import detect_portable_continuity_from_gitignore, load_portability_state
+from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
+from ..runner_integrations import install_codex_native_integration, install_repo_runner_integrations
+from ..runtime_launcher import cli_run_execution
+from ..runtime_compact import compact_repo_records
+from ..runtime_versioning import compat_version_payload
+from ..scaffold import TEMPLATES_DIR, ensure_repomap_scaffold, ensure_repo_user_preferences, init_repo_scaffold
+from ..report import build_real_usage_report
+from ..repo_map.config import load_repomap_config, load_repomap_manifest, load_repomap_status, resolve_repo_repomap_config, write_repomap_config, write_repomap_status
+from ..repo_map.query import query_repo_map
+from ..repo_map.refresh import refresh_repo_map
+from ..repo_map.paths import repo_map_config_path, repo_map_index_path, repo_map_manifest_path, repo_map_status_path
+from ..repo_map.provider import check_tree_sitter_available
+from ..repo_map.setup import (
     install_repomap_dependency,
     repomap_dependency_available,
     update_global_repomap_config,
 )
-from .cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
-from .strategy_memory import select_strategy
-from .runtime_tasks import resolve_task_type
-from .work_state import changed_work_state_fields, close_work_state, list_work_states, load_active_work_state, load_work_state, render_work_state_summary, resume_work_state, start_work_state, update_work_state
+from ..cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
+from ..strategy_memory import select_strategy
+from ..runtime_tasks import resolve_task_type
+from ..work_state import changed_work_state_fields, close_work_state, list_work_states, load_active_work_state, load_work_state, render_work_state_summary, resume_work_state, start_work_state, update_work_state
 
-from .state import (
+from ..state import (
     CONFIG_PATH,
     ENGINE_HOME,
     PROJECTS_REGISTRY_PATH,
@@ -482,7 +482,9 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     notable_errors = _list_arg(args, "notable_errors")
     if error:
         notable_errors.append(error)
-    request = str(getattr(args, "request", "") or summary).strip()
+    active = load_active_work_state(repo)
+    active_task = str(active.get("goal") or active.get("title") or active.get("task_id") or "").strip() if isinstance(active, dict) else ""
+    request = str(getattr(args, "task", "") or getattr(args, "request", "") or active_task or summary).strip()
     prepared = prepare_execution(
         {
             "repo_root": repo.as_posix(),
@@ -522,8 +524,7 @@ def cmd_finalize(args: argparse.Namespace) -> int:
 
 def cmd_resume(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    task = str(getattr(args, "task", "") or "").strip()
-    request = task or str(getattr(args, "request", "") or "").strip()
+    request = str(getattr(args, "task", "") or "").strip()
     explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
     resolved = resolve_task_type(request, explicit_task_type=explicit_task_type or None, touched_files=[])
     task_type = str(resolved.get("task_type") or explicit_task_type or "")
@@ -1057,8 +1058,8 @@ def cmd_init(args: argparse.Namespace) -> int:
             gitignore_path.unlink()
             runner_integrations = [item for item in runner_integrations if item != gitignore_path]
     upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
-    legacy_override = repo / "AGENTS.override.md"
-    remove_marked_block(legacy_override)
+    old_override = repo / "AGENTS.override.md"
+    remove_marked_block(old_override)
     ws = load_active_workspace()
     repo_str = str(repo)
     if register_repo and repo_str not in ws.repos:
@@ -1160,7 +1161,7 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     install.set_defaults(func=cmd_install)
 
-    init = sub.add_parser("init", help="Initialize repo-local .aictx_* scaffold")
+    init = sub.add_parser("init", help="Initialize repo-local .aictx scaffold")
     init.add_argument("--repo", default=".", help="Repository path")
     init.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     init.add_argument("--no-gitignore", action="store_true", help="Do not modify .gitignore")
@@ -1172,8 +1173,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     resume = sub.add_parser("resume", help="Compile agent continuity capsule")
     resume.add_argument("--repo", default=".", help="Repository root")
-    resume.add_argument("--task", default="", help="Task goal only. Preferred for agent startup.")
-    resume.add_argument("--request", default="", help="Legacy/raw request input. Do not include reporting/output-format instructions.")
+    resume.add_argument("--task", required=True, help="Task goal only for agent startup.")
     resume.add_argument("--json", action="store_true", help="Print structured continuity capsule JSON")
     resume.add_argument("--full", action="store_true", help="Include a larger continuity capsule")
     resume.add_argument("--task-type", default="", help="Optional task type override")
@@ -1187,7 +1187,8 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--status", choices=["success", "failure"], required=True, help="Task outcome")
     finalize.add_argument("--summary", required=True, help="What happened")
     finalize.add_argument("--json", action="store_true", help="Print structured finalization JSON")
-    finalize.add_argument("--request", default="", help="Original user request")
+    finalize.add_argument("--task", default="", help="Canonical task goal for contract evaluation")
+    finalize.add_argument("--request", default="", help="Original user request (deprecated alias for --task)")
     finalize.add_argument("--task-type", default="", help="Optional task type override")
     finalize.add_argument("--files-opened", nargs="*", default=[], help="Explicit files opened during execution")
     finalize.add_argument("--files-edited", nargs="*", default=[], help="Explicit files edited during execution")
@@ -1449,7 +1450,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     prepare = execution_sub.add_parser("prepare", help=argparse.SUPPRESS)
     prepare.add_argument("--repo", default=".", help="Repository root.")
-    prepare.add_argument("--request", required=True, help="User request or task description.")
+    prepare.add_argument("--task", dest="request", required=True, help="Task goal or description.")
     prepare.add_argument("--agent-id", required=True, help="Agent identifier.")
     prepare.add_argument("--adapter-id", help="Optional adapter identifier.")
     prepare.add_argument("--execution-id", required=True, help="Stable execution id.")
@@ -1491,7 +1492,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_execution = internal_sub.add_parser("run-execution", help=argparse.SUPPRESS)
     run_execution.add_argument("--repo", default=".", help="Repository root.")
-    run_execution.add_argument("--request", required=True, help="User request or task description.")
+    run_execution.add_argument("--task", dest="request", required=True, help="Task goal or description.")
     run_execution.add_argument("--agent-id", required=True, help="Agent identifier.")
     run_execution.add_argument("--adapter-id", help="Optional adapter identifier.")
     run_execution.add_argument("--execution-id", default="auto", help="Stable execution id or 'auto'.")

@@ -256,7 +256,7 @@ Do not pass benchmark instructions, metrics schemas, reporting rules, or final-a
 Bad demo input:
 
 ```bash
-aictx resume --repo . --request "Fix parser test. Also collect these metrics, follow this benchmark schema, output this report..." --json
+aictx resume --repo . --task "Fix parser test. Also collect these metrics, follow this benchmark schema, output this report..." --json
 ```
 
 Good demo input:
@@ -265,9 +265,9 @@ Good demo input:
 aictx resume --repo . --task "fix parser test" --json
 ```
 
-`--request` remains useful for legacy/raw compatibility and wrapped execution flows, but demo instrumentation should not be mixed into the agent-facing task.
+In v6, `--task` is the startup input; demo instrumentation should not be mixed into the agent-facing task.
 
-If needed, future AICTX behavior should add an explicit sanitizer or warning when `--request` appears to contain benchmark/reporting instructions instead of just the work goal.
+AICTX v6 uses `--task` for agent startup, so benchmark/reporting instructions should stay outside the task goal.
 
 ---
 
@@ -497,7 +497,7 @@ The demo point is not that RepoMap replaces normal code search. The point is tha
 Simulate a failed execution:
 
 ```bash
-aictx internal run-execution --repo . --request "run typecheck" --agent-id demo --json -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
+aictx internal run-execution --repo . --task "run typecheck" --agent-id demo --json -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
 ```
 
 Inspect captured failure memory:
@@ -645,7 +645,7 @@ After the run:
 The demo analysis points to these product improvements:
 
 1. Prefer `--task` as the documented normal startup interface.
-2. Keep `--request` as legacy/raw compatibility, but warn or sanitize when it contains non-task benchmark instructions.
+2. Use `--task` for agent-facing task goals and keep benchmark/reporting instructions out of startup input.
 3. Reduce startup verbosity so the agent receives less runtime explanation and more operational context.
 4. Make the distinction clear between latest execution summary and durable global repo memory.
 5. Ensure latest execution updates global memory instead of replacing it.
@@ -681,7 +681,7 @@ aictx map status
 aictx map query "work state"
 
 # Failure memory demo
-aictx internal run-execution --repo . --request "run typecheck" --agent-id demo --json -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
+aictx internal run-execution --repo . --task "run typecheck" --agent-id demo --json -- python -c "import sys; print('src/app.ts(4,7): error TS2322: Type mismatch', file=sys.stderr); sys.exit(1)"
 cat .aictx/failure_memory/failure_patterns.jsonl
 
 # Usage and compliance

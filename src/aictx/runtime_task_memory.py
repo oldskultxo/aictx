@@ -12,6 +12,12 @@ def _cr():
     return cr
 
 
+def _canonical_status(payload: dict[str, Any]) -> dict[str, Any]:
+    cleaned = dict(payload or {})
+    cleaned.pop('installed_iteration', None)
+    cleaned.pop('legacy_alias_writes_enabled', None)
+    return cleaned
+
 def canonical_task_types() -> list[str]:
     return list(_cr().TASK_TYPES)
 
@@ -61,7 +67,6 @@ def ensure_task_memory_artifacts() -> None:
                 'manual_records': 0,
                 'last_resolved_task_type': 'unknown',
                 'last_packet_path': '',
-                'legacy_alias_writes_enabled': False,
             },
         )
     if not cr.TASK_MEMORY_HISTORY_PATH.exists():
@@ -116,7 +121,7 @@ def build_task_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, int]:
                 ]
             ) + '\n',
         )
-    previous_status = cr.read_json(cr.TASK_MEMORY_STATUS_PATH, {})
+    previous_status = _canonical_status(cr.read_json(cr.TASK_MEMORY_STATUS_PATH, {}))
     cr.write_json(
         cr.TASK_MEMORY_STATUS_PATH,
         {
@@ -129,7 +134,6 @@ def build_task_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, int]:
             'records_by_task_type': records_by_task_type,
             'task_memory_write_count': sum(records_by_task_type.values()),
             'manual_records': sum(len(cr.manual_task_memory_records(task_type)) for task_type in canonical_task_types()),
-            'legacy_alias_writes_enabled': False,
         },
     )
     return records_by_task_type
@@ -137,7 +141,7 @@ def build_task_memory_artifacts(rows: list[dict[str, Any]]) -> dict[str, int]:
 
 def update_task_memory_status(packet: dict[str, Any], packet_path: Path) -> None:
     cr = _cr()
-    status = cr.read_json(cr.TASK_MEMORY_STATUS_PATH, {})
+    status = _canonical_status(cr.read_json(cr.TASK_MEMORY_STATUS_PATH, {}))
     packets = int(status.get('resolved_task_packets', 0) or 0) + 1
     fallback_event = 1 if packet.get('task_memory', {}).get('fallback_to_general') else 0
     updated = {

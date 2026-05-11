@@ -9,11 +9,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import core_runtime
-from .area_memory import area_hints, derive_area_id, update_area_memory
-from .adapters import resolve_adapter_profile
-from .contract_compliance import append_contract_compliance, evaluate_contract_compliance
-from .continuity import (
+from .. import core_runtime
+from ..area_memory import area_hints, derive_area_id, update_area_memory
+from ..adapters import resolve_adapter_profile
+from ..contract_compliance import append_contract_compliance, evaluate_contract_compliance, load_persisted_resume_contract
+from ..continuity import (
     AICTX_TEXT_SEPARATOR,
     RESUME_CAPSULE_JSON_PATH,
     build_startup_banner_render_payload,
@@ -24,17 +24,18 @@ from .continuity import (
     update_continuity_metrics,
     write_last_execution_summary,
 )
-from .failure_memory import link_resolved_failures, lookup_failures, persist_failure_pattern
-from .messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, messages_muted
-from .runtime_capture import SIGNAL_FIELDS, build_capture, normalize_error_events
-from .runtime_contract import resolve_effective_preferences, runtime_consistency_report
-from .runtime_io import slugify
-from .runtime_compact import evaluate_maintenance_notice
-from .runtime_memory import rank_records
-from .runtime_tasks import resolve_observed_task_type, resolve_task_type
-from .state import REPO_MEMORY_DIR, REPO_METRICS_DIR, mark_startup_banner_shown, read_json, touch_session_identity, write_json
-from .strategy_memory import build_strategy_entry, persist_strategy, select_strategy
-from .work_state import compact_work_state_for_prepare, load_active_work_state_checked, merge_work_state_from_execution
+from ..execution import ExecutionEnvelope
+from ..failures import link_resolved_failures, lookup_failures, persist_failure_pattern
+from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, messages_muted
+from ..runtime_capture import SIGNAL_FIELDS, build_capture, normalize_error_events
+from ..runtime_contract import resolve_effective_preferences, runtime_consistency_report
+from ..runtime_io import slugify
+from ..runtime_compact import evaluate_maintenance_notice
+from ..runtime_memory import rank_records
+from ..runtime_tasks import resolve_observed_task_type, resolve_task_type
+from ..state import REPO_MEMORY_DIR, REPO_METRICS_DIR, mark_startup_banner_shown, read_json, touch_session_identity, write_json
+from ..strategy_memory import build_strategy_entry, persist_strategy, select_strategy
+from ..work_state import compact_work_state_for_prepare, load_active_work_state_checked, merge_work_state_from_execution
 
 EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
 REAL_EXECUTION_LOG_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
@@ -124,8 +125,8 @@ def _repomap_file_hints(capture: dict[str, Any]) -> list[str]:
 
 def prepare_repo_map_status(repo_root: Path, capture: dict[str, Any]) -> dict[str, Any]:
     try:
-        from .repo_map.config import load_repomap_config
-        from .repo_map.refresh import refresh_repo_map
+        from ..repo_map.config import load_repomap_config
+        from ..repo_map.refresh import refresh_repo_map
 
         config = load_repomap_config(repo_root)
         if not bool(config.get("enabled", False)):
@@ -342,24 +343,10 @@ def build_context_packet(
 
 
 def build_execution_envelope(payload: dict[str, Any]) -> dict[str, Any]:
-    repo_root = Path(str(payload.get("repo_root") or ".")).expanduser().resolve()
-    user_request = str(payload.get("user_request") or payload.get("task") or "").strip()
-    agent_id = str(payload.get("agent_id") or payload.get("agent") or payload.get("adapter_id") or "").strip()
-    execution_id = str(payload.get("execution_id") or "").strip()
-    timestamp = str(payload.get("timestamp") or now_iso()).strip()
-    if not user_request:
-        raise ValueError("user_request is required")
-    if not agent_id:
-        raise ValueError("agent_id or adapter_id is required")
-    if not execution_id:
-        raise ValueError("execution_id is required")
+    envelope = ExecutionEnvelope.from_payload({**payload, "timestamp": str(payload.get("timestamp") or now_iso()).strip()})
+    base = envelope.to_payload()
     return {
-        "repo_root": repo_root.as_posix(),
-        "user_request": user_request,
-        "agent_id": agent_id,
-        "adapter_id": str(payload.get("adapter_id") or agent_id).strip(),
-        "execution_id": execution_id,
-        "timestamp": timestamp,
+        **base,
         "declared_task_type": str(payload.get("declared_task_type") or "").strip() or None,
         "execution_mode": str(payload.get("execution_mode") or "").strip().lower() or "plain",
         "skill_metadata": payload.get("skill_metadata", {}),
@@ -556,7 +543,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_path": packet_path,
         "packet": packet,
         "continuity_context": continuity_context,
-        "resume_contract": load_latest_resume_contract(repo_root, envelope["user_request"]),
+        "resume_contract": load_latest_resume_contract(repo_root, envelope["user_request"], session_id=session_id, execution_id=envelope["execution_id"]),
         "active_work_state": active_work_state,
         "continuity_brief": continuity_context.get("continuity_brief", {}) if isinstance(continuity_context.get("continuity_brief"), dict) else {},
         "agent_label": str(session.get("agent_label") or ""),
@@ -712,10 +699,18 @@ def _task_goal_matches_contract(task_goal: str, contract_goal: str) -> bool:
         return False
     if left == right:
         return True
-    return min(len(left), len(right)) >= 16 and (left in right or right in left)
+    if min(len(left), len(right)) >= 16 and (left in right or right in left):
+        return True
+    left_words = {w for w in re.split(r"\W+", left) if len(w) >= 4}
+    right_words = {w for w in re.split(r"\W+", right) if len(w) >= 4}
+    return bool(left_words and right_words and len(left_words & right_words) / max(1, len(left_words | right_words)) >= 0.35)
 
 
-def load_latest_resume_contract(repo_root: Path, task_goal: str = "") -> dict[str, Any]:
+def load_latest_resume_contract(repo_root: Path, task_goal: str = "", *, session_id: str = "", execution_id: str = "") -> dict[str, Any]:
+    persisted = load_persisted_resume_contract(repo_root, task_goal=task_goal, session_id=session_id, execution_id=execution_id)
+    if persisted:
+        persisted["selection_reason"] = persisted.get("selection_reason") or "persisted_contract"
+        return persisted
     payload = read_json(repo_root / RESUME_CAPSULE_JSON_PATH, {})
     if not isinstance(payload, dict):
         return {}
@@ -723,13 +718,17 @@ def load_latest_resume_contract(repo_root: Path, task_goal: str = "") -> dict[st
     if not contract:
         return {}
     contract_goal = str(contract.get("task_goal") or payload.get("request") or "")
-    if task_goal and not _task_goal_matches_contract(task_goal, contract_goal):
+    task_matches = _task_goal_matches_contract(task_goal, contract_goal)
+    if task_goal and not task_matches:
         return {}
     return {
         "execution_contract": contract,
         "contract_checks": payload.get("contract_checks") if isinstance(payload.get("contract_checks"), dict) else {},
         "generated_at": str(payload.get("generated_at") or ""),
         "task_goal": contract_goal,
+        "task_goal_match": task_matches,
+        "task_goal_match_level": "latest_capsule_fuzzy",
+        "selection_reason": "latest_resume_capsule_fallback",
     }
 
 
@@ -753,7 +752,8 @@ def build_contract_adherence(prepared: dict[str, Any], execution_log: dict[str, 
             "edited_within_scope": False,
             "canonical_test_used": False,
             "finalize_called": True,
-            "violations": ["contract_missing"],
+            "violations": [],
+            "skipped_reason": "no_contract",
         }
 
     files_opened = [str(item) for item in execution_log.get("files_opened", [])] if isinstance(execution_log.get("files_opened"), list) else []
@@ -1316,13 +1316,13 @@ def _summary_map_line(summary: dict[str, Any]) -> str:
 
 def _summary_contract_line(summary: dict[str, Any]) -> str:
     compliance = summary.get("contract_compliance") if isinstance(summary.get("contract_compliance"), dict) else {}
+    status = str(compliance.get("status") or "").strip()
+    if status not in {"followed", "partial", "violated"}:
+        return ""
     text = str(compliance.get("compact_summary") or "").strip()
     if text:
         return text
-    status = str(compliance.get("status") or "").strip()
-    if status:
-        return f"Contract: {status}."
-    return ""
+    return f"Contract: {status}."
 
 
 def _summary_saved_line(summary: dict[str, Any]) -> str:
@@ -1525,6 +1525,8 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "timestamp": now_iso(),
         "execution_id": str(prepared.get("envelope", {}).get("execution_id") or ""),
         "task_goal": str(contract_compliance.get("task_goal") or ""),
+        "contract_id": str((prepared.get("resume_contract") if isinstance(prepared.get("resume_contract"), dict) else {}).get("contract_id") or ""),
+        "session_id": str((prepared.get("resume_contract") if isinstance(prepared.get("resume_contract"), dict) else {}).get("session_id") or ""),
         "contract_present": bool(contract_compliance.get("contract_present")),
         "status": str(contract_compliance.get("status") or "not_evaluated"),
         "score": contract_compliance.get("score"),
@@ -1535,7 +1537,10 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "compact_summary": str(contract_compliance.get("compact_summary") or ""),
     }
     prepared["contract_compliance"] = contract_compliance
-    prepared["contract_compliance_row"] = append_contract_compliance(repo_root, contract_row)
+    if str(contract_compliance.get("status") or "") in {"followed", "partial", "violated"}:
+        prepared["contract_compliance_row"] = append_contract_compliance(repo_root, contract_row)
+    else:
+        prepared["contract_compliance_row"] = {}
     learning = persist_validated_learning(repo_root, prepared, normalized_result)
     strategy = persist_strategy_memory(repo_root, prepared, normalized_result)
     failure = None

@@ -118,9 +118,9 @@ else
   VALIDATED_FLAG=""
 fi
 if [ -n "$TASK_TYPE" ]; then
-  exec aictx internal run-execution --repo "$REPO" --request "$REQUEST" --agent-id "$AGENT_ID" --adapter-id "{adapter_id}" --execution-id "$EXEC_ID" --execution-mode "$EXEC_MODE" $VALIDATED_FLAG --task-type "$TASK_TYPE" -- "$@"
+  exec aictx internal run-execution --repo "$REPO" --task "$REQUEST" --agent-id "$AGENT_ID" --adapter-id "{adapter_id}" --execution-id "$EXEC_ID" --execution-mode "$EXEC_MODE" $VALIDATED_FLAG --task-type "$TASK_TYPE" -- "$@"
 fi
-exec aictx internal run-execution --repo "$REPO" --request "$REQUEST" --agent-id "$AGENT_ID" --adapter-id "{adapter_id}" --execution-id "$EXEC_ID" --execution-mode "$EXEC_MODE" $VALIDATED_FLAG -- "$@"
+exec aictx internal run-execution --repo "$REPO" --task "$REQUEST" --agent-id "$AGENT_ID" --adapter-id "{adapter_id}" --execution-id "$EXEC_ID" --execution-mode "$EXEC_MODE" $VALIDATED_FLAG -- "$@"
 """
 
 

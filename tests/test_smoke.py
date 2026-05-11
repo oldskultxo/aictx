@@ -79,7 +79,7 @@ def test_init_repo_scaffold_seeds_repo_preferences_from_template(tmp_path: Path)
     assert json.loads(prefs_path.read_text(encoding="utf-8")) == json.loads((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"))
 
 
-def test_ensure_repo_user_preferences_merges_legacy_root_without_losing_canonical_overrides(tmp_path: Path):
+def test_ensure_repo_user_preferences_ignores_legacy_root_and_keeps_canonical_overrides(tmp_path: Path):
     repo = tmp_path / "repo"
     (repo / ".aictx" / "memory").mkdir(parents=True, exist_ok=True)
     (repo / "user_preferences.json").write_text(json.dumps({
@@ -94,8 +94,8 @@ def test_ensure_repo_user_preferences_merges_legacy_root_without_losing_canonica
     path = ensure_repo_user_preferences(repo)
     payload = json.loads(path.read_text(encoding="utf-8"))
 
-    assert payload["updated_at"] == "2026-04-16"
-    assert payload["profile"]["preferred_language"] == "es"
+    assert payload["updated_at"] != "2026-04-16"
+    assert payload.get("profile", {}).get("preferred_language") != "es"
     assert payload["communication"]["layer"] == "disabled"
     assert payload["communication"]["mode"] == "caveman_full"
 
@@ -166,7 +166,7 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in prompt_hook
     assert "Do not pass the full user prompt to resume" in prompt_hook
     assert 'run_json(["aictx", "resume"' not in prompt_hook
-    assert '"--request", prompt' not in prompt_hook
+    assert '"--task", prompt' not in prompt_hook
 
 
 def test_prepare_and_finalize_expose_runtime_text_localization_policies(tmp_path: Path):
@@ -257,8 +257,6 @@ def test_resolve_workspace_root_prefers_deepest_match(tmp_path: Path):
 
 def test_init_repo_scaffold_creates_minimal_v1_structure(tmp_path: Path):
     repo = tmp_path / "repo"
-    (repo / ".aictx_memory").mkdir(parents=True)
-    (repo / ".context_metrics").mkdir(parents=True)
     (repo / ".aictx" / "metrics").mkdir(parents=True)
     (repo / ".aictx" / "strategy_memory").mkdir(parents=True)
     (repo / ".aictx" / "metrics" / "execution_logs.jsonl").write_text('{"keep": "log"}\n', encoding="utf-8")
@@ -267,8 +265,8 @@ def test_init_repo_scaffold_creates_minimal_v1_structure(tmp_path: Path):
 
     init_repo_scaffold(repo, update_gitignore=False)
 
-    assert (repo / ".aictx_memory").exists()
-    assert (repo / ".context_metrics").exists()
+    assert not (repo / ".aictx_memory").exists()
+    assert not (repo / ".context_metrics").exists()
     assert (repo / ".aictx" / "metrics" / "execution_logs.jsonl").exists()
     assert (repo / ".aictx" / "metrics" / "execution_feedback.jsonl").exists()
     assert (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").exists()
@@ -287,7 +285,7 @@ def test_init_repo_scaffold_creates_minimal_v1_structure(tmp_path: Path):
     assert (repo / ".aictx" / "memory" / "source" / "projects" / repo.name / "overview.md").exists()
 
 
-def test_ensure_repo_memory_sources_imports_legacy_source_files(tmp_path: Path):
+def test_ensure_repo_memory_sources_ignores_legacy_source_files(tmp_path: Path):
     repo = tmp_path / "repo"
     (repo / "common").mkdir(parents=True)
     (repo / "projects" / "demo").mkdir(parents=True)
@@ -300,11 +298,12 @@ def test_ensure_repo_memory_sources_imports_legacy_source_files(tmp_path: Path):
     created = ensure_repo_memory_sources(repo)
 
     assert str(repo / ".aictx" / "memory" / "source" / "common" / "user_working_preferences.md") in created
-    assert (repo / ".aictx" / "memory" / "source" / "projects" / "demo" / "decisions.md").read_text(encoding="utf-8") == "# legacy decisions\n"
+    assert not (repo / ".aictx" / "memory" / "source" / "projects" / "demo" / "decisions.md").exists()
     index_payload = json.loads((repo / ".aictx" / "memory" / "source" / "index.json").read_text(encoding="utf-8"))
+    assert index_payload["version"] == 2
     assert index_payload["common"] == [".aictx/memory/source/common/user_working_preferences.md"]
     symptoms_payload = json.loads((repo / ".aictx" / "memory" / "source" / "symptoms.json").read_text(encoding="utf-8"))
-    assert symptoms_payload["symptoms"]["broken"] == [".aictx/memory/source/projects/demo/decisions.md"]
+    assert symptoms_payload == {"version": 2, "symptoms": {}}
 
 
 def test_prepare_execution_plain_mode_without_skill_metadata(tmp_path: Path):
@@ -809,7 +808,7 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
             "prepare",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "review middleware behavior",
             "--agent-id",
             "agent-test",
@@ -847,23 +846,23 @@ def test_cli_execution_prepare_and_finalize_round_trip(tmp_path: Path, monkeypat
     assert finalized_output["aictx_feedback"]["reopened_files"] == 1
 
 
-def test_prepare_execution_accepts_legacy_agent_and_task_aliases(tmp_path: Path):
+def test_prepare_execution_accepts_canonical_agent_and_task_payload(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
 
     prepared = prepare_execution(
         {
             "repo_root": str(repo),
-            "task": "review middleware behavior",
-            "agent": "agent-test",
-            "execution_id": "exec-legacy-aliases",
+            "user_request": "review middleware behavior",
+            "agent_id": "agent-test",
+            "execution_id": "exec-canonical-payload",
             "status": "started",
         }
     )
 
     assert prepared["envelope"]["user_request"] == "review middleware behavior"
     assert prepared["envelope"]["agent_id"] == "agent-test"
-    assert prepared["envelope"]["execution_id"] == "exec-legacy-aliases"
+    assert prepared["envelope"]["execution_id"] == "exec-canonical-payload"
 
 
 def test_persist_repo_communication_mode_disabled(tmp_path: Path):
@@ -959,7 +958,7 @@ def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):
     state = read_json(repo / ".aictx" / "state.json", {})
     assert state["installed_version"] == package_version
     assert state["engine_capability_version"] >= 1
-    assert state["installed_iteration"] == state["engine_capability_version"]
+    assert "installed_iteration" not in state
     assert state["engine_role"] == "initialized_repo_runtime"
     assert state["supports"]["strategy_memory"] is True
     assert state["supports"]["real_execution_logging"] is True
@@ -1394,7 +1393,7 @@ def test_internal_run_execution_wraps_command_and_persists_status(tmp_path: Path
             "run-execution",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "run wrapped command",
             "--agent-id",
             "codex",
@@ -1434,7 +1433,7 @@ def test_internal_run_execution_non_json_prints_agent_summary_text(tmp_path: Pat
             "run-execution",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "run wrapped command and show summary",
             "--agent-id",
             "codex",
@@ -1494,7 +1493,7 @@ def test_run_execution_captures_command_tests_errors_and_agent_summary(tmp_path:
             "run-execution",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "run failing pytest command",
             "--agent-id",
             "codex",
@@ -1645,7 +1644,7 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in user_prompt_hook
     assert "Do not pass the full user prompt to resume" in user_prompt_hook
     assert 'run_json(["aictx", "resume"' not in user_prompt_hook
-    assert '"--request", prompt' not in user_prompt_hook
+    assert '"--task", prompt' not in user_prompt_hook
 
 
 def test_install_repo_runner_integrations_merges_claude_settings_idempotently(tmp_path: Path):
@@ -1998,7 +1997,7 @@ def test_migrate_repairs_repo_runtime_contract_files(tmp_path: Path):
             "prepare",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "review middleware behavior",
             "--agent-id",
             "cli-smoke",
@@ -2306,7 +2305,7 @@ def test_scaffold_status_files_include_version_contract(tmp_path: Path):
 
     assert state["installed_version"] == package_version
     assert state["engine_capability_version"] >= 1
-    assert state["installed_iteration"] == state["engine_capability_version"]
+    assert "installed_iteration" not in state
 
 
 def test_task_memory_writes_only_canonical_buckets(tmp_path: Path, monkeypatch):
@@ -2664,4 +2663,4 @@ def test_claude_hook_does_not_resume_with_request_prompt(tmp_path: Path):
     install_repo_runner_integrations(repo)
     user_prompt_hook = (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").read_text(encoding="utf-8")
     assert 'run_json(["aictx", "resume"' not in user_prompt_hook
-    assert '"--request", prompt' not in user_prompt_hook
+    assert '"--task", prompt' not in user_prompt_hook

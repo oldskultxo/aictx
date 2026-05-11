@@ -7,6 +7,8 @@ from aictx.contract_compliance import (
     compact_previous_contract_result,
     evaluate_contract_compliance,
     load_contract_compliance_history,
+    load_persisted_resume_contract,
+    persist_resume_contract,
     summarize_contract_compliance_history,
 )
 
@@ -115,8 +117,28 @@ def test_historical_summary_aggregates_correctly(tmp_path: Path):
     assert summary["avg_score"] == 0.8667
     assert summary["top_violations"] == {"edit_outside_scope": 1}
     assert summary["top_warnings"] == {"canonical_test_not_observed": 1}
-    assert summary["latest"]["status"] == "not_evaluated"
+    assert summary["latest"]["status"] == "violated"
 
+    append_contract_compliance(tmp_path, rows[3])
     append_contract_compliance(tmp_path, rows[0])
-    assert load_contract_compliance_history(tmp_path, limit=5)[0]["status"] == "followed"
+    assert load_contract_compliance_history(tmp_path, limit=5)[-1]["status"] == "followed"
     assert compact_previous_contract_result(tmp_path)["status"] == "followed"
+
+
+def test_persisted_resume_contract_loads_with_fuzzy_task_match(tmp_path: Path):
+    resume_payload = {
+        "generated_at": "2026-05-04T00:00:00Z",
+        "request": "fix parser",
+        **_contract(),
+    }
+    ref = persist_resume_contract(tmp_path, resume_payload, session_id="session-1", agent_id="codex")
+
+    loaded = load_persisted_resume_contract(tmp_path, task_goal="fix parser regression", session_id="session-1")
+    unrelated = load_persisted_resume_contract(tmp_path, task_goal="publish release workflow", session_id="session-1")
+
+    assert ref["contract_id"]
+    assert loaded["contract_id"] == ref["contract_id"]
+    assert loaded["execution_contract"]["task_goal"] == "fix parser"
+    assert loaded["task_goal_match"] is True
+    assert unrelated == {}
+    assert (tmp_path / ".aictx" / "continuity" / "contracts" / "index.json").exists()

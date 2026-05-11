@@ -7,13 +7,6 @@ from typing import Any
 
 _GENERATED_PATH_PARTS = {
     ".aictx",
-    ".aictx_cost",
-    ".aictx_failure_memory",
-    ".aictx_global_metrics",
-    ".aictx_library",
-    ".aictx_memory",
-    ".aictx_memory_graph",
-    ".aictx_task_memory",
     ".git",
     ".hg",
     ".mypy_cache",

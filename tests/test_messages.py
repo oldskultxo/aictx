@@ -188,7 +188,7 @@ def test_muted_run_execution_keeps_command_output_but_hides_automatic_messages(t
             "run-execution",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "run wrapped command while muted",
             "--agent-id",
             "codex",

@@ -135,7 +135,7 @@ def test_resume_default_markdown_and_budget(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "implement resume capsule"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "implement resume capsule"])
     assert args.func(args) == 0
 
     output = capsys.readouterr().out
@@ -166,7 +166,7 @@ def test_resume_infers_codex_identity_from_environment(tmp_path: Path, capsys, m
     for key in ("CLAUDE_SESSION_ID", "CLAUDE_CONVERSATION_ID", "CLAUDE_THREAD_ID", "CLAUDE_CODE_SESSION_ID"):
         monkeypatch.delenv(key, raising=False)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "identity", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "identity", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -178,7 +178,7 @@ def test_resume_policy_requires_localized_substantive_banner(tmp_path: Path, cap
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "policy", "--json", "--agent-id", "codex"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "policy", "--json", "--agent-id", "codex"])
     assert args.func(args) == 0
 
     policy = json.loads(capsys.readouterr().out)["startup_banner_policy"]
@@ -192,7 +192,7 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume command", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "resume command", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -252,27 +252,11 @@ def test_resume_includes_compact_previous_contract_line_once(tmp_path: Path, cap
     assert "Previous contract: partial — canonical_test_not_observed." in output
     assert len(output) <= 6000
 
-def test_resume_task_flag_wins_over_legacy_request(tmp_path: Path, capsys):
+def test_resume_rejects_legacy_request_flag(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
-
-    args = _parser().parse_args([
-        "resume",
-        "--repo",
-        str(repo),
-        "--task",
-        "Fix parser tests",
-        "--request",
-        "FULL PROMPT WITH REPORTING AND OUTPUT FORMAT",
-        "--json",
-    ])
-    assert args.func(args) == 0
-
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["request"] == "Fix parser tests"
-    assert payload["execution_contract"]["task_goal"] == "Fix parser tests"
-    assert "FULL PROMPT" not in payload["execution_contract"]["task_goal"]
-
+    with pytest.raises(SystemExit):
+        _parser().parse_args(["resume", "--repo", str(repo), "--request", "legacy request"] )
 
 def test_runtime_instructions_require_task_goal_only():
     for text in (render_agent_runtime(), render_repo_agents_block()):
@@ -299,7 +283,7 @@ def test_resume_json_stdout_is_valid_for_json_tool(tmp_path: Path):
             "resume",
             "--repo",
             str(repo),
-            "--request",
+            "--task",
             "json pipe check",
             "--json",
         ],
@@ -327,12 +311,12 @@ def test_resume_full_has_more_detail_than_default(tmp_path: Path, capsys):
     )
 
     parser = _parser()
-    assert parser.parse_args(["resume", "--repo", str(repo), "--request", "decision", "--json"]).func(
-        parser.parse_args(["resume", "--repo", str(repo), "--request", "decision", "--json"])
+    assert parser.parse_args(["resume", "--repo", str(repo), "--task", "decision", "--json"]).func(
+        parser.parse_args(["resume", "--repo", str(repo), "--task", "decision", "--json"])
     ) == 0
     compact = json.loads(capsys.readouterr().out)
-    assert parser.parse_args(["resume", "--repo", str(repo), "--request", "decision", "--json", "--full"]).func(
-        parser.parse_args(["resume", "--repo", str(repo), "--request", "decision", "--json", "--full"])
+    assert parser.parse_args(["resume", "--repo", str(repo), "--task", "decision", "--json", "--full"]).func(
+        parser.parse_args(["resume", "--repo", str(repo), "--task", "decision", "--json", "--full"])
     ) == 0
     full = json.loads(capsys.readouterr().out)
 
@@ -350,7 +334,7 @@ def test_resume_active_work_state_drives_task_state(tmp_path: Path, capsys):
     (repo / "src/aictx").mkdir(parents=True)
     (repo / "src/aictx/continuity.py").write_text("", encoding="utf-8")
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "resume", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -367,7 +351,7 @@ def test_resume_first_action_prefers_tests_for_implementation_task(tmp_path: Pat
     init_repo_scaffold(repo, update_gitignore=False)
     _seed_parser_fixture(repo)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate BLOCKED parser edge cases", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate BLOCKED parser edge cases", "--json"])
     assert args.func(args) == 0
 
     first_action = json.loads(capsys.readouterr().out)["capsule"]["first_action"]
@@ -431,7 +415,7 @@ def test_resume_first_action_text_precedes_source_index(tmp_path: Path, capsys):
     init_repo_scaffold(repo, update_gitignore=False)
     _seed_parser_fixture(repo)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases"])
     assert args.func(args) == 0
 
     output = capsys.readouterr().out
@@ -443,7 +427,7 @@ def test_resume_execution_contract_text_precedes_source_index(tmp_path: Path, ca
     init_repo_scaffold(repo, update_gitignore=False)
     _seed_parser_fixture(repo)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases"])
     assert args.func(args) == 0
 
     output = capsys.readouterr().out
@@ -467,7 +451,7 @@ def test_resume_contract_selects_makefile_then_pytest_fallback(tmp_path: Path, c
     _seed_parser_fixture(repo)
     (repo / "Makefile").write_text("test:\n\tpytest -q\n", encoding="utf-8")
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases", "--json"])
     assert args.func(args) == 0
     assert json.loads(capsys.readouterr().out)["execution_contract"]["test_command"]["command"] == "make test"
 
@@ -475,7 +459,7 @@ def test_resume_contract_selects_makefile_then_pytest_fallback(tmp_path: Path, c
     init_repo_scaffold(repo2, update_gitignore=False)
     _seed_parser_fixture(repo2)
     (repo2 / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
-    args = _parser().parse_args(["resume", "--repo", str(repo2), "--request", "validate parser edge cases", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo2), "--task", "validate parser edge cases", "--json"])
     assert args.func(args) == 0
     assert "pytest" in json.loads(capsys.readouterr().out)["execution_contract"]["test_command"]["command"]
 
@@ -486,7 +470,7 @@ def test_resume_implementation_task_does_not_choose_readme_first(tmp_path: Path,
     _seed_parser_fixture(repo)
     write_json(repo / HANDOFF_PATH, {"summary": "readme stale", "recommended_starting_points": ["README.md", "src/taskflow/parser.py"]})
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases", "--json"])
     assert args.func(args) == 0
 
     assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] != "README.md"
@@ -498,7 +482,7 @@ def test_resume_docs_task_can_choose_readme(tmp_path: Path, capsys):
     _seed_parser_fixture(repo)
     write_json(repo / HANDOFF_PATH, {"summary": "docs", "recommended_starting_points": ["src/taskflow/parser.py", "README.md"]})
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "update README quickstart documentation", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "update README quickstart documentation", "--json"])
     assert args.func(args) == 0
 
     assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] == "README.md"
@@ -516,7 +500,7 @@ def test_resume_generic_bugfix_prefers_source_or_tests_over_readme(tmp_path: Pat
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "fix payment validation bug", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "fix payment validation bug", "--json"])
     assert args.func(args) == 0
 
     first_path = json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"]
@@ -535,7 +519,7 @@ def test_resume_relevant_repomap_without_work_state_is_medium_soft(tmp_path: Pat
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "fix payment validation bug", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "fix payment validation bug", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -558,7 +542,7 @@ def test_resume_unrelated_completed_handoff_is_low_exploratory(tmp_path: Path, c
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "update button colors", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "update button colors", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -586,7 +570,7 @@ def test_resume_documentation_task_prefers_readme_over_code(tmp_path: Path, caps
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "update README install instructions", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "update README install instructions", "--json"])
     assert args.func(args) == 0
 
     assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] == "README.md"
@@ -628,7 +612,7 @@ def test_resume_config_task_can_choose_config_or_ci(tmp_path: Path, capsys):
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "adjust pytest config", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "adjust pytest config", "--json"])
     assert args.func(args) == 0
 
     assert json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"] in {
@@ -650,7 +634,7 @@ def test_resume_metrics_analysis_task_can_choose_metrics(tmp_path: Path, capsys)
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "analyze demo metrics and compare token usage", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "analyze demo metrics and compare token usage", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -672,7 +656,7 @@ def test_resume_normal_coding_task_does_not_choose_metrics(tmp_path: Path, capsy
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases", "--json"])
     assert args.func(args) == 0
 
     first_path = json.loads(capsys.readouterr().out)["capsule"]["first_action"]["path"]
@@ -685,7 +669,7 @@ def test_resume_contract_checks_present(tmp_path: Path, capsys):
     init_repo_scaffold(repo, update_gitignore=False)
     _seed_parser_fixture(repo)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "validate parser edge cases", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases", "--json"])
     assert args.func(args) == 0
 
     checks = json.loads(capsys.readouterr().out)["contract_checks"]
@@ -699,6 +683,36 @@ def test_resume_contract_checks_present(tmp_path: Path, capsys):
     ]:
         assert violation in checks["violations_to_report"]
 
+
+
+
+def test_finalize_cli_accepts_task_for_contract_evaluation(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+    (repo / "Makefile").write_text("test:\n\tpytest -q\n", encoding="utf-8")
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "validate parser edge cases", "--json"])
+    assert args.func(args) == 0
+    capsys.readouterr()
+
+    args = _parser().parse_args([
+        "finalize",
+        "--repo", str(repo),
+        "--status", "success",
+        "--summary", "validated parser edge cases",
+        "--task", "validate parser edge cases",
+        "--files-opened", "tests/test_parser.py",
+        "--files-edited", "tests/test_parser.py",
+        "--commands-executed", "make test",
+        "--tests-executed", "make test",
+        "--json",
+    ])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["contract_compliance"]["status"] == "followed"
+    assert payload["contract_compliance"]["task_goal"] == "validate parser edge cases"
 
 def test_finalize_records_contract_adherence_success(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
@@ -783,7 +797,7 @@ def test_resume_completed_previous_task_is_background(tmp_path: Path, capsys):
     close_work_state(repo, status="resolved")
     write_json(repo / HANDOFF_PATH, {"summary": "Old task finished.", "completed": ["done"], "next_steps": ["continue old task"], "recommended_starting_points": []})
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "new task", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "new task", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -805,7 +819,7 @@ def test_resume_missing_entry_point_lowers_confidence_and_uses_fallback(tmp_path
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "build resume capsule", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "build resume capsule", "--json"])
     assert args.func(args) == 0
 
     payload = json.loads(capsys.readouterr().out)
@@ -820,7 +834,7 @@ def test_resume_repomap_slice_has_primary_and_secondary(tmp_path: Path, capsys):
     init_repo_scaffold(repo, update_gitignore=False)
     _seed_repomap(repo)
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume command", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "resume command", "--json"])
     assert args.func(args) == 0
 
     repo_map = json.loads(capsys.readouterr().out)["capsule"]["repo_map"]
@@ -930,7 +944,7 @@ def test_resume_startup_source_and_finalize_summary_source_are_separate(tmp_path
     init_repo_scaffold(repo, update_gitignore=False)
     write_json(repo / HANDOFF_PATH, {"summary": "resume source check", "completed": ["source check done"]})
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "source check", "--json", "--agent-id", "codex", "--session-id", "visible-resume"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "source check", "--json", "--agent-id", "codex", "--session-id", "visible-resume"])
     assert args.func(args) == 0
     resume_payload = json.loads(capsys.readouterr().out)
     assert "Resuming: resume source check." in resume_payload["startup_banner_text"]
@@ -972,7 +986,7 @@ def test_resume_excludes_aictx_paths_from_action_candidates(tmp_path: Path, caps
         },
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume capsule", "--json"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "resume capsule", "--json"])
     assert args.func(args) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["capsule"]["first_action"]["path"] == "src/resume.py"
@@ -1044,7 +1058,7 @@ def test_rich_resume_fixture_stays_compact_and_compiled(tmp_path: Path, capsys):
         ],
     )
 
-    args = _parser().parse_args(["resume", "--repo", str(repo), "--request", "resume capsule", "--task-type", "feature_work"])
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "resume capsule", "--task-type", "feature_work"])
     assert args.func(args) == 0
     output = capsys.readouterr().out
     assert len(output) <= 6000
@@ -1082,5 +1096,5 @@ def test_public_docs_prefer_task_for_normal_startup():
     assert forbidden not in technical
     assert 'aictx resume --repo . --task "<task goal>" --json' in readme
     assert 'aictx resume --repo . --task "<task goal>" --json' in technical
-    assert "--request` remains supported" in readme
-    assert "--request` remains supported" in technical
+    assert "--request` remains supported" not in readme
+    assert "--request` remains supported" not in technical

@@ -29,7 +29,12 @@ PORTABLE_FILES = {
 }
 
 LOCAL_ONLY_FILES = {
+    ".aictx/boot/boot_summary.json": '{"boot": true}\n',
     ".aictx/metrics/execution_logs.jsonl": '{"log": true}\n',
+    ".aictx/failure_memory/failure_index.json": '{"index": true}\n',
+    ".aictx/failure_memory/failure_memory_status.json": '{"status": true}\n',
+    ".aictx/task_memory/task_memory_status.json": '{"status": true}\n',
+    ".aictx/memory_graph/graph_status.json": '{"status": true}\n',
     ".aictx/continuity/session.json": '{"session": 1}\n',
     ".aictx/continuity/last_execution_summary.md": '# summary\n',
     ".aictx/continuity/continuity_metrics.json": '{"metrics": true}\n',
@@ -198,7 +203,24 @@ def test_init_preserves_existing_portable_artifacts(tmp_path: Path):
         assert (repo / rel_path).read_text(encoding="utf-8") == expected
 
 
-def test_cleanup_removes_managed_block_and_legacy_line(tmp_path: Path):
+
+
+def test_init_replaces_unmanaged_aictx_gitignore_line_with_managed_block(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    (repo / ".gitignore").write_text("*.pyc\n.aictx/\n.env\n", encoding="utf-8")
+
+    init_repo_scaffold(repo, portable_continuity=True)
+
+    text = (repo / ".gitignore").read_text(encoding="utf-8")
+    before_block = text.split("# AICTX:START gitignore", 1)[0]
+    assert ".aictx/" not in before_block.splitlines()
+    assert "# AICTX:START gitignore" in text
+    assert "# mode: portable-continuity" in text
+    assert is_ignored(repo, ".aictx/failure_memory/failure_patterns.jsonl") is False
+    assert is_ignored(repo, ".aictx/failure_memory/failure_index.json") is True
+
+def test_cleanup_removes_managed_block_and_unmanaged_aictx_line(tmp_path: Path):
     path = tmp_path / ".gitignore"
     path.write_text(
         "*.pyc\n"

@@ -33,16 +33,6 @@ REPO_MAP_INDEX_PATH = REPO_MAP_DIR / "index.json"
 REPO_MAP_STATUS_PATH = REPO_MAP_DIR / "status.json"
 REPO_STATE_PATH = Path(REPO_ENGINE_DIR) / "state.json"
 REPO_CONTINUITY_SESSION_PATH = REPO_CONTINUITY_DIR / "session.json"
-LEGACY_REPO_DIRS = [
-    ".aictx_memory",
-    ".aictx_cost",
-    ".aictx_task_memory",
-    ".aictx_failure_memory",
-    ".aictx_memory_graph",
-    ".aictx_library",
-    ".context_metrics",
-]
-
 REPO_DIRS = [
     REPO_ENGINE_DIR,
     REPO_MEMORY_DIR.as_posix(),

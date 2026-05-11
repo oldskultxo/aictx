@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .contract_compliance import compact_previous_contract_result
-from .failure_memory import FAILURE_PATTERNS_PATH, lookup_failures
-from .state import (
+from ..contract_compliance import compact_previous_contract_result, persist_resume_contract
+from ..failures import FAILURE_PATTERNS_PATH, lookup_failures
+from ..state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
     REPO_MEMORY_DIR,
@@ -19,8 +19,8 @@ from .state import (
     touch_session_identity,
     write_json,
 )
-from .strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
-from .work_state import compact_work_state_for_prepare, load_active_work_state, load_recent_inactive_work_state
+from ..strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
+from ..work_state import compact_work_state_for_prepare, load_active_work_state, load_recent_inactive_work_state
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 HANDOFFS_HISTORY_PATH = REPO_CONTINUITY_DIR / "handoffs.jsonl"
@@ -1360,8 +1360,8 @@ def _repo_map_ranked_items(repo_root: Path, *, request_text: str, files: list[st
     if not str(request_text or "").strip() and not _clean_string_list(files, limit=20):
         return []
     try:
-        from .repo_map.config import load_repomap_config
-        from .repo_map.query import query_repo_map
+        from ..repo_map.config import load_repomap_config
+        from ..repo_map.query import query_repo_map
 
         config = load_repomap_config(repo_root)
         if not bool(config.get("enabled", False)):
@@ -2837,6 +2837,9 @@ def build_resume_capsule(
         "warnings": _clean_string_list(list(context.get("warnings", []) or []) + entry_warnings, limit=12),
     }
     max_chars = 12000 if full else 6000
+    contract_ref = persist_resume_contract(repo_root, payload, session_id=session_key, agent_id=str(session.get("agent_id") or ""))
+    if contract_ref:
+        payload["contract_ref"] = contract_ref
     markdown, payload = _resume_with_budget(payload, full=full, max_chars=max_chars)
     payload["budget"] = {
         "target_tokens": 2400 if full else 1200,

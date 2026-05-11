@@ -12,7 +12,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `5.3.0`
+Current documented implementation: `6.0.0`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
@@ -120,7 +120,7 @@ At normal task startup, supported agents use one continuity query:
 aictx resume --repo . --task "<task goal>" --json
 ```
 
-`--task` should contain only the work goal. `--request` remains supported as legacy/raw input for compatibility, but it should not include benchmark instructions, output schemas, or reporting rules.
+`--task` should contain only the work goal. `--task` is the only normal resume input in v6; legacy `--request` startup input has been removed.
 
 After work, supported agents finalize factual evidence:
 
@@ -196,7 +196,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `5.3.0` is:
+The stable repo-local continuity artifact contract in `6.0.0` is:
 
 ```text
 .aictx/continuity/session.json

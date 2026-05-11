@@ -7,10 +7,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .state import REPO_METRICS_DIR
+from .state import REPO_CONTINUITY_DIR, REPO_METRICS_DIR, read_json, write_json
 
 CONTRACT_COMPLIANCE_VERSION = 1
 CONTRACT_COMPLIANCE_LOG_PATH = REPO_METRICS_DIR / "contract_compliance.jsonl"
+CONTRACT_STORE_DIR = REPO_CONTINUITY_DIR / "contracts"
+CONTRACT_INDEX_PATH = CONTRACT_STORE_DIR / "index.json"
 
 _ALLOWED_STATUSES = {"followed", "partial", "violated", "not_evaluated"}
 
@@ -92,6 +94,144 @@ def _not_evaluated(task_goal: str = "", *, contract_present: bool = False, main_
         "warnings": [],
         "compact_summary": compact_summary,
     }
+
+
+
+
+def _contract_goal_match(task_goal: str, contract_goal: str) -> dict[str, Any]:
+    left = re.sub(r"\s+", " ", str(task_goal or "").strip().lower())
+    right = re.sub(r"\s+", " ", str(contract_goal or "").strip().lower())
+    if not left or not right:
+        return {"matches": False, "level": "unknown"}
+    if left == right:
+        return {"matches": True, "level": "exact"}
+    if min(len(left), len(right)) >= 16 and (left in right or right in left):
+        return {"matches": True, "level": "substring"}
+    left_words = {w for w in re.split(r"\W+", left) if len(w) >= 4}
+    right_words = {w for w in re.split(r"\W+", right) if len(w) >= 4}
+    overlap = len(left_words & right_words) / max(1, len(left_words | right_words))
+    return {"matches": overlap >= 0.35, "level": "token_overlap" if overlap >= 0.35 else "different", "score": round(overlap, 4)}
+
+
+def _contract_id_from_record(record: dict[str, Any]) -> str:
+    raw = str(record.get("execution_id") or record.get("session_id") or record.get("generated_at") or _now_iso())
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw).strip("-._")
+    return (safe or "contract")[:96]
+
+
+def _contract_ref_from_record(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "contract_id": str(record.get("contract_id") or ""),
+        "path": str(record.get("path") or ""),
+        "session_id": str(record.get("session_id") or ""),
+        "execution_id": str(record.get("execution_id") or ""),
+        "generated_at": str(record.get("generated_at") or ""),
+        "task_goal": str(record.get("task_goal") or ""),
+    }
+
+
+def persist_resume_contract(
+    repo_root: Path,
+    resume_payload: dict[str, Any],
+    *,
+    session_id: str = "",
+    agent_id: str = "",
+    execution_id: str = "",
+) -> dict[str, Any]:
+    payload = resume_payload if isinstance(resume_payload, dict) else {}
+    contract = payload.get("execution_contract") if isinstance(payload.get("execution_contract"), dict) else {}
+    if not contract:
+        return {}
+    record: dict[str, Any] = {
+        "version": CONTRACT_COMPLIANCE_VERSION,
+        "generated_at": str(payload.get("generated_at") or _now_iso()),
+        "request": str(payload.get("request") or ""),
+        "task_goal": str(contract.get("task_goal") or payload.get("request") or ""),
+        "session_id": str(session_id or payload.get("session_id") or ""),
+        "agent_id": str(agent_id or payload.get("agent_id") or ""),
+        "execution_id": str(execution_id or payload.get("execution_id") or ""),
+        "status": "active",
+        "execution_contract": contract,
+        "contract_checks": payload.get("contract_checks") if isinstance(payload.get("contract_checks"), dict) else {},
+    }
+    record["contract_id"] = _contract_id_from_record(record)
+    record_path = Path(repo_root) / CONTRACT_STORE_DIR / f"{record['contract_id']}.json"
+    record["path"] = (CONTRACT_STORE_DIR / f"{record['contract_id']}.json").as_posix()
+    write_json(record_path, record)
+
+    index_path = Path(repo_root) / CONTRACT_INDEX_PATH
+    index = read_json(index_path, {})
+    if not isinstance(index, dict):
+        index = {}
+    rows = [row for row in index.get("contracts", []) if isinstance(row, dict) and row.get("contract_id") != record["contract_id"]]
+    rows.append(_contract_ref_from_record(record))
+    index.update({"version": CONTRACT_COMPLIANCE_VERSION, "latest_contract_id": record["contract_id"], "contracts": rows[-200:]})
+    write_json(index_path, index)
+    return _contract_ref_from_record(record)
+
+
+def _load_contract_record_by_id(repo_root: Path, contract_id: str) -> dict[str, Any]:
+    cid = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(contract_id or "").strip())
+    if not cid:
+        return {}
+    record = read_json(Path(repo_root) / CONTRACT_STORE_DIR / f"{cid}.json", {})
+    return record if isinstance(record, dict) else {}
+
+
+def _contract_source_from_record(record: dict[str, Any], task_goal: str = "") -> dict[str, Any]:
+    contract = record.get("execution_contract") if isinstance(record.get("execution_contract"), dict) else {}
+    if not contract:
+        return {}
+    contract_goal = str(contract.get("task_goal") or record.get("task_goal") or record.get("request") or "")
+    match = _contract_goal_match(task_goal, contract_goal)
+    return {
+        "execution_contract": contract,
+        "contract_checks": record.get("contract_checks") if isinstance(record.get("contract_checks"), dict) else {},
+        "generated_at": str(record.get("generated_at") or ""),
+        "task_goal": contract_goal,
+        "contract_id": str(record.get("contract_id") or ""),
+        "session_id": str(record.get("session_id") or ""),
+        "execution_id": str(record.get("execution_id") or ""),
+        "task_goal_match": bool(match.get("matches")),
+        "task_goal_match_level": str(match.get("level") or ""),
+        "task_goal_match_score": match.get("score"),
+        "selection_reason": str(record.get("selection_reason") or ""),
+    }
+
+
+def load_persisted_resume_contract(
+    repo_root: Path,
+    *,
+    task_goal: str = "",
+    contract_id: str = "",
+    session_id: str = "",
+    execution_id: str = "",
+) -> dict[str, Any]:
+    if contract_id:
+        source = _contract_source_from_record(_load_contract_record_by_id(repo_root, contract_id), task_goal)
+        if task_goal and source and not source.get("task_goal_match"):
+            return {}
+        return source
+    index = read_json(Path(repo_root) / CONTRACT_INDEX_PATH, {})
+    if not isinstance(index, dict):
+        return {}
+    rows = [row for row in index.get("contracts", []) if isinstance(row, dict)]
+    selected_id = ""
+    for key, value in (("execution_id", execution_id), ("session_id", session_id)):
+        if not value:
+            continue
+        for row in reversed(rows):
+            if str(row.get(key) or "") == str(value):
+                selected_id = str(row.get("contract_id") or "")
+                break
+        if selected_id:
+            break
+    if not selected_id:
+        selected_id = str(index.get("latest_contract_id") or (rows[-1].get("contract_id") if rows else ""))
+    source = _contract_source_from_record(_load_contract_record_by_id(repo_root, selected_id), task_goal)
+    if task_goal and source and not source.get("task_goal_match"):
+        return {}
+    return source
 
 
 def _command_observed(expected: str, commands: list[str]) -> bool:
@@ -287,10 +427,11 @@ def load_contract_compliance_history(repo_root: Path, limit: int = 50) -> list[d
 
 
 def compact_previous_contract_result(repo_root: Path) -> dict[str, Any]:
-    rows = load_contract_compliance_history(repo_root, limit=1)
-    if not rows:
+    rows = load_contract_compliance_history(repo_root, limit=200)
+    evaluated = [row for row in rows if isinstance(row, dict) and row.get("status") != "not_evaluated" and row.get("contract_present") is not False]
+    if not evaluated:
         return {"status": "unknown", "score": None, "main_issue": "", "compact_summary": ""}
-    latest = rows[-1]
+    latest = evaluated[-1]
     status = str(latest.get("status") or "unknown")
     if status not in _ALLOWED_STATUSES:
         status = "unknown"
@@ -323,7 +464,7 @@ def summarize_contract_compliance_history(rows: list[dict[str, Any]]) -> dict[st
     valid_rows = [row for row in rows if isinstance(row, dict)]
     evaluated = [row for row in valid_rows if row.get("contract_present") is not False and row.get("status") != "not_evaluated"]
     scores = [float(row.get("score")) for row in evaluated if isinstance(row.get("score"), (int, float))]
-    latest = compact_previous_contract_result_from_row(valid_rows[-1]) if valid_rows else {"status": "unknown", "score": None, "main_issue": "", "compact_summary": ""}
+    latest = compact_previous_contract_result_from_row(evaluated[-1]) if evaluated else {"status": "unknown", "score": None, "main_issue": "", "compact_summary": ""}
     return {
         "evaluated": len(evaluated),
         "not_evaluated": sum(1 for row in valid_rows if row.get("status") == "not_evaluated"),

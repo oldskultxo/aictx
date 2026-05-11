@@ -1,5 +1,23 @@
 # Changelog
 
+## 6.0.0 - 2026-05-11
+
+### Added
+- Added canonical persisted resume contracts under `.aictx/continuity/contracts/`, with an index keyed by `contract_id`, `session_id`, and `execution_id`.
+- Added `contract_ref` to resume capsules so contract evaluation can resolve the generated contract instead of relying only on the latest `resume_capsule.json`.
+- Added canonical `aictx finalize --task "<task goal>"` support for finalization-time contract matching.
+
+### Changed
+- Redesigned Contract Compliance to match contracts fuzzily by task intent instead of exact task text.
+- `aictx finalize` now resolves task context in this order: `--task`, legacy `--request`, active Work State, then `--summary`.
+- Contract summaries and `report real-usage` now report the latest evaluated contract result only; `not_evaluated` rows no longer mask useful historical results.
+- Final AICTX summaries now include a `Contract:` line only when there was both a usable contract and enough execution observation to evaluate it.
+
+### Fixed
+- Stopped writing low-signal `not_evaluated` rows to `.aictx/metrics/contract_compliance.jsonl` when no useful contract evaluation was possible.
+- Avoided false `contract_missing` adherence violations when no contract is available.
+- Prevented stale/unrelated resume contracts from torpedoing new executions while preserving useful contract checks for related tasks.
+
 ## 5.3.0 - 2026-05-04
 
 ### Added

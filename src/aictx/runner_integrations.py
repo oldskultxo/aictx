@@ -83,7 +83,7 @@ This repository is initialized with `aictx`.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
 - Do not inspect `.aictx/` during normal startup.
 - Claude project hooks may inject runtime guidance automatically.
-- Pre-tool enforcement may block direct edits to generated runtime artifacts and legacy parallel memory paths.
+- Pre-tool enforcement may block direct edits to generated runtime artifacts.
 - Do not run `aictx internal`, `aictx -h`, `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, or `aictx report` during normal task startup unless the user asks for AICTX diagnostics, the task is about AICTX itself, resume is missing/corrupt/contradictory, or finalization/update lifecycle requires it.
 - On the first execution of each visible session, always show the startup banner at the start of the first substantive user-visible response; do not consume it with a transient progress/status message that will be omitted from the final task response. Render the selected resume/prepare startup banner in the current user language. When the selected startup banner policy points to a structured render payload, prefer that structured payload for localization and use compact text only as the fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from selected identity fields. Do not render it again after `already_shown` is true.
 - After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the compact fallback user-facing source. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization while preserving exact facts, technical tokens, and the details link/path.
@@ -257,15 +257,6 @@ GENERATED_PREFIXES = [
 EDITABLE_SOURCE_PREFIXES = [
     ".aictx/memory/source/",
 ]
-LEGACY_MEMORY_DIRS = {
-    ".aictx_memory",
-    ".aictx_cost",
-    ".aictx_task_memory",
-    ".aictx_failure_memory",
-    ".aictx_memory_graph",
-    ".aictx_library",
-    ".context_metrics",
-}
 WRITE_TOOL_NAMES = {"Write", "Edit", "MultiEdit"}
 
 
@@ -289,8 +280,7 @@ def path_is_blocked(rel_path: str) -> bool:
         return False
     if any(rel_path == prefix.rstrip("/") or rel_path.startswith(prefix) for prefix in GENERATED_PREFIXES):
         return True
-    first = rel_path.split("/", 1)[0]
-    return first in LEGACY_MEMORY_DIRS
+    return False
 
 
 payload = json.load(sys.stdin)
@@ -303,7 +293,7 @@ if tool_name in WRITE_TOOL_NAMES:
     rel_path = normalize_rel(file_path, repo_root)
     if path_is_blocked(rel_path):
         deny(
-            "AICTX policy: generated runtime artifacts and legacy parallel memory directories must not be edited directly. "
+            "AICTX policy: generated runtime artifacts must not be edited directly. "
             "Edit durable notes in .aictx/memory/source/ instead and let aictx regenerate derived state."
         )
 
@@ -311,10 +301,10 @@ if tool_name == "Bash":
     command = str(tool_input.get("command") or "")
     lowered = command.lower()
     risky_tokens = ["rm ", "mv ", "cp ", "sed ", "perl ", "python ", "python3 ", "cat >", "> ", ">> ", "tee "]
-    mentions_generated = ".aictx/" in command or any(name in command for name in LEGACY_MEMORY_DIRS)
+    mentions_generated = ".aictx/" in command
     if mentions_generated and any(token in lowered for token in risky_tokens):
         deny(
-            "AICTX policy: do not mutate generated runtime artifacts or legacy memory folders from Bash. "
+            "AICTX policy: do not mutate generated runtime artifacts from Bash. "
             "Use aictx-owned flows instead."
         )
 
