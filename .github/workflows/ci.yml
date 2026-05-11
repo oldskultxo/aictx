@@ -29,7 +29,7 @@ jobs:
           aictx init --repo "$TMP_REPO" --yes --no-register
           aictx internal boot --repo "$TMP_REPO" >/dev/null
           aictx internal packet --task "debug failing integration" >/dev/null
-          aictx internal execution prepare --repo "$TMP_REPO" --request "review middleware behavior" --agent-id ci-agent --execution-id ci-1 > "$TMP_REPO/prepared.json"
+          aictx internal execution prepare --repo "$TMP_REPO" --task "review middleware behavior" --agent-id ci-agent --execution-id ci-1 > "$TMP_REPO/prepared.json"
           aictx internal execution finalize --prepared "$TMP_REPO/prepared.json" --success --result-summary "ci smoke" >/dev/null
       - name: Package build
         run: python -m build
