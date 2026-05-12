@@ -12,7 +12,9 @@ from typing import Any
 
 from ..adapters import resolve_entrypoint_arbiter_wrapper
 from ..contract_compliance import compact_previous_contract_result, persist_resume_contract
+from ..context_planner import build_structural_entry_points
 from ..failures import FAILURE_PATTERNS_PATH, lookup_failures
+from ..repo_map.config import is_repomap_enabled
 from ..state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
@@ -2850,6 +2852,7 @@ def _build_execution_contract(
     entry_points: list[dict[str, str]],
     fallback_entry_points: list[dict[str, str]],
     repo_map: dict[str, list[dict[str, str]]],
+    structural_entry_points: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     strength = str(continuity_match.get("contract_strength") or "soft")
     first = dict(first_action)
@@ -2906,7 +2909,11 @@ def _build_execution_contract(
         if strength == "exploratory"
         else _resume_forbidden_before_first_edit(first)
     )
-    return {
+    expected_first_files = _clean_string_list(
+        [str(item.get("path") or "") for item in structural_entry_points or [] if isinstance(item, dict)],
+        limit=3,
+    )
+    contract = {
         "mode": "closed_loop",
         "task_goal": task_goal,
         "continuity_match": continuity_match,
@@ -2918,6 +2925,10 @@ def _build_execution_contract(
         "test_command": _select_canonical_test_command(repo_root, context),
         "finalize_command": 'aictx finalize --repo . --status success|failure --summary "<what changed and what passed>" --json',
     }
+    if expected_first_files:
+        contract["expected_first_files"] = expected_first_files
+        contract["expected_first_files_source"] = "repo_map"
+    return contract
 
 
 def _build_contract_checks(contract: dict[str, Any]) -> dict[str, Any]:
@@ -2999,6 +3010,42 @@ def _resume_strategy_text(strategy: dict[str, Any]) -> str:
     if starting:
         return f"Start from {starting}; matched prior successful work ({confidence} confidence: {reason or 'strategy reuse'})."
     return f"Reuse confidence {confidence}. {reason or 'Prior successful strategy matched.'}".strip()
+
+
+def _resume_structural_context(repo_root: Path, structural_entry_points: list[dict[str, Any]]) -> dict[str, Any]:
+    enabled = False
+    try:
+        enabled = is_repomap_enabled(repo_root)
+    except Exception:
+        enabled = False
+    count = len(structural_entry_points)
+    return {
+        "enabled": bool(enabled),
+        "available": bool(count),
+        "used": bool(count),
+        "source": "repo_map",
+        "entry_point_count": count,
+    }
+
+
+def _render_structural_entry_points(entries: list[dict[str, Any]], *, full: bool = False) -> list[str]:
+    if not entries:
+        return []
+    lines = ["", "Structural entry points"]
+    for item in entries[: (8 if full else 5)]:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        lines.append(f"- {path}")
+        symbols = _clean_string_list(item.get("symbols"), limit=5)
+        reasons = _clean_string_list(item.get("reasons"), limit=5)
+        if symbols:
+            lines.append(f"  symbols: {', '.join(symbols)}")
+        if reasons:
+            lines.append(f"  reasons: {', '.join(reasons)}")
+    return lines
 
 
 def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = False) -> str:
@@ -3123,6 +3170,8 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     else:
         lines.append("- None relevant")
 
+    lines.extend(_render_structural_entry_points(payload.get("structural_entry_points") if isinstance(payload.get("structural_entry_points"), list) else [], full=full))
+
     for title, key in (
         ("Already validated", "validated"),
         ("Relevant failures", "failures"),
@@ -3203,6 +3252,13 @@ def build_resume_capsule(
     profile = _resume_task_profile(request)
     entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit, profile=profile)
     repo_map = _resume_repo_map_slice(context, limit=limit, profile=profile, repo_root=repo_root)
+    structural_entry_points = build_structural_entry_points(
+        repo_root,
+        request,
+        files=[str(item.get("path") or "") for item in entry_points + fallback_entry_points if isinstance(item, dict)],
+        limit=5,
+    )
+    structural_context = _resume_structural_context(repo_root, structural_entry_points)
     task_state = _resume_task_state(repo_root, context, request, entry_points, entry_warnings)
 
     active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
@@ -3251,6 +3307,7 @@ def build_resume_capsule(
         entry_points=entry_points,
         fallback_entry_points=fallback_entry_points,
         repo_map=repo_map,
+        structural_entry_points=structural_entry_points,
     )
 
     validated = _clean_string_list(
@@ -3327,6 +3384,8 @@ def build_resume_capsule(
         },
         "startup_guard": _resume_startup_guard(),
         "continuity_match": continuity_match,
+        "structural_context": structural_context,
+        "structural_entry_points": structural_entry_points,
         "execution_contract": execution_contract,
         "contract_checks": _build_contract_checks(execution_contract),
         "previous_contract_result": previous_contract_result,

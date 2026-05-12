@@ -84,6 +84,8 @@ aictx map query "auth interceptor"
 
 RepoMap is optional. Core continuity works without it.
 
+When enabled and indexed, `aictx resume --repo . --task "<goal>"` may show compact structural entry points. Work State tells the agent what was happening; RepoMap tells it where to look first. Execution Contracts can later record whether observed files aligned with those suggested entry points.
+
 ---
 
 ## 5. What supported agents should do

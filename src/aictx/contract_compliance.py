@@ -89,10 +89,53 @@ def _not_evaluated(task_goal: str = "", *, contract_present: bool = False, main_
         "score": None,
         "task_goal": str(task_goal or ""),
         "main_issue": issue,
+        "structural_alignment": "not_evaluated",
         "checks": {},
         "violations": [],
         "warnings": [],
         "compact_summary": compact_summary,
+    }
+
+
+def _normalize_path(value: str) -> str:
+    return str(value or "").strip().replace("\\", "/")
+
+
+def _structural_alignment(expected: list[str], observation: dict[str, Any]) -> dict[str, Any]:
+    expected_paths = [_normalize_path(path) for path in expected if _normalize_path(path)]
+    files_opened = [_normalize_path(path) for path in _clean_string_list(observation.get("files_opened"), limit=40)]
+    files_edited = [_normalize_path(path) for path in _clean_string_list(observation.get("files_edited"), limit=40)]
+    tests = [_normalize_path(path) for path in _clean_string_list(observation.get("tests_executed"), limit=60)]
+    observed_primary = files_opened + files_edited
+    if not expected_paths or not (observed_primary or tests):
+        return {
+            "status": "not_evaluated",
+            "expected_first_files": expected_paths,
+            "observed_files": observed_primary[:12],
+            "matched_files": [],
+        }
+    expected_set = set(expected_paths)
+    primary_matches = [path for path in observed_primary if path in expected_set]
+    if primary_matches:
+        return {
+            "status": "followed",
+            "expected_first_files": expected_paths,
+            "observed_files": observed_primary[:12],
+            "matched_files": primary_matches[:8],
+        }
+    test_matches = [path for path in tests if path in expected_set]
+    if test_matches:
+        return {
+            "status": "partially_followed",
+            "expected_first_files": expected_paths,
+            "observed_files": observed_primary[:12],
+            "matched_files": test_matches[:8],
+        }
+    return {
+        "status": "ignored",
+        "expected_first_files": expected_paths,
+        "observed_files": observed_primary[:12],
+        "matched_files": [],
     }
 
 
@@ -312,6 +355,7 @@ def evaluate_contract_compliance(
     primary = _clean_string_list(edit_scope.get("primary"), limit=20)
     secondary = _clean_string_list(edit_scope.get("secondary_if_needed"), limit=20)
     allowed = primary + secondary
+    structural = _structural_alignment(_clean_string_list(contract.get("expected_first_files"), limit=3), observation)
 
     violations: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
@@ -367,8 +411,19 @@ def evaluate_contract_compliance(
         status = "followed"
     main_issue = str((violations[0] if violations else warnings[0]).get("code") if (violations or warnings) else "")
     compact_summary = f"Contract: {status}." if not main_issue else f"Contract: {status} — {_human_issue(main_issue)}."
+    if structural["status"] != "not_evaluated":
+        compact_summary = compact_summary.rstrip(".") + f". Structural alignment: {structural['status']}."
     if len(compact_summary) > 120:
         compact_summary = compact_summary[:117].rstrip() + "..."
+
+    checks = {
+        "followed_first_action": bool(followed_first_action),
+        "edited_within_scope": bool(edited_within_scope),
+        "canonical_test_used": bool(canonical_test_used),
+        "finalize_used": bool(finalize_used),
+    }
+    if structural["status"] != "not_evaluated":
+        checks["structural_alignment"] = structural["status"]
 
     return {
         "version": CONTRACT_COMPLIANCE_VERSION,
@@ -377,12 +432,9 @@ def evaluate_contract_compliance(
         "score": score,
         "task_goal": str(contract.get("task_goal") or source.get("task_goal") or ""),
         "main_issue": main_issue,
-        "checks": {
-            "followed_first_action": bool(followed_first_action),
-            "edited_within_scope": bool(edited_within_scope),
-            "canonical_test_used": bool(canonical_test_used),
-            "finalize_used": bool(finalize_used),
-        },
+        "structural_alignment": structural["status"],
+        "checks": checks,
+        "structural_entry_points": structural,
         "first_action": {"expected": first_path, "observed": bool(followed_first_action)},
         "edit_scope": {
             "primary": primary,

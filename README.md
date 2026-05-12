@@ -12,7 +12,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.1.0`
+Current documented implementation: `6.2.0`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
@@ -29,6 +29,8 @@ resume useful context -> do the work -> finalize factual evidence -> help the ne
 It is for developers who repeatedly use coding agents in the same repository and want less cold-start rediscovery, explicit next actions, remembered failures, reusable successful strategies, and inspectable local artifacts instead of hidden cloud memory.
 
 It is not a generic token compressor, autonomous coding system, hosted agent platform, or correctness guarantee.
+
+AICTX combines continuity memory with structural repo lookup: Work State tells the agent what was happening; optional RepoMap tells it where to look first.
 
 ---
 
@@ -130,6 +132,8 @@ aictx finalize --repo . --status success|failure --summary "<what happened>" --j
 
 In JSON mode, `resume` also includes bounded `loaded_context` metadata that explains why failures, handoffs, decisions, strategies, and RepoMap hints were selected. It is additive inspection/debugging metadata, not proof of correctness and not hidden agent reasoning.
 
+When RepoMap is enabled and indexed, `resume` can also include compact `structural_entry_points` and `structural_context`. Execution contracts may include `expected_first_files`, and finalize can record `structural_alignment`. RepoMap remains optional; AICTX continues to work without it.
+
 The runtime loop is:
 
 ```text
@@ -146,7 +150,7 @@ Technical integrations can also use wrapped/internal execution surfaces. See [Te
 |---|---|---|
 | **Work State** | Preserves active task, hypothesis, files, next action, risks, and verification state | The next session knows what was in progress |
 | **Failure Memory** | Stores observed command/test/build/type/lint failures as structured patterns | Agents can avoid repeating known mistakes |
-| **RepoMap** | Optional Tree-sitter structural map of files and symbols | Agents get better “where should I look first?” context |
+| **RepoMap** | Optional Tree-sitter structural map of files and symbols | Agents get compact structural entry points for “where should I look first?” |
 | **Strategy Memory** | Reuses successful prior execution patterns | Known-good approaches can be suggested again |
 | **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
 | **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
@@ -198,7 +202,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.1.0` is:
+The stable repo-local continuity artifact contract in `6.2.0` is:
 
 ```text
 .aictx/continuity/session.json

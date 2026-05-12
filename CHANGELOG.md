@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.2.0 - 2026-05-12
+
+### Added
+- Added RepoMap-powered `structural_entry_points` and `structural_context` to `aictx resume --json`.
+- Added compact text rendering for structural entry points in `aictx resume`.
+- Added optional `execution_contract.expected_first_files` derived from RepoMap structural entry points.
+- Added contract compliance `structural_alignment` metadata for followed, partially followed, ignored, and not-evaluated structural paths.
+- Added focused tests for the context planner, resume structural entry points, and structural alignment.
+
+### Changed
+- Documented RepoMap as an optional continuity context-planning signal in README, Quickstart, Usage, RepoMap, Technical overview, and Upgrade docs.
+
 ## 6.1.0 - 2026-05-12
 
 ### Added

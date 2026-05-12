@@ -155,6 +155,14 @@ When no explainable context is selected, `loaded_context` is present as an empty
 {"loaded_context": []}
 ```
 
+### Structural entry points
+
+When RepoMap is enabled and indexed, `aictx resume --json` can include top-level `structural_entry_points` and `structural_context`.
+
+These are compact, bounded structural hints derived from RepoMap query results. They contain paths, scores, reasons, symbols, and small metadata, but never raw source code. Text resume output renders them as a short `Structural entry points` section only when entries exist.
+
+Execution contracts may include `expected_first_files` with up to three RepoMap-derived paths. Finalize/contract compliance can then record `structural_alignment` as `followed`, `partially_followed`, `ignored`, or `not_evaluated`. This is audit-only and does not block execution.
+
 ### Optional entrypoint arbiter
 
 AICTX can optionally ask a configured runner-side entrypoint arbiter to classify whether a candidate starting point is relevant to the current task.
@@ -682,6 +690,8 @@ Artifacts:
 ```
 
 RepoMap provides structural hints. It is not semantic understanding and is not required for core continuity.
+
+In v6.2, RepoMap is also used by `resume` as a context-planning signal. Work State tells the agent what was happening; RepoMap tells it where to look first; Execution Contracts record whether the observed execution followed the suggested structural path when enough evidence exists.
 
 ---
 

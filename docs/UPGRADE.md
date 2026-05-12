@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 6.1.x
+## Current line: 6.2.x
 
-Current documented runtime: `6.1.0`.
+Current documented runtime: `6.2.0`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -10,6 +10,22 @@ For users already on recent `4.x` or `5.x`, there is no special data migration c
 aictx install
 aictx init
 ```
+
+---
+## 6.2.0
+
+`6.2.0` makes RepoMap actionable inside the normal continuity workflow.
+
+Added:
+- Top-level `structural_entry_points` and `structural_context` to `aictx resume --json` when RepoMap is enabled and indexed.
+- Compact text rendering of structural entry points in `aictx resume` output.
+- Optional `execution_contract.expected_first_files` derived from RepoMap structural entry points.
+- Contract compliance `structural_alignment` metadata for whether observed files followed, partially followed, ignored, or could not evaluate the expected structural entry points.
+
+Upgrade notes:
+- RepoMap remains optional. Core continuity works when RepoMap is disabled, unavailable, stale, or unindexed.
+- Structural entry points are bounded hints, not semantic understanding, enforcement, or correctness guarantees.
+- Re-run `aictx install` and `aictx init` after upgrading so generated runtime instructions match the current runtime.
 
 ---
 ## 6.1.0

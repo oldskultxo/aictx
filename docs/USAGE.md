@@ -30,6 +30,8 @@ aictx resume --repo . --task "<task goal>" --json
 
 In JSON mode, `resume` also includes top-level `loaded_context` metadata. This bounded, additive-only array explains why context was selected, for agent/user inspection and debugging. It can mention failures, handoffs, decisions, strategies, and RepoMap hints. It is not proof of correctness, does not expose hidden reasoning, and does not replace the execution contract.
 
+When RepoMap is enabled and indexed, `resume` can also include `structural_entry_points` and `structural_context`. These are bounded structural hints for where to look first. Execution contracts may include `expected_first_files`, and finalize/contract compliance can record `structural_alignment`. RepoMap remains optional; missing or unavailable RepoMap data does not block resume.
+
 The normal startup banner source is `resume.startup_banner_text` or `resume.startup_banner_render_payload`. In wrapped execution flows, the source remains `prepare_execution().startup_banner_text`.
 
 The final summary source remains `finalize_execution().agent_summary_text`.
@@ -165,6 +167,8 @@ aictx map query "work state" --json
 ```
 
 See [RepoMap](REPOMAP.md).
+
+In normal startup, agents usually do not need to call `map query` directly. `aictx resume` consumes RepoMap as part of the continuity capsule and can render a compact `Structural entry points` section when relevant indexed matches exist.
 
 ---
 

@@ -34,6 +34,29 @@ aictx map query "startup banner"
 
 ---
 
+## RepoMap in resume
+
+When RepoMap is enabled and indexed, `aictx resume` can include structural entry points for the current task:
+
+```bash
+aictx resume --repo . --task "improve startup banner handling"
+```
+
+Output may include:
+
+```text
+Structural entry points:
+- src/aictx/middleware/__init__.py
+  symbols: prepare_execution
+  reasons: repo_map:symbol_match
+```
+
+In JSON mode, `resume` exposes the same bounded hints as `structural_entry_points` plus a compact `structural_context` status. Execution contracts can also include `expected_first_files` so finalize/contract compliance can record `structural_alignment`.
+
+RepoMap remains optional. If it is disabled, unavailable, stale, or unindexed, AICTX still loads Work State, Handoffs, Decisions, Failure Memory, Strategy Memory, and the rest of the continuity capsule.
+
+---
+
 ## Installation
 
 ```bash
