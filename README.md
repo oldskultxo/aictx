@@ -128,6 +128,8 @@ After work, supported agents finalize factual evidence:
 aictx finalize --repo . --status success|failure --summary "<what happened>" --json
 ```
 
+In JSON mode, `resume` also includes bounded `loaded_context` metadata that explains why failures, handoffs, decisions, strategies, and RepoMap hints were selected. It is additive inspection/debugging metadata, not proof of correctness and not hidden agent reasoning.
+
 The runtime loop is:
 
 ```text

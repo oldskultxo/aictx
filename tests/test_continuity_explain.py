@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, build_resume_capsule
@@ -118,3 +119,30 @@ def test_resume_loaded_context_repo_map_matches_repo_map_slice(tmp_path: Path):
     assert loaded_repo_map[0]["related_paths"] == [repo_map_paths[0]]
     assert loaded_repo_map[0]["source"] == ".aictx/repo_map/index.json"
     assert any(reason.startswith("repo_map:") for reason in loaded_repo_map[0]["match_reasons"])
+
+
+def test_resume_loaded_context_handoff_timestamp_and_path_hygiene(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    source_path = repo / "src/aictx/middleware.py"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("def load_continuity_context():\n    pass\n", encoding="utf-8")
+    outside_path = tmp_path / "outside.py"
+    outside_path.write_text("print('outside')\n", encoding="utf-8")
+    write_json(repo / HANDOFF_PATH, {
+        "summary": "Resume middleware startup work",
+        "recommended_starting_points": [
+            str(source_path),
+            str(source_path),
+            str(outside_path),
+        ],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+    payload = build_resume_capsule(repo, request_text="fix middleware startup", agent_id="codex")
+
+    handoff_items = [item for item in payload["loaded_context"] if item["kind"] == "handoff"]
+    assert handoff_items
+    assert handoff_items[0]["staleness"] == "fresh"
+    assert handoff_items[0]["related_paths"] == ["src/aictx/middleware.py"]
+    assert all(not Path(path).is_absolute() for path in handoff_items[0]["related_paths"])

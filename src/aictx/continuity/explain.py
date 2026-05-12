@@ -78,6 +78,7 @@ def _staleness_label(value: Any, *, stale: bool = False) -> str:
 
 
 def _dedupe_paths(repo_root: Path, *groups: Any, limit: int = 8) -> list[str]:
+    repo_base = repo_root.expanduser().resolve()
     items: list[str] = []
     for group in groups:
         if isinstance(group, list):
@@ -89,12 +90,18 @@ def _dedupe_paths(repo_root: Path, *groups: Any, limit: int = 8) -> list[str]:
         if not path:
             continue
         try:
-            candidate = Path(path)
+            candidate = Path(path).expanduser()
             if candidate.is_absolute():
                 try:
-                    path = candidate.relative_to(repo_root).as_posix()
+                    path = candidate.resolve(strict=False).relative_to(repo_base).as_posix()
                 except ValueError:
                     continue
+            else:
+                path = candidate.as_posix()
+                if path == ".." or path.startswith("../"):
+                    continue
+                if path.startswith("./"):
+                    path = path[2:]
         except OSError:
             continue
         if path in seen:
@@ -222,11 +229,11 @@ def _handoff_items(
     confidence = "high" if any(reason.startswith("path_overlap:") for reason in reasons) or any(reason.startswith("handoff_has_") for reason in reasons[1:]) else "medium"
     return [_normalize_item("handoff", {
         "source": _SOURCE_BY_KIND["handoff"],
-        "source_id": f"handoff::{str(handoff.get('source_execution_id') or handoff.get('updated_at') or 'latest').strip()}",
+        "source_id": f"handoff::{str(handoff.get('source_execution_id') or handoff.get('updated_at') or handoff.get('timestamp') or 'latest').strip()}",
         "summary": _compact_text(handoff.get("summary"), _clean_string_list(handoff.get("next_steps"), limit=1)[0] if _clean_string_list(handoff.get("next_steps"), limit=1) else ""),
         "match_reasons": reasons,
         "confidence": confidence,
-        "staleness": _staleness_label(handoff.get("updated_at")),
+        "staleness": _staleness_label(handoff.get("updated_at") or handoff.get("timestamp")),
         "related_paths": paths,
     })]
 

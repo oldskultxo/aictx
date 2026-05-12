@@ -127,6 +127,64 @@ In v6, `resume` also emits an execution contract: first action, edit scope, cano
 
 `resume` does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence. It is the canonical agent-facing continuity query.
 
+### Explainable loaded context
+
+`aictx resume --json` includes a top-level `loaded_context` array.
+
+This is compact, additive-only metadata explaining why each continuity item was selected for the resume capsule. It can include failures, handoffs, decisions, strategy memory, and RepoMap hints, in that priority order. It does not remove, rename, or move existing resume fields such as `capsule`, `execution_contract`, `task_state`, `startup_guard`, or startup banner policy fields.
+
+Each entry includes:
+
+```text
+kind
+source
+source_id
+summary
+match_reasons
+confidence
+staleness
+related_paths
+rank
+```
+
+The field is informational. It helps agents and users inspect and debug why context was loaded, but it does not prove relevance or correctness, inspect hidden agent reasoning, or replace the execution contract. Output is bounded: the default total is compact, and `--full` can raise per-kind limits slightly but still does not dump unbounded memory.
+
+When no explainable context is selected, `loaded_context` is present as an empty array:
+
+```json
+{"loaded_context": []}
+```
+
+### Optional entrypoint arbiter
+
+AICTX can optionally ask a configured runner-side entrypoint arbiter to classify whether a candidate starting point is relevant to the current task.
+
+This is disabled by default. It runs only when an arbiter command is explicitly configured through environment variables such as:
+
+```text
+AICTX_CODEX_ENTRYPOINT_ARBITER_COMMAND
+AICTX_CLAUDE_ENTRYPOINT_ARBITER_COMMAND
+AICTX_GENERIC_ENTRYPOINT_ARBITER_COMMAND
+AICTX_ENTRYPOINT_ARBITER_COMMAND
+```
+
+The generated adapter contract also publishes official wrapper names such as `aictx-codex-entrypoint-arbiter`, `aictx-claude-entrypoint-arbiter`, and `aictx-generic-entrypoint-arbiter`.
+
+The arbiter receives compact JSON on stdin and must return compact JSON on stdout:
+
+```json
+{
+  "relation": "continuation|adjacent|unrelated",
+  "confidence": 0.0,
+  "recommended_priority": "keep|demote|ignore",
+  "reason_short": "short explanation"
+}
+```
+
+AICTX treats the response as a ranking hint only. It does not grant credentials, service handles, runtime authority, secrets, or permissions, and it is not an enforcement layer.
+
+Execution is timeout-bounded by `ENTRYPOINT_ARBITER_TIMEOUT_SECONDS` with a default of `2.0`. If the arbiter is missing, times out, exits non-zero, writes malformed JSON, or returns an incomplete schema, `resume` silently falls back to deterministic local ranking and keeps producing valid JSON.
+
 ### 5. Agent execution
 
 The agent works normally from the resume capsule. It should not inspect `.aictx/` or run exploratory AICTX commands during normal startup.

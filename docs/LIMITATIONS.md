@@ -57,6 +57,14 @@ It depends on Tree-sitter support and does not replace semantic understanding.
 
 AICTX works without RepoMap.
 
+## Explainability and entrypoint arbitration
+
+`loaded_context` explains why context was selected for `aictx resume --json`. It is not proof of relevance or correctness, and it does not expose hidden agent reasoning.
+
+The optional entrypoint arbiter is advisory only. It is disabled unless an operator configures an arbiter command through environment variables, and failures fall back to deterministic local ranking.
+
+An arbiter is not an authority system. It must not manage secrets, credentials, service handles, or privileged runtime capabilities. If configured externally, the user or operator is responsible for that command.
+
 ---
 
 ## Portability

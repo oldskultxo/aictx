@@ -2108,16 +2108,45 @@ def _resume_collect_work_state_paths(state: dict[str, Any]) -> set[str]:
     }
 
 
-def _resume_entrypoint_arbiter_enabled() -> bool:
-    return str(os.environ.get("AICTX_ENTRYPOINT_ARBITER_ENABLED", "")).strip().lower() in {"1", "true", "yes", "on"}
+def _resume_entrypoint_arbiter_env_names(*, adapter_id: str = "", agent_id: str = "") -> list[str]:
+    prefixes: list[str] = []
+    for raw in (adapter_id, agent_id):
+        value = str(raw or "").strip().lower()
+        if not value:
+            continue
+        if value in {"codex", "claude", "generic"}:
+            prefixes.append(value)
+        elif "codex" in value:
+            prefixes.append("codex")
+        elif "claude" in value:
+            prefixes.append("claude")
+    if not prefixes:
+        prefixes.append("generic")
+    names = [f"AICTX_{prefix.upper().replace('-', '_')}_ENTRYPOINT_ARBITER_COMMAND" for prefix in prefixes]
+    names.append("AICTX_ENTRYPOINT_ARBITER_COMMAND")
+    return _clean_string_list(names, limit=4)
+
+
+def _resume_entrypoint_arbiter_raw_command(*, adapter_id: str = "", agent_id: str = "") -> str:
+    for env_name in _resume_entrypoint_arbiter_env_names(adapter_id=adapter_id, agent_id=agent_id):
+        raw = str(os.environ.get(env_name, "")).strip()
+        if raw:
+            return raw
+    return ""
+
+
+def _resume_entrypoint_arbiter_enabled(*, adapter_id: str = "", agent_id: str = "") -> bool:
+    return bool(_resume_entrypoint_arbiter_raw_command(adapter_id=adapter_id, agent_id=agent_id))
 
 
 def _resume_entrypoint_arbiter_command(*, repo_root: Path | None = None, adapter_id: str = "", agent_id: str = "") -> list[str]:
-    raw = str(os.environ.get("AICTX_ENTRYPOINT_ARBITER_COMMAND", "")).strip()
-    if raw:
-        return shlex.split(raw)
+    raw = _resume_entrypoint_arbiter_raw_command(adapter_id=adapter_id, agent_id=agent_id)
+    if not raw:
+        return []
     wrapper = resolve_entrypoint_arbiter_wrapper(adapter_id, agent_id=agent_id, repo_root=repo_root)
-    return [wrapper.as_posix()] if wrapper else []
+    if wrapper:
+        return [wrapper.as_posix()]
+    return shlex.split(raw)
 
 
 def _resume_should_call_arbiter(
@@ -2131,7 +2160,7 @@ def _resume_should_call_arbiter(
     adapter_id: str = "",
     agent_id: str = "",
 ) -> bool:
-    if not _resume_entrypoint_arbiter_enabled():
+    if not _resume_entrypoint_arbiter_enabled(adapter_id=adapter_id, agent_id=agent_id):
         return False
     if not _resume_entrypoint_arbiter_command(repo_root=repo_root, adapter_id=adapter_id, agent_id=agent_id):
         return False

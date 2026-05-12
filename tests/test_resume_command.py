@@ -154,6 +154,10 @@ def _arbiter_script(path: Path) -> None:
     )
 
 
+def _write_python_script(path: Path, source: str) -> None:
+    path.write_text(source.strip() + "\n", encoding="utf-8")
+
+
 def test_resume_default_markdown_and_budget(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -770,6 +774,100 @@ def test_resume_arbiter_can_use_official_adapter_wrapper_without_explicit_comman
     payload = json.loads(capsys.readouterr().out)
     handoff_fallback = next(item for item in payload["capsule"]["fallback_entry_points"] if item["path"] == ".github/workflows/github-release.yml")
     assert "llm_arbiter:ignore" in handoff_fallback["reason"]
+
+
+def test_resume_arbiter_unset_uses_deterministic_fallback(tmp_path: Path, capsys, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(repo, {"src/aictx/continuity/__init__.py": ("python", "build_resume_capsule")})
+    write_json(
+        repo / HANDOFF_PATH,
+        {
+            "status": "completed",
+            "summary": "Finished release workflow cleanup.",
+            "recommended_starting_points": [".github/workflows/github-release.yml"],
+        },
+    )
+    (repo / ".github/workflows").mkdir(parents=True)
+    (repo / ".github/workflows/github-release.yml").write_text("name: release\n", encoding="utf-8")
+    monkeypatch.delenv("AICTX_ENTRYPOINT_ARBITER_COMMAND", raising=False)
+    monkeypatch.delenv("AICTX_CODEX_ENTRYPOINT_ARBITER_COMMAND", raising=False)
+    monkeypatch.delenv("AICTX_ENTRYPOINT_ARBITER_ENABLED", raising=False)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "refactor resume entry point ranking", "--json"])
+    assert args.func(args) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    reasons = " ".join(item["reason"] for item in payload["capsule"]["entry_points"] + payload["capsule"]["fallback_entry_points"])
+    assert "llm_arbiter:" not in reasons
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize(
+    "script_source",
+    [
+        "print('not json')",
+        "import sys\nsys.exit(42)",
+    ],
+)
+def test_resume_arbiter_bad_output_or_nonzero_falls_back(tmp_path: Path, capsys, monkeypatch, script_source: str):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(repo, {"src/aictx/continuity/__init__.py": ("python", "build_resume_capsule")})
+    write_json(
+        repo / HANDOFF_PATH,
+        {
+            "status": "completed",
+            "summary": "Finished release workflow cleanup.",
+            "recommended_starting_points": [".github/workflows/github-release.yml"],
+        },
+    )
+    (repo / ".github/workflows").mkdir(parents=True)
+    (repo / ".github/workflows/github-release.yml").write_text("name: release\n", encoding="utf-8")
+    script = tmp_path / "bad_arbiter.py"
+    _write_python_script(script, script_source)
+    monkeypatch.setenv("AICTX_ENTRYPOINT_ARBITER_COMMAND", f"{sys.executable} {script}")
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "refactor resume entry point ranking", "--json"])
+    assert args.func(args) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    handoff_fallback = next(item for item in payload["capsule"]["fallback_entry_points"] if item["path"] == ".github/workflows/github-release.yml")
+    assert "llm_arbiter:" not in handoff_fallback["reason"]
+    assert payload["capsule"]["first_action"]["path"] == "src/aictx/continuity/__init__.py"
+    assert captured.err == ""
+
+
+def test_resume_arbiter_timeout_falls_back(tmp_path: Path, capsys, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_generic_repomap(repo, {"src/aictx/continuity/__init__.py": ("python", "build_resume_capsule")})
+    write_json(
+        repo / HANDOFF_PATH,
+        {
+            "status": "completed",
+            "summary": "Finished release workflow cleanup.",
+            "recommended_starting_points": [".github/workflows/github-release.yml"],
+        },
+    )
+    (repo / ".github/workflows").mkdir(parents=True)
+    (repo / ".github/workflows/github-release.yml").write_text("name: release\n", encoding="utf-8")
+    script = tmp_path / "slow_arbiter.py"
+    _write_python_script(script, "import time\ntime.sleep(1)\nprint('{}')")
+    monkeypatch.setenv("AICTX_ENTRYPOINT_ARBITER_COMMAND", f"{sys.executable} {script}")
+    monkeypatch.setattr("aictx.continuity.ENTRYPOINT_ARBITER_TIMEOUT_SECONDS", 0.01)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "refactor resume entry point ranking", "--json"])
+    assert args.func(args) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    handoff_fallback = next(item for item in payload["capsule"]["fallback_entry_points"] if item["path"] == ".github/workflows/github-release.yml")
+    assert "llm_arbiter:" not in handoff_fallback["reason"]
+    assert payload["capsule"]["first_action"]["path"] == "src/aictx/continuity/__init__.py"
+    assert captured.err == ""
 
 
 def test_resume_documentation_task_prefers_readme_over_code(tmp_path: Path, capsys):

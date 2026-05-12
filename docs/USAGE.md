@@ -28,6 +28,8 @@ aictx resume --repo . --task "<task goal>" --json
 
 `resume` compiles Work State, handoffs, last summary, Strategy Memory, Failure Memory, Decisions, RepoMap, previous contract signals, and an execution contract into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
 
+In JSON mode, `resume` also includes top-level `loaded_context` metadata. This bounded, additive-only array explains why context was selected, for agent/user inspection and debugging. It can mention failures, handoffs, decisions, strategies, and RepoMap hints. It is not proof of correctness, does not expose hidden reasoning, and does not replace the execution contract.
+
 The normal startup banner source is `resume.startup_banner_text` or `resume.startup_banner_render_payload`. In wrapped execution flows, the source remains `prepare_execution().startup_banner_text`.
 
 The final summary source remains `finalize_execution().agent_summary_text`.
