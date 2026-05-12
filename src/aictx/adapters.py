@@ -12,6 +12,24 @@ GLOBAL_ADAPTERS_BIN_DIR = GLOBAL_ADAPTERS_DIR / "bin"
 GLOBAL_ADAPTERS_INSTALL_STATUS_PATH = GLOBAL_ADAPTERS_DIR / "install_status.json"
 
 
+def entrypoint_arbiter_contract(adapter_id: str) -> dict[str, Any]:
+    env_prefix = str(adapter_id or "generic").strip().upper().replace("-", "_")
+    return {
+        "capability": "entrypoint_arbiter",
+        "integration_mode": "wrapper",
+        "protocol": "json_stdin_stdout",
+        "structured_output": True,
+        "timeout_seconds": 2.0,
+        "wrapper_env": [
+            f"AICTX_{env_prefix}_ENTRYPOINT_ARBITER_COMMAND",
+            "AICTX_ENTRYPOINT_ARBITER_COMMAND",
+        ],
+        "command_env": f"AICTX_{env_prefix}_ENTRYPOINT_ARBITER_COMMAND",
+        "fallback_command_env": "AICTX_ENTRYPOINT_ARBITER_COMMAND",
+        "wrapper_script_name": f"aictx-{adapter_id}-entrypoint-arbiter",
+    }
+
+
 def adapter_runtime_contract(adapter_id: str) -> dict[str, Any]:
     return {
         "runtime_entrypoint": "aictx internal run-execution",
@@ -43,6 +61,7 @@ def adapter_profiles() -> dict[str, dict[str, Any]]:
             "heuristic_skill_fallback": True,
             "auto_installed": True,
             "runtime_contract": adapter_runtime_contract("generic"),
+            "entrypoint_arbiter": entrypoint_arbiter_contract("generic"),
         },
         "codex": {
             "adapter_id": "codex",
@@ -55,6 +74,7 @@ def adapter_profiles() -> dict[str, dict[str, Any]]:
             "expected_skill_metadata_fields": ["skill_id", "skill_name", "skill_path", "source"],
             "auto_installed": True,
             "runtime_contract": adapter_runtime_contract("codex"),
+            "entrypoint_arbiter": entrypoint_arbiter_contract("codex"),
         },
         "claude": {
             "adapter_id": "claude",
@@ -67,6 +87,7 @@ def adapter_profiles() -> dict[str, dict[str, Any]]:
             "expected_skill_metadata_fields": ["skill_id", "skill_name", "skill_path", "source"],
             "auto_installed": True,
             "runtime_contract": adapter_runtime_contract("claude"),
+            "entrypoint_arbiter": entrypoint_arbiter_contract("claude"),
         },
     }
 
@@ -88,6 +109,12 @@ def adapter_registry_payload(scope: str) -> dict[str, Any]:
             "entrypoint": "aictx internal run-execution",
             "integration_mode": "wrapper",
             "supported_runners": sorted(profiles.keys()),
+        },
+        "entrypoint_arbiter_contract": {
+            "protocol": "json_stdin_stdout",
+            "integration_mode": "wrapper",
+            "supported_runners": sorted(profiles.keys()),
+            "requires_structured_output": True,
         },
     }
 
@@ -124,14 +151,31 @@ exec aictx internal run-execution --repo "$REPO" --task "$REQUEST" --agent-id "$
 """
 
 
+def render_entrypoint_arbiter_wrapper_script(adapter_id: str) -> str:
+    env_name = f"AICTX_{str(adapter_id or 'generic').strip().upper().replace('-', '_')}_ENTRYPOINT_ARBITER_COMMAND"
+    return f"""#!/bin/sh
+set -eu
+COMMAND="${{{env_name}:-${{AICTX_ENTRYPOINT_ARBITER_COMMAND:-}}}}"
+if [ -z "$COMMAND" ]; then
+  echo "{env_name} or AICTX_ENTRYPOINT_ARBITER_COMMAND must be set for {adapter_id} entrypoint arbiter." >&2
+  exit 64
+fi
+exec sh -c "$COMMAND"
+"""
+
+
 def install_adapter_wrappers() -> list[Path]:
     created: list[Path] = []
     GLOBAL_ADAPTERS_BIN_DIR.mkdir(parents=True, exist_ok=True)
     for adapter_id in sorted(adapter_profiles().keys()):
-        wrapper_name = adapter_runtime_contract(adapter_id)["wrapper_script_name"]
-        path = GLOBAL_ADAPTERS_BIN_DIR / wrapper_name
-        write_executable(path, render_wrapper_script(adapter_id))
-        created.append(path)
+        runtime_wrapper_name = adapter_runtime_contract(adapter_id)["wrapper_script_name"]
+        runtime_path = GLOBAL_ADAPTERS_BIN_DIR / runtime_wrapper_name
+        write_executable(runtime_path, render_wrapper_script(adapter_id))
+        created.append(runtime_path)
+        arbiter_wrapper_name = entrypoint_arbiter_contract(adapter_id)["wrapper_script_name"]
+        arbiter_path = GLOBAL_ADAPTERS_BIN_DIR / arbiter_wrapper_name
+        write_executable(arbiter_path, render_entrypoint_arbiter_wrapper_script(adapter_id))
+        created.append(arbiter_path)
     return created
 
 
@@ -141,6 +185,10 @@ def adapter_install_status_payload(wrapper_paths: list[Path]) -> dict[str, Any]:
         adapter_id: str(GLOBAL_ADAPTERS_BIN_DIR / profiles[adapter_id]["runtime_contract"]["wrapper_script_name"])
         for adapter_id in sorted(profiles.keys())
     }
+    arbiter_wrappers = {
+        adapter_id: str(GLOBAL_ADAPTERS_BIN_DIR / profiles[adapter_id]["entrypoint_arbiter"]["wrapper_script_name"])
+        for adapter_id in sorted(profiles.keys())
+    }
     return {
         "version": 1,
         "engine_home": str(ENGINE_HOME),
@@ -148,6 +196,7 @@ def adapter_install_status_payload(wrapper_paths: list[Path]) -> dict[str, Any]:
         "runtime_entrypoint": "aictx internal run-execution",
         "supported_runners": sorted(profiles.keys()),
         "wrappers": wrappers,
+        "entrypoint_arbiter_wrappers": arbiter_wrappers,
         "artifacts": [str(path) for path in wrapper_paths],
         "status": "wrapper_ready",
     }
@@ -198,3 +247,18 @@ def resolve_adapter_profile(adapter_id: str | None, agent_id: str | None = None,
             if payload:
                 return payload
     return dict(profiles[resolved_id])
+
+
+def resolve_entrypoint_arbiter_wrapper(adapter_id: str | None, agent_id: str | None = None, repo_root: Path | None = None) -> Path | None:
+    profile = resolve_adapter_profile(adapter_id, agent_id=agent_id, repo_root=repo_root)
+    arbiter = profile.get("entrypoint_arbiter") if isinstance(profile.get("entrypoint_arbiter"), dict) else {}
+    wrapper_name = str(arbiter.get("wrapper_script_name") or "").strip()
+    if not wrapper_name:
+        return None
+    repo_candidate = repo_root / REPO_ADAPTERS_DIR / "bin" / wrapper_name if repo_root else None
+    if repo_candidate and repo_candidate.exists():
+        return repo_candidate
+    global_candidate = GLOBAL_ADAPTERS_BIN_DIR / wrapper_name
+    if global_candidate.exists():
+        return global_candidate
+    return None

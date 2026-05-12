@@ -1,6 +1,6 @@
 # Execution Contracts and Compliance
 
-AICTX v5.3 adds a compact contract loop around the normal agent lifecycle.
+AICTX v6 keeps a compact contract loop around the normal agent lifecycle, with persisted contract records and evaluated-only reporting.
 
 ```text
 resume -> execution_contract -> observed execution -> finalize compliance -> metrics -> next resume signal

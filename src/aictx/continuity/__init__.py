@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import re
+import shlex
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..adapters import resolve_entrypoint_arbiter_wrapper
 from ..contract_compliance import compact_previous_contract_result, persist_resume_contract
 from ..failures import FAILURE_PATTERNS_PATH, lookup_failures
 from ..state import (
@@ -21,6 +25,7 @@ from ..state import (
 )
 from ..strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
 from ..work_state import compact_work_state_for_prepare, load_active_work_state, load_recent_inactive_work_state
+from .explain import build_loaded_context_metadata
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 HANDOFFS_HISTORY_PATH = REPO_CONTINUITY_DIR / "handoffs.jsonl"
@@ -33,6 +38,7 @@ LAST_EXECUTION_SUMMARY_PATH = REPO_CONTINUITY_DIR / "last_execution_summary.md"
 RESUME_CAPSULE_MARKDOWN_PATH = REPO_CONTINUITY_DIR / "resume_capsule.md"
 RESUME_CAPSULE_JSON_PATH = REPO_CONTINUITY_DIR / "resume_capsule.json"
 AICTX_TEXT_SEPARATOR = "────────────────────────────────"
+ENTRYPOINT_ARBITER_TIMEOUT_SECONDS = 2.0
 
 
 def append_aictx_text_separator(text: str) -> str:
@@ -232,7 +238,14 @@ def build_startup_banner_render_payload(context: dict[str, Any], repo_root: Path
     session = context.get("session") if isinstance(context.get("session"), dict) else {}
     agent_label, session_count = _session_summary_parts(session, repo_root)
     header = _banner_header(agent_label, session_count)
-    latest = latest_handoff_record(repo_root)
+    latest = context.get("handoff") if isinstance(context.get("handoff"), dict) and context.get("handoff") else latest_handoff_record(repo_root)
+    active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    recent = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
+    request_profile = (
+        context.get("request_profile")
+        if isinstance(context.get("request_profile"), dict)
+        else _resume_task_profile(str(context.get("request_text") or ""))
+    )
     lines: list[dict[str, Any]] = []
     if not latest:
         lines.append({
@@ -242,12 +255,48 @@ def build_startup_banner_render_payload(context: dict[str, Any], repo_root: Path
         })
     else:
         topic = _compact_topic(latest)
-        lines.append({
-            "kind": "resuming",
-            "canonical_text": f"Resuming: {topic}.",
-            "topic": topic,
-        })
         status = str(latest.get("status") or "").strip().lower()
+        handoff_entry = _resume_entry(
+            _clean_string_list(latest.get("recommended_starting_points"), limit=1)[0]
+            if _clean_string_list(latest.get("recommended_starting_points"), limit=1)
+            else "",
+            "previous handoff starting point",
+        )
+        handoff_relevance, _ = _resume_handoff_relevance(
+            handoff_entry,
+            handoff=latest,
+            profile=request_profile,
+            repo_map_paths=set(),
+            strategy_paths=_resume_collect_strategy_paths(context.get("procedural_reuse") if isinstance(context.get("procedural_reuse"), dict) else {}),
+            active_paths=_resume_collect_work_state_paths(active),
+            recent_paths=_resume_collect_work_state_paths(recent),
+        )
+        show_handoff_operational_focus = True
+        if active:
+            lines.append({
+                "kind": "resuming",
+                "canonical_text": f"Resuming: {topic}.",
+                "topic": topic,
+            })
+        elif (
+            bool(context.get("request_sensitive_banner"))
+            and str(context.get("request_text") or "").strip()
+            and status in {"resolved", "completed", "success"}
+            and handoff_relevance in {"unrelated", "low_relevance"}
+        ):
+            show_handoff_operational_focus = False
+            lines.append({
+                "kind": "background_continuity",
+                "canonical_text": f"Background continuity: {topic}.",
+                "topic": topic,
+                "request_relevance": handoff_relevance,
+            })
+        else:
+            lines.append({
+                "kind": "resuming",
+                "canonical_text": f"Resuming: {topic}.",
+                "topic": topic,
+            })
         if status in {"failed", "unresolved", "blocked"}:
             blocker = _compact_blocker(latest)
             lines.append({
@@ -263,21 +312,22 @@ def build_startup_banner_render_payload(context: dict[str, Any], repo_root: Path
                 "canonical_text": f"Last progress: {progress}.",
                 "progress": progress,
             })
-        next_focus = _next_focus(latest)
-        if next_focus:
-            lines.append({
-                "kind": "next",
-                "canonical_text": f"Next: {next_focus}",
-                "items": [next_focus],
-            })
-        else:
-            entry_point = _entry_point_focus(latest)
-            if entry_point and not _entry_point_is_redundant(latest, entry_point):
+        if show_handoff_operational_focus:
+            next_focus = _next_focus(latest)
+            if next_focus:
                 lines.append({
-                    "kind": "entry_point",
-                    "canonical_text": f"Entry point: {entry_point}",
-                    "paths": [entry_point],
+                    "kind": "next",
+                    "canonical_text": f"Next: {next_focus}",
+                    "items": [next_focus],
                 })
+            else:
+                entry_point = _entry_point_focus(latest)
+                if entry_point and not _entry_point_is_redundant(latest, entry_point):
+                    lines.append({
+                        "kind": "entry_point",
+                        "canonical_text": f"Entry point: {entry_point}",
+                        "paths": [entry_point],
+                    })
     work_payload = _active_work_state_payload(context)
     if work_payload:
         work_line = f"Active task: {work_payload['goal']}."
@@ -1708,6 +1758,7 @@ def load_continuity_context(
     area_id: str = "",
     max_decisions: int = 5,
     max_failures: int = 5,
+    request_sensitive_banner: bool = False,
 ) -> dict[str, Any]:
     warnings: list[str] = []
     session = _session_from_payload(session_identity, repo_root, warnings)
@@ -1820,6 +1871,8 @@ def load_continuity_context(
         "continuity_brief": continuity_brief,
         "active_work_state": active_work_state,
         "recent_work_state": recent_work_state,
+        "request_text": str(request_text or ""),
+        "request_sensitive_banner": bool(request_sensitive_banner),
         "warnings": warnings,
     }
     context["startup_banner_render_payload"] = build_startup_banner_render_payload(context, repo_root)
@@ -1860,6 +1913,10 @@ def _resume_request_terms(text: str) -> set[str]:
     return {term for term in terms if len(term) > 2 and term not in _RESUME_STOPWORDS}
 
 
+def _resume_path_terms(path: str) -> set[str]:
+    return _resume_request_terms(str(path or "").replace("/", " ").replace("_", " ").replace("-", " "))
+
+
 def _resume_task_profile(request_text: str) -> dict[str, Any]:
     haystack = str(request_text or "").lower()
     categories: dict[str, tuple[str, ...]] = {
@@ -1894,6 +1951,15 @@ def _resume_task_profile(request_text: str) -> dict[str, Any]:
         "task_category": best_category,
         "request_terms": _resume_request_terms(request_text),
         "explicit_metrics": scores.get("analysis", 0) > 0,
+        "explicit_continuation": any(
+            phrase in haystack
+            for phrase in (
+                "continue previous task",
+                "continue prior task",
+                "pick up previous task",
+                "resume previous task",
+            )
+        ),
     }
 
 
@@ -1948,7 +2014,17 @@ def _resume_path_score(entry: dict[str, str], *, profile: dict[str, Any], index:
     if "active work state" in reason:
         score += 25
     elif "previous handoff" in reason:
-        score += 15
+        relevance = str(entry.get("request_relevance") or "").strip().lower()
+        if relevance == "high_relevance":
+            score += 12
+        elif relevance == "medium_relevance":
+            score += 6
+        elif relevance == "low_relevance":
+            score -= 6
+        elif relevance == "unrelated":
+            score -= 24
+        else:
+            score += 4
     elif "repo_map" in reason or "repomap" in reason:
         score += 10
     elif "probable continuity" in reason:
@@ -2001,12 +2077,339 @@ def _resume_clean_entries(entries: list[dict[str, str]], *, limit: int) -> list[
     return cleaned
 
 
+def _resume_collect_repo_map_paths(ranked_items: list[dict[str, Any]]) -> set[str]:
+    paths: set[str] = set()
+    for item in ranked_items:
+        if not isinstance(item, dict) or str(item.get("kind") or "") != "repo_map":
+            continue
+        for path in _clean_string_list(item.get("paths"), limit=4):
+            if _resume_is_action_path(path):
+                paths.add(path)
+    return paths
+
+
+def _resume_collect_strategy_paths(strategy: dict[str, Any]) -> set[str]:
+    paths: set[str] = set()
+    for path in (
+        _clean_string_list(strategy.get("entry_points"), limit=5)
+        + _clean_string_list(strategy.get("files_used"), limit=5)
+        + _clean_string_list(strategy.get("tests_executed"), limit=5)
+    ):
+        if _resume_is_action_path(path):
+            paths.add(path)
+    return paths
+
+
+def _resume_collect_work_state_paths(state: dict[str, Any]) -> set[str]:
+    return {
+        path
+        for path in _clean_string_list(state.get("active_files"), limit=6)
+        if _resume_is_action_path(path)
+    }
+
+
+def _resume_entrypoint_arbiter_enabled() -> bool:
+    return str(os.environ.get("AICTX_ENTRYPOINT_ARBITER_ENABLED", "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resume_entrypoint_arbiter_command(*, repo_root: Path | None = None, adapter_id: str = "", agent_id: str = "") -> list[str]:
+    raw = str(os.environ.get("AICTX_ENTRYPOINT_ARBITER_COMMAND", "")).strip()
+    if raw:
+        return shlex.split(raw)
+    wrapper = resolve_entrypoint_arbiter_wrapper(adapter_id, agent_id=agent_id, repo_root=repo_root)
+    return [wrapper.as_posix()] if wrapper else []
+
+
+def _resume_should_call_arbiter(
+    *,
+    profile: dict[str, Any],
+    relevance: str,
+    active_paths: set[str],
+    repo_map_paths: set[str],
+    candidate_path: str,
+    repo_root: Path | None = None,
+    adapter_id: str = "",
+    agent_id: str = "",
+) -> bool:
+    if not _resume_entrypoint_arbiter_enabled():
+        return False
+    if not _resume_entrypoint_arbiter_command(repo_root=repo_root, adapter_id=adapter_id, agent_id=agent_id):
+        return False
+    if not candidate_path or candidate_path in active_paths:
+        return False
+    if relevance == "high_relevance":
+        return False
+    if bool(profile.get("explicit_continuation")):
+        return True
+    if relevance in {"medium_relevance", "low_relevance"}:
+        return True
+    return relevance == "unrelated" and bool(repo_map_paths)
+
+
+def _normalize_arbiter_relation(value: str) -> str:
+    relation = str(value or "").strip().lower()
+    if relation in {"continuation", "adjacent", "unrelated"}:
+        return relation
+    return ""
+
+
+def _normalize_arbiter_priority(value: str) -> str:
+    priority = str(value or "").strip().lower()
+    if priority in {"keep", "demote", "ignore"}:
+        return priority
+    return ""
+
+
+def _resume_call_entrypoint_arbiter(
+    *,
+    repo_root: Path,
+    request_text: str,
+    profile: dict[str, Any],
+    handoff: dict[str, Any],
+    candidate: dict[str, str],
+    heuristic_relevance: str,
+    heuristic_signals: list[str],
+    repo_map_paths: set[str],
+    strategy_paths: set[str],
+    active_paths: set[str],
+    recent_paths: set[str],
+    adapter_id: str,
+    agent_id: str,
+) -> dict[str, Any]:
+    command = _resume_entrypoint_arbiter_command(repo_root=repo_root, adapter_id=adapter_id, agent_id=agent_id)
+    if not command:
+        return {}
+    payload = {
+        "version": 1,
+        "task": {
+            "request_text": request_text,
+            "task_category": str(profile.get("task_category") or "unknown"),
+            "request_terms": sorted(profile.get("request_terms") if isinstance(profile.get("request_terms"), set) else []),
+            "explicit_continuation": bool(profile.get("explicit_continuation")),
+        },
+        "candidate": {
+            "path": str(candidate.get("path") or ""),
+            "reason": str(candidate.get("reason") or ""),
+            "heuristic_relevance": heuristic_relevance,
+            "heuristic_signals": list(heuristic_signals),
+            "path_category": _resume_path_category(str(candidate.get("path") or "")),
+            "in_repo_map": str(candidate.get("path") or "") in repo_map_paths,
+            "in_strategy": str(candidate.get("path") or "") in strategy_paths,
+            "in_active_work_state": str(candidate.get("path") or "") in active_paths,
+            "in_recent_work_state": str(candidate.get("path") or "") in recent_paths,
+        },
+        "handoff": {
+            "status": str(handoff.get("status") or ""),
+            "summary": str(handoff.get("summary") or ""),
+            "completed": _clean_string_list(handoff.get("completed"), limit=4),
+            "next_steps": _clean_string_list(handoff.get("next_steps"), limit=4),
+            "recommended_starting_points": _clean_string_list(handoff.get("recommended_starting_points"), limit=4),
+            "tests_observed": _clean_string_list(handoff.get("tests_observed"), limit=4),
+        },
+        "instruction": {
+            "goal": "Decide whether the handoff candidate is a true continuation entrypoint for the current task.",
+            "output_schema": {
+                "relation": "continuation|adjacent|unrelated",
+                "confidence": "0..1 float",
+                "recommended_priority": "keep|demote|ignore",
+                "reason_short": "short string",
+            },
+            "rules": [
+                "Prefer continuation only when the current task is truly a follow-up to the handoff.",
+                "Use adjacent when the area overlaps but the task intent is different.",
+                "Use unrelated when the current task should not start from this handoff entrypoint.",
+                "Keep answers compact and deterministic.",
+            ],
+        },
+    }
+    try:
+        completed = subprocess.run(
+            command,
+            input=json.dumps(payload, ensure_ascii=False),
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+            timeout=ENTRYPOINT_ARBITER_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if completed.returncode != 0:
+        return {}
+    try:
+        response = json.loads(str(completed.stdout or "").strip() or "{}")
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(response, dict):
+        return {}
+    relation = _normalize_arbiter_relation(str(response.get("relation") or ""))
+    recommended_priority = _normalize_arbiter_priority(str(response.get("recommended_priority") or ""))
+    if not relation or not recommended_priority:
+        return {}
+    try:
+        confidence = float(response.get("confidence", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(confidence, 1.0))
+    return {
+        "relation": relation,
+        "confidence": confidence,
+        "recommended_priority": recommended_priority,
+        "reason_short": str(response.get("reason_short") or "").strip(),
+        "provider": "command",
+    }
+
+
+def _resume_apply_arbiter_decision(relevance: str, signals: list[str], arbiter: dict[str, Any]) -> tuple[str, list[str]]:
+    if not arbiter:
+        return relevance, signals
+    updated = list(signals)
+    relation = str(arbiter.get("relation") or "")
+    decision = str(arbiter.get("recommended_priority") or "")
+    confidence = float(arbiter.get("confidence") or 0.0)
+    if confidence < 0.55:
+        updated.append("llm_arbiter_low_confidence")
+        return relevance, updated
+    updated.append(f"llm_arbiter:{decision}")
+    updated.append(f"llm_relation:{relation}")
+    if decision == "keep":
+        if relation == "continuation":
+            return "high_relevance", updated
+        if relation == "adjacent" and relevance in {"low_relevance", "unrelated"}:
+            return "medium_relevance", updated
+    if decision == "demote":
+        if relation == "unrelated":
+            return "unrelated", updated
+        if relevance == "high_relevance":
+            return "medium_relevance", updated
+        return "low_relevance", updated
+    if decision == "ignore":
+        return "unrelated", updated
+    return relevance, updated
+
+
+def _resume_handoff_relevance(
+    entry: dict[str, str],
+    *,
+    handoff: dict[str, Any],
+    profile: dict[str, Any],
+    repo_map_paths: set[str],
+    strategy_paths: set[str],
+    active_paths: set[str],
+    recent_paths: set[str],
+) -> tuple[str, list[str]]:
+    terms = profile.get("request_terms") if isinstance(profile.get("request_terms"), set) else set()
+    if not handoff:
+        return "low_relevance", []
+
+    path = str(entry.get("path") or "").strip()
+    path_terms = _resume_path_terms(path)
+    searchable = " ".join(
+        [
+            path,
+            str(entry.get("reason") or ""),
+            str(handoff.get("summary") or ""),
+            " ".join(_clean_string_list(handoff.get("completed"), limit=4)),
+            " ".join(_clean_string_list(handoff.get("next_steps"), limit=4)),
+            " ".join(_clean_string_list(handoff.get("recommended_starting_points"), limit=4)),
+            " ".join(_clean_string_list(handoff.get("tests_observed"), limit=4)),
+        ]
+    ).lower()
+
+    overlap_terms = sorted(term for term in terms if term in searchable)
+    path_overlap_terms = sorted(term for term in terms if term in path_terms)
+    score = 0
+    signals: list[str] = []
+    if overlap_terms:
+        score += min(len(overlap_terms), 3) * 2
+        signals.append("handoff_term_overlap")
+    if path_overlap_terms:
+        score += min(len(path_overlap_terms), 2) * 2
+        signals.append("handoff_path_overlap")
+    if path in repo_map_paths:
+        score += 3
+        signals.append("task_driven_repomap")
+    if path in strategy_paths:
+        score += 2
+        signals.append("strategy_overlap")
+    if path in active_paths:
+        score += 4
+        signals.append("active_work_state")
+    elif path in recent_paths:
+        score += 2
+        signals.append("recent_work_state")
+
+    task_category = str(profile.get("task_category") or "unknown")
+    path_category = _resume_path_category(path)
+    if task_category == "documentation" and path_category == "docs":
+        score += 1
+    elif task_category == "config" and path_category in {"config", "ci"}:
+        score += 1
+    elif task_category == "testing" and path_category in {"tests", "source"}:
+        score += 1
+    elif task_category == "implementation" and path_category in {"source", "tests"}:
+        score += 1
+
+    if score >= 7:
+        return "high_relevance", signals
+    if score >= 4:
+        return "medium_relevance", signals
+    if score >= 1:
+        return "low_relevance", signals
+    return "unrelated", signals
+
+
+def _resume_entry_reason(candidate: dict[str, str], relevance: str, signals: list[str]) -> str:
+    reason = str(candidate.get("reason") or "").strip() or "relevant continuity signal"
+    if "previous handoff" not in reason.lower():
+        return reason
+    signal_text = ", ".join(
+        signal
+        for signal in signals
+        if signal in {
+            "handoff_term_overlap",
+            "active_work_state",
+            "task_driven_repomap",
+            "llm_arbiter:keep",
+            "llm_arbiter:demote",
+            "llm_arbiter:ignore",
+            "llm_relation:continuation",
+            "llm_relation:adjacent",
+            "llm_relation:unrelated",
+        }
+    )
+    if relevance == "unrelated":
+        suffix = f" [{signal_text}]" if signal_text else ""
+        return f"{reason}; demoted for current request (handoff_demoted_unrelated){suffix}"
+    if relevance:
+        labels = {
+            "high_relevance": "high relevance",
+            "medium_relevance": "medium relevance",
+            "low_relevance": "low relevance",
+        }
+        reason = f"{reason}; {labels.get(relevance, relevance.replace('_', ' '))}"
+    if signal_text:
+        reason = f"{reason} [{signal_text}]"
+    return reason
+
+
 def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, limit: int, profile: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
     warnings: list[str] = []
     ranked = context.get("ranked_items") if isinstance(context.get("ranked_items"), list) else []
     handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
     active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    recent = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
     brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
+    strategy = context.get("procedural_reuse") if isinstance(context.get("procedural_reuse"), dict) else {}
+    repo_map_paths = _resume_collect_repo_map_paths(ranked)
+    strategy_paths = _resume_collect_strategy_paths(strategy)
+    active_paths = _resume_collect_work_state_paths(active)
+    recent_paths = _resume_collect_work_state_paths(recent)
+    handoff_status = str(handoff.get("status") or "").strip().lower()
+    handoff_completed = handoff_status in {"resolved", "completed", "success"}
+    request_text = str(context.get("request_text") or "")
+    adapter_id = str(context.get("adapter_id") or "")
+    agent_id = str(context.get("agent_id") or "")
 
     candidates: list[dict[str, str]] = []
     for path in _clean_string_list(active.get("active_files"), limit=5):
@@ -2030,8 +2433,53 @@ def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, li
         if not _resume_is_action_path(path) or path in seen:
             continue
         seen.add(path)
+        relevance = ""
+        signals: list[str] = []
+        if "previous handoff" in str(candidate.get("reason") or "").lower():
+            relevance, signals = _resume_handoff_relevance(
+                candidate,
+                handoff=handoff,
+                profile=profile,
+                repo_map_paths=repo_map_paths,
+                strategy_paths=strategy_paths,
+                active_paths=active_paths,
+                recent_paths=recent_paths,
+            )
+            if _resume_should_call_arbiter(
+                profile=profile,
+                relevance=relevance,
+                active_paths=active_paths,
+                repo_map_paths=repo_map_paths,
+                candidate_path=path,
+                repo_root=repo_root,
+                adapter_id=adapter_id,
+                agent_id=agent_id,
+            ):
+                arbiter = _resume_call_entrypoint_arbiter(
+                    repo_root=repo_root,
+                    request_text=request_text,
+                    profile=profile,
+                    handoff=handoff,
+                    candidate=candidate,
+                    heuristic_relevance=relevance,
+                    heuristic_signals=signals,
+                    repo_map_paths=repo_map_paths,
+                    strategy_paths=strategy_paths,
+                    active_paths=active_paths,
+                    recent_paths=recent_paths,
+                    adapter_id=adapter_id,
+                    agent_id=agent_id,
+                )
+                relevance, signals = _resume_apply_arbiter_decision(relevance, signals, arbiter)
+                if arbiter:
+                    candidate["arbiter"] = arbiter
+            candidate["request_relevance"] = relevance
+            candidate["reason"] = _resume_entry_reason(candidate, relevance, signals)
         if _path_exists(repo_root, path):
-            live.append(candidate)
+            if handoff_completed and relevance in {"unrelated", "low_relevance"}:
+                fallback.append(candidate)
+            else:
+                live.append(candidate)
         else:
             if "previous handoff" in candidate["reason"]:
                 warnings.append(f"missing_entry_point:{path}")
@@ -2099,9 +2547,20 @@ def _resume_first_action(
     fallback_entry_points: list[dict[str, str]],
     repo_map: dict[str, list[dict[str, str]]],
 ) -> dict[str, str]:
+    arbiter_keep = next(
+        (
+            entry
+            for entry in entry_points
+            if "previous handoff" in str(entry.get("reason") or "").lower() and "llm_arbiter:keep" in str(entry.get("reason") or "")
+        ),
+        None,
+    )
+    if isinstance(arbiter_keep, dict) and _resume_clean_entries([arbiter_keep], limit=1):
+        first = arbiter_keep
+        return {"type": "open_file", "path": first["path"], "binding": "must_open_first", "reason": first["reason"]}
     candidates: list[dict[str, str]] = []
-    candidates.extend(entry_points)
     candidates.extend(list(repo_map.get("primary") or []))
+    candidates.extend(entry_points)
     candidates.extend(list(repo_map.get("secondary") or []))
     candidates.extend(fallback_entry_points)
     cleaned = _resume_clean_entries(candidates, limit=1)
@@ -2277,6 +2736,9 @@ def _resume_continuity_match(
     if str(recent.get("status") or "").strip().lower() in {"blocked", "paused"}:
         score += 4
         signals.append("recent_work_state_blocked_or_paused")
+    if bool(profile.get("explicit_continuation")) and (handoff or entry_points):
+        score += 2
+        signals.append("explicit_continuation_request")
 
     first_overlap = _resume_entry_overlap(first_action, terms)
     if first_overlap >= 2:
@@ -2293,6 +2755,15 @@ def _resume_continuity_match(
     elif "previous handoff" in first_reason:
         score += 2
         signals.append("first_action_from_handoff")
+        if "handoff_term_overlap" in first_reason:
+            score += 1
+            signals.append("handoff_term_overlap")
+    if "handoff_demoted_unrelated" in first_reason:
+        score -= 2
+        signals.append("handoff_demoted_unrelated")
+    if "task_driven_repomap" in first_reason:
+        score += 1
+        signals.append("task_driven_repomap")
 
     category = str(profile.get("task_category") or "")
     first_category = _resume_path_category(str(first_action.get("path") or ""))
@@ -2695,7 +3166,10 @@ def build_resume_capsule(
         task_type=task_type,
         max_decisions=8 if full else 5,
         max_failures=8 if full else 5,
+        request_sensitive_banner=True,
     )
+    context["agent_id"] = str(agent_id or "")
+    context["adapter_id"] = str(adapter_id or agent_id or "")
     limit = 8 if full else 4
     profile = _resume_task_profile(request)
     entry_points, fallback_entry_points, entry_warnings = _resume_collect_entry_points(repo_root, context, limit=limit, profile=profile)
@@ -2790,6 +3264,21 @@ def build_resume_capsule(
     banner_already_shown = bool(session_key and str(session.get("banner_shown_session_id") or "") == session_key)
     startup_banner_text = "" if banner_already_shown else str(context.get("startup_banner_text") or "")
     startup_banner_render_payload = context.get("startup_banner_render_payload") if isinstance(context.get("startup_banner_render_payload"), dict) else {}
+    loaded_context = build_loaded_context_metadata(
+        repo_root,
+        request_text=request,
+        task_type=task_type,
+        area_id=str(strategy.get("area_id") or first_action.get("path") or ""),
+        continuity_context=context,
+        capsule={
+            "entry_points": entry_points,
+            "repo_map": repo_map,
+        },
+        selected_strategy=strategy,
+        repo_map_items=repo_map.get("primary", []) + repo_map.get("secondary", []) if isinstance(repo_map, dict) else [],
+        first_action_path=str(first_action.get("path") or ""),
+        full=full,
+    )
     payload: dict[str, Any] = {
         "schema_version": "1.0",
         "generated_at": _now_iso(),
@@ -2834,6 +3323,7 @@ def build_resume_capsule(
             "markdown": RESUME_CAPSULE_MARKDOWN_PATH.as_posix(),
             "json": RESUME_CAPSULE_JSON_PATH.as_posix(),
         },
+        "loaded_context": loaded_context,
         "warnings": _clean_string_list(list(context.get("warnings", []) or []) + entry_warnings, limit=12),
     }
     max_chars = 12000 if full else 6000

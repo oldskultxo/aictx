@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from aictx._version import __version__ as package_version
-from aictx.adapters import install_global_adapters
+from aictx.adapters import install_global_adapters, resolve_entrypoint_arbiter_wrapper
 import aictx.cli as cli
 import aictx.core_runtime as core_runtime
 import aictx.runtime_io as runtime_io
@@ -110,9 +110,28 @@ def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkey
     assert any(path.name == "codex.json" for path in created)
     assert any(path.name == "claude.json" for path in created)
     assert any(path.name == "aictx-codex-auto" for path in created)
+    assert any(path.name == "aictx-codex-entrypoint-arbiter" for path in created)
+    assert any(path.name == "aictx-claude-entrypoint-arbiter" for path in created)
     install_status = read_json(tmp_path / ".aictx" / "adapters" / "install_status.json", {})
     assert install_status["status"] == "wrapper_ready"
     assert install_status["runtime_entrypoint"] == "aictx internal run-execution"
+    assert install_status["entrypoint_arbiter_wrappers"]["codex"].endswith("aictx-codex-entrypoint-arbiter")
+
+
+def test_resolve_entrypoint_arbiter_wrapper_prefers_installed_official_wrapper(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("aictx.adapters.ENGINE_HOME", tmp_path / ".aictx")
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_DIR", (tmp_path / ".aictx" / "adapters"))
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_REGISTRY_PATH", (tmp_path / ".aictx" / "adapters" / "registry.json"))
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_BIN_DIR", (tmp_path / ".aictx" / "adapters" / "bin"))
+    monkeypatch.setattr("aictx.adapters.GLOBAL_ADAPTERS_INSTALL_STATUS_PATH", (tmp_path / ".aictx" / "adapters" / "install_status.json"))
+    install_global_adapters()
+
+    path = resolve_entrypoint_arbiter_wrapper("codex", repo_root=tmp_path / "repo")
+    assert path is not None
+    assert path.name == "aictx-codex-entrypoint-arbiter"
+    text = path.read_text(encoding="utf-8")
+    assert "AICTX_CODEX_ENTRYPOINT_ARBITER_COMMAND" in text
+    assert "AICTX_ENTRYPOINT_ARBITER_COMMAND" in text
 
 
 def test_agent_runtime_mentions_execution_sources_and_communication_modes():
