@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 6.0.x
+## Current line: 6.1.x
 
-Current documented runtime: `6.0.0`.
+Current documented runtime: `6.1.0`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -10,6 +10,30 @@ For users already on recent `4.x` or `5.x`, there is no special data migration c
 aictx install
 aictx init
 ```
+
+---
+## 6.1.0
+
+`6.1.0` extends the v6 runtime with explainable loaded-context metadata and optional entrypoint arbitration for request-sensitive resume routing.
+
+Added:
+- Top-level `loaded_context` in `aictx resume --json`, with bounded additive metadata for failures, handoffs, decisions, strategy reuse, and RepoMap hints.
+- `src/aictx/continuity/explain.py` to explain why continuity items were selected without introducing a second unrelated retrieval pass.
+- Official entrypoint-arbiter adapter contracts and wrapper scripts for Codex, Claude, and generic runners.
+
+Changed:
+- `aictx resume` can now use configured runner-specific arbiter commands (`AICTX_CODEX_ENTRYPOINT_ARBITER_COMMAND`, `AICTX_CLAUDE_ENTRYPOINT_ARBITER_COMMAND`, `AICTX_GENERIC_ENTRYPOINT_ARBITER_COMMAND`) in addition to `AICTX_ENTRYPOINT_ARBITER_COMMAND`.
+- Technical overview, usage docs, limitations, and README now document explainable loaded context and the arbiter trust/fallback model.
+
+Fixed:
+- Handoff staleness now accepts both `updated_at` and `timestamp`.
+- `loaded_context.related_paths` normalizes repo-internal absolute paths to repo-relative form, removes duplicates, and omits repo-external absolute paths.
+- Arbiter failures, invalid JSON, non-zero exits, and timeouts now fall back cleanly to deterministic local ranking without corrupting `resume --json`.
+
+Upgrade notes:
+- Re-run `aictx install` and `aictx init` after upgrading so generated runner instructions and wrapper paths match the current runtime.
+- Entrypoint arbitration remains disabled unless one of the arbiter command environment variables is explicitly configured.
+- `loaded_context` is inspection/debugging metadata only; it explains selection but does not prove relevance or correctness.
 
 ---
 ## 6.0.0

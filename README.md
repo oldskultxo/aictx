@@ -12,7 +12,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.0.0`
+Current documented implementation: `6.1.0`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
@@ -198,7 +198,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.0.0` is:
+The stable repo-local continuity artifact contract in `6.1.0` is:
 
 ```text
 .aictx/continuity/session.json

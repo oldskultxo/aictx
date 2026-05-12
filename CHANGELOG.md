@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.1.0 - 2026-05-12
+
+### Added
+- Added top-level `loaded_context` to `aictx resume --json`, with bounded additive metadata for failures, handoffs, decisions, strategy reuse, and RepoMap hints.
+- Added `src/aictx/continuity/explain.py` to make loaded continuity selection explainable without a second unrelated retrieval pass.
+- Added official entrypoint-arbiter contracts and wrapper support for Codex, Claude, and generic adapters.
+- Added focused tests for explainable loaded context, request-sensitive handoff ranking, arbiter wrapper resolution, and fallback behavior.
+
+### Changed
+- `aictx resume` now supports configured runner-specific arbiter commands in addition to the generic `AICTX_ENTRYPOINT_ARBITER_COMMAND`.
+- Updated README, technical overview, usage, and limitations docs to describe explainable loaded context and optional advisory entrypoint arbitration.
+
+### Fixed
+- Handoff staleness explanation now accepts both `updated_at` and `timestamp`.
+- `loaded_context.related_paths` now converts repo-internal absolute paths to repo-relative form, removes duplicates, and omits repo-external absolute paths.
+- Arbiter invalid JSON, non-zero exits, and timeouts now fall back safely to deterministic local ranking without polluting `resume --json`.
+
 ## 6.0.0 - 2026-05-11
 
 ### Added
