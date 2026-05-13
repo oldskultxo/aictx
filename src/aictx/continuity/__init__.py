@@ -15,6 +15,7 @@ from ..contract_compliance import compact_previous_contract_result, persist_resu
 from ..context_planner import build_structural_entry_points
 from ..failures import FAILURE_PATTERNS_PATH, lookup_failures
 from ..repo_map.config import is_repomap_enabled
+from ..report import build_repo_map_report
 from ..state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
@@ -3014,14 +3015,24 @@ def _resume_strategy_text(strategy: dict[str, Any]) -> str:
 
 def _resume_structural_context(repo_root: Path, structural_entry_points: list[dict[str, Any]]) -> dict[str, Any]:
     enabled = False
+    status: dict[str, Any] = {}
     try:
         enabled = is_repomap_enabled(repo_root)
+        status = build_repo_map_report(repo_root)
     except Exception:
         enabled = False
+        status = {}
     count = len(structural_entry_points)
     return {
         "enabled": bool(enabled),
-        "available": bool(count),
+        "available": bool(status.get("query_available") or count),
+        "provider_available": bool(status.get("provider_available")),
+        "index_available": bool(status.get("index_available") or count),
+        "query_available": bool(status.get("query_available") or count),
+        "refresh_available": bool(status.get("refresh_available")),
+        "last_refresh_status": str(status.get("last_refresh_status") or "never"),
+        "files_indexed": int(status.get("files_indexed") or 0),
+        "symbols_indexed": int(status.get("symbols_indexed") or 0),
         "used": bool(count),
         "source": "repo_map",
         "entry_point_count": count,

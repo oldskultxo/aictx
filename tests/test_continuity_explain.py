@@ -68,17 +68,21 @@ def test_resume_loaded_context_explains_loaded_sources_in_priority_order(tmp_pat
     payload = build_resume_capsule(repo, request_text="fix startup import bug", task_type="bug_fixing", agent_id="codex")
 
     loaded = payload["loaded_context"]
-    assert [item["kind"] for item in loaded[:4]] == ["failure", "handoff", "decision", "strategy"]
+    assert [item["kind"] for item in loaded[:4]] == ["handoff", "failure", "strategy", "decision"]
     assert [item["rank"] for item in loaded] == list(range(1, len(loaded) + 1))
-    assert loaded[0]["source"] == ".aictx/failure_memory/failure_patterns.jsonl"
-    assert "task_type:bug_fixing" in loaded[0]["match_reasons"]
-    assert any(reason.startswith("path_overlap:src/aictx/middleware.py") for reason in loaded[0]["match_reasons"])
-    assert loaded[0]["confidence"] in {"medium", "high"}
-    assert loaded[1]["source_id"].startswith("handoff::")
-    assert "latest_handoff" in loaded[1]["match_reasons"]
-    assert any(reason.startswith("decision_related_path:src/aictx/middleware.py") for reason in loaded[2]["match_reasons"])
-    assert loaded[3]["source_id"] == "strategy-1"
-    assert any(reason.startswith("strategy_confidence:") for reason in loaded[3]["match_reasons"])
+    assert all(item["role"] in {"primary", "carryover", "caution", "background"} for item in loaded)
+    assert all(item["selection_reason"] for item in loaded)
+    assert loaded[0]["source_id"].startswith("handoff::")
+    assert loaded[0]["role"] == "carryover"
+    assert "latest_handoff" in loaded[0]["match_reasons"]
+    assert loaded[1]["source"] == ".aictx/failure_memory/failure_patterns.jsonl"
+    assert loaded[1]["role"] == "caution"
+    assert "task_type:bug_fixing" in loaded[1]["match_reasons"]
+    assert any(reason.startswith("path_overlap:src/aictx/middleware.py") for reason in loaded[1]["match_reasons"])
+    assert loaded[1]["confidence"] in {"medium", "high"}
+    assert loaded[2]["source_id"] == "strategy-1"
+    assert any(reason.startswith("strategy_confidence:") for reason in loaded[2]["match_reasons"])
+    assert any(reason.startswith("decision_related_path:src/aictx/middleware.py") for reason in loaded[3]["match_reasons"])
     assert all(item["kind"] != "repo_map" for item in loaded)
     assert all(not Path(path).is_absolute() for item in loaded for path in item["related_paths"])
 

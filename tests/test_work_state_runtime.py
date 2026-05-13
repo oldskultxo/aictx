@@ -141,6 +141,38 @@ def test_finalize_execution_with_failure_does_not_invent_verified(tmp_path: Path
     assert "Observed error: AssertionError: token stale" in state["risks"]
 
 
+def test_finalize_execution_carries_contract_gap_into_work_state(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / "tests").mkdir()
+    (repo / "tests/test_parser.py").write_text("def test_parser():\n    pass\n", encoding="utf-8")
+    prepared = prepare_execution({
+        **_payload(repo, "exec-contract-gap"),
+        "user_request": "fix parser",
+        "files_opened": ["tests/test_parser.py"],
+    })
+    prepared["resume_contract"] = {
+        "execution_contract": {
+            "task_goal": "fix parser",
+            "first_action": {"path": "tests/test_parser.py", "binding": "must_open_first"},
+            "edit_scope": {"primary": ["tests/test_parser.py"], "secondary_if_needed": []},
+            "test_command": {"command": "make test"},
+        },
+        "task_goal": "fix parser",
+    }
+
+    finalized = finalize_execution(prepared, {"success": True, "result_summary": "changed parser but did not run canonical test"})
+    state = load_work_state(repo, "contract-carryover-fix-parser")
+
+    assert finalized["contract_gaps"][0]["kind"] == "missing_validation"
+    assert finalized["work_state_updated"]["task_id"] == "contract-carryover-fix-parser"
+    assert state["status"] == "paused"
+    assert "Canonical test command was not observed." in state["unverified"]
+    assert "make test" in state["recommended_commands"]
+    assert state["next_action"] == "run expected validation command: make test"
+    assert "exec-contract-gap" in state["source_execution_ids"]
+
+
 def test_finalize_execution_accepts_explicit_work_state_patch(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)

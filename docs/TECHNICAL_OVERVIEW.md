@@ -45,7 +45,7 @@ prepare/startup context -> resume capsule -> execution -> finalize -> persist co
 | Repo scaffold | Creates `.aictx/` and managed runner files |
 | Runner integrations | Writes `AGENTS.md`, `CLAUDE.md`, and Claude hook configuration |
 | Internal runtime CLI | Provides `boot`, `prepare`, `finalize`, and `run-execution` |
-| Public CLI | Provides install/init/resume/advanced/cleanup commands plus compatible diagnostic commands |
+| Public CLI | Provides install/init/resume/finalize/doctor/advanced/cleanup commands plus compatible diagnostic commands |
 | Middleware | Loads continuity before work and records evidence after work |
 | Work State | Stores active suspended task state |
 | Failure Memory | Stores observed failure patterns |
@@ -56,6 +56,7 @@ prepare/startup context -> resume capsule -> execution -> finalize -> persist co
 | Execution Contract | Provides first action, edit scope, canonical test command, and finalize command |
 | Contract Compliance | Evaluates observed execution against the latest compatible resume contract |
 | Execution Summary | Produces factual final runtime output |
+| Doctor | Read-only support and release-readiness diagnostics |
 | Cleanup | Removes managed repo/global content |
 
 ---
@@ -131,7 +132,7 @@ In v6, `resume` also emits an execution contract: first action, edit scope, cano
 
 `aictx resume --json` includes a top-level `loaded_context` array.
 
-This is compact, additive-only metadata explaining why each continuity item was selected for the resume capsule. It can include failures, handoffs, decisions, strategy memory, and RepoMap hints, in that priority order. It does not remove, rename, or move existing resume fields such as `capsule`, `execution_contract`, `task_state`, `startup_guard`, or startup banner policy fields.
+This is compact, additive-only metadata explaining why each continuity item was selected for the resume capsule. It can include active Work State, unresolved carryover, failures, handoffs, decisions, strategy memory, and RepoMap hints. Active/carryover Work State is prioritized before completed handoffs. It does not remove, rename, or move existing resume fields such as `capsule`, `execution_contract`, `task_state`, `startup_guard`, or startup banner policy fields.
 
 Each entry includes:
 
@@ -141,6 +142,8 @@ source
 source_id
 summary
 match_reasons
+role
+selection_reason
 confidence
 staleness
 related_paths
@@ -491,6 +494,7 @@ Older context is treated as evidence, not truth:
 | Contract Compliance | `.aictx/metrics/contract_compliance.jsonl` | final summary, next resume, real-usage report |
 | Execution Summary | `agent_summary_text`, `last_execution_summary.md` | final response, next session |
 | Real usage report | metrics/memory artifacts | `report real-usage` |
+| Doctor diagnostics | repo/runtime artifacts | `doctor --json` |
 | Runner integrations | `AGENTS.md`, `CLAUDE.md`, `.claude/*` | Codex, Claude, generic agents |
 | Cleanup | managed blocks, registry, global files | `clean`, `uninstall` |
 
@@ -691,7 +695,21 @@ Artifacts:
 
 RepoMap provides structural hints. It is not semantic understanding and is not required for core continuity.
 
-In v6.2, RepoMap is also used by `resume` as a context-planning signal. Work State tells the agent what was happening; RepoMap tells it where to look first; Execution Contracts record whether the observed execution followed the suggested structural path when enough evidence exists.
+In v6.3, RepoMap status is explicit about separate capabilities:
+
+```text
+provider_available
+index_available
+query_available
+refresh_available
+last_refresh_status
+files_indexed
+symbols_indexed
+```
+
+This avoids treating `provider_available:false` as meaning no query can run. A previous index can remain queryable even when provider/refresh support is unavailable.
+
+RepoMap is also used by `resume` as a context-planning signal. Work State tells the agent what was happening; RepoMap tells it where to look first; Execution Contracts record whether the observed execution followed the suggested structural path when enough evidence exists.
 
 ---
 
@@ -737,6 +755,8 @@ It may include:
 - contract compliance history and aggregate rates.
 
 It is not a benchmark and does not prove productivity/token savings.
+
+`aictx doctor --repo . --json` is a read-only diagnostic for support and release readiness. It reports `status: ok|warning|error`, a bounded `checks` array, and `recommended_actions`. It checks CLI version, repo initialization, runner files, lifecycle smoke compatibility, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, stale/duplicate memory, and Makefile/CI compatibility. It is not part of normal agent startup.
 
 ---
 

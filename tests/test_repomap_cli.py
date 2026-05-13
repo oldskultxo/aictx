@@ -37,11 +37,34 @@ def test_map_status_works_when_no_map_exists(tmp_path: Path, capsys):
     assert payload == {
         "enabled": False,
         "available": False,
+        "provider_available": False,
+        "index_available": False,
+        "query_available": False,
+        "refresh_available": False,
         "provider": "tree_sitter",
         "files_indexed": 0,
         "symbols_indexed": 0,
         "last_refresh_status": "never",
     }
+
+
+def test_map_status_reports_queryable_index_without_provider(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    (repo / ".aictx" / "repo_map").mkdir(parents=True)
+    (repo / ".aictx" / "repo_map" / "config.json").write_text(json.dumps({"enabled": True}), encoding="utf-8")
+    (repo / ".aictx" / "repo_map" / "status.json").write_text(json.dumps({"available": False, "last_refresh_status": "skipped"}), encoding="utf-8")
+    (repo / ".aictx" / "repo_map" / "manifest.json").write_text(json.dumps({"files_indexed": 2, "symbols_indexed": 5}), encoding="utf-8")
+
+    parser = cli.build_parser()
+    args = parser.parse_args(["map", "status", "--repo", str(repo), "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["provider_available"] is False
+    assert payload["index_available"] is True
+    assert payload["query_available"] is True
+    assert payload["refresh_available"] is False
+    assert payload["available"] is True
 
 
 def test_map_query_no_index_returns_empty_list(tmp_path: Path, capsys):

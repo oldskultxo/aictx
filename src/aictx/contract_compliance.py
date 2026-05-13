@@ -74,6 +74,114 @@ def _human_issue(code: str) -> str:
     }.get(str(code or "").strip(), str(code or "").strip())
 
 
+def _gap(
+    kind: str,
+    *,
+    severity: str,
+    source_code: str,
+    summary: str,
+    next_action: str = "",
+    recommended_command: str = "",
+    related_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "kind": str(kind or "").strip(),
+        "severity": str(severity or "").strip() or "warning",
+        "source_code": str(source_code or "").strip(),
+        "summary": str(summary or "").strip(),
+        "next_action": str(next_action or "").strip(),
+        "recommended_command": str(recommended_command or "").strip(),
+        "related_paths": _clean_string_list(related_paths or [], limit=8),
+    }
+    return {key: value for key, value in payload.items() if value not in ("", [], None)}
+
+
+def contract_gaps_from_compliance(compliance: dict[str, Any]) -> list[dict[str, Any]]:
+    """Convert evaluated contract compliance into carryover gaps.
+
+    Pure helper: no repo reads/writes. The result is intentionally compact so
+    Work State can persist unresolved contract obligations without a new store.
+    """
+    payload = compliance if isinstance(compliance, dict) else {}
+    if str(payload.get("status") or "") not in {"partial", "violated"}:
+        return []
+    violations = [row for row in payload.get("violations", []) if isinstance(row, dict)] if isinstance(payload.get("violations"), list) else []
+    warnings = [row for row in payload.get("warnings", []) if isinstance(row, dict)] if isinstance(payload.get("warnings"), list) else []
+    issues = violations + warnings
+    issue_codes = {str(item.get("code") or "").strip() for item in issues}
+    by_code = {str(item.get("code") or "").strip(): item for item in issues}
+    gaps: list[dict[str, Any]] = []
+
+    if "canonical_test_not_observed" in issue_codes or "canonical_test_missing" in issue_codes:
+        source_code = "canonical_test_missing" if "canonical_test_missing" in issue_codes else "canonical_test_not_observed"
+        expected = str((payload.get("test_command") if isinstance(payload.get("test_command"), dict) else {}).get("expected") or "")
+        detail = str(by_code.get(source_code, {}).get("detail") or "Canonical validation was not observed.")
+        command_text = expected or str(by_code.get(source_code, {}).get("evidence") or "").strip()
+        gaps.append(
+            _gap(
+                "missing_validation",
+                severity="violation" if source_code == "canonical_test_missing" else "warning",
+                source_code=source_code,
+                summary=detail,
+                next_action=f"run expected validation command: {command_text}" if command_text else "run expected validation command",
+                recommended_command=command_text,
+            )
+        )
+
+    if "missing_first_action" in issue_codes:
+        expected = str((payload.get("first_action") if isinstance(payload.get("first_action"), dict) else {}).get("expected") or "")
+        gaps.append(
+            _gap(
+                "missing_first_action",
+                severity="violation",
+                source_code="missing_first_action",
+                summary=str(by_code.get("missing_first_action", {}).get("detail") or "Expected first action was not observed."),
+                next_action=f"inspect required first action: {expected}" if expected else "inspect required first action",
+                related_paths=[expected] if expected else [],
+            )
+        )
+
+    if "edit_outside_scope" in issue_codes:
+        edit_scope = payload.get("edit_scope") if isinstance(payload.get("edit_scope"), dict) else {}
+        outside = _clean_string_list(edit_scope.get("outside_scope"), limit=8)
+        gaps.append(
+            _gap(
+                "edit_outside_scope",
+                severity="violation",
+                source_code="edit_outside_scope",
+                summary="Edited files outside contract scope.",
+                next_action="review out-of-scope edits and run expected validation",
+                related_paths=outside,
+            )
+        )
+
+    if str(payload.get("structural_alignment") or "") == "ignored":
+        structural = payload.get("structural_entry_points") if isinstance(payload.get("structural_entry_points"), dict) else {}
+        expected_paths = _clean_string_list(structural.get("expected_first_files"), limit=8)
+        gaps.append(
+            _gap(
+                "structural_entrypoints_ignored",
+                severity="warning",
+                source_code="structural_alignment_ignored",
+                summary="Expected structural entry points were not inspected or edited.",
+                next_action="inspect expected structural entry points before continuing",
+                related_paths=expected_paths,
+            )
+        )
+
+    cleaned: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in gaps:
+        key = (str(item.get("kind") or ""), str(item.get("source_code") or ""))
+        if not item.get("kind") or key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(item)
+        if len(cleaned) >= 8:
+            break
+    return cleaned
+
+
 def _not_evaluated(task_goal: str = "", *, contract_present: bool = False, main_issue: str = "") -> dict[str, Any]:
     issue = str(main_issue or "").strip()
     if issue == "no_execution_observation":

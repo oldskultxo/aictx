@@ -7,8 +7,9 @@ from typing import Any
 from ..runtime_io import slugify
 from ..strategy_memory import strategy_reuse_confidence
 
-_KIND_PRIORITY = {"failure": 0, "handoff": 1, "decision": 2, "strategy": 3, "repo_map": 4}
+_KIND_PRIORITY = {"work_state": 0, "handoff": 1, "failure": 2, "strategy": 3, "decision": 4, "repo_map": 5}
 _SOURCE_BY_KIND = {
+    "work_state": ".aictx/tasks/active.json",
     "failure": ".aictx/failure_memory/failure_patterns.jsonl",
     "handoff": ".aictx/continuity/handoff.json",
     "decision": ".aictx/continuity/decisions.jsonl",
@@ -17,6 +18,7 @@ _SOURCE_BY_KIND = {
 }
 _MAX_DEFAULTS = {
     "total": 12,
+    "work_state": 1,
     "failure": 3,
     "handoff": 1,
     "decision": 3,
@@ -124,17 +126,61 @@ def _reason_decision_paths(paths: list[str], candidates: list[str]) -> list[str]
 
 
 def _normalize_item(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    reasons = _clean_string_list(payload.get("match_reasons"), limit=6)
+    selection_reason = _compact_text(payload.get("selection_reason"), "; ".join(reasons), limit=160)
     return {
         "kind": kind,
         "source": str(payload.get("source") or _SOURCE_BY_KIND[kind]),
         "source_id": str(payload.get("source_id") or f"{kind}::{slugify(payload.get('summary') or kind)[:48]}")[:120],
         "summary": _compact_text(payload.get("summary"), limit=160),
-        "match_reasons": _clean_string_list(payload.get("match_reasons"), limit=6),
+        "match_reasons": reasons,
+        "selection_reason": selection_reason,
         "confidence": str(payload.get("confidence") or "low"),
         "staleness": str(payload.get("staleness") or "unknown"),
+        "role": str(payload.get("role") or "background"),
         "related_paths": _clean_string_list(payload.get("related_paths"), limit=6),
         "rank": int(payload.get("rank") or 0),
     }
+
+
+def _work_state_items(repo_root: Path, *, context: dict[str, Any], candidate_paths: list[str], limit: int) -> list[dict[str, Any]]:
+    if limit <= 0:
+        return []
+    state = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
+    source_path = _SOURCE_BY_KIND["work_state"]
+    role = "primary"
+    if not state:
+        state = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
+        source_path = ".aictx/tasks/threads"
+        role = "carryover"
+    if not state:
+        return []
+    paths = _dedupe_paths(repo_root, state.get("active_files"), limit=6)
+    reasons = ["active_work_state" if role == "primary" else f"recent_work_state:{state.get('status') or 'unknown'}"]
+    reasons.extend(_reason_path_overlap(paths, candidate_paths))
+    if state.get("unverified"):
+        reasons.append("work_state_has_unverified")
+        role = "carryover"
+    if state.get("risks"):
+        reasons.append("work_state_has_risks")
+    summary = _compact_text(
+        state.get("next_action"),
+        _clean_string_list(state.get("unverified"), limit=1)[0] if _clean_string_list(state.get("unverified"), limit=1) else "",
+        state.get("goal"),
+        state.get("task_id"),
+    )
+    confidence = "high" if role == "primary" or any(reason.startswith("path_overlap:") for reason in reasons) else "medium"
+    return [_normalize_item("work_state", {
+        "source": source_path,
+        "source_id": f"work_state::{state.get('task_id') or 'active'}",
+        "summary": summary,
+        "match_reasons": reasons,
+        "selection_reason": "active Work State before memory" if role == "primary" else "unresolved Work State carryover before completed handoff",
+        "confidence": confidence,
+        "staleness": _staleness_label(state.get("updated_at")),
+        "role": role,
+        "related_paths": paths,
+    })]
 
 
 def _failure_confidence(reasons: list[str], row: dict[str, Any]) -> str:
@@ -205,6 +251,7 @@ def _failure_items(
             "match_reasons": reasons,
             "confidence": _failure_confidence(reasons, row),
             "staleness": _staleness_label(row.get("timestamp")),
+            "role": "caution",
             "related_paths": paths,
         }))
     return rows
@@ -227,6 +274,9 @@ def _handoff_items(
     elif paths:
         reasons.append("handoff_has_starting_points")
     confidence = "high" if any(reason.startswith("path_overlap:") for reason in reasons) or any(reason.startswith("handoff_has_") for reason in reasons[1:]) else "medium"
+    status = str(handoff.get("status") or "").strip().lower()
+    completed = status in {"resolved", "completed", "success"} or (not status and bool(_clean_string_list(handoff.get("completed"), limit=1)))
+    role = "background" if completed and not any(reason.startswith("path_overlap:") for reason in reasons) else "carryover"
     return [_normalize_item("handoff", {
         "source": _SOURCE_BY_KIND["handoff"],
         "source_id": f"handoff::{str(handoff.get('source_execution_id') or handoff.get('updated_at') or handoff.get('timestamp') or 'latest').strip()}",
@@ -234,6 +284,7 @@ def _handoff_items(
         "match_reasons": reasons,
         "confidence": confidence,
         "staleness": _staleness_label(handoff.get("updated_at") or handoff.get("timestamp")),
+        "role": role,
         "related_paths": paths,
     })]
 
@@ -264,6 +315,7 @@ def _decision_items(
             "match_reasons": reasons,
             "confidence": confidence,
             "staleness": _staleness_label(row.get("timestamp")),
+            "role": "background",
             "related_paths": paths,
         }))
     return rows
@@ -287,6 +339,7 @@ def _strategy_items(
         "match_reasons": reasons,
         "confidence": confidence if confidence in {"low", "medium", "high"} else "low",
         "staleness": _staleness_label(selected_strategy.get("timestamp")),
+        "role": "primary" if confidence in {"high", "medium"} else "background",
         "related_paths": _dedupe_paths(repo_root, selected_strategy.get("entry_points"), selected_strategy.get("files_used"), selected_strategy.get("files_edited"), [selected_strategy.get("primary_entry_point")], limit=6),
     })]
 
@@ -308,6 +361,7 @@ def _repo_map_items(repo_root: Path, *, repo_map_items: list[dict[str, Any]], li
             "match_reasons": reasons,
             "confidence": _repo_map_confidence(reasons),
             "staleness": "unknown",
+            "role": "primary" if _repo_map_confidence(reasons) in {"high", "medium"} else "background",
             "related_paths": paths,
         }))
     return rows
@@ -343,13 +397,19 @@ def build_loaded_context_metadata(
     candidate_paths = _dedupe_paths(repo_root, [first_action_path], entry_points, limit=8)
 
     items: list[dict[str, Any]] = []
+    items.extend(_work_state_items(repo_root, context=context, candidate_paths=candidate_paths, limit=caps["work_state"]))
     items.extend(_failure_items(repo_root, failures=context.get("failures", []) if isinstance(context.get("failures"), list) else [], task_type=str(task_type or ""), area_id=str(area_id or ""), candidate_paths=candidate_paths, limit=caps["failure"]))
     items.extend(_handoff_items(repo_root, handoff=context.get("handoff", {}) if isinstance(context.get("handoff"), dict) else {}, candidate_paths=candidate_paths, limit=caps["handoff"]))
     items.extend(_decision_items(repo_root, decisions=context.get("decisions", []) if isinstance(context.get("decisions"), list) else [], candidate_paths=candidate_paths, limit=caps["decision"]))
     items.extend(_strategy_items(repo_root, selected_strategy=strategy if isinstance(strategy, dict) else {}, limit=caps["strategy"]))
     items.extend(_repo_map_items(repo_root, repo_map_items=repo_map, limit=caps["repo_map"]))
 
-    items.sort(key=lambda item: (_KIND_PRIORITY.get(str(item.get("kind") or "repo_map"), 99), -len(item.get("match_reasons", [])), str(item.get("source_id") or "")))
+    items.sort(key=lambda item: (
+        1 if str(item.get("role") or "") == "background" else 0,
+        _KIND_PRIORITY.get(str(item.get("kind") or "repo_map"), 99),
+        -len(item.get("match_reasons", [])),
+        str(item.get("source_id") or ""),
+    ))
     bounded = items[: caps["total"]]
     for index, item in enumerate(bounded, start=1):
         item["rank"] = index

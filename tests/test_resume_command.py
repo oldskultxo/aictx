@@ -371,6 +371,8 @@ def test_resume_active_work_state_drives_task_state(tmp_path: Path, capsys):
     assert payload["execution_contract"]["contract_strength"] == "strict"
     assert payload["capsule"]["next_action"] == "inspect src/aictx/continuity.py"
     assert payload["capsule"]["first_action"]["path"] == "src/aictx/continuity.py"
+    assert payload["loaded_context"][0]["kind"] == "work_state"
+    assert payload["loaded_context"][0]["role"] == "primary"
 
 
 def test_resume_first_action_prefers_tests_for_implementation_task(tmp_path: Path, capsys):
@@ -1119,6 +1121,29 @@ def test_resume_completed_previous_task_is_background(tmp_path: Path, capsys):
     assert payload["capsule"]["next_action"] != "continue old task"
 
 
+def test_resume_paused_work_state_carryover_wins_over_completed_handoff(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    start_work_state(
+        repo,
+        "Validate parser carryover",
+        initial={"unverified": ["Canonical test command was not observed."], "next_action": "run expected validation command: make test"},
+    )
+    close_work_state(repo, status="paused")
+    write_json(repo / HANDOFF_PATH, {"status": "completed", "summary": "Old handoff finished.", "completed": ["old done"], "next_steps": ["continue old task"]})
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "continue parser validation", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["task_state"]["status"] == "blocked"
+    assert payload["capsule"]["next_action"] == "run expected validation command: make test"
+    assert payload["loaded_context"][0]["kind"] == "work_state"
+    assert payload["loaded_context"][0]["role"] == "carryover"
+    assert payload["loaded_context"][0]["selection_reason"]
+    assert any(item["kind"] == "handoff" and item["role"] == "background" for item in payload["loaded_context"])
+
+
 def test_resume_missing_entry_point_lowers_confidence_and_uses_fallback(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -1222,7 +1247,7 @@ def test_top_level_help_hides_advanced_commands(capsys):
     assert "resume" in output
     assert "finalize" in output
     assert "advanced" in output
-    assert "{install,init,resume,finalize,advanced,clean,uninstall}" in output
+    assert "{install,init,resume,finalize,doctor,advanced,clean,uninstall}" in output
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert f"    {command}" not in output
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.3.0 - 2026-05-13
+
+### Added
+- Added contract-gap carryover from `contract_compliance` into Work State using existing `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids` fields.
+- Added `loaded_context.role` and `selection_reason` metadata so `resume --json` distinguishes primary context, carryover, cautions, and background.
+- Added explicit RepoMap status fields: `provider_available`, `index_available`, `query_available`, `refresh_available`, `last_refresh_status`, `files_indexed`, and `symbols_indexed`.
+- Added public read-only diagnostics with `aictx doctor --repo . --json`.
+
+### Changed
+- Promoted `make ci` as the canonical release-readiness gate with tests, smoke, package build, clean wheel install, and installed-version verification.
+- Updated `resume` relevance so active/paused Work State and unresolved contract gaps outrank completed handoffs and generic strategy memory.
+- Updated `aictx map status --json`, `report real-usage`, and `resume.structural_context` to report queryable indexes separately from provider refresh availability.
+
+### Fixed
+- Prevented missing canonical validation, missing first action, out-of-scope edits, and ignored structural entry points from disappearing after `finalize`.
+- Kept smoke lifecycle on `--task` and guarded release readiness against falling back to legacy `--request`.
+
 ## 6.2.0 - 2026-05-12
 
 ### Added

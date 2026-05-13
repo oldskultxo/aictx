@@ -160,12 +160,25 @@ def build_repo_map_report(repo_root: Path) -> dict[str, Any]:
     config = read_json(repo_root / REPO_MAP_CONFIG_PATH, {})
     status = read_json(repo_root / REPO_MAP_STATUS_PATH, {})
     manifest = read_json(repo_root / REPO_MAP_MANIFEST_PATH, {})
+    cfg = config if isinstance(config, dict) else {}
+    stat = status if isinstance(status, dict) else {}
+    mani = manifest if isinstance(manifest, dict) else {}
+    files_indexed = int(mani.get("files_indexed", 0) or 0)
+    symbols_indexed = int(mani.get("symbols_indexed", 0) or 0)
+    provider_available = bool(stat.get("available", False))
+    index_available = files_indexed > 0 or symbols_indexed > 0
+    query_available = bool(index_available)
+    refresh_available = bool(provider_available)
     return {
-        "enabled": bool((config if isinstance(config, dict) else {}).get("enabled", False)),
-        "available": bool((status if isinstance(status, dict) else {}).get("available", False)),
-        "files_indexed": int((manifest if isinstance(manifest, dict) else {}).get("files_indexed", 0) or 0),
-        "symbols_indexed": int((manifest if isinstance(manifest, dict) else {}).get("symbols_indexed", 0) or 0),
-        "last_refresh_status": str((status if isinstance(status, dict) else {}).get("last_refresh_status") or "never"),
+        "enabled": bool(cfg.get("enabled", False)),
+        "available": bool(query_available),
+        "provider_available": provider_available,
+        "index_available": index_available,
+        "query_available": query_available,
+        "refresh_available": refresh_available,
+        "files_indexed": files_indexed,
+        "symbols_indexed": symbols_indexed,
+        "last_refresh_status": str(stat.get("last_refresh_status") or "never"),
     }
 
 

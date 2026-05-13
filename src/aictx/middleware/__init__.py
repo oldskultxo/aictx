@@ -12,7 +12,7 @@ from typing import Any
 from .. import core_runtime
 from ..area_memory import area_hints, derive_area_id, update_area_memory
 from ..adapters import resolve_adapter_profile
-from ..contract_compliance import append_contract_compliance, evaluate_contract_compliance, load_persisted_resume_contract
+from ..contract_compliance import append_contract_compliance, contract_gaps_from_compliance, evaluate_contract_compliance, load_persisted_resume_contract
 from ..continuity import (
     AICTX_TEXT_SEPARATOR,
     RESUME_CAPSULE_JSON_PATH,
@@ -1537,6 +1537,40 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "compact_summary": str(contract_compliance.get("compact_summary") or ""),
     }
     prepared["contract_compliance"] = contract_compliance
+    contract_gaps = contract_gaps_from_compliance(contract_compliance)
+    prepared["contract_gaps"] = contract_gaps
+    if contract_gaps:
+        existing_work_state = normalized_result.get("work_state") if isinstance(normalized_result.get("work_state"), dict) else {}
+        work_patch = dict(existing_work_state)
+        task_goal = str(contract_compliance.get("task_goal") or prepared.get("envelope", {}).get("user_request") or "contract carryover").strip()
+        execution_id = str(prepared.get("envelope", {}).get("execution_id") or "").strip()
+        work_patch.setdefault("task_id", f"contract-carryover-{slugify(task_goal or execution_id or 'task')[:60]}")
+        work_patch.setdefault("goal", task_goal)
+        severe = any(str(gap.get("severity") or "") == "violation" for gap in contract_gaps)
+        if normalized_result["success"]:
+            work_patch["status"] = "paused"
+        elif severe:
+            work_patch["status"] = str(work_patch.get("status") or "blocked")
+        else:
+            work_patch["status"] = str(work_patch.get("status") or "paused")
+        unverified = [str(gap.get("summary") or gap.get("kind") or "").strip() for gap in contract_gaps]
+        risks = [
+            f"Contract gap: {gap.get('summary') or gap.get('kind')}"
+            for gap in contract_gaps
+            if str(gap.get("severity") or "") == "violation"
+        ]
+        recommended = [str(gap.get("recommended_command") or "").strip() for gap in contract_gaps if str(gap.get("recommended_command") or "").strip()]
+        next_actions = [str(gap.get("next_action") or "").strip() for gap in contract_gaps if str(gap.get("next_action") or "").strip()]
+        work_patch["unverified"] = list(work_patch.get("unverified", []) or []) + [item for item in unverified if item]
+        if risks:
+            work_patch["risks"] = list(work_patch.get("risks", []) or []) + risks
+        if recommended:
+            work_patch["recommended_commands"] = list(work_patch.get("recommended_commands", []) or []) + recommended
+        if next_actions and not str(work_patch.get("next_action") or "").strip():
+            work_patch["next_action"] = next_actions[0]
+        if execution_id:
+            work_patch["source_execution_ids"] = list(work_patch.get("source_execution_ids", []) or []) + [execution_id]
+        normalized_result["work_state"] = work_patch
     if str(contract_compliance.get("status") or "") in {"followed", "partial", "violated"}:
         prepared["contract_compliance_row"] = append_contract_compliance(repo_root, contract_row)
     else:
@@ -1633,6 +1667,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "aictx_feedback": aictx_feedback,
         "contract_adherence": agent_summary["structured"].get("contract_adherence", {}),
         "contract_compliance": contract_compliance,
+        "contract_gaps": contract_gaps,
         "feedback_persisted": persisted_feedback,
         "handoff_persisted": handoff,
         "decisions_persisted": decisions,

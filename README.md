@@ -12,7 +12,7 @@ Install it once, initialize the repo, then keep using your coding agent normally
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.2.0`
+Current documented implementation: `6.3.0`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
@@ -130,9 +130,9 @@ After work, supported agents finalize factual evidence:
 aictx finalize --repo . --status success|failure --summary "<what happened>" --json
 ```
 
-In JSON mode, `resume` also includes bounded `loaded_context` metadata that explains why failures, handoffs, decisions, strategies, and RepoMap hints were selected. It is additive inspection/debugging metadata, not proof of correctness and not hidden agent reasoning.
+In JSON mode, `resume` also includes bounded `loaded_context` metadata that explains why Work State, carryover, failures, handoffs, decisions, strategies, and RepoMap hints were selected. Each item includes role/relevance metadata such as `role`, `selection_reason`, `confidence`, `staleness`, and `related_paths`. It is additive inspection/debugging metadata, not proof of correctness and not hidden agent reasoning.
 
-When RepoMap is enabled and indexed, `resume` can also include compact `structural_entry_points` and `structural_context`. Execution contracts may include `expected_first_files`, and finalize can record `structural_alignment`. RepoMap remains optional; AICTX continues to work without it.
+When RepoMap is enabled and indexed, `resume` can also include compact `structural_entry_points` and `structural_context`. RepoMap status separates provider, index, query, and refresh availability, so an existing index can remain queryable even if the provider is unavailable. Execution contracts may include `expected_first_files`, and finalize can record `structural_alignment`. RepoMap remains optional; AICTX continues to work without it.
 
 The runtime loop is:
 
@@ -154,6 +154,8 @@ Technical integrations can also use wrapped/internal execution surfaces. See [Te
 | **Strategy Memory** | Reuses successful prior execution patterns | Known-good approaches can be suggested again |
 | **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
 | **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
+| **Contract Compliance** | Audits first action, edit scope, validation, and structural alignment | Gaps can carry over into Work State instead of disappearing |
+| **Doctor** | Read-only repo/runtime diagnostic with `aictx doctor --repo . --json` | Support and release readiness have one stable entry point |
 | **Resume capsule** | Compiles continuity into one agent brief | Agents do not need to discover AICTX internals at startup |
 
 ---
@@ -202,7 +204,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.2.0` is:
+The stable repo-local continuity artifact contract in `6.3.0` is:
 
 ```text
 .aictx/continuity/session.json
@@ -212,10 +214,12 @@ The stable repo-local continuity artifact contract in `6.2.0` is:
 .aictx/continuity/dedupe_report.json
 .aictx/continuity/staleness.json
 .aictx/continuity/continuity_metrics.json
+.aictx/continuity/contracts/*
 .aictx/strategy_memory/strategies.jsonl
 .aictx/failure_memory/failure_patterns.jsonl
 .aictx/metrics/execution_logs.jsonl
 .aictx/metrics/execution_feedback.jsonl
+.aictx/metrics/contract_compliance.jsonl
 .aictx/tasks/active.json
 .aictx/tasks/threads/*
 ```
@@ -256,6 +260,7 @@ Core concepts:
 - [Handoffs and Decisions](docs/HANDOFFS.md)
 - [Execution Summary](docs/EXECUTION_SUMMARY.md)
 - [Execution Contracts and Compliance](docs/EXECUTION_CONTRACTS.md)
+- [Doctor diagnostics](docs/DOCTOR.md)
 
 Operations and trust:
 

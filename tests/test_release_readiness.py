@@ -49,6 +49,7 @@ def test_ci_workflow_delegates_release_readiness_to_make_ci():
     assert "wheel-install-check" in ci_target.split(":", 1)[1].split()
     assert "tomllib" in wheel_recipe
     assert 'dist/aictx-" + tomllib.loads' in wheel_recipe
+    assert "--version" in wheel_recipe
     assert "run: make ci PYTHON=python" in workflow
     assert "name: Smoke flow" not in workflow
     assert "aictx internal execution prepare" not in workflow

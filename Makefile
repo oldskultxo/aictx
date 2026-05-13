@@ -49,6 +49,7 @@ wheel-install-check: check-python package-check
 	$(PYTHON) -m venv "$$TMP_VENV"; \
 	"$$TMP_VENV/bin/python" -m pip install --upgrade pip; \
 	"$$TMP_VENV/bin/python" -m pip install "$$WHEEL_PATH"; \
+	test "$$("$$TMP_VENV/bin/aictx" --version)" = "aictx $$( $(PYTHON) -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])' )"; \
 	"$$TMP_VENV/bin/aictx" --help >/dev/null; \
 	TMP_REPO="$$(mktemp -d)"; \
 	"$$TMP_VENV/bin/aictx" init --repo "$$TMP_REPO" --yes --no-register; \

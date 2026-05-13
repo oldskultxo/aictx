@@ -23,6 +23,7 @@ from ..middleware import cli_finalize_execution, cli_prepare_execution, finalize
 from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
 from ..portability import detect_portable_continuity_from_gitignore, load_portability_state
 from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
+from ..doctor import build_doctor_report
 from ..runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from ..runtime_launcher import cli_run_execution
 from ..runtime_compact import compact_repo_records
@@ -570,15 +571,42 @@ def cmd_advanced(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = build_doctor_report(repo)
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+        return 0
+    print("AICTX doctor")
+    print(f"- status: {payload['status']}")
+    print(f"- version: {payload['version']}")
+    for check in payload.get("checks", []):
+        if isinstance(check, dict):
+            print(f"- {check.get('name')}: {check.get('status')} — {check.get('summary')}")
+    if payload.get("recommended_actions"):
+        print("Recommended actions")
+        for action in payload["recommended_actions"]:
+            print(f"- {action}")
+    return 0
+
+
 def _repomap_status_payload(repo: Path) -> dict[str, Any]:
     config = load_repomap_config(repo)
     status = load_repomap_status(repo)
     manifest = load_repomap_manifest(repo)
     files_indexed = int(manifest.get("files_indexed", 0)) if isinstance(manifest, dict) else 0
     symbols_indexed = int(manifest.get("symbols_indexed", 0)) if isinstance(manifest, dict) else 0
+    provider_available = bool(status.get("available", False))
+    index_available = files_indexed > 0 or symbols_indexed > 0
+    query_available = bool(index_available)
+    refresh_available = bool(provider_available)
     return {
-        "enabled": bool(status.get("enabled", config.get("enabled", False))),
-        "available": bool(status.get("available", False)),
+        "enabled": bool(config.get("enabled", False) or status.get("enabled", False)),
+        "available": query_available,
+        "provider_available": provider_available,
+        "index_available": index_available,
+        "query_available": query_available,
+        "refresh_available": refresh_available,
         "provider": str(status.get("provider") or config.get("provider") or "tree_sitter"),
         "files_indexed": files_indexed,
         "symbols_indexed": symbols_indexed,
@@ -595,6 +623,10 @@ def cmd_map_status(args: argparse.Namespace) -> int:
     print("AICTX map status")
     print(f"- enabled: {payload['enabled']}")
     print(f"- available: {payload['available']}")
+    print(f"- provider_available: {payload['provider_available']}")
+    print(f"- index_available: {payload['index_available']}")
+    print(f"- query_available: {payload['query_available']}")
+    print(f"- refresh_available: {payload['refresh_available']}")
     print(f"- provider: {payload['provider']}")
     print(f"- files_indexed: {payload['files_indexed']}")
     print(f"- symbols_indexed: {payload['symbols_indexed']}")
@@ -1149,7 +1181,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,finalize,advanced,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,finalize,doctor,advanced,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1213,6 +1245,11 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     advanced.set_defaults(func=cmd_advanced)
+
+    doctor = sub.add_parser("doctor", help="Run read-only AICTX repo diagnostics")
+    doctor.add_argument("--repo", default=".", help="Repository root")
+    doctor.add_argument("--json", action="store_true", help="Print diagnostic report as JSON")
+    doctor.set_defaults(func=cmd_doctor)
 
     suggest = sub.add_parser("suggest", help=argparse.SUPPRESS)
     suggest.add_argument("--repo", default=".", help="Repository root")

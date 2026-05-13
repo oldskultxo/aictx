@@ -72,6 +72,18 @@ These commands are available for inspection and advanced control. In normal supp
 
 Automatic updates stay conservative.
 
+In v6.3, unresolved contract compliance gaps can also carry over into Work State after finalize. AICTX reuses existing Work State fields instead of adding a new store:
+
+```text
+unverified
+risks
+recommended_commands
+next_action
+source_execution_ids
+```
+
+For example, a successful execution that did not observe the canonical validation command can be saved as `status: paused` with `next_action: run expected validation command`. The next `resume` should surface that carryover before completed handoffs.
+
 ---
 
 ## Branch-safe loading

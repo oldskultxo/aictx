@@ -99,6 +99,15 @@ Previous contract: followed.
 
 The default resume should not include verbose audit evidence.
 
+In v6.3, unresolved contract gaps can also become Work State carryover. The minimum gap types are:
+
+- `missing_validation`
+- `missing_first_action`
+- `edit_outside_scope`
+- `structural_entrypoints_ignored`
+
+They are saved through existing Work State fields such as `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids`. This means a successful execution with pending validation can pause the Work State for the next `resume` instead of being hidden behind a completed handoff.
+
 ---
 
 ## What compliance does not do

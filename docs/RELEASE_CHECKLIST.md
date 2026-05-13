@@ -22,6 +22,7 @@
 - [ ] Communication mode is documented under init, not install
 - [ ] Cleanup is documented
 - [ ] Technical overview covers all runtime capabilities
+- [ ] `aictx doctor --repo . --json` reflects release diagnostics without modifying repo state
 - [ ] Docs distinguish `internal boot` diagnostic output from user-visible startup banner
 - [ ] Strategy Memory and Handoffs have dedicated docs if listed as README core concepts
 - [ ] Limitations remain honest
@@ -44,4 +45,5 @@
 ```bash
 python -m pytest -q
 python -m build
+aictx doctor --repo . --json
 ```

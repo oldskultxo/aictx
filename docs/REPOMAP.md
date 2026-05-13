@@ -21,8 +21,11 @@ It can expose:
 - indexed files;
 - indexed symbols;
 - structural query matches;
-- refresh status;
-- provider availability.
+- provider availability;
+- index availability;
+- query availability;
+- refresh availability;
+- last refresh status.
 
 Commands:
 
@@ -68,7 +71,21 @@ aictx init
 Check status:
 
 ```bash
-aictx map status
+aictx map status --json
+```
+
+Status separates provider/refresh capability from index/query capability:
+
+```json
+{
+  "provider_available": false,
+  "index_available": true,
+  "query_available": true,
+  "refresh_available": false,
+  "last_refresh_status": "skipped",
+  "files_indexed": 167,
+  "symbols_indexed": 1665
+}
 ```
 
 ---
@@ -98,7 +115,7 @@ RepoMap may create:
 .aictx/repo_map/status.json
 ```
 
-If Tree-sitter support is unavailable, RepoMap can remain disabled or unavailable while the rest of AICTX still works.
+If Tree-sitter support is unavailable, RepoMap refresh can remain unavailable while the rest of AICTX still works. If a prior index exists, query can still be available even when provider/refresh is not.
 
 ---
 

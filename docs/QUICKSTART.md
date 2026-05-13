@@ -20,6 +20,7 @@ Optional install check:
 
 ```bash
 aictx --version
+aictx doctor --repo . --json
 ```
 
 Explicit form:
@@ -86,6 +87,8 @@ RepoMap is optional. Core continuity works without it.
 
 When enabled and indexed, `aictx resume --repo . --task "<goal>"` may show compact structural entry points. Work State tells the agent what was happening; RepoMap tells it where to look first. Execution Contracts can later record whether observed files aligned with those suggested entry points.
 
+`aictx map status --json` separates provider availability from index/query availability. This avoids the ambiguous case where a provider is unavailable but an existing index can still answer queries.
+
 ---
 
 ## 5. What supported agents should do
@@ -105,6 +108,8 @@ use agent_summary_text as the factual final summary source
 `resume` does not replace prepare/finalize, the startup banner, the final AICTX summary, or persistence. It compiles continuity so the agent does not discover AICTX internals at startup.
 
 When observable execution evidence is available, finalize can add a compact contract compliance line such as `Contract: followed.` or `Contract: partial — canonical test was not observed.`.
+
+When a contract gap remains unresolved, finalize can carry it into Work State as `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids`, so the next `resume` sees the pending work before old completed handoffs.
 
 The user does not need to call internal commands in normal use.
 

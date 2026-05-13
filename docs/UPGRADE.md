@@ -1,8 +1,8 @@
 # Upgrade guide
 
-## Current line: 6.2.x
+## Current line: 6.3.x
 
-Current documented runtime: `6.2.0`.
+Current documented runtime: `6.3.0`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -10,6 +10,23 @@ For users already on recent `4.x` or `5.x`, there is no special data migration c
 aictx install
 aictx init
 ```
+
+---
+## 6.3.0
+
+`6.3.0` hardens the repo-local continuity loop: release readiness, contract-gap carryover, resume relevance, RepoMap status clarity, and read-only diagnostics.
+
+Added:
+- Contract compliance gaps carry over into Work State as `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids`.
+- `aictx resume --json` explains loaded context with `role`, `selection_reason`, `confidence`, `staleness`, and `related_paths`.
+- RepoMap status separates provider, index, query, and refresh availability.
+- Public read-only `aictx doctor --repo . --json` diagnostic report.
+- `make ci` remains the canonical release gate, including clean wheel install/version checks.
+
+Upgrade notes:
+- No external Jira, Confluence, Slack, email, cloud cache, hosted dashboard, or external RAG integrations are added in this line.
+- No new carryover store is required; Work State remains the source for unresolved continuation.
+- Re-run `aictx install` and `aictx init` after upgrading so generated runtime instructions match the current runtime.
 
 ---
 ## 6.2.0

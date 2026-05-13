@@ -28,9 +28,9 @@ aictx resume --repo . --task "<task goal>" --json
 
 `resume` compiles Work State, handoffs, last summary, Strategy Memory, Failure Memory, Decisions, RepoMap, previous contract signals, and an execution contract into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
 
-In JSON mode, `resume` also includes top-level `loaded_context` metadata. This bounded, additive-only array explains why context was selected, for agent/user inspection and debugging. It can mention failures, handoffs, decisions, strategies, and RepoMap hints. It is not proof of correctness, does not expose hidden reasoning, and does not replace the execution contract.
+In JSON mode, `resume` also includes top-level `loaded_context` metadata. This bounded, additive-only array explains why context was selected, for agent/user inspection and debugging. It can mention active Work State, unresolved carryover, failures, handoffs, decisions, strategies, and RepoMap hints. Items include `role`, `selection_reason`, `confidence`, `staleness`, and `related_paths`. It is not proof of correctness, does not expose hidden reasoning, and does not replace the execution contract.
 
-When RepoMap is enabled and indexed, `resume` can also include `structural_entry_points` and `structural_context`. These are bounded structural hints for where to look first. Execution contracts may include `expected_first_files`, and finalize/contract compliance can record `structural_alignment`. RepoMap remains optional; missing or unavailable RepoMap data does not block resume.
+When RepoMap is enabled and indexed, `resume` can also include `structural_entry_points` and `structural_context`. These are bounded structural hints for where to look first. RepoMap status separates `provider_available`, `index_available`, `query_available`, and `refresh_available`. Execution contracts may include `expected_first_files`, and finalize/contract compliance can record `structural_alignment`. RepoMap remains optional; missing refresh/provider support does not block resume when a queryable index exists.
 
 The normal startup banner source is `resume.startup_banner_text` or `resume.startup_banner_render_payload`. In wrapped execution flows, the source remains `prepare_execution().startup_banner_text`.
 
@@ -62,6 +62,7 @@ aictx resume --repo . --task "continue current work" --json
 aictx next
 aictx task status --json
 aictx map status
+aictx doctor --repo . --json
 aictx report real-usage
 ```
 
@@ -93,10 +94,33 @@ aictx task close --status resolved --json
 aictx map status
 aictx map refresh
 aictx map query "startup banner"
+aictx doctor --repo . --json
 aictx report real-usage
 aictx clean --repo .
 aictx uninstall
 ```
+
+---
+
+## Doctor diagnostics
+
+`aictx doctor` is a read-only support and release-readiness diagnostic.
+
+```bash
+aictx doctor --repo . --json
+```
+
+The JSON response has:
+
+```text
+status: ok|warning|error
+checks: [...]
+recommended_actions: [...]
+```
+
+Checks include CLI version, repo initialization, runner files, lifecycle smoke compatibility, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, stale/duplicate memory, and Makefile/CI compatibility.
+
+`doctor` is for humans, support, and CI diagnostics. Normal agents should not call it during startup.
 
 ---
 
