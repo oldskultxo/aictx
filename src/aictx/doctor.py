@@ -87,8 +87,13 @@ def _memory_hygiene_snapshot(repo: Path) -> dict[str, Any]:
     }
 
 
-def build_doctor_report(repo_root: Path) -> dict[str, Any]:
-    """Build a read-only support/release-readiness diagnostic report."""
+def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> dict[str, Any]:
+    """Build a read-only diagnostic report.
+
+    Default mode is a general user-repo health check. ``release_readiness``
+    enables stricter checks that are specific to this aictx repository release
+    gate, such as Makefile/CI contract enforcement.
+    """
     repo = Path(repo_root).expanduser().resolve()
     checks: list[dict[str, Any]] = []
     recommended_actions: list[str] = []
@@ -125,22 +130,27 @@ def build_doctor_report(repo_root: Path) -> dict[str, Any]:
         "uses_request_flag": "--request" in makefile,
         "ci_delegates_to_make_ci": "make ci" in ci_workflow,
     }
-    lifecycle_ok = bool(makefile) and lifecycle_details["uses_task_flag"] and not lifecycle_details["uses_request_flag"]
-    checks.append(_check(
-        "lifecycle_smoke_compatibility",
-        "ok" if lifecycle_ok else "error",
-        "smoke lifecycle uses --task" if lifecycle_ok else "smoke lifecycle is not aligned with --task",
-        details=lifecycle_details,
-        recommended_action="update Makefile smoke lifecycle to use aictx resume --task and remove --request" if not lifecycle_ok else "",
-    ))
-    make_ci_ok = bool(makefile) and "ci:" in makefile and "make ci" in ci_workflow
-    checks.append(_check(
-        "makefile_ci_compatibility",
-        "ok" if make_ci_ok else "warning",
-        "CI delegates release gate to make ci" if make_ci_ok else "make ci is not clearly the canonical CI/release gate",
-        details={"makefile_has_ci_target": "ci:" in makefile, "workflow_mentions_make_ci": "make ci" in ci_workflow},
-        recommended_action="make GitHub Actions call make ci and keep release readiness in Makefile" if not make_ci_ok else "",
-    ))
+    lifecycle_has_old_request = bool(makefile) and lifecycle_details["uses_request_flag"]
+    lifecycle_ok = bool(makefile) and lifecycle_details["uses_task_flag"] and not lifecycle_has_old_request
+    if release_readiness or bool(makefile):
+        checks.append(_check(
+            "lifecycle_smoke_compatibility",
+            "ok" if lifecycle_ok else ("error" if release_readiness else "warning"),
+            "smoke lifecycle uses --task" if lifecycle_ok else (
+                "smoke lifecycle is not aligned with --task" if bool(makefile) else "Makefile smoke lifecycle is not present"
+            ),
+            details=lifecycle_details,
+            recommended_action="update Makefile smoke lifecycle to use aictx resume --task and remove --request" if bool(makefile) and not lifecycle_ok else "",
+        ))
+    if release_readiness:
+        make_ci_ok = bool(makefile) and "ci:" in makefile and "make ci" in ci_workflow
+        checks.append(_check(
+            "makefile_ci_compatibility",
+            "ok" if make_ci_ok else "warning",
+            "CI delegates release gate to make ci" if make_ci_ok else "make ci is not clearly the canonical CI/release gate",
+            details={"makefile_has_ci_target": "ci:" in makefile, "workflow_mentions_make_ci": "make ci" in ci_workflow},
+            recommended_action="make GitHub Actions call make ci and keep release readiness in Makefile" if not make_ci_ok else "",
+        ))
 
     repo_map = build_repo_map_report(repo)
     repo_map_ok = bool(repo_map.get("query_available")) or not bool(repo_map.get("enabled"))
@@ -198,6 +208,7 @@ def build_doctor_report(repo_root: Path) -> dict[str, Any]:
         "status": _aggregate_status(checks),
         "repo": repo.as_posix(),
         "version": __version__,
+        "mode": "release_readiness" if release_readiness else "general",
         "checks": checks,
         "recommended_actions": recommended_actions,
     }

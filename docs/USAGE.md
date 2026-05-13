@@ -104,21 +104,23 @@ aictx uninstall
 
 ## Doctor diagnostics
 
-`aictx doctor` is a read-only support and release-readiness diagnostic.
+`aictx doctor` is a read-only support diagnostic. Use `--release-readiness` only for strict aictx release-gate checks.
 
 ```bash
 aictx doctor --repo . --json
+aictx doctor --repo . --release-readiness --json
 ```
 
 The JSON response has:
 
 ```text
 status: ok|warning|error
+mode: general|release_readiness
 checks: [...]
 recommended_actions: [...]
 ```
 
-Checks include CLI version, repo initialization, runner files, lifecycle smoke compatibility, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, stale/duplicate memory, and Makefile/CI compatibility.
+Default checks include CLI version, repo initialization, runner files, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, and stale/duplicate memory. `--release-readiness` adds lifecycle smoke compatibility and Makefile/CI compatibility for the aictx release gate.
 
 `doctor` is for humans, support, and CI diagnostics. Normal agents should not call it during startup.
 

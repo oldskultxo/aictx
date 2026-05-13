@@ -573,13 +573,14 @@ def cmd_advanced(args: argparse.Namespace) -> int:
 
 def cmd_doctor(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
-    payload = build_doctor_report(repo)
+    payload = build_doctor_report(repo, release_readiness=bool(getattr(args, "release_readiness", False)))
     if bool(getattr(args, "json", False)):
         _print_json(payload)
         return 0
     print("AICTX doctor")
     print(f"- status: {payload['status']}")
     print(f"- version: {payload['version']}")
+    print(f"- mode: {payload.get('mode', 'general')}")
     for check in payload.get("checks", []):
         if isinstance(check, dict):
             print(f"- {check.get('name')}: {check.get('status')} — {check.get('summary')}")
@@ -1249,6 +1250,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="Run read-only AICTX repo diagnostics")
     doctor.add_argument("--repo", default=".", help="Repository root")
     doctor.add_argument("--json", action="store_true", help="Print diagnostic report as JSON")
+    doctor.add_argument("--release-readiness", action="store_true", help="Include strict aictx release gate checks")
     doctor.set_defaults(func=cmd_doctor)
 
     suggest = sub.add_parser("suggest", help=argparse.SUPPRESS)

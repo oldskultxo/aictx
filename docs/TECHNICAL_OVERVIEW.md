@@ -56,7 +56,7 @@ prepare/startup context -> resume capsule -> execution -> finalize -> persist co
 | Execution Contract | Provides first action, edit scope, canonical test command, and finalize command |
 | Contract Compliance | Evaluates observed execution against the latest compatible resume contract |
 | Execution Summary | Produces factual final runtime output |
-| Doctor | Read-only support and release-readiness diagnostics |
+| Doctor | Read-only support diagnostics, plus strict release-readiness mode |
 | Cleanup | Removes managed repo/global content |
 
 ---
@@ -756,7 +756,7 @@ It may include:
 
 It is not a benchmark and does not prove productivity/token savings.
 
-`aictx doctor --repo . --json` is a read-only diagnostic for support and release readiness. It reports `status: ok|warning|error`, a bounded `checks` array, and `recommended_actions`. It checks CLI version, repo initialization, runner files, lifecycle smoke compatibility, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, stale/duplicate memory, and Makefile/CI compatibility. It is not part of normal agent startup.
+`aictx doctor --repo . --json` is a read-only general diagnostic for support. It reports `status: ok|warning|error`, `mode: general|release_readiness`, a bounded `checks` array, and `recommended_actions`. Default mode checks CLI version, repo initialization, runner files, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, and stale/duplicate memory. `--release-readiness` adds strict aictx release-gate checks for lifecycle smoke compatibility and Makefile/CI compatibility. It is not part of normal agent startup.
 
 ---
 

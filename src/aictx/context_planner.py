@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .report import build_repo_map_report
 from .repo_map.config import is_repomap_enabled
 from .repo_map.query import query_repo_map
 
@@ -100,12 +101,38 @@ def build_structural_entry_points(
     return entries
 
 
-def structural_context_status(entries: list[dict[str, Any]]) -> dict[str, Any]:
+def structural_context_status(entries: list[dict[str, Any]], repo_root: Path | None = None) -> dict[str, Any]:
     count = len(entries) if isinstance(entries, list) else 0
-    return {
-        "enabled": True,
-        "available": bool(count),
+    base: dict[str, Any]
+    if repo_root is not None:
+        report = build_repo_map_report(Path(repo_root))
+        base = {
+            "enabled": bool(report.get("enabled")),
+            "available": bool(report.get("query_available")),
+            "provider_available": bool(report.get("provider_available")),
+            "index_available": bool(report.get("index_available")),
+            "query_available": bool(report.get("query_available")),
+            "refresh_available": bool(report.get("refresh_available")),
+            "last_refresh_status": str(report.get("last_refresh_status") or "unknown"),
+            "files_indexed": int(report.get("files_indexed") or 0),
+            "symbols_indexed": int(report.get("symbols_indexed") or 0),
+        }
+    else:
+        query_available = bool(count)
+        base = {
+            "enabled": True,
+            "available": query_available,
+            "provider_available": query_available,
+            "index_available": query_available,
+            "query_available": query_available,
+            "refresh_available": query_available,
+            "last_refresh_status": "inferred_from_entries" if query_available else "unknown",
+            "files_indexed": count,
+            "symbols_indexed": 0,
+        }
+    base.update({
         "used": bool(count),
         "source": "repo_map",
         "entry_point_count": count,
-    }
+    })
+    return base

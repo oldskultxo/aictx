@@ -20,7 +20,7 @@ Added:
 - Contract compliance gaps carry over into Work State as `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids`.
 - `aictx resume --json` explains loaded context with `role`, `selection_reason`, `confidence`, `staleness`, and `related_paths`.
 - RepoMap status separates provider, index, query, and refresh availability.
-- Public read-only `aictx doctor --repo . --json` diagnostic report.
+- Public read-only `aictx doctor --repo . --json` general diagnostic report, with `--release-readiness` for strict aictx release-gate checks.
 - `make ci` remains the canonical release gate, including clean wheel install/version checks.
 
 Upgrade notes:

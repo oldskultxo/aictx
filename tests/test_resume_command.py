@@ -16,7 +16,7 @@ from aictx.middleware import finalize_execution, prepare_execution
 from aictx.repo_map.config import write_repomap_config, write_repomap_index
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import REPO_FAILURE_MEMORY_DIR, REPO_STRATEGY_MEMORY_DIR, write_json
-from aictx.work_state import close_work_state, start_work_state
+from aictx.work_state import close_work_state, load_work_state, start_work_state
 
 
 def _parser():
@@ -250,6 +250,48 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
     }
     assert json.loads((repo / RESUME_CAPSULE_JSON_PATH).read_text(encoding="utf-8"))["schema_version"] == "1.0"
 
+
+def test_resume_prioritizes_contract_gap_carryover_over_completed_handoff(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / "tests").mkdir()
+    (repo / "tests/test_parser.py").write_text("def test_parser():\n    pass\n", encoding="utf-8")
+    prepared = prepare_execution({
+        "repo_root": str(repo),
+        "user_request": "fix parser",
+        "agent_id": "codex",
+        "adapter_id": "codex",
+        "execution_id": "exec-carryover-e2e",
+        "timestamp": "2026-05-13T10:00:00Z",
+        "files_opened": ["tests/test_parser.py"],
+    })
+    prepared["resume_contract"] = {
+        "execution_contract": {
+            "task_goal": "fix parser",
+            "first_action": {"path": "tests/test_parser.py", "binding": "must_open_first"},
+            "edit_scope": {"primary": ["tests/test_parser.py"], "secondary_if_needed": []},
+            "test_command": {"command": "pytest -q tests/test_parser.py"},
+        },
+        "task_goal": "fix parser",
+    }
+
+    finalize_execution(prepared, {"success": True, "result_summary": "updated parser without running canonical validation"})
+    state = load_work_state(repo, "contract-carryover-fix-parser")
+    assert state["status"] == "paused"
+    assert "Canonical test command was not observed." in state["unverified"]
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "fix parser", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    loaded = payload["loaded_context"]
+    assert loaded[0]["kind"] == "work_state"
+    assert loaded[0]["role"] == "carryover"
+    assert loaded[0]["selection_reason"] == "unresolved Work State carryover before completed handoff"
+    assert "run expected validation command: pytest -q tests/test_parser.py" in payload["capsule"]["next_action"]
+    handoff_indexes = [index for index, item in enumerate(loaded) if item["kind"] == "handoff"]
+    assert handoff_indexes
+    assert handoff_indexes[0] > 0
 
 
 def test_resume_includes_compact_previous_contract_line_once(tmp_path: Path, capsys):

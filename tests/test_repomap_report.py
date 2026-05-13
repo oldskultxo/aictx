@@ -93,3 +93,29 @@ def test_real_usage_report_includes_active_work_state_snapshot(tmp_path):
     assert report["work_state"]["threads_count"] == 2
     assert report["work_state"]["recent_statuses"] == {"in_progress": 2}
     assert report["work_state"]["last_updated_at"]
+from pathlib import Path
+
+from aictx.context_planner import structural_context_status
+from aictx.repo_map.config import write_repomap_config
+from aictx.scaffold import init_repo_scaffold
+from aictx.state import write_json
+
+
+def test_structural_context_status_exposes_repomap_availability_axes(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    write_repomap_config(repo, {"enabled": True})
+    write_json(repo / ".aictx" / "repo_map" / "status.json", {"available": False, "last_refresh_status": "missing_dependency"})
+    write_json(repo / ".aictx" / "repo_map" / "manifest.json", {"files_indexed": 3, "symbols_indexed": 7})
+
+    status = structural_context_status([{"path": "src/app.py"}], repo_root=repo)
+
+    assert status["provider_available"] is False
+    assert status["index_available"] is True
+    assert status["query_available"] is True
+    assert status["refresh_available"] is False
+    assert status["last_refresh_status"] == "missing_dependency"
+    assert status["files_indexed"] == 3
+    assert status["symbols_indexed"] == 7
+    assert status["used"] is True
+    assert status["entry_point_count"] == 1

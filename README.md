@@ -155,7 +155,7 @@ Technical integrations can also use wrapped/internal execution surfaces. See [Te
 | **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
 | **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
 | **Contract Compliance** | Audits first action, edit scope, validation, and structural alignment | Gaps can carry over into Work State instead of disappearing |
-| **Doctor** | Read-only repo/runtime diagnostic with `aictx doctor --repo . --json` | Support and release readiness have one stable entry point |
+| **Doctor** | Read-only repo/runtime diagnostic with `aictx doctor --repo . --json`; add `--release-readiness` for strict aictx release-gate checks | Support uses a general repo diagnostic while releases keep stricter checks |
 | **Resume capsule** | Compiles continuity into one agent brief | Agents do not need to discover AICTX internals at startup |
 
 ---

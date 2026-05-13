@@ -32,7 +32,7 @@ Welcome to AICTX documentation. This site is your complete guide to understandin
 - **[API Usage](USAGE.md)** - Detailed command reference
 
 ### Operations
-- **[Doctor Diagnostics](DOCTOR.md)** - Read-only support and release-readiness checks
+- **[Doctor Diagnostics](DOCTOR.md)** - Read-only support checks and strict release-readiness mode
 - **[Safety](SAFETY.md)** - Trust and security considerations
 - **[Limitations](LIMITATIONS.md)** - What AICTX doesn't do
 - **[Cleanup](CLEANUP.md)** - Maintaining your continuity store

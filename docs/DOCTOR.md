@@ -1,9 +1,11 @@
 # Doctor diagnostics
 
-`aictx doctor` is a read-only diagnostic command for support and release readiness.
+`aictx doctor` is a read-only diagnostic command. Default mode is a general support check for normal user repositories; `--release-readiness` adds strict checks for the aictx release gate.
 
 ```bash
 aictx doctor --repo . --json
+# strict aictx release checks
+aictx doctor --repo . --release-readiness --json
 ```
 
 It is a human/CI diagnostic surface. It is not part of normal agent startup and should not replace the normal lifecycle:
@@ -19,6 +21,7 @@ resume -> work -> finalize
 ```json
 {
   "status": "ok|warning|error",
+  "mode": "general|release_readiness",
   "checks": [],
   "recommended_actions": []
 }
@@ -35,12 +38,15 @@ Doctor can inspect:
 - CLI version;
 - repo initialization;
 - runner files;
-- lifecycle smoke compatibility;
 - RepoMap provider/index/query/refresh status;
 - capture quality;
 - contract compliance health;
-- stale/duplicate memory;
-- Makefile/CI compatibility.
+- stale/duplicate memory.
+
+When `--release-readiness` is set, Doctor also enforces stricter aictx release checks:
+
+- lifecycle smoke compatibility from `Makefile`;
+- Makefile/CI compatibility and `make ci` delegation.
 
 Doctor does not modify repo state.
 
@@ -66,4 +72,10 @@ This makes support output clear when a provider is unavailable but an existing i
 
 ## Release readiness
 
-`make ci` remains the canonical release-readiness gate. Doctor can be used alongside it for support and CI diagnostics, but it should stay lightweight and read-only.
+`make ci` remains the canonical release-readiness gate. Use:
+
+```bash
+aictx doctor --repo . --release-readiness --json
+```
+
+for aictx release diagnostics. Plain `aictx doctor --repo . --json` stays suitable for user repositories that do not have this project’s `Makefile`/CI layout.
