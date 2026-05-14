@@ -13,7 +13,7 @@ It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectab
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.3.0`
+Current documented implementation: `6.3.1`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
@@ -239,7 +239,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.3.0` is:
+The stable repo-local continuity artifact contract in `6.3.1` is:
 
 ```text
 .aictx/continuity/session.json

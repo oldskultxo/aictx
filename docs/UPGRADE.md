@@ -2,7 +2,7 @@
 
 ## Current line: 6.3.x
 
-Current documented runtime: `6.3.0`.
+Current documented runtime: `6.3.1`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -10,6 +10,23 @@ For users already on recent `4.x` or `5.x`, there is no special data migration c
 aictx install
 aictx init
 ```
+
+---
+## 6.3.1
+
+`6.3.1` is a patch release for visible-session banner behavior and repository presentation.
+
+Fixed:
+- `aictx finalize` now preserves the inferred Codex adapter identity when no explicit `--adapter-id` is provided.
+- This prevents `resume` from using `CODEX_THREAD_ID` while CLI `finalize` marks a separate `generic` session, which made the startup banner appear again on later responses in the same visible session.
+
+Changed:
+- README top-of-page copy now states the real repo-local runtime loop, `.aictx/` artifact model, install path, use cases, and limits more directly.
+- Added GitHub community health files for contribution, issue, PR, conduct, and security workflows.
+
+Upgrade notes:
+- No data migration is required.
+- Re-run `aictx install` and `aictx init` after upgrading so generated runtime instructions match the current runtime.
 
 ---
 ## 6.3.0

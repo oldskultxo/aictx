@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+from aictx import cli
 from aictx.continuity import AICTX_TEXT_SEPARATOR
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.scaffold import init_repo_scaffold
@@ -18,6 +20,10 @@ def _payload(repo: Path, execution_id: str) -> dict:
         "execution_id": execution_id,
         "timestamp": "2026-04-24T10:12:00Z",
     }
+
+
+def _parser():
+    return cli.build_parser()
 
 
 def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_path: Path):
@@ -63,6 +69,39 @@ def test_prepare_execution_keeps_session_identity_stable_across_executions(tmp_p
     assert on_disk["repo_id"] == repo.name
     assert on_disk["runtime"] == "codex"
     assert on_disk["banner_shown_session_id"] == on_disk["session_id"]
+
+
+def test_cli_finalize_preserves_inferred_codex_session_identity(tmp_path: Path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "thread-123")
+
+    resume_args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "inspect startup banner", "--json"])
+    assert resume_args.func(resume_args) == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["startup_banner_policy"]["already_shown"] is False
+    assert first["startup_banner_policy"]["show_in_first_user_visible_response"] is True
+
+    finalize_args = _parser().parse_args(
+        [
+            "finalize",
+            "--repo",
+            str(repo),
+            "--status",
+            "success",
+            "--summary",
+            "startup banner shown once",
+            "--json",
+        ]
+    )
+    assert finalize_args.func(finalize_args) == 0
+    capsys.readouterr()
+
+    assert resume_args.func(resume_args) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["startup_banner_text"] == ""
+    assert second["startup_banner_policy"]["already_shown"] is True
+    assert second["startup_banner_policy"]["show_in_first_user_visible_response"] is False
 
 
 def test_prepare_execution_uses_codex_thread_id_for_visible_session(tmp_path: Path, monkeypatch):

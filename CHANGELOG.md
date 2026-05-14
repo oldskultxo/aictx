@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.3.1 - 2026-05-14
+
+### Changed
+- Clarified the README top section so it states the real AICTX runtime loop, repo-local `.aictx/` artifact model, install path, use cases, and limitations.
+- Added GitHub community health files for issue reports, feature requests, pull requests, security reporting, and contributor conduct.
+
+### Fixed
+- Fixed CLI `aictx finalize` session identity inference so Codex sessions keep the inferred Codex adapter instead of falling back to `generic`.
+- Prevented repeated startup banners caused by `resume` using `CODEX_THREAD_ID` while CLI `finalize` marked a different generic visible session.
+
 ## 6.3.0 - 2026-05-13
 
 ### Added

@@ -51,7 +51,7 @@ body:
     attributes:
       label: AICTX version
       description: Output of `aictx --version`, package version, or commit SHA.
-      placeholder: "6.3.0"
+      placeholder: "6.3.1"
     validations:
       required: false
 

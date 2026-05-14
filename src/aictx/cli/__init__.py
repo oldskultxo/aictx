@@ -486,12 +486,14 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     active = load_active_work_state(repo)
     active_task = str(active.get("goal") or active.get("title") or active.get("task_id") or "").strip() if isinstance(active, dict) else ""
     request = str(getattr(args, "task", "") or getattr(args, "request", "") or active_task or summary).strip()
+    agent_id = _infer_agent_id(str(getattr(args, "agent_id", "") or ""))
+    adapter_id = str(getattr(args, "adapter_id", "") or getattr(args, "agent_id", "") or agent_id or "generic")
     prepared = prepare_execution(
         {
             "repo_root": repo.as_posix(),
             "user_request": request,
-            "agent_id": _infer_agent_id(str(getattr(args, "agent_id", "") or "")),
-            "adapter_id": str(getattr(args, "adapter_id", "") or getattr(args, "agent_id", "") or "generic"),
+            "agent_id": agent_id,
+            "adapter_id": adapter_id,
             "execution_id": str(getattr(args, "session_id", "") or f"cli-finalize-{now_iso()}"),
             "timestamp": now_iso(),
             "declared_task_type": str(getattr(args, "task_type", "") or "") or None,
