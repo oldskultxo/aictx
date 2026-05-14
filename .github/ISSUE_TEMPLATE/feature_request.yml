@@ -1,0 +1,68 @@
+name: Feature request
+description: Suggest an improvement or new capability for AICTX
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Please focus on the user workflow and expected outcome.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem are you trying to solve?
+      placeholder: "When using AICTX for ..., I need ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should AICTX do differently?
+      placeholder: "Add/change ... so that ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or other designs have you considered?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of AICTX does this affect most?
+      options:
+        - Runtime lifecycle
+        - Resume/finalize continuity
+        - RepoMap / structural context
+        - CLI / install / init
+        - Agent integrations
+        - Documentation
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example workflow
+      description: Show the command, prompt, or interaction you want to support.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Links, screenshots, prior art, or related issues.
+    validations:
+      required: false

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and discussion
+    url: https://github.com/oldskultxo/aictx/discussions
+    about: Ask questions, share ideas, or discuss AICTX usage.
+  - name: Documentation
+    url: https://github.com/oldskultxo/aictx#readme
+    about: Read the project overview and quickstart.
