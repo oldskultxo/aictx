@@ -42,6 +42,7 @@ Welcome to AICTX documentation. This site is your complete guide to understandin
 
 AICTX works with:
 - 🤖 **Codex** - Full integration with repo instructions
+- 🐙 **GitHub Copilot** - Standard repo-wide custom instructions via `.github/copilot-instructions.md`
 - 🧠 **Claude** - Deep Claude.ai workspace support
 - 🔧 **Generic agents** - CLI/JSON compatible with any coding agent
 

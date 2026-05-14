@@ -26,6 +26,7 @@ REPO_HOOK_FILES = [
     Path('.claude/hooks/aictx_refresh_memory_graph.sh'),
 ]
 REPO_OPTIONAL_FILES = [
+    Path('.github/copilot-instructions.md'),
     Path('AGENTS.override.md'),
     Path('CLAUDE.md'),
     Path('AGENTS.md'),
@@ -231,6 +232,13 @@ def clean_repo(repo: Path) -> dict[str, Any]:
                 updated.append(str(file_path))
             else:
                 removed.append(str(file_path))
+            _cleanup_empty_parents(file_path, stop_at=repo)
+        elif remove_marked_block(file_path, AICTX_START, AICTX_END):
+            if file_path.exists():
+                updated.append(str(file_path))
+            else:
+                removed.append(str(file_path))
+            _cleanup_empty_parents(file_path, stop_at=repo)
 
     gitignore_path = repo / '.gitignore'
     if remove_gitignore_aictx_entries(gitignore_path):

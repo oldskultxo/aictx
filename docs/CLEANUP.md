@@ -32,6 +32,7 @@ It may remove:
 It may remove AICTX-managed blocks from:
 
 ```text
+.github/copilot-instructions.md
 AGENTS.md
 CLAUDE.md
 AGENTS.override.md
@@ -45,6 +46,8 @@ It may update or remove:
 ```
 
 The cleanup code is designed to remove AICTX-managed content only.
+
+For GitHub Copilot, that means `aictx clean --repo .` removes only the AICTX-managed block inside `.github/copilot-instructions.md`. If the file also contains user-authored notes, they are preserved.
 
 ---
 

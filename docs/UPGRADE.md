@@ -2,7 +2,7 @@
 
 ## Current line: 6.3.x
 
-Current documented runtime: `6.3.1`.
+Current documented runtime: `6.3.2`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -10,6 +10,25 @@ For users already on recent `4.x` or `5.x`, there is no special data migration c
 aictx install
 aictx init
 ```
+
+---
+## 6.3.2
+
+`6.3.2` is a patch release for GitHub Copilot repository instructions and related docs.
+
+Added:
+- `aictx init` now creates `.github/copilot-instructions.md` with AICTX-managed GitHub Copilot repository custom instructions.
+
+Changed:
+- README, installation, quickstart, technical overview, docs index, and release checklist now describe GitHub Copilot as a supported runner surface.
+- GitHub Copilot instructions are documented as a standard repository file that remains versioned in git and uses explicit Copilot identity:
+  - `--agent-id copilot`
+  - `--adapter-id copilot-vscode`
+- `aictx clean` and `aictx uninstall` now remove the AICTX-managed block from `.github/copilot-instructions.md` while preserving non-AICTX user content in that file.
+
+Upgrade notes:
+- No data migration is required.
+- Re-run `aictx init` after upgrading so existing repositories receive the Copilot instructions file and refreshed runner instructions.
 
 ---
 ## 6.3.1

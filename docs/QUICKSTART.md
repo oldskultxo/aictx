@@ -31,6 +31,8 @@ aictx init --repo .
 
 After this, keep using your coding agent. AICTX is designed to be agent-driven.
 
+Repo initialization writes the runner-facing instruction surfaces used by supported tools, including `AGENTS.md`, `.github/copilot-instructions.md`, `CLAUDE.md`, and `.claude/*`.
+
 ---
 
 ## 2. Inspect continuity manually

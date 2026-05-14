@@ -2481,6 +2481,8 @@ def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
     init_repo_scaffold(repo, update_gitignore=True)
     install_repo_runner_integrations(repo)
     upsert_marked_block(repo / "AGENTS.md", render_repo_agents_block())
+    copilot_path = repo / ".github" / "copilot-instructions.md"
+    copilot_path.write_text(copilot_path.read_text(encoding="utf-8") + "\nTeam Copilot note.\n", encoding="utf-8")
 
     user_agents = repo / "AGENTS.md"
     user_agents.write_text(user_agents.read_text(encoding="utf-8") + "\nUser note.\n", encoding="utf-8")
@@ -2499,6 +2501,8 @@ def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
     assert extra_claude_hook.exists()
     assert 'AICTX:START' not in (repo / 'AGENTS.md').read_text(encoding='utf-8')
     assert 'User note.' in (repo / 'AGENTS.md').read_text(encoding='utf-8')
+    assert 'AICTX:START' not in copilot_path.read_text(encoding='utf-8')
+    assert 'Team Copilot note.' in copilot_path.read_text(encoding='utf-8')
     assert '.aictx/' not in (repo / '.gitignore').read_text(encoding='utf-8')
     assert 'CLAUDE.md' not in (repo / '.gitignore').read_text(encoding='utf-8')
     settings_path = repo / '.claude' / 'settings.json'
@@ -2550,6 +2554,8 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     init_repo_scaffold(repo, update_gitignore=True)
     install_repo_runner_integrations(repo)
     upsert_marked_block(repo / 'AGENTS.md', render_repo_agents_block())
+    copilot_path = repo / '.github' / 'copilot-instructions.md'
+    copilot_path.write_text(copilot_path.read_text(encoding='utf-8') + '\nTeam Copilot note.\n', encoding='utf-8')
 
     engine_home.mkdir(parents=True, exist_ok=True)
     (engine_home / 'workspaces').mkdir(parents=True, exist_ok=True)
@@ -2568,6 +2574,8 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     assert not (codex_home / 'AICTX_Codex.md').exists()
     codex_override = codex_home / 'AGENTS.override.md'
     assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
+    assert 'AICTX:START' not in copilot_path.read_text(encoding='utf-8')
+    assert 'Team Copilot note.' in copilot_path.read_text(encoding='utf-8')
     assert str(repo) in payload['repos_cleaned']
 
 

@@ -26,6 +26,23 @@ def codex_instructions_path() -> Path:
     return CODEX_HOME / "AICTX_Codex.md"
 
 
+def render_aictx_lifecycle_rules(*, agent_id: str, adapter_id: str, include_source_repo_hint: bool = True) -> str:
+    rules = [
+        "- The lifecycle remains `resume -> work -> finalize -> final AICTX summary/persistence`.",
+        f'- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --agent-id {agent_id} --adapter-id {adapter_id} --json`.',
+        "- Use the returned resume capsule as the operational brief before broad repo scanning.",
+        f'- After work, run exactly one AICTX finalization command: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id {agent_id} --adapter-id {adapter_id} --json`.',
+        "- Do not inspect `.aictx/` during normal startup.",
+        "- Do not run exploratory AICTX commands during normal startup.",
+        "- If `startup_banner_policy.show_in_first_user_visible_response` is true, render the selected startup banner at the start of the first substantive user-visible response.",
+        "- Prefer `startup_banner_render_payload` when present; use `startup_banner_text` as fallback.",
+        "- After finalize, append the AICTX final summary using `agent_summary_render_payload` when present; use `agent_summary_text` as fallback.",
+    ]
+    if include_source_repo_hint:
+        rules.append("- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a global `aictx` binary.")
+    return "\n".join(rules)
+
+
 def render_codex_home_block() -> str:
     return f"""{AICTX_START}
 ## AICTX Codex integration
@@ -95,6 +112,17 @@ This repository is initialized with `aictx`.
 - At normal startup, run only `aictx resume --repo . --task "<task goal>" --json`
 - Render exactly one startup banner source. Normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`. Wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - Treat `aictx reflect` and other AICTX commands as advanced diagnostics, not normal startup commands.
+{AICTX_END}
+"""
+
+
+def render_copilot_instructions_block() -> str:
+    return f"""{AICTX_START}
+# AICTX GitHub Copilot integration
+
+These are repository custom instructions for GitHub Copilot. They describe AICTX behavior for this repository and do not install hooks, wrappers, VSCode settings, or non-standard Copilot integrations.
+
+{render_aictx_lifecycle_rules(agent_id="copilot", adapter_id="copilot-vscode")}
 {AICTX_END}
 """
 
@@ -347,8 +375,15 @@ def install_codex_native_integration() -> list[Path]:
     return created
 
 
+def install_copilot_repo_integration(repo: Path) -> list[Path]:
+    path = repo / ".github" / "copilot-instructions.md"
+    upsert_marked_block(path, render_copilot_instructions_block())
+    return [path]
+
+
 def install_repo_runner_integrations(repo: Path) -> list[Path]:
     created: list[Path] = []
+    created.extend(install_copilot_repo_integration(repo))
     claude_dir = repo / ".claude"
     claude_dir_preexisted = claude_dir.exists()
 

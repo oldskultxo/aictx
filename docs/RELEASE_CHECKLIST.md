@@ -15,7 +15,7 @@
 
 - [ ] README explains normal agent-driven workflow
 - [ ] README does not make AICTX look like a manual CLI-only tool
-- [ ] README is Codex-first, Claude-aware, generic-agent compatible
+- [ ] README is Codex-first, GitHub Copilot-aware, Claude-aware, generic-agent compatible
 - [ ] README shows real startup identity format
 - [ ] RepoMap has appropriate visibility
 - [ ] Install/init flow is documented with example answers

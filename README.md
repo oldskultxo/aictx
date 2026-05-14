@@ -11,9 +11,9 @@ AICTX helps a new coding-agent session start from the useful state left by the p
 
 It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectable artifacts in the repository under `.aictx/` and exposes one agent-facing resume command plus one finalize command.
 
-AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
+AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.3.1`
+Current documented implementation: `6.3.2`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
@@ -139,6 +139,8 @@ aictx --version
 
 After that, keep using your coding agent.
 
+`aictx init` creates the repo-local instruction surfaces used by supported runners, including `AGENTS.md`, `CLAUDE.md`, `.claude/*`, and `.github/copilot-instructions.md`. The Copilot file is a standard repository file intended to stay versioned in git.
+
 The generated repo instructions and hooks guide supported agents to call AICTX automatically. The normal user experience is:
 
 ```text
@@ -219,6 +221,7 @@ AICTX is runner-aware, not runner-locked.
 
 - **Codex-first:** `AGENTS.md`, optional global Codex setup, CLI/runtime JSON contract.
 - **Claude-aware:** `CLAUDE.md`, `.claude/settings.json`, `.claude/hooks/aictx_*.py`.
+- **GitHub Copilot:** repo-wide `.github/copilot-instructions.md` custom instructions created by `aictx init`.
 - **Generic fallback:** any agent that can read repo instructions, run CLI commands, and consume JSON/Markdown.
 
 ---
@@ -239,7 +242,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.3.1` is:
+The stable repo-local continuity artifact contract in `6.3.2` is:
 
 ```text
 .aictx/continuity/session.json

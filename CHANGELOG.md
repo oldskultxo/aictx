@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.3.2 - 2026-05-14
+
+### Added
+- Added standard GitHub Copilot repository custom instructions at `.github/copilot-instructions.md` during `aictx init`.
+
+### Changed
+- Documented GitHub Copilot as a supported runner surface across README, installation, quickstart, technical overview, docs index, and release checklist.
+- Clarified that `.github/copilot-instructions.md` is created by `aictx init`, stays versioned in git, and uses explicit Copilot identity for `aictx resume` / `aictx finalize`.
+- `aictx clean` / `aictx uninstall` now remove the AICTX-managed block from `.github/copilot-instructions.md` while preserving any user-authored Copilot notes in the same file.
+
 ## 6.3.1 - 2026-05-14
 
 ### Changed

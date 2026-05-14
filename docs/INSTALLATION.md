@@ -19,7 +19,7 @@ Manual AICTX commands are mainly for inspection, debugging, demos, and advanced 
 - a repository on disk
 - git is recommended
 - optional: Tree-sitter support through `aictx[repomap]`
-- optional: Codex and/or Claude if you want runner integrations
+- optional: Codex, Claude, and/or GitHub Copilot if you want runner integrations
 
 ---
 
@@ -150,7 +150,7 @@ Current init decisions:
 | Register repo | default yes unless `--no-register` | Adds repo to AICTX registry for cleanup/uninstall |
 | Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy and writes `.aictx/continuity/portability.json` |
 | Communication mode | default `disabled`; optional `caveman_full` | Stores repo preference under `.aictx/memory/user_preferences.json` |
-| Initialize scaffold | `Y` | Creates/updates `.aictx/`, `AGENTS.md`, `CLAUDE.md`, `.claude/*`, and runtime scaffolding |
+| Initialize scaffold | `Y` | Creates/updates `.aictx/`, `AGENTS.md`, `.github/copilot-instructions.md`, `CLAUDE.md`, `.claude/*`, and runtime scaffolding |
 | RepoMap initialization | default when globally requested | Writes/refreshes `.aictx/repo_map/*` if available |
 
 Representative interactive flow:
@@ -221,6 +221,7 @@ Common repo-local files:
 ```text
 .aictx/
 AGENTS.md
+.github/copilot-instructions.md
 CLAUDE.md
 .claude/settings.json
 .claude/hooks/aictx_session_start.py
@@ -256,6 +257,31 @@ aictx install --install-codex-global
 ```
 
 Repo-level Codex guidance is written through `AGENTS.md`.
+
+---
+
+## GitHub Copilot setup
+
+```bash
+pip install aictx
+aictx install
+aictx init
+```
+
+AICTX creates/updates:
+
+```text
+.github/copilot-instructions.md
+```
+
+This is the standard repository-wide GitHub Copilot custom instructions file. AICTX writes its managed block there during `aictx init`, not during `aictx install`. The file is intended to remain versioned in git and tells Copilot to use:
+
+```bash
+aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json
+aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json
+```
+
+AICTX does not install Copilot hooks, wrappers, VSCode settings, or non-standard Copilot files.
 
 ---
 
