@@ -2,13 +2,14 @@
 
 [![PyPI](https://img.shields.io/pypi/v/aictx.svg)](https://pypi.org/project/aictx/)
 [![Python](https://img.shields.io/pypi/pyversions/aictx.svg)](https://pypi.org/project/aictx/)
+[![CI](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml/badge.svg)](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Repo-local continuity runtime for coding agents.**
+**Repo-local continuity for coding agents.**
 
-AICTX lets a coding agent start the next session from the operational state left by previous work: active task state, next action, known failures, decisions, execution evidence, structural repo hints, and branch-safe Work State.
+AICTX helps a new coding-agent session start from the useful state left by the previous one: active task state, next action, known failures, decisions, execution evidence, and optional structural repo hints.
 
-Install it once, initialize the repo, then keep using your coding agent normally.
+It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectable artifacts in the repository under `.aictx/` and exposes one agent-facing resume command plus one finalize command.
 
 AICTX is **Codex-first**, **Claude-aware**, and **generic-agent compatible**.
 
@@ -16,17 +17,48 @@ Current documented implementation: `6.3.0`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
+```bash
+pip install aictx
+aictx install
+aictx init
+```
+
+[Quickstart](docs/QUICKSTART.md) · [Installation](docs/INSTALLATION.md) · [Demo](docs/DEMO.md) · [Technical overview](docs/TECHNICAL_OVERVIEW.md)
+
 ---
 
-## Product promise
+## The problem
 
-AICTX gives coding agents a small, repo-local memory loop:
+Coding agents are powerful, but most sessions still start cold:
+
+- they rediscover the same repository structure;
+- they reopen broad docs before the relevant source or test;
+- they repeat failed commands or stale assumptions;
+- unfinished work depends on chat history instead of repo-local state.
+
+AICTX makes that continuity repo-local, inspectable, and reusable.
+
+## What AICTX actually does
+
+AICTX gives supported agents a small runtime loop:
 
 ```text
 resume useful context -> do the work -> finalize factual evidence -> help the next session
 ```
 
-It is for developers who repeatedly use coding agents in the same repository and want less cold-start rediscovery, explicit next actions, remembered failures, reusable successful strategies, and inspectable local artifacts instead of hidden cloud memory.
+At startup, an agent can call:
+
+```bash
+aictx resume --repo . --task "<task goal>" --json
+```
+
+After work, it records what happened:
+
+```bash
+aictx finalize --repo . --status success|failure --summary "<what happened>" --json
+```
+
+The next session can then receive a compact continuity capsule built from repo-local facts: Work State, handoffs, decisions, known failures, prior strategies, execution summaries, and optional RepoMap hints.
 
 It is not a generic token compressor, autonomous coding system, hosted agent platform, or correctness guarantee.
 
@@ -36,7 +68,7 @@ AICTX combines continuity memory with structural repo lookup: Work State tells t
 
 ## See it in 30 seconds
 
-Without AICTX, the next agent session usually starts cold:
+Without AICTX, the next agent session often starts cold:
 
 ```text
 User: continue parser work
@@ -63,6 +95,19 @@ The exact fields depend on what previous sessions actually recorded. AICTX does 
 
 ---
 
+## When to use it
+
+Use AICTX when you:
+
+- run multiple coding-agent sessions in the same repository;
+- want explicit handoff, next action, decision, and failure memory;
+- want repo-local continuity artifacts instead of hidden cloud memory;
+- want optional structural entry points from RepoMap without making RepoMap mandatory.
+
+Skip it if you want a hosted agent platform, a general knowledge base, or automatic correctness guarantees.
+
+---
+
 ## Demo result
 
 In a two-session coding task, AICTX helped the second session resume from the intended work surface instead of rediscovering the repo.
@@ -78,16 +123,6 @@ In a two-session coding task, AICTX helped the second session resume from the in
 
 This is not a universal benchmark. It is an observable continuity demo.
 See [Demo](docs/DEMO.md).
-
----
-
-## Why this exists
-
-Coding agents are powerful, but most sessions still start cold.
-
-They rediscover repository structure, repeat failed paths, lose track of what was already verified, and depend on chat history for unfinished work.
-
-AICTX makes that continuity repo-local, inspectable, and reusable.
 
 ---
 
