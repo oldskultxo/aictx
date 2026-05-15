@@ -13,7 +13,7 @@ from aictx.continuity import HANDOFFS_HISTORY_PATH, load_continuity_context
 from aictx.area_memory import load_area_memory, update_area_memory
 from aictx.portability import PORTABILITY_STATE_PATH, load_portability_state, write_portability_state
 from aictx.scaffold import init_repo_scaffold
-from aictx.work_state import load_active_task_id, load_active_work_state
+from aictx.work_state import load_active_task_id, load_active_work_state, start_work_state
 
 
 PORTABLE_FILES = {
@@ -54,6 +54,11 @@ LOCAL_ONLY_FILES = {
 def init_git_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init"], cwd=repo, text=True, capture_output=True, check=True)
+
+
+def git(repo: Path, *args: str) -> str:
+    completed = subprocess.run(["git", *args], cwd=repo, text=True, capture_output=True, check=True)
+    return completed.stdout.strip()
 
 
 def write_files(repo: Path, files: dict[str, str]) -> None:
@@ -467,6 +472,61 @@ def test_portable_policy_derives_snapshots_from_shards_and_history(tmp_path: Pat
     assert context["handoff"]["summary"] == "latest portable handoff"
     assert context["semantic_repo"]["subsystems"][0]["name"] == "runtime"
     assert load_area_memory(repo)["areas"]["src/aictx"]["executions"] == 3
+
+
+def test_portable_work_state_thread_respects_branch_safety_when_active_snapshot_missing(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    git(repo, "config", "user.name", "Test User")
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "checkout", "-b", "main")
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    git(repo, "add", "tracked.txt")
+    git(repo, "commit", "-m", "initial")
+    init_repo_scaffold(repo, portable_continuity=True)
+
+    git(repo, "checkout", "-b", "feature/portable")
+    (repo / "tracked.txt").write_text("base\nfeature-only\n", encoding="utf-8")
+    git(repo, "add", "tracked.txt")
+    git(repo, "commit", "-m", "feature commit")
+    state = start_work_state(repo, "Portable continuation")
+
+    git(repo, "checkout", "main")
+    (repo / "tracked.txt").write_text("base\nmain-only\n", encoding="utf-8")
+    git(repo, "add", "tracked.txt")
+    git(repo, "commit", "-m", "main commit")
+    (repo / ".aictx" / "tasks" / "active.json").unlink()
+
+    context = load_continuity_context(repo, request_text="continue portable work")
+
+    assert state["task_id"] == "portable-continuation"
+    assert context["active_work_state"] == {}
+    assert context["loaded"].get("work_state") is not True
+    assert context["skipped_work_state"]["reason"] in {"branch_mismatch_unmerged", "dirty_branch_mismatch"}
+    assert context["skipped_work_state"]["task_id"] == "portable-continuation"
+    assert context["work_state_git_status"]["reason"] in {"branch_mismatch_unmerged", "dirty_branch_mismatch"}
+
+
+def test_portable_work_state_thread_loads_when_git_context_is_safe(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    git(repo, "config", "user.name", "Test User")
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "checkout", "-b", "main")
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    git(repo, "add", "tracked.txt")
+    git(repo, "commit", "-m", "initial")
+    init_repo_scaffold(repo, portable_continuity=True)
+
+    state = start_work_state(repo, "Portable continuation")
+    (repo / ".aictx" / "tasks" / "active.json").unlink()
+
+    context = load_continuity_context(repo, request_text="continue portable work")
+
+    assert context["active_work_state"]["task_id"] == state["task_id"]
+    assert context["loaded"]["work_state"] is True
+    assert context["skipped_work_state"] == {}
+    assert context["work_state_git_status"]["reason"] == "same_branch"
 
 
 def test_enabling_portability_migrates_existing_snapshots_to_portable_sources(tmp_path: Path):

@@ -27,7 +27,7 @@ from ..state import (
     write_json,
 )
 from ..strategy_memory import load_strategies, select_strategy, strategy_reuse_confidence
-from ..work_state import compact_work_state_for_prepare, load_active_work_state, load_recent_inactive_work_state
+from ..work_state import compact_work_state_for_prepare, load_active_work_state_checked, load_recent_inactive_work_state
 from .explain import build_loaded_context_metadata
 
 HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
@@ -1964,7 +1964,10 @@ def load_continuity_context(
     if any(str(item.get("kind") or "") == "repo_map" for item in ranked_items if isinstance(item, dict)):
         loaded["repo_map"] = True
     why_loaded = _why_loaded_from_items(loaded=loaded, ranked_items=ranked_items, staleness=staleness)
-    active_work_state = compact_work_state_for_prepare(load_active_work_state(repo_root))
+    checked_work_state = load_active_work_state_checked(repo_root)
+    active_work_state = compact_work_state_for_prepare(checked_work_state.get("active_work_state", {}))
+    work_state_git_status = dict(checked_work_state.get("work_state_git_status", {})) if isinstance(checked_work_state.get("work_state_git_status"), dict) else {}
+    skipped_work_state = dict(checked_work_state.get("skipped_work_state", {})) if isinstance(checked_work_state.get("skipped_work_state"), dict) else {}
     if active_work_state:
         loaded["work_state"] = True
     recent_work_state = {}
@@ -1997,6 +2000,8 @@ def load_continuity_context(
         "continuity_brief": continuity_brief,
         "active_work_state": active_work_state,
         "recent_work_state": recent_work_state,
+        "work_state_git_status": work_state_git_status,
+        "skipped_work_state": skipped_work_state,
         "request_text": str(request_text or ""),
         "request_sensitive_banner": bool(request_sensitive_banner),
         "warnings": warnings,
