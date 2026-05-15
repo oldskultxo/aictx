@@ -1743,12 +1743,13 @@ def cli_route(args: argparse.Namespace) -> int:
 
 
 def cli_migrate(_: argparse.Namespace) -> int:
-    from ..scaffold import ensure_repo_memory_sources, ensure_repo_user_preferences
+    from ..scaffold import ensure_repo_memory_sources, ensure_repo_user_preferences, migrate_portability_scaffold
     ensure_repo_user_preferences(BASE)
     ensure_repo_memory_sources(BASE)
     repair = repair_repo_runtime_contract(BASE)
     summary = rebuild_memory_store()
     summary["repo_runtime_repair"] = repair
+    summary["portability"] = migrate_portability_scaffold(BASE)
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 0
 

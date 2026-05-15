@@ -1,5 +1,23 @@
 # Changelog
 
+## 6.4.0 - 2026-05-15
+
+### Added
+- Added public portability maintenance commands:
+  - `aictx portability status --repo . --json`
+  - `aictx portability compact --repo . --apply --json`
+
+### Changed
+- `aictx init --portable-continuity` now enables the `policy_version: 2` team-safe portability profile for small teams sharing one Git repository.
+- Portable continuity now keeps append-only/sharded artifacts versionable while leaving conflict-prone latest-run snapshots local-only and derivable from portable history when needed.
+- Portable continuity now manages an AICTX-owned `.gitattributes` block with `merge=union` hints for append-only JSONL continuity files without requiring any external sync service.
+- Re-running `aictx init --portable-continuity` now migrates existing portable repos to the team-safe layout and merge policy.
+- Updated README, portability, installation, usage, upgrade, and release checklist docs for the 6.4.0 portability model.
+
+### Fixed
+- Memory hygiene now rewrites duplicate semantic repo string lists from raw `semantic_repo.json` input before writing the dedupe report.
+- Top-level CLI help now reflects the public `portability` command in the primary command list.
+
 ## 6.3.2 - 2026-05-14
 
 ### Added

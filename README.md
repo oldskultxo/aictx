@@ -13,7 +13,7 @@ It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectab
 
 AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.3.2`
+Current documented implementation: `6.4.0`
 
 ![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
 
@@ -242,13 +242,15 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.3.2` is:
+The stable repo-local continuity artifact contract in `6.4.0` is:
 
 ```text
 .aictx/continuity/session.json
 .aictx/continuity/handoff.json
+.aictx/continuity/handoffs.jsonl
 .aictx/continuity/decisions.jsonl
 .aictx/continuity/semantic_repo.json
+.aictx/continuity/semantic_repo/*
 .aictx/continuity/dedupe_report.json
 .aictx/continuity/staleness.json
 .aictx/continuity/continuity_metrics.json
@@ -260,21 +262,23 @@ The stable repo-local continuity artifact contract in `6.3.2` is:
 .aictx/metrics/contract_compliance.jsonl
 .aictx/tasks/active.json
 .aictx/tasks/threads/*
+.aictx/area_memory/areas.json
+.aictx/area_memory/areas/*
+.aictx/repo_map/config.json
 ```
 
 Optional or latest-run artifacts may also appear:
 
 ```text
-.aictx/continuity/handoffs.jsonl
 .aictx/continuity/last_execution_summary.md
 .aictx/continuity/resume_capsule.md
 .aictx/continuity/resume_capsule.json
-.aictx/area_memory/areas.json
-.aictx/repo_map/config.json
 .aictx/repo_map/manifest.json
 .aictx/repo_map/index.json
 .aictx/repo_map/status.json
 ```
+
+When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.0 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, and can add `.gitattributes` merge hints for portable JSONL files. See [Git-portable continuity](docs/PORTABILITY.md).
 
 For lifecycle details, startup banner semantics, branch-safe loading rules, internal runtime commands, and compliance auditing, see [Technical overview](docs/TECHNICAL_OVERVIEW.md).
 

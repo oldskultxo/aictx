@@ -34,6 +34,7 @@ HANDOFF_PATH = REPO_CONTINUITY_DIR / "handoff.json"
 HANDOFFS_HISTORY_PATH = REPO_CONTINUITY_DIR / "handoffs.jsonl"
 DECISIONS_PATH = REPO_CONTINUITY_DIR / "decisions.jsonl"
 SEMANTIC_REPO_PATH = REPO_CONTINUITY_DIR / "semantic_repo.json"
+SEMANTIC_REPO_SHARDS_DIR = REPO_CONTINUITY_DIR / "semantic_repo"
 DEDUPE_REPORT_PATH = REPO_CONTINUITY_DIR / "dedupe_report.json"
 STALENESS_PATH = REPO_CONTINUITY_DIR / "staleness.json"
 CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
@@ -486,12 +487,9 @@ def load_handoff_history(repo_root: Path, limit: int = 10) -> list[dict[str, Any
 
 
 def append_handoff_history(repo_root: Path, handoff_record: dict[str, Any], limit: int = 10) -> dict[str, Any]:
-    rows = load_handoff_history(repo_root, limit=0)
-    rows.append(_normalize_handoff_history_row(handoff_record))
-    cap = max(1, int(limit or 10))
-    capped = rows[-cap:]
-    _write_jsonl(repo_root / HANDOFFS_HISTORY_PATH, capped)
-    return {"path": (repo_root / HANDOFFS_HISTORY_PATH).as_posix(), "count": len(capped)}
+    path = repo_root / HANDOFFS_HISTORY_PATH
+    append_jsonl(path, _normalize_handoff_history_row(handoff_record))
+    return {"path": path.as_posix(), "count": len(load_handoff_history(repo_root, limit=limit))}
 
 
 def latest_handoff_record(repo_root: Path) -> dict[str, Any]:
@@ -514,6 +512,33 @@ def latest_handoff_record(repo_root: Path) -> dict[str, Any]:
         "recommended_starting_points": _clean_string_list(fallback.get("recommended_starting_points"), limit=5),
         "files_observed": 0,
         "tests_observed": [],
+    }
+
+
+def _current_handoff(repo_root: Path, warnings: list[str] | None = None) -> dict[str, Any]:
+    handoff = (
+        _read_optional_json(repo_root, HANDOFF_PATH, dict, warnings)
+        if warnings is not None
+        else read_json(repo_root / HANDOFF_PATH, {})
+    )
+    if isinstance(handoff, dict) and handoff:
+        return handoff
+    latest = latest_handoff_record(repo_root)
+    if not latest:
+        return {}
+    return {
+        "summary": str(latest.get("summary") or ""),
+        "status": str(latest.get("status") or ""),
+        "reason": str(latest.get("reason") or ""),
+        "task_type": str(latest.get("task_type") or ""),
+        "completed": _clean_string_list(latest.get("completed"), limit=8),
+        "next_steps": _clean_string_list(latest.get("next_steps"), limit=8),
+        "blocked": _clean_string_list(latest.get("blocked"), limit=8),
+        "open_items": _clean_string_list(latest.get("blocked"), limit=8),
+        "risks": _clean_string_list(latest.get("risks"), limit=8),
+        "recommended_starting_points": _clean_string_list(latest.get("recommended_starting_points"), limit=8),
+        "updated_at": str(latest.get("timestamp") or ""),
+        "source_execution_id": str(latest.get("execution_id") or ""),
     }
 
 
@@ -850,6 +875,100 @@ def _semantic_session(prepared: dict[str, Any]) -> int:
         return 0
 
 
+def _semantic_shard_name(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(name or "subsystem").strip().strip("/"))
+    return (cleaned or "subsystem")[:96]
+
+
+def _normalize_semantic_subsystem(raw: dict[str, Any]) -> dict[str, Any] | None:
+    name = str(raw.get("name") or "").strip()
+    if not name:
+        return None
+    return {
+        "name": name,
+        "description": str(raw.get("description") or "").strip(),
+        "key_paths": _clean_string_list(raw.get("key_paths"), limit=12),
+        "entry_points": _clean_string_list(raw.get("entry_points"), limit=8),
+        "relevant_tests": _clean_string_list(raw.get("relevant_tests"), limit=12),
+        "fragile_areas": _clean_string_list(raw.get("fragile_areas"), limit=8),
+    }
+
+
+def _load_semantic_repo_payload(repo_root: Path, warnings: list[str] | None = None) -> dict[str, Any]:
+    snapshot = (
+        _read_optional_json(repo_root, SEMANTIC_REPO_PATH, dict, warnings)
+        if warnings is not None
+        else read_json(repo_root / SEMANTIC_REPO_PATH, {})
+    )
+    if not isinstance(snapshot, dict):
+        snapshot = {}
+    by_name: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for raw in snapshot.get("subsystems", []) if isinstance(snapshot.get("subsystems"), list) else []:
+        if not isinstance(raw, dict):
+            continue
+        normalized = _normalize_semantic_subsystem(raw)
+        if not normalized:
+            continue
+        by_name[normalized["name"]] = normalized
+        order.append(normalized["name"])
+    shards_dir = repo_root / SEMANTIC_REPO_SHARDS_DIR
+    if shards_dir.exists():
+        for path in sorted(shards_dir.glob("*.json")):
+            raw = read_json(path, {})
+            if not isinstance(raw, dict):
+                continue
+            normalized = _normalize_semantic_subsystem(raw)
+            if not normalized:
+                continue
+            if normalized["name"] not in by_name:
+                order.append(normalized["name"])
+            by_name[normalized["name"]] = normalized
+    if not by_name:
+        return {}
+    return {
+        "repo_id": str(snapshot.get("repo_id") or repo_root.name),
+        "subsystems": [by_name[name] for name in order if name in by_name],
+        "updated_at": str(snapshot.get("updated_at") or ""),
+        "source_session": snapshot.get("source_session"),
+    }
+
+
+def _write_semantic_repo_shards(repo_root: Path, payload: dict[str, Any]) -> None:
+    for subsystem in payload.get("subsystems", []) if isinstance(payload.get("subsystems"), list) else []:
+        if not isinstance(subsystem, dict):
+            continue
+        normalized = _normalize_semantic_subsystem(subsystem)
+        if not normalized:
+            continue
+        write_json(repo_root / SEMANTIC_REPO_SHARDS_DIR / f"{_semantic_shard_name(normalized['name'])}.json", normalized)
+
+
+def migrate_portable_continuity_snapshots(repo_root: Path) -> dict[str, Any]:
+    migrated: list[str] = []
+    handoff = read_json(repo_root / HANDOFF_PATH, {})
+    if isinstance(handoff, dict) and handoff and not load_handoff_history(repo_root, limit=1):
+        append_handoff_history(
+            repo_root,
+            {
+                "execution_id": str(handoff.get("source_execution_id") or ""),
+                "timestamp": str(handoff.get("updated_at") or ""),
+                "summary": str(handoff.get("summary") or ""),
+                "status": "resolved",
+                "completed": _clean_string_list(handoff.get("completed"), limit=5),
+                "next_steps": _clean_string_list(handoff.get("next_steps"), limit=5),
+                "blocked": _clean_string_list(handoff.get("blocked") or handoff.get("open_items"), limit=5),
+                "recommended_starting_points": _clean_string_list(handoff.get("recommended_starting_points"), limit=5),
+            },
+        )
+        migrated.append(HANDOFFS_HISTORY_PATH.as_posix())
+    semantic = _load_semantic_repo_payload(repo_root)
+    if semantic.get("subsystems"):
+        _write_semantic_repo_shards(repo_root, semantic)
+        migrated.append(SEMANTIC_REPO_SHARDS_DIR.as_posix())
+    return {"migrated": sorted(dict.fromkeys(migrated))}
+
+
 def persist_semantic_repo_memory(
     repo_root: Path,
     prepared: dict[str, Any],
@@ -870,9 +989,7 @@ def persist_semantic_repo_memory(
     if not updates:
         return None
     path = repo_root / SEMANTIC_REPO_PATH
-    existing = read_json(path, {})
-    if not isinstance(existing, dict):
-        existing = {}
+    existing = _load_semantic_repo_payload(repo_root)
     existing_subsystems = existing.get("subsystems") if isinstance(existing.get("subsystems"), list) else []
     by_name: dict[str, dict[str, Any]] = {}
     order: list[str] = []
@@ -910,6 +1027,7 @@ def persist_semantic_repo_memory(
         "source_session": _semantic_session(prepared),
     }
     write_json(path, payload)
+    _write_semantic_repo_shards(repo_root, payload)
     return {"path": path.as_posix(), "subsystems_updated": [item["name"] for item in updates], "semantic_repo": payload}
 
 
@@ -973,7 +1091,11 @@ def maintain_continuity_hygiene(repo_root: Path) -> dict[str, Any]:
         _write_jsonl_rows(repo_root / FAILURE_PATTERNS_PATH, merged_failures)
 
     semantic_path = repo_root / SEMANTIC_REPO_PATH
-    semantic_payload = read_json(semantic_path, {})
+    raw_semantic_payload = read_json(semantic_path, {})
+    if isinstance(raw_semantic_payload, dict) and isinstance(raw_semantic_payload.get("subsystems"), list):
+        semantic_payload = raw_semantic_payload
+    else:
+        semantic_payload = _load_semantic_repo_payload(repo_root)
     if isinstance(semantic_payload, dict) and isinstance(semantic_payload.get("subsystems"), list):
         touched = 0
         strings_deduped = 0
@@ -1010,6 +1132,7 @@ def maintain_continuity_hygiene(repo_root: Path) -> dict[str, Any]:
             semantic_payload = dict(semantic_payload)
             semantic_payload["subsystems"] = normalized_subsystems
             write_json(semantic_path, semantic_payload)
+            _write_semantic_repo_shards(repo_root, semantic_payload)
         report["semantic_repo"] = {
             "subsystems_touched": touched,
             "strings_deduped": strings_deduped,
@@ -1038,7 +1161,7 @@ def refresh_staleness(
         "strategies": [],
     }
 
-    handoff = read_json(repo_root / HANDOFF_PATH, {})
+    handoff = _current_handoff(repo_root)
     if isinstance(handoff, dict) and handoff:
         reasons: list[str] = []
         missing = _missing_paths(repo_root, handoff.get("recommended_starting_points"))
@@ -1076,7 +1199,7 @@ def refresh_staleness(
             })
     report["decisions"] = decision_rows
 
-    semantic = read_json(repo_root / SEMANTIC_REPO_PATH, {})
+    semantic = _load_semantic_repo_payload(repo_root)
     if isinstance(semantic, dict) and isinstance(semantic.get("subsystems"), list):
         subsystem_rows: list[dict[str, Any]] = []
         for subsystem in semantic.get("subsystems", []):
@@ -1163,7 +1286,7 @@ def _load_semantic_repo(
     max_full_subsystems: int = 4,
     max_relevant_subsystems: int = 3,
 ) -> dict[str, Any]:
-    payload = _read_optional_json(repo_root, SEMANTIC_REPO_PATH, dict, warnings)
+    payload = _load_semantic_repo_payload(repo_root, warnings)
     if not payload:
         return {}
     subsystems = payload.get("subsystems") if isinstance(payload.get("subsystems"), list) else []
@@ -1767,7 +1890,7 @@ def load_continuity_context(
     session = _session_from_payload(session_identity, repo_root, warnings)
     preferences = _read_optional_json(repo_root, REPO_MEMORY_DIR / "user_preferences.json", dict, warnings)
     staleness = _read_optional_json(repo_root, STALENESS_PATH, dict, warnings)
-    handoff = _read_optional_json(repo_root, HANDOFF_PATH, dict, warnings)
+    handoff = _current_handoff(repo_root, warnings)
     if _handoff_is_stale(staleness):
         handoff = {}
     stale_decisions = _stale_decision_refs(staleness)

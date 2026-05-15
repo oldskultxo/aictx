@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
+import re
 from typing import Any
 
 from .state import REPO_ENGINE_DIR, read_json, write_json
 
 AREA_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "area_memory"
 AREAS_PATH = AREA_MEMORY_DIR / "areas.json"
+AREA_SHARDS_DIR = AREA_MEMORY_DIR / "areas"
 
 
 def derive_area_id(paths: list[str]) -> str:
@@ -21,7 +23,28 @@ def derive_area_id(paths: list[str]) -> str:
 
 
 def load_area_memory(repo_root: Path) -> dict[str, Any]:
-    return read_json(repo_root / AREAS_PATH, {"version": 1, "areas": {}})
+    memory = read_json(repo_root / AREAS_PATH, {"version": 1, "areas": {}})
+    if not isinstance(memory, dict):
+        memory = {"version": 1, "areas": {}}
+    areas = memory.setdefault("areas", {})
+    if not isinstance(areas, dict):
+        areas = {}
+        memory["areas"] = areas
+    shards_dir = repo_root / AREA_SHARDS_DIR
+    if shards_dir.exists():
+        for path in sorted(shards_dir.glob("*.json")):
+            payload = read_json(path, {})
+            if not isinstance(payload, dict):
+                continue
+            area_id = str(payload.get("area_id") or path.stem).strip()
+            if area_id:
+                areas[area_id] = payload
+    return memory
+
+
+def _area_shard_name(area_id: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(area_id or "unknown").strip().strip("/"))
+    return (cleaned or "unknown")[:96]
 
 
 def _top(counter: dict[str, int], limit: int = 8) -> list[str]:
@@ -57,7 +80,23 @@ def update_area_memory(repo_root: Path, execution_log: dict[str, Any], *, strate
     area["related_files"] = _top(area.get("files", {}))
     area["related_tests"] = _top(area.get("tests", {}))
     write_json(repo_root / AREAS_PATH, memory)
+    write_json(repo_root / AREA_SHARDS_DIR / f"{_area_shard_name(area_id)}.json", area)
     return area
+
+
+def migrate_area_memory_shards(repo_root: Path) -> dict[str, Any]:
+    memory = load_area_memory(repo_root)
+    migrated: list[str] = []
+    areas = memory.get("areas") if isinstance(memory.get("areas"), dict) else {}
+    for area_id, area in areas.items():
+        if not isinstance(area, dict):
+            continue
+        payload = dict(area)
+        payload.setdefault("area_id", str(area_id))
+        path = repo_root / AREA_SHARDS_DIR / f"{_area_shard_name(str(area_id))}.json"
+        write_json(path, payload)
+        migrated.append(path.relative_to(repo_root).as_posix())
+    return {"migrated": migrated}
 
 
 def area_hints(repo_root: Path, area_id: str) -> dict[str, Any]:
@@ -69,4 +108,3 @@ def area_hints(repo_root: Path, area_id: str) -> dict[str, Any]:
         "area_strategy_count": int(area.get("strategy_count", 0) or 0),
         "area_failure_count": int(area.get("failure_count", 0) or 0),
     }
-

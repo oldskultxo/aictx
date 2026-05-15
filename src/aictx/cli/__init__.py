@@ -21,7 +21,7 @@ from ..agent_runtime import (
 )
 from ..middleware import cli_finalize_execution, cli_prepare_execution, finalize_execution, now_iso, prepare_execution
 from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
-from ..portability import detect_portable_continuity_from_gitignore, load_portability_state
+from ..portability import compact_portable_jsonl, detect_portable_continuity_from_gitignore, load_portability_state, portability_status
 from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
 from ..doctor import build_doctor_report
 from ..runner_integrations import install_codex_native_integration, install_repo_runner_integrations
@@ -164,6 +164,41 @@ def resolve_init_portable_continuity(args: argparse.Namespace, repo: Path) -> bo
         "Enable git-portable continuity?",
         default=default,
     )
+
+
+def cmd_portability_status(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = portability_status(repo)
+    if bool(getattr(args, "json", False)):
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0
+    print("AICTX portability status")
+    print(f"- enabled: {payload['enabled']}")
+    print(f"- mode: {payload['mode']}")
+    print(f"- policy_version: {payload['policy_version']}")
+    print(f"- profile: {payload['profile']}")
+    print(f"- gitattributes_present: {payload['gitattributes_present']}")
+    print(f"- portable_patterns: {len(payload['portable_patterns'])}")
+    print(f"- local_only_patterns: {len(payload['local_only_patterns'])}")
+    print(f"- jsonl_compaction_changed: {payload['jsonl_compaction']['changed']}")
+    print(f"- tracked_snapshot_risks: {len(payload['tracked_snapshot_risks'])}")
+    for item in payload.get("recommendations", []):
+        print(f"- recommendation: {item}")
+    return 0
+
+
+def cmd_portability_compact(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = compact_portable_jsonl(repo, apply=bool(getattr(args, "apply", False)))
+    if bool(getattr(args, "json", False)):
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0
+    print("AICTX portability compact")
+    print(f"- applied: {payload['applied']}")
+    print(f"- changed: {payload['changed']}")
+    print(f"- duplicates_removed: {payload['duplicates_removed']}")
+    print(f"- rows_truncated: {payload['rows_truncated']}")
+    return 0
 
 
 def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
@@ -1184,7 +1219,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,finalize,doctor,advanced,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,portability,resume,finalize,doctor,advanced,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1205,6 +1240,18 @@ def build_parser() -> argparse.ArgumentParser:
     portable_group.add_argument("--no-portable-continuity", action="store_true", help="Keep all AICTX runtime artifacts local/ignored")
     init.add_argument("--no-register", action="store_true", help="Do not register repo in active workspace")
     init.set_defaults(func=cmd_init)
+
+    portability = sub.add_parser("portability", help="Inspect or compact git-portable continuity")
+    portability_sub = portability.add_subparsers(dest="portability_command", required=True)
+    portability_status_cmd = portability_sub.add_parser("status", help="Show portable continuity policy and merge health")
+    portability_status_cmd.add_argument("--repo", default=".", help="Repository root")
+    portability_status_cmd.add_argument("--json", action="store_true", help="Print structured status JSON")
+    portability_status_cmd.set_defaults(func=cmd_portability_status)
+    portability_compact_cmd = portability_sub.add_parser("compact", help="Dedupe and cap portable append-only JSONL artifacts")
+    portability_compact_cmd.add_argument("--repo", default=".", help="Repository root")
+    portability_compact_cmd.add_argument("--apply", action="store_true", help="Apply compaction. Without this flag, runs as dry-run.")
+    portability_compact_cmd.add_argument("--json", action="store_true", help="Print structured compaction JSON")
+    portability_compact_cmd.set_defaults(func=cmd_portability_compact)
 
     resume = sub.add_parser("resume", help="Compile agent continuity capsule")
     resume.add_argument("--repo", default=".", help="Repository root")

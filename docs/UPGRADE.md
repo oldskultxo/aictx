@@ -1,14 +1,57 @@
 # Upgrade guide
 
-## Current line: 6.3.x
+## Current line: 6.4.x
 
-Current documented runtime: `6.3.2`.
+Current documented runtime: `6.4.0`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
 ```bash
 aictx install
 aictx init
+```
+
+---
+## 6.4.0
+
+`6.4.0` is a minor release for team-safe git-portable continuity.
+
+Added:
+- Public portability maintenance commands:
+  - `aictx portability status --repo . --json`
+  - `aictx portability compact --repo . --apply --json`
+
+Changed:
+- `aictx init --portable-continuity` now writes the `policy_version: 2` / `profile: team-safe` portability policy.
+- Portable continuity now prefers append-only histories and sharded portable artifacts:
+  - `.aictx/continuity/handoffs.jsonl`
+  - `.aictx/continuity/semantic_repo/*.json`
+  - `.aictx/area_memory/areas/*.json`
+- Conflict-prone snapshots stay local-only and are derived when missing:
+  - `.aictx/tasks/active.json`
+  - `.aictx/continuity/handoff.json`
+  - `.aictx/continuity/semantic_repo.json`
+  - `.aictx/area_memory/areas.json`
+- AICTX now manages `.gitattributes` merge hints for portable append-only JSONL files. Git remains the only required transport; no external sync/lock service is required.
+
+Upgrade notes:
+- If you were already using local-only continuity, no migration is required unless you want to opt into portable continuity.
+- If you already had portable continuity enabled on an older repo, re-run:
+
+```bash
+aictx init --repo . --portable-continuity
+```
+
+- Then verify the effective policy:
+
+```bash
+aictx portability status --repo . --json | python3 -m json.tool
+```
+
+- After large merges, you can compact portable JSONL artifacts:
+
+```bash
+aictx portability compact --repo . --apply --json | python3 -m json.tool
 ```
 
 ---

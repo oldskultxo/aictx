@@ -54,11 +54,39 @@ Do not pipe `--json` into `python3 -`; that asks Python to execute JSON as Pytho
 
 ---
 
+## Portable continuity for teams
+
+Portable continuity remains opt-in:
+
+```bash
+aictx init --repo . --portable-continuity
+```
+
+In `6.4.0`, this enables the team-safe portability profile. Git stays the only transport. AICTX exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone latest-run snapshots local-only, and can manage `.gitattributes` merge hints for portable JSONL files.
+
+Inspect the active portability policy:
+
+```bash
+aictx portability status --repo . --json
+```
+
+Compact portable append-only JSONL artifacts after heavy merging:
+
+```bash
+aictx portability compact --repo . --apply --json
+```
+
+See [Git-portable continuity](PORTABILITY.md).
+
+---
+
 ## Advanced inspection commands
 
 ```bash
 aictx advanced
 aictx resume --repo . --task "continue current work" --json
+aictx portability status --repo . --json
+aictx portability compact --repo . --apply --json
 aictx next
 aictx task status --json
 aictx map status
@@ -73,8 +101,11 @@ aictx report real-usage
 ```bash
 aictx install
 aictx init
+aictx init --portable-continuity
 aictx resume --repo . --task "continue current work" --json
 aictx finalize --repo . --status success --summary "targeted tests passed" --json
+aictx portability status --repo . --json
+aictx portability compact --repo . --apply --json
 aictx advanced
 aictx suggest
 aictx reflect

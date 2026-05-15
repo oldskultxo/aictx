@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+from typing import Any
 
 from .portability import (
+    compact_portable_jsonl,
     detect_portable_continuity_from_gitignore,
     load_portability_state,
+    render_aictx_gitattributes_block,
     render_aictx_gitignore_block,
     remove_unmanaged_aictx_gitignore_lines,
+    strip_aictx_gitattributes_block,
     strip_aictx_gitignore_block,
     write_portability_state,
 )
@@ -224,11 +228,18 @@ def init_repo_scaffold(repo: Path, update_gitignore: bool = True, *, portable_co
     portability_path = repo / ".aictx" / "continuity" / "portability.json"
     portability_existed = portability_path.exists()
     write_portability_state(repo, enabled=resolved_portable_continuity)
+    if resolved_portable_continuity:
+        from .area_memory import migrate_area_memory_shards
+        from .continuity import migrate_portable_continuity_snapshots
+
+        migrate_portable_continuity_snapshots(repo)
+        migrate_area_memory_shards(repo)
     if not portability_existed:
         created.append(str(portability_path))
 
     if update_gitignore:
         ensure_gitignore(repo, portable_continuity=resolved_portable_continuity)
+        ensure_gitattributes(repo, portable_continuity=resolved_portable_continuity)
     return created
 
 
@@ -254,3 +265,50 @@ def ensure_gitignore(repo: Path, *, portable_continuity: bool = False) -> None:
     block = render_aictx_gitignore_block(portable_continuity=portable_continuity)
     final = "\n".join(part for part in [cleaned, block.rstrip()] if part).rstrip() + "\n"
     path.write_text(final, encoding="utf-8")
+
+
+def ensure_gitattributes(repo: Path, *, portable_continuity: bool = False) -> None:
+    path = repo / ".gitattributes"
+    existing_text = path.read_text(encoding="utf-8") if path.exists() else ""
+    cleaned = strip_aictx_gitattributes_block(existing_text).rstrip()
+    block = render_aictx_gitattributes_block(portable_continuity=portable_continuity).rstrip()
+    final = "\n".join(part for part in [cleaned, block] if part).rstrip()
+    if final:
+        path.write_text(final + "\n", encoding="utf-8")
+    elif path.exists():
+        path.unlink()
+
+
+def migrate_portability_scaffold(repo: Path) -> dict[str, Any]:
+    state = load_portability_state(repo)
+    enabled = bool(state.get("enabled")) if isinstance(state.get("enabled"), bool) else bool(detect_portable_continuity_from_gitignore(repo))
+    before_policy = state.get("policy_version") if isinstance(state, dict) else None
+    path = write_portability_state(repo, enabled=enabled)
+    if enabled:
+        from .area_memory import migrate_area_memory_shards
+        from .continuity import migrate_portable_continuity_snapshots
+
+        continuity_migration = migrate_portable_continuity_snapshots(repo)
+        area_migration = migrate_area_memory_shards(repo)
+        ensure_gitignore(repo, portable_continuity=True)
+        ensure_gitattributes(repo, portable_continuity=True)
+        compact_report = compact_portable_jsonl(repo, apply=True)
+    else:
+        ensure_gitattributes(repo, portable_continuity=False)
+        compact_report = {"applied": False, "files": [], "changed": False}
+        continuity_migration = {"migrated": []}
+        area_migration = {"migrated": []}
+    after = load_portability_state(repo)
+    return {
+        "path": path.as_posix(),
+        "enabled": enabled,
+        "previous_policy_version": before_policy,
+        "policy_version": after.get("policy_version"),
+        "profile": after.get("profile", ""),
+        "gitattributes": (repo / ".gitattributes").as_posix() if enabled else "",
+        "snapshot_migration": {
+            "continuity": continuity_migration,
+            "area_memory": area_migration,
+        },
+        "compact": compact_report,
+    }

@@ -250,9 +250,12 @@ def work_state_paths(repo_root: Path, task_id: str | None = None) -> dict[str, P
 
 def load_active_task_id(repo_root: Path) -> str:
     payload = read_json(work_state_paths(repo_root)["active"], {})
-    if not isinstance(payload, dict):
-        return ""
-    return normalize_task_id(str(payload.get("active_task_id") or "")) if str(payload.get("active_task_id") or "").strip() else ""
+    if isinstance(payload, dict) and str(payload.get("active_task_id") or "").strip():
+        return normalize_task_id(str(payload.get("active_task_id") or ""))
+    for state in list_work_states(repo_root):
+        if str(state.get("status") or "") == "in_progress":
+            return normalize_task_id(str(state.get("task_id") or ""))
+    return ""
 
 
 def load_work_state(repo_root: Path, task_id: str) -> dict[str, Any]:

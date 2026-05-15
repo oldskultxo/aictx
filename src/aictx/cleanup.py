@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_runtime import AGENTS_END, AGENTS_START
-from .portability import remove_unmanaged_aictx_gitignore_lines, strip_aictx_gitignore_block
+from .portability import remove_unmanaged_aictx_gitignore_lines, strip_aictx_gitattributes_block, strip_aictx_gitignore_block
 from .runner_integrations import (
     AICTX_END,
     AICTX_START,
@@ -115,6 +115,20 @@ def remove_gitignore_aictx_entries(path: Path) -> bool:
         return False
     if filtered:
         path.write_text('\n'.join(filtered).rstrip() + '\n', encoding='utf-8')
+    else:
+        path.unlink()
+    return True
+
+
+def remove_gitattributes_aictx_entries(path: Path) -> bool:
+    if not path.exists():
+        return False
+    original_text = path.read_text(encoding='utf-8')
+    text = strip_aictx_gitattributes_block(original_text).rstrip()
+    if text == original_text.rstrip():
+        return False
+    if text:
+        path.write_text(text + '\n', encoding='utf-8')
     else:
         path.unlink()
     return True
@@ -246,6 +260,13 @@ def clean_repo(repo: Path) -> dict[str, Any]:
             updated.append(str(gitignore_path))
         else:
             removed.append(str(gitignore_path))
+
+    gitattributes_path = repo / '.gitattributes'
+    if remove_gitattributes_aictx_entries(gitattributes_path):
+        if gitattributes_path.exists():
+            updated.append(str(gitattributes_path))
+        else:
+            removed.append(str(gitattributes_path))
 
     return {
         'repo': str(repo),
