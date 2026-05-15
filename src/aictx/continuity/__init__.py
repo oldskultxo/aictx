@@ -14,7 +14,7 @@ from ..adapters import resolve_entrypoint_arbiter_wrapper
 from ..contract_compliance import compact_previous_contract_result, persist_resume_contract
 from ..context_planner import build_structural_entry_points
 from ..failures import FAILURE_PATTERNS_PATH, lookup_failures
-from ..portability import append_portable_jsonl, sanitize_portable_payload, write_portable_json
+from ..portability import append_portable_jsonl, write_portable_json, write_portable_jsonl
 from ..repo_map.config import is_repomap_enabled
 from ..report import build_repo_map_report
 from ..state import (
@@ -1032,18 +1032,8 @@ def persist_semantic_repo_memory(
 
 
 def _write_jsonl_rows(path: Path, rows: list[dict[str, Any]]) -> None:
-    if not rows:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("", encoding="utf-8")
-        return
     repo_root = path.parents[2]
-    rewritten: list[str] = []
-    for index, row in enumerate(rows):
-        relative_path = path.relative_to(repo_root).as_posix()
-        sanitized_row = sanitize_portable_payload(row, relative_path=relative_path, field_path=f"row[{index}]")["payload"]
-        rewritten.append(json.dumps(sanitized_row, ensure_ascii=False, sort_keys=True))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+    write_portable_jsonl(repo_root, path, rows)
 
 
 def maintain_continuity_hygiene(repo_root: Path) -> dict[str, Any]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import aictx.failures as failures_module
 from aictx.failure_memory import FAILURE_PATTERNS_PATH, link_resolved_failures, load_failures, lookup_failures
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.scaffold import init_repo_scaffold
@@ -118,3 +119,43 @@ def test_resolution_marks_extended_resolved_by(tmp_path: Path):
     assert rows[-1]["status"] == "resolved"
     assert rows[-1]["resolved_by"] == "exec-fix"
     assert rows[-1]["resolved_by_execution_id"] == "exec-fix"
+
+
+def test_resolution_rewrite_uses_portable_jsonl_writer(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    failed = prepare_execution(_payload(repo, "exec-failure-before-fix"))
+    finalize_execution(failed, {"success": False, "result_summary": "ImportError during startup", "validated_learning": False})
+
+    fixed = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "fix startup import error",
+            "agent_id": "codex",
+            "execution_id": "exec-fix",
+            "declared_task_type": "bug_fixing",
+            "files_opened": ["src/aictx/middleware.py"],
+        }
+    )
+    execution_log = {
+        "task_type": "bug_fixing",
+        "files_opened": ["src/aictx/middleware.py"],
+        "area_id": "src/aictx",
+    }
+    called: dict[str, object] = {}
+    real_writer = failures_module.write_portable_jsonl
+
+    def _tracking_writer(repo_root: Path, path: Path, rows: list[dict[str, object]]) -> dict[str, object]:
+        called["repo_root"] = repo_root
+        called["path"] = path
+        called["rows"] = rows
+        return real_writer(repo_root, path, rows)
+
+    monkeypatch.setattr(failures_module, "write_portable_jsonl", _tracking_writer)
+
+    resolved = link_resolved_failures(repo, fixed, execution_log)
+
+    assert resolved
+    assert called["repo_root"] == repo
+    assert called["path"] == repo / FAILURE_PATTERNS_PATH
+    assert any(isinstance(row, dict) and row.get("status") == "resolved" for row in called["rows"])

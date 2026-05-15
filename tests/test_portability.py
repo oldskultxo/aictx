@@ -110,6 +110,18 @@ def run_cli(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def run_cli_text(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    return subprocess.run(
+        [sys.executable, "-m", "aictx", *args, "--repo", str(repo)],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+
 def test_default_scaffold_keeps_local_only(tmp_path: Path):
     repo = tmp_path / "repo"
     init_git_repo(repo)
@@ -812,3 +824,22 @@ def test_portability_status_reports_drift_and_invalid_jsonl(tmp_path: Path):
     assert status["jsonl_compaction"]["invalid_rows"] == 1
     assert status["jsonl_compaction"]["blocked_by_invalid_rows"] is True
     assert any("out of sync" in item for item in status["warnings"])
+
+
+def test_portability_status_human_output_surfaces_warnings(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    init_repo_scaffold(repo, portable_continuity=True)
+    decisions = repo / ".aictx" / "continuity" / "decisions.jsonl"
+    decisions.write_text('{"decision": "same", "rationale": "Bearer ghp_abcdefghijklmnopqrstuvwxyz123456"}\nnot-json\n', encoding="utf-8")
+    (repo / ".gitattributes").write_text("*.md text\n", encoding="utf-8")
+
+    status_proc = run_cli_text(repo, "portability", "status")
+
+    assert status_proc.returncode == 0, status_proc.stderr
+    text = status_proc.stdout
+    assert "- status: warning" in text
+    assert "- drift: gitattributes" in text
+    assert "- invalid_jsonl_rows: 1" in text
+    assert "- secret_findings: " in text
+    assert "- warning: portable JSONL compaction is blocked by invalid rows; repair the file before applying compaction" in text

@@ -451,6 +451,32 @@ def append_portable_jsonl(repo_root: Path, path: Path | str, row: dict[str, Any]
     return sanitized
 
 
+def write_portable_jsonl(repo_root: Path, path: Path | str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    relative_path = _relative_portable_path(repo_root, path)
+    target = repo_root / relative_path
+    sanitized_rows: list[dict[str, Any]] = []
+    findings: list[dict[str, str]] = []
+    redacted_fields_count = 0
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        sanitized = sanitize_portable_payload(row, relative_path=relative_path, field_path=f"row[{index}]")
+        sanitized_rows.append(sanitized["payload"])
+        findings.extend(sanitized["findings"])
+        redacted_fields_count += int(sanitized["redacted_fields_count"] or 0)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in sanitized_rows) + ("\n" if sanitized_rows else ""),
+        encoding="utf-8",
+    )
+    return {
+        "payload": sanitized_rows,
+        "changed": bool(findings),
+        "findings": findings,
+        "redacted_fields_count": redacted_fields_count,
+    }
+
+
 def _jsonl_parse(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {"rows": [], "invalid_rows": 0}

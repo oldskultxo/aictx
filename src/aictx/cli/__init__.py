@@ -173,6 +173,7 @@ def cmd_portability_status(args: argparse.Namespace) -> int:
         print(json.dumps(payload, ensure_ascii=False))
         return 0
     print("AICTX portability status")
+    print(f"- status: {payload['status']}")
     print(f"- enabled: {payload['enabled']}")
     print(f"- mode: {payload['mode']}")
     print(f"- policy_version: {payload['policy_version']}")
@@ -181,7 +182,13 @@ def cmd_portability_status(args: argparse.Namespace) -> int:
     print(f"- portable_patterns: {len(payload['portable_patterns'])}")
     print(f"- local_only_patterns: {len(payload['local_only_patterns'])}")
     print(f"- jsonl_compaction_changed: {payload['jsonl_compaction']['changed']}")
+    print(f"- invalid_jsonl_rows: {payload['jsonl_compaction']['invalid_rows']}")
+    print(f"- secret_findings: {payload['secret_scan']['findings_count']}")
+    if payload.get("sync", {}).get("drift"):
+        print(f"- drift: {', '.join(payload['sync']['drift'])}")
     print(f"- tracked_snapshot_risks: {len(payload['tracked_snapshot_risks'])}")
+    for item in payload.get("warnings", []):
+        print(f"- warning: {item}")
     for item in payload.get("recommendations", []):
         print(f"- recommendation: {item}")
     return 0

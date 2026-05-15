@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..portability import append_portable_jsonl
+from ..portability import append_portable_jsonl, write_portable_jsonl
 from ..runtime_io import slugify
 from ..state import REPO_FAILURE_MEMORY_DIR, read_jsonl, write_json
 
@@ -399,8 +399,6 @@ def link_resolved_failures(repo_root: Path, prepared: dict[str, Any], execution_
             row["resolved_by_execution_id"] = resolved_by
             row["resolved_by"] = resolved_by
         updated.append(row)
-    path = repo_root / FAILURE_PATTERNS_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in updated) + ("\n" if updated else ""), encoding="utf-8")
+    write_portable_jsonl(repo_root, repo_root / FAILURE_PATTERNS_PATH, updated)
     write_failure_index(repo_root, updated)
     return sorted(resolved_ids)
