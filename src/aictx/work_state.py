@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from .core_runtime import slugify
+from .portability import append_portable_jsonl, write_portable_json
 from .state import (
     REPO_TASKS_ACTIVE_PATH,
     REPO_TASKS_DIR,
     REPO_TASK_THREADS_DIR,
-    append_jsonl,
     read_json,
     write_json,
 )
@@ -248,14 +248,24 @@ def work_state_paths(repo_root: Path, task_id: str | None = None) -> dict[str, P
     return paths
 
 
-def load_active_task_id(repo_root: Path) -> str:
+def resolve_active_task_ref(repo_root: Path) -> dict[str, str]:
     payload = read_json(work_state_paths(repo_root)["active"], {})
     if isinstance(payload, dict) and str(payload.get("active_task_id") or "").strip():
-        return normalize_task_id(str(payload.get("active_task_id") or ""))
+        return {
+            "task_id": normalize_task_id(str(payload.get("active_task_id") or "")),
+            "source": "active_snapshot",
+        }
     for state in list_work_states(repo_root):
         if str(state.get("status") or "") == "in_progress":
-            return normalize_task_id(str(state.get("task_id") or ""))
-    return ""
+            return {
+                "task_id": normalize_task_id(str(state.get("task_id") or "")),
+                "source": "thread_fallback",
+            }
+    return {"task_id": "", "source": ""}
+
+
+def load_active_task_id(repo_root: Path) -> str:
+    return str(resolve_active_task_ref(repo_root).get("task_id") or "")
 
 
 def load_work_state(repo_root: Path, task_id: str) -> dict[str, Any]:
@@ -336,7 +346,10 @@ def evaluate_work_state_git_context(repo_root: Path, state: dict[str, Any]) -> d
 
 
 def load_active_work_state_checked(repo_root: Path) -> dict[str, Any]:
-    state = load_active_work_state(repo_root)
+    active_ref = resolve_active_task_ref(repo_root)
+    task_id = str(active_ref.get("task_id") or "")
+    source = str(active_ref.get("source") or "")
+    state = load_work_state(repo_root, task_id)
     if not state:
         return {
             "active_work_state": {},
@@ -344,6 +357,14 @@ def load_active_work_state_checked(repo_root: Path) -> dict[str, Any]:
             "skipped_work_state": {},
         }
     status = evaluate_work_state_git_context(repo_root, state)
+    if source == "thread_fallback" and str(status.get("reason") or "") == "no_git_context":
+        status = dict(status)
+        status["loadable"] = False
+        status["reason"] = "missing_git_context_thread_fallback"
+        status["warning"] = "portable Work State thread selected via fallback has no saved git context"
+    if source:
+        status = dict(status)
+        status["source"] = source
     if status.get("loadable"):
         return {
             "active_work_state": state,
@@ -358,6 +379,7 @@ def load_active_work_state_checked(repo_root: Path) -> dict[str, Any]:
             "reason": str(status.get("reason") or ""),
             "saved_branch": str(status.get("saved_branch") or ""),
             "current_branch": str(status.get("current_branch") or ""),
+            "source": source,
         },
     }
 
@@ -416,10 +438,11 @@ def save_work_state(repo_root: Path, state: dict[str, Any], *, source: str, even
         normalized["created_at"] = _truncate(previous.get("created_at"), 40)
     normalized["updated_at"] = now_iso()
     normalized["git_context"] = capture_git_context(repo_root)
-    write_json(paths["thread"], normalized)
+    write_portable_json(repo_root, paths["thread"], normalized)
     if normalized.get("status") == "in_progress":
         _write_active_task(repo_root, normalized["task_id"])
-    append_jsonl(
+    append_portable_jsonl(
+        repo_root,
         paths["events"],
         _event_row(
             normalized,

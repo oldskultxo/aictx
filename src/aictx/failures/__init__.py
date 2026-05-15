@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..portability import append_portable_jsonl
 from ..runtime_io import slugify
 from ..state import REPO_FAILURE_MEMORY_DIR, read_jsonl, write_json
 
@@ -309,7 +310,7 @@ def persist_failure_pattern(repo_root: Path, prepared: dict[str, Any], execution
         "session": _session_count(prepared),
     }
     record = FailurePattern.from_payload(record).to_payload()
-    append_jsonl(repo_root / FAILURE_PATTERNS_PATH, record)
+    append_portable_jsonl(repo_root, repo_root / FAILURE_PATTERNS_PATH, record)
     write_failure_index(repo_root, load_failures(repo_root))
     return {
         "path": (repo_root / FAILURE_PATTERNS_PATH).as_posix(),

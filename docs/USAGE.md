@@ -64,17 +64,25 @@ aictx init --repo . --portable-continuity
 
 In `6.4.0`, this enables the team-safe portability profile. Git stays the only transport. AICTX exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone latest-run snapshots local-only, and can manage `.gitattributes` merge hints for portable JSONL files.
 
+Portable writes are also secret-safe by default. AICTX redacts detected passwords, tokens, API keys, private keys, credential-bearing URLs, and similar secret-shaped values before persisting the portable subset.
+
 Inspect the active portability policy:
 
 ```bash
 aictx portability status --repo . --json
 ```
 
+The status payload can report managed-file drift between `portability.json`, `.gitignore`, and `.gitattributes`.
+It can also report portable secret-scan findings without exposing raw secret values.
+
 Compact portable append-only JSONL artifacts after heavy merging:
 
 ```bash
 aictx portability compact --repo . --apply --json
 ```
+
+If a portable JSONL file contains invalid rows, compaction reports the blockage and leaves that file unchanged.
+If valid rows contain secret-like values, compaction redacts them when it is allowed to rewrite the file.
 
 See [Git-portable continuity](PORTABILITY.md).
 

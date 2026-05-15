@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .portability import append_portable_jsonl
 from .state import REPO_STRATEGY_MEMORY_DIR, read_jsonl
 
 STRATEGIES_PATH = REPO_STRATEGY_MEMORY_DIR / "strategies.jsonl"
@@ -321,7 +322,7 @@ def persist_strategy(repo_root: Path, strategy: dict[str, Any]) -> dict[str, Any
     path = ensure_strategy_memory(repo_root)
     if strategy_exists(repo_root, strategy):
         return None
-    append_jsonl(path, strategy)
+    append_portable_jsonl(repo_root, path, strategy)
     return {"path": path.as_posix(), "task_id": strategy.get("task_id", "")}
 
 

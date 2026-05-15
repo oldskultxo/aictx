@@ -278,7 +278,7 @@ Optional or latest-run artifacts may also appear:
 .aictx/repo_map/status.json
 ```
 
-When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.0 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, and can add `.gitattributes` merge hints for portable JSONL files. See [Git-portable continuity](docs/PORTABILITY.md).
+When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.0 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
 
 For lifecycle details, startup banner semantics, branch-safe loading rules, internal runtime commands, and compliance auditing, see [Technical overview](docs/TECHNICAL_OVERVIEW.md).
 

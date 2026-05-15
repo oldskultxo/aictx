@@ -32,7 +32,12 @@ Changed:
   - `.aictx/continuity/handoff.json`
   - `.aictx/continuity/semantic_repo.json`
   - `.aictx/area_memory/areas.json`
+- If `.aictx/tasks/active.json` is missing and portable Work State falls back to `threads/*.json`, AICTX now skips fallback threads that do not have saved `git_context`.
 - AICTX now manages `.gitattributes` merge hints for portable append-only JSONL files. Git remains the only required transport; no external sync/lock service is required.
+- `aictx portability status --repo . --json` now reports sync/drift for the managed portability policy files.
+- Portable artifacts are now secret-safe by default: AICTX redacts detected tokens, passwords, API keys, private keys, credential-bearing URLs, and similar secret-shaped values before writing the portable subset.
+- `aictx portability status --repo . --json` now also reports portable secret-scan findings without printing raw secret values.
+- `aictx portability compact --repo . --apply --json` now redacts secret-like values in valid rows, but still refuses to rewrite files containing invalid JSONL rows.
 
 Upgrade notes:
 - If you were already using local-only continuity, no migration is required unless you want to opt into portable continuity.
@@ -53,6 +58,8 @@ aictx portability status --repo . --json | python3 -m json.tool
 ```bash
 aictx portability compact --repo . --apply --json | python3 -m json.tool
 ```
+
+- There is no secret-redaction override in this line. If a portable artifact is meant to be committed, AICTX will persist the redacted form.
 
 ---
 ## 6.3.2

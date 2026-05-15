@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from .portability import write_portable_json
 from .state import REPO_ENGINE_DIR, read_json, write_json
 
 AREA_MEMORY_DIR = Path(REPO_ENGINE_DIR) / "area_memory"
@@ -80,7 +81,7 @@ def update_area_memory(repo_root: Path, execution_log: dict[str, Any], *, strate
     area["related_files"] = _top(area.get("files", {}))
     area["related_tests"] = _top(area.get("tests", {}))
     write_json(repo_root / AREAS_PATH, memory)
-    write_json(repo_root / AREA_SHARDS_DIR / f"{_area_shard_name(area_id)}.json", area)
+    write_portable_json(repo_root, repo_root / AREA_SHARDS_DIR / f"{_area_shard_name(area_id)}.json", area)
     return area
 
 
@@ -94,7 +95,7 @@ def migrate_area_memory_shards(repo_root: Path) -> dict[str, Any]:
         payload = dict(area)
         payload.setdefault("area_id", str(area_id))
         path = repo_root / AREA_SHARDS_DIR / f"{_area_shard_name(str(area_id))}.json"
-        write_json(path, payload)
+        write_portable_json(repo_root, path, payload)
         migrated.append(path.relative_to(repo_root).as_posix())
     return {"migrated": migrated}
 

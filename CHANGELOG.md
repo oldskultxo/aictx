@@ -12,10 +12,15 @@
 - Portable continuity now keeps append-only/sharded artifacts versionable while leaving conflict-prone latest-run snapshots local-only and derivable from portable history when needed.
 - Portable continuity now manages an AICTX-owned `.gitattributes` block with `merge=union` hints for append-only JSONL continuity files without requiring any external sync service.
 - Re-running `aictx init --portable-continuity` now migrates existing portable repos to the team-safe layout and merge policy.
+- Portable Work State fallback is now stricter: if `.aictx/tasks/active.json` is missing and the selected portable thread has no saved `git_context`, AICTX skips it as ambiguous instead of loading it as active work.
+- `aictx portability status` now reports drift between `portability.json`, the AICTX-managed `.gitignore` block, and the AICTX-managed `.gitattributes` block.
+- Portable continuity is now secret-safe by default for the Git-visible subset: AICTX redacts detected passwords, tokens, API keys, private keys, credential-bearing URLs, and similar secret-shaped values before writing portable artifacts, with no bypass/override in this line.
 - Updated README, portability, installation, usage, upgrade, and release checklist docs for the 6.4.0 portability model.
 
 ### Fixed
 - Memory hygiene now rewrites duplicate semantic repo string lists from raw `semantic_repo.json` input before writing the dedupe report.
+- `aictx portability compact --apply` now redacts secret-like values in valid portable JSONL rows and still refuses to rewrite files that contain invalid JSONL rows, instead of silently dropping those lines.
+- `aictx portability status --repo . --json` now surfaces portable secret-scan findings without printing raw secret values.
 - Top-level CLI help now reflects the public `portability` command in the primary command list.
 
 ## 6.3.2 - 2026-05-14

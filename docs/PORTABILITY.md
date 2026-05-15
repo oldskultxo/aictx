@@ -4,6 +4,8 @@ AICTX does not sync anything. Git is the transport.
 
 When enabled, AICTX writes a team-safe Git policy that allows committing a safe subset of canonical `.aictx/` artifacts and adds merge hints for append-only JSONL continuity files.
 
+Portable allowlisting is not enough by itself. AICTX now also redacts secret-like values before writing portable artifacts.
+
 ## Enable
 
 ```bash
@@ -32,6 +34,8 @@ AICTX can expose this portable subset to Git:
 .aictx/area_memory/areas/*.json
 .aictx/repo_map/config.json
 ```
+
+Portable artifacts are written through a secret scrubber. AICTX redacts detected passwords, tokens, API keys, private keys, credential-bearing URLs, bearer/JWT-style values, and similar secret-shaped strings. There is no bypass/override in `6.4.0`.
 
 ## Local-only artifacts
 
@@ -102,11 +106,21 @@ Inspect the effective policy:
 aictx portability status --repo . --json
 ```
 
+The status payload reports:
+
+- policy/file drift between `portability.json`, `.gitignore`, and `.gitattributes`;
+- invalid portable JSONL rows that block compaction;
+- secret-scan findings for portable artifacts, without printing raw secret values.
+
 Compact portable append-only JSONL after large merges:
 
 ```bash
 aictx portability compact --repo . --apply --json
 ```
+
+Compaction can also redact secret-like values found in valid portable JSONL rows.
+
+If portable JSONL contains invalid/manual/corrupt rows, compaction reports the problem and does not rewrite that file, even if the valid rows also contain secrets. Repair the invalid rows first, then re-run compaction.
 
 ## Disabling portability later
 
@@ -148,6 +162,23 @@ Conflict-prone snapshots are local-only in the team-safe profile:
 - `.aictx/continuity/semantic_repo.json` is backed by portable subsystem shards under `.aictx/continuity/semantic_repo/*.json`.
 - `.aictx/area_memory/areas.json` is backed by portable area shards under `.aictx/area_memory/areas/*.json`.
 
+Portable Work State fallback is also branch-safe:
+
+- if `.aictx/tasks/active.json` exists, AICTX can still load older Work State conservatively when `git_context` is missing;
+- if `.aictx/tasks/active.json` is missing and AICTX falls back to portable `threads/*.json`, a thread without saved `git_context` is treated as ambiguous and skipped instead of being resumed as active work.
+
+Inspect drift and merge health with:
+
+```bash
+aictx portability status --repo . --json
+```
+
+The status payload reports sync/drift between:
+
+- `.aictx/continuity/portability.json`
+- the AICTX-managed `.gitignore` block
+- the AICTX-managed `.gitattributes` block
+
 ## Safety
 
-Do not commit secrets. Review `.aictx/` changes before committing.
+Do not commit secrets. AICTX now redacts portable secrets by default, but you should still review `.aictx/` changes before committing. Portable artifacts may still contain operational context even when secret values are scrubbed.

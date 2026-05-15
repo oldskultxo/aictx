@@ -9,10 +9,13 @@ from pathlib import Path
 
 import aictx.cli as cli
 from aictx.cleanup import remove_gitattributes_aictx_entries, remove_gitignore_aictx_entries
-from aictx.continuity import HANDOFFS_HISTORY_PATH, load_continuity_context
+from aictx.continuity import HANDOFFS_HISTORY_PATH, append_handoff_history, load_continuity_context, persist_decision_memory, persist_semantic_repo_memory
 from aictx.area_memory import load_area_memory, update_area_memory
+from aictx.failures import persist_failure_pattern
 from aictx.portability import PORTABILITY_STATE_PATH, load_portability_state, write_portability_state
+from aictx.repo_map.config import write_repomap_config
 from aictx.scaffold import init_repo_scaffold
+from aictx.strategy_memory import persist_strategy
 from aictx.work_state import load_active_task_id, load_active_work_state, start_work_state
 
 
@@ -529,6 +532,34 @@ def test_portable_work_state_thread_loads_when_git_context_is_safe(tmp_path: Pat
     assert context["work_state_git_status"]["reason"] == "same_branch"
 
 
+def test_portable_work_state_thread_without_git_context_is_skipped_when_active_snapshot_missing(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    git(repo, "config", "user.name", "Test User")
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "checkout", "-b", "main")
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    git(repo, "add", "tracked.txt")
+    git(repo, "commit", "-m", "initial")
+    init_repo_scaffold(repo, portable_continuity=True)
+
+    state = start_work_state(repo, "Portable continuation")
+    thread_path = repo / ".aictx" / "tasks" / "threads" / f"{state['task_id']}.json"
+    payload = json.loads(thread_path.read_text(encoding="utf-8"))
+    payload.pop("git_context", None)
+    thread_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (repo / ".aictx" / "tasks" / "active.json").unlink()
+
+    context = load_continuity_context(repo, request_text="continue portable work")
+
+    assert context["active_work_state"] == {}
+    assert context["loaded"].get("work_state") is not True
+    assert context["skipped_work_state"]["task_id"] == state["task_id"]
+    assert context["skipped_work_state"]["reason"] == "missing_git_context_thread_fallback"
+    assert context["skipped_work_state"]["source"] == "thread_fallback"
+    assert context["work_state_git_status"]["reason"] == "missing_git_context_thread_fallback"
+
+
 def test_enabling_portability_migrates_existing_snapshots_to_portable_sources(tmp_path: Path):
     repo = tmp_path / "repo"
     init_git_repo(repo)
@@ -560,6 +591,126 @@ def test_area_memory_writes_portable_shard(tmp_path: Path):
     assert (repo / ".aictx" / "area_memory" / "areas" / "src-aictx.json").exists()
 
 
+def test_portable_work_state_redacts_thread_and_event_secrets(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, portable_continuity=True)
+
+    state = start_work_state(
+        repo,
+        "Fix portable secret leak",
+        initial={
+            "current_hypothesis": "Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz123456",
+            "recommended_commands": ["API_KEY=super-secret-value-12345"],
+        },
+        source="token=super-secret-value-12345",
+    )
+
+    thread_text = (repo / ".aictx" / "tasks" / "threads" / f"{state['task_id']}.json").read_text(encoding="utf-8")
+    events_text = (repo / ".aictx" / "tasks" / "threads" / f"{state['task_id']}.events.jsonl").read_text(encoding="utf-8")
+
+    assert "super-secret-value-12345" not in thread_text
+    assert "ghp_abcdefghijklmnopqrstuvwxyz123456" not in thread_text
+    assert "[redacted:token]" in thread_text
+    assert "[redacted:api_key]" in thread_text
+    assert "super-secret-value-12345" not in events_text
+    assert "[redacted:token]" in events_text
+
+
+def test_portable_artifact_writers_redact_secrets_and_keep_local_snapshots_raw(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, portable_continuity=True)
+
+    append_handoff_history(
+        repo,
+        {
+            "execution_id": "exec-1",
+            "timestamp": "2026-05-15T00:00:00Z",
+            "summary": "handoff API_KEY=super-secret-value-12345",
+            "status": "resolved",
+        },
+    )
+    persist_decision_memory(
+        repo,
+        {"envelope": {"execution_id": "exec-1"}, "continuity_context": {"session": {"session_count": 1}}},
+        {"decisions": [{"decision": "keep transport", "rationale": "password=super-secret-value-12345"}]},
+        timestamp="2026-05-15T00:00:00Z",
+    )
+    persist_semantic_repo_memory(
+        repo,
+        {"execution_observation": {}, "continuity_context": {"session": {"session_count": 1}}},
+        {"semantic_repo": [{"name": "runtime", "description": "uses ghp_abcdefghijklmnopqrstuvwxyz123456"}]},
+        timestamp="2026-05-15T00:00:00Z",
+    )
+    update_area_memory(
+        repo,
+        {
+            "area_id": "src/aictx",
+            "files_opened": ["src/aictx/portability.py"],
+            "tests_executed": ["API_KEY=super-secret-value-12345"],
+        },
+    )
+    persist_failure_pattern(
+        repo,
+        {"envelope": {"execution_id": "exec-2"}, "continuity_context": {"session": {"session_count": 1}}},
+        {"task_type": "bug_fixing", "area_id": "src/aictx", "notable_errors": ["Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"]},
+        {"success": False, "result_summary": "retry with token=super-secret-value-12345"},
+    )
+    persist_strategy(
+        repo,
+        {
+            "task_id": "strategy-1",
+            "task_text": "use token=super-secret-value-12345",
+            "task_type": "bug_fixing",
+            "area_id": "src/aictx",
+            "entry_points": ["src/aictx/portability.py"],
+            "files_used": ["src/aictx/portability.py"],
+            "timestamp": "2026-05-15T00:00:00Z",
+            "success": True,
+            "is_failure": False,
+        },
+    )
+    write_repomap_config(repo, {"enabled": True, "provider": "https://user:super-secret-value-12345@example.com/repomap"})
+
+    portable_texts = [
+        (repo / ".aictx" / "continuity" / "handoffs.jsonl").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "continuity" / "decisions.jsonl").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "continuity" / "semantic_repo" / "runtime.json").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "area_memory" / "areas" / "src-aictx.json").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "failure_memory" / "failure_patterns.jsonl").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "repo_map" / "config.json").read_text(encoding="utf-8"),
+    ]
+
+    for text in portable_texts:
+        assert "super-secret-value-12345" not in text
+        assert "ghp_abcdefghijklmnopqrstuvwxyz123456" not in text
+        assert "[redacted:" in text
+
+    semantic_snapshot = (repo / ".aictx" / "continuity" / "semantic_repo.json").read_text(encoding="utf-8")
+    local_area_snapshot = (repo / ".aictx" / "area_memory" / "areas.json").read_text(encoding="utf-8")
+    assert "ghp_abcdefghijklmnopqrstuvwxyz123456" in semantic_snapshot
+    assert "API_KEY=super-secret-value-12345" in local_area_snapshot
+
+
+def test_portable_migrations_redact_secrets_in_history_and_shards(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    write_files(
+        repo,
+        {
+            ".aictx/continuity/handoff.json": '{"summary": "snapshot API_KEY=super-secret-value-12345", "updated_at": "2026-05-15T00:00:00Z"}\n',
+            ".aictx/continuity/semantic_repo.json": '{"subsystems": [{"name": "runtime", "description": "Bearer ghp_abcdefghijklmnopqrstuvwxyz123456"}]}\n',
+            ".aictx/area_memory/areas.json": '{"version": 1, "areas": {"src/aictx": {"area_id": "src/aictx", "related_tests": ["API_KEY=super-secret-value-12345"]}}}\n',
+        },
+    )
+
+    init_repo_scaffold(repo, portable_continuity=True)
+
+    assert "super-secret-value-12345" not in (repo / HANDOFFS_HISTORY_PATH).read_text(encoding="utf-8")
+    assert "ghp_abcdefghijklmnopqrstuvwxyz123456" not in (repo / ".aictx" / "continuity" / "semantic_repo" / "runtime.json").read_text(encoding="utf-8")
+    assert "super-secret-value-12345" not in (repo / ".aictx" / "area_memory" / "areas" / "src-aictx.json").read_text(encoding="utf-8")
+
+
 def test_portability_status_and_compact_cli(tmp_path: Path):
     repo = tmp_path / "repo"
     init_git_repo(repo)
@@ -579,3 +730,85 @@ def test_portability_status_and_compact_cli(tmp_path: Path):
     compact = json.loads(compact_proc.stdout)
     assert compact["duplicates_removed"] == 1
     assert decisions.read_text(encoding="utf-8") == '{"decision": "same"}\n'
+
+
+def test_portability_status_reports_secret_findings_without_raw_values(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    init_repo_scaffold(repo, portable_continuity=True)
+    decisions = repo / ".aictx" / "continuity" / "decisions.jsonl"
+    decisions.write_text('{"decision": "keep", "rationale": "Bearer ghp_abcdefghijklmnopqrstuvwxyz123456"}\n', encoding="utf-8")
+
+    status_proc = run_cli(repo, "portability", "status")
+
+    assert status_proc.returncode == 0, status_proc.stderr
+    assert "ghp_abcdefghijklmnopqrstuvwxyz123456" not in status_proc.stdout
+    status = json.loads(status_proc.stdout)
+    assert status["status"] == "warning"
+    assert status["secret_scan"]["status"] == "warning"
+    assert status["secret_scan"]["findings_count"] >= 1
+    assert status["secret_scan"]["files"][0]["path"] == ".aictx/continuity/decisions.jsonl"
+    assert status["secret_scan"]["findings"][0]["action"] == "redact"
+
+
+def test_portability_compact_redacts_valid_jsonl_secret_rows(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    init_repo_scaffold(repo, portable_continuity=True)
+    decisions = repo / ".aictx" / "continuity" / "decisions.jsonl"
+    decisions.write_text(
+        '{"decision": "same", "rationale": "Bearer ghp_abcdefghijklmnopqrstuvwxyz123456"}\n'
+        '{"decision": "same", "rationale": "Bearer ghp_abcdefghijklmnopqrstuvwxyz123456"}\n',
+        encoding="utf-8",
+    )
+
+    compact_proc = run_cli(repo, "portability", "compact", "--apply")
+
+    assert compact_proc.returncode == 0, compact_proc.stderr
+    compact = json.loads(compact_proc.stdout)
+    assert compact["duplicates_removed"] == 1
+    assert compact["secret_redactions"] >= 1
+    text = decisions.read_text(encoding="utf-8")
+    assert "ghp_abcdefghijklmnopqrstuvwxyz123456" not in text
+    assert "[redacted:token]" in text
+
+
+def test_portability_compact_does_not_rewrite_invalid_jsonl_rows(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    init_repo_scaffold(repo, portable_continuity=True)
+    decisions = repo / ".aictx" / "continuity" / "decisions.jsonl"
+    original = '{"decision": "same", "rationale": "token=super-secret-value-12345"}\nnot-json\n{"decision": "same", "rationale": "token=super-secret-value-12345"}\n'
+    decisions.write_text(original, encoding="utf-8")
+
+    compact_proc = run_cli(repo, "portability", "compact", "--apply")
+
+    assert compact_proc.returncode == 0, compact_proc.stderr
+    compact = json.loads(compact_proc.stdout)
+    assert compact["invalid_rows"] == 1
+    assert compact["blocked_by_invalid_rows"] is True
+    assert compact["secret_redactions"] >= 1
+    assert compact["secret_findings"] >= 1
+    assert decisions.read_text(encoding="utf-8") == original
+
+
+def test_portability_status_reports_drift_and_invalid_jsonl(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_git_repo(repo)
+    init_repo_scaffold(repo, portable_continuity=True)
+    decisions = repo / ".aictx" / "continuity" / "decisions.jsonl"
+    decisions.write_text('{"decision": "same"}\nnot-json\n{"decision": "same"}\n', encoding="utf-8")
+    (repo / ".gitattributes").write_text("*.md text\n", encoding="utf-8")
+
+    status_proc = run_cli(repo, "portability", "status")
+
+    assert status_proc.returncode == 0, status_proc.stderr
+    status = json.loads(status_proc.stdout)
+    assert status["status"] == "warning"
+    assert status["sync"]["state_in_sync"] is True
+    assert status["sync"]["gitignore_in_sync"] is True
+    assert status["sync"]["gitattributes_in_sync"] is False
+    assert "gitattributes" in status["sync"]["drift"]
+    assert status["jsonl_compaction"]["invalid_rows"] == 1
+    assert status["jsonl_compaction"]["blocked_by_invalid_rows"] is True
+    assert any("out of sync" in item for item in status["warnings"])

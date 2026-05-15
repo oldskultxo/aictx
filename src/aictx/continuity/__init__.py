@@ -14,13 +14,13 @@ from ..adapters import resolve_entrypoint_arbiter_wrapper
 from ..contract_compliance import compact_previous_contract_result, persist_resume_contract
 from ..context_planner import build_structural_entry_points
 from ..failures import FAILURE_PATTERNS_PATH, lookup_failures
+from ..portability import append_portable_jsonl, sanitize_portable_payload, write_portable_json
 from ..repo_map.config import is_repomap_enabled
 from ..report import build_repo_map_report
 from ..state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
     REPO_MEMORY_DIR,
-    append_jsonl,
     read_json,
     read_jsonl,
     touch_session_identity,
@@ -488,7 +488,7 @@ def load_handoff_history(repo_root: Path, limit: int = 10) -> list[dict[str, Any
 
 def append_handoff_history(repo_root: Path, handoff_record: dict[str, Any], limit: int = 10) -> dict[str, Any]:
     path = repo_root / HANDOFFS_HISTORY_PATH
-    append_jsonl(path, _normalize_handoff_history_row(handoff_record))
+    append_portable_jsonl(repo_root, path, _normalize_handoff_history_row(handoff_record))
     return {"path": path.as_posix(), "count": len(load_handoff_history(repo_root, limit=limit))}
 
 
@@ -846,7 +846,7 @@ def persist_decision_memory(
             "session": session_count,
             "execution_id": execution_id,
         }
-        append_jsonl(repo_root / DECISIONS_PATH, entry)
+        append_portable_jsonl(repo_root, repo_root / DECISIONS_PATH, entry)
         persisted.append(entry)
     return persisted
 
@@ -941,7 +941,7 @@ def _write_semantic_repo_shards(repo_root: Path, payload: dict[str, Any]) -> Non
         normalized = _normalize_semantic_subsystem(subsystem)
         if not normalized:
             continue
-        write_json(repo_root / SEMANTIC_REPO_SHARDS_DIR / f"{_semantic_shard_name(normalized['name'])}.json", normalized)
+        write_portable_json(repo_root, repo_root / SEMANTIC_REPO_SHARDS_DIR / f"{_semantic_shard_name(normalized['name'])}.json", normalized)
 
 
 def migrate_portable_continuity_snapshots(repo_root: Path) -> dict[str, Any]:
@@ -1032,11 +1032,18 @@ def persist_semantic_repo_memory(
 
 
 def _write_jsonl_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+        return
+    repo_root = path.parents[2]
+    rewritten: list[str] = []
+    for index, row in enumerate(rows):
+        relative_path = path.relative_to(repo_root).as_posix()
+        sanitized_row = sanitize_portable_payload(row, relative_path=relative_path, field_path=f"row[{index}]")["payload"]
+        rewritten.append(json.dumps(sanitized_row, ensure_ascii=False, sort_keys=True))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + ("\n" if rows else ""),
-        encoding="utf-8",
-    )
+    path.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
 
 
 def maintain_continuity_hygiene(repo_root: Path) -> dict[str, Any]:
