@@ -873,6 +873,17 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
                         ".claude/hooks/aictx_pre_tool_use.py",
                     ],
                 },
+                "copilot": {
+                    "status": "instruction_hardened_best_effort",
+                    "mechanism": ".github/copilot-instructions.md + .github/instructions/aictx.instructions.md + optional prompt files",
+                    "project_files": [
+                        ".github/copilot-instructions.md",
+                        ".github/instructions/aictx.instructions.md",
+                        ".github/prompts/aictx-resume.prompt.md",
+                        ".github/prompts/aictx-finalize.prompt.md",
+                    ],
+                    "enforcement": "best_effort_instructions_only",
+                },
                 "generic": {
                     "status": "wrapper_ready",
                     "mechanism": "aictx internal run-execution",

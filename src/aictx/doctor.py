@@ -7,6 +7,14 @@ from ._version import __version__
 from .contract_compliance import load_contract_compliance_history, summarize_contract_compliance_history
 from .failures import load_failures
 from .report import build_repo_map_report, read_jsonl
+from .runner_integrations import (
+    AICTX_END,
+    AICTX_START,
+    COPILOT_FINALIZE_PROMPT_PATH,
+    COPILOT_INSTRUCTIONS_PATH,
+    COPILOT_PATH_INSTRUCTIONS_PATH,
+    COPILOT_RESUME_PROMPT_PATH,
+)
 from .state import REPO_METRICS_DIR, REPO_STRATEGY_MEMORY_DIR
 
 
@@ -36,6 +44,35 @@ def _aggregate_status(checks: list[dict[str, Any]]) -> str:
     if "warning" in statuses:
         return "warning"
     return "ok"
+
+
+def _copilot_integration_snapshot(repo: Path) -> dict[str, Any]:
+    repo_file = repo / COPILOT_INSTRUCTIONS_PATH
+    path_file = repo / COPILOT_PATH_INSTRUCTIONS_PATH
+    resume_prompt = repo / COPILOT_RESUME_PROMPT_PATH
+    finalize_prompt = repo / COPILOT_FINALIZE_PROMPT_PATH
+    repo_text = _read_text(repo_file)
+    path_text = _read_text(path_file)
+    repo_block = ""
+    if AICTX_START in repo_text and AICTX_END in repo_text:
+        start = repo_text.index(AICTX_START)
+        end = repo_text.index(AICTX_END, start) + len(AICTX_END)
+        repo_block = repo_text[start:end]
+    return {
+        "best_effort_instruction_based": True,
+        "repo_instructions": repo_file.exists(),
+        "repo_instructions_managed": AICTX_START in repo_text and AICTX_END in repo_text,
+        "repo_instructions_block_chars": len(repo_block),
+        "repo_instructions_block_within_code_review_limit": bool(repo_block) and len(repo_block) <= 4000,
+        "repo_resume_command": "--agent-id copilot" in repo_text and "--adapter-id copilot-vscode" in repo_text and "aictx resume" in repo_text,
+        "repo_finalize_command": "--agent-id copilot" in repo_text and "--adapter-id copilot-vscode" in repo_text and "aictx finalize" in repo_text,
+        "path_instructions": path_file.exists(),
+        "path_instructions_apply_to_all": 'applyTo: "**/*"' in path_text or "applyTo: '**/*'" in path_text,
+        "path_instructions_managed": AICTX_START in path_text and AICTX_END in path_text,
+        "resume_prompt": resume_prompt.exists(),
+        "finalize_prompt": finalize_prompt.exists(),
+        "verification_hint": "In Copilot Chat, expand response References and confirm .github/copilot-instructions.md is listed.",
+    }
 
 
 def _capture_quality_snapshot(repo: Path) -> dict[str, Any]:
@@ -112,6 +149,8 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
         "AGENTS.md": (repo / "AGENTS.md").exists(),
         "CLAUDE.md": (repo / "CLAUDE.md").exists(),
         ".claude/settings.json": (repo / ".claude" / "settings.json").exists(),
+        ".github/copilot-instructions.md": (repo / COPILOT_INSTRUCTIONS_PATH).exists(),
+        ".github/instructions/aictx.instructions.md": (repo / COPILOT_PATH_INSTRUCTIONS_PATH).exists(),
     }
     present_count = sum(1 for value in runner_files.values() if value)
     checks.append(_check(
@@ -120,6 +159,28 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
         f"{present_count}/{len(runner_files)} runner integration files present",
         details=runner_files,
         recommended_action="run aictx init --repo . to refresh runner integrations" if not present_count else "",
+    ))
+
+    copilot = _copilot_integration_snapshot(repo)
+    copilot_required = [
+        "repo_instructions",
+        "repo_instructions_managed",
+        "repo_instructions_block_within_code_review_limit",
+        "repo_resume_command",
+        "repo_finalize_command",
+        "path_instructions",
+        "path_instructions_apply_to_all",
+        "path_instructions_managed",
+        "resume_prompt",
+        "finalize_prompt",
+    ]
+    copilot_ok = all(bool(copilot.get(key)) for key in copilot_required)
+    checks.append(_check(
+        "copilot_instruction_hardening",
+        "ok" if copilot_ok else "warning",
+        "Copilot AICTX instruction hardening is present" if copilot_ok else "Copilot AICTX instruction hardening is incomplete",
+        details=copilot,
+        recommended_action="run aictx init --repo . to refresh Copilot instruction files" if not copilot_ok else "",
     ))
 
     makefile = _read_text(repo / "Makefile")

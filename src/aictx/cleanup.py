@@ -15,6 +15,10 @@ from .runner_integrations import (
     CLAUDE_MD_GITIGNORE_LINE,
     CODEX_CONFIG_PATH,
     CODEX_HOME,
+    COPILOT_FINALIZE_PROMPT_PATH,
+    COPILOT_INSTRUCTIONS_PATH,
+    COPILOT_PATH_INSTRUCTIONS_PATH,
+    COPILOT_RESUME_PROMPT_PATH,
     codex_instructions_path,
 )
 from .state import ENGINE_HOME, PROJECTS_REGISTRY_PATH, WORKSPACES_DIR, read_json, write_json
@@ -26,7 +30,10 @@ REPO_HOOK_FILES = [
     Path('.claude/hooks/aictx_refresh_memory_graph.sh'),
 ]
 REPO_OPTIONAL_FILES = [
-    Path('.github/copilot-instructions.md'),
+    COPILOT_INSTRUCTIONS_PATH,
+    COPILOT_PATH_INSTRUCTIONS_PATH,
+    COPILOT_RESUME_PROMPT_PATH,
+    COPILOT_FINALIZE_PROMPT_PATH,
     Path('AGENTS.override.md'),
     Path('CLAUDE.md'),
     Path('AGENTS.md'),
@@ -86,6 +93,19 @@ def remove_marked_block(path: Path, start_marker: str = AICTX_START, end_marker:
     else:
         path.unlink()
     return True
+
+
+def _remove_frontmatter_only_file(path: Path) -> bool:
+    if not path.exists():
+        return False
+    text = path.read_text(encoding='utf-8').strip()
+    if not text.startswith('---'):
+        return False
+    parts = text.split('---', 2)
+    if len(parts) == 3 and not parts[2].strip():
+        path.unlink()
+        return True
+    return False
 
 
 def remove_gitignore_aictx_entries(path: Path) -> bool:
@@ -242,12 +262,22 @@ def clean_repo(repo: Path) -> dict[str, Any]:
     for rel_path in REPO_OPTIONAL_FILES:
         file_path = repo / rel_path
         if remove_marked_block(file_path, AGENTS_START, AGENTS_END):
+            if rel_path == COPILOT_PATH_INSTRUCTIONS_PATH and _remove_frontmatter_only_file(file_path):
+                if str(file_path) not in removed:
+                    removed.append(str(file_path))
+                _cleanup_empty_parents(file_path, stop_at=repo)
+                continue
             if file_path.exists():
                 updated.append(str(file_path))
             else:
                 removed.append(str(file_path))
             _cleanup_empty_parents(file_path, stop_at=repo)
         elif remove_marked_block(file_path, AICTX_START, AICTX_END):
+            if rel_path == COPILOT_PATH_INSTRUCTIONS_PATH and _remove_frontmatter_only_file(file_path):
+                if str(file_path) not in removed:
+                    removed.append(str(file_path))
+                _cleanup_empty_parents(file_path, stop_at=repo)
+                continue
             if file_path.exists():
                 updated.append(str(file_path))
             else:

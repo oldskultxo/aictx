@@ -153,9 +153,9 @@ Current init decisions:
 | Repo path | current directory or `--repo <path>` | Selects target repository |
 | Write `.gitignore` entries | default yes unless `--no-gitignore` | Keeps local runtime artifacts ignored or applies the portable-continuity policy |
 | Register repo | default yes unless `--no-register` | Adds repo to AICTX registry for cleanup/uninstall |
-| Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy, writes `.aictx/continuity/portability.json`, and in 6.4.2 can manage `.gitattributes` merge hints for the portable subset |
+| Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy, writes `.aictx/continuity/portability.json`, and in 6.4.3 can manage `.gitattributes` merge hints for the portable subset |
 | Communication mode | default `disabled`; optional `caveman_full` | Stores repo preference under `.aictx/memory/user_preferences.json` |
-| Initialize scaffold | `Y` | Creates/updates `.aictx/`, `AGENTS.md`, `.github/copilot-instructions.md`, `CLAUDE.md`, `.claude/*`, and runtime scaffolding |
+| Initialize scaffold | `Y` | Creates/updates `.aictx/`, `AGENTS.md`, GitHub Copilot instruction/prompt files, `CLAUDE.md`, `.claude/*`, and runtime scaffolding |
 | RepoMap initialization | default when globally requested | Writes/refreshes `.aictx/repo_map/*` if available |
 
 Representative interactive flow:
@@ -192,7 +192,7 @@ aictx init --repo . --yes --portable-continuity
 aictx init --repo . --no-portable-continuity
 ```
 
-In `6.4.2`, `--portable-continuity` enables the team-safe profile for one engineer or small teams sharing the same Git repository. Git remains the transport; no external sync service is required.
+In `6.4.3`, `--portable-continuity` enables the team-safe profile for one engineer or small teams sharing the same Git repository. Git remains the transport; no external sync service is required.
 
 Demo/test setup without registry updates:
 
@@ -279,16 +279,19 @@ AICTX creates/updates:
 
 ```text
 .github/copilot-instructions.md
+.github/instructions/aictx.instructions.md
+.github/prompts/aictx-resume.prompt.md
+.github/prompts/aictx-finalize.prompt.md
 ```
 
-This is the standard repository-wide GitHub Copilot custom instructions file. AICTX writes its managed block there during `aictx init`, not during `aictx install`. The file is intended to remain versioned in git and tells Copilot to use:
+`.github/copilot-instructions.md` is the standard repository-wide GitHub Copilot custom instructions file. `.github/instructions/aictx.instructions.md` duplicates the minimal lifecycle as path-specific instructions for Copilot surfaces that support them. The prompt files are optional manual prompts for starting and finalizing AICTX-aware Copilot work. AICTX writes these managed files during `aictx init`, not during `aictx install`. They are intended to remain versioned in git and tell Copilot to use:
 
 ```bash
 aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json
 aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json
 ```
 
-AICTX does not install Copilot hooks, wrappers, VSCode settings, or non-standard Copilot files.
+AICTX does not install Copilot hooks, wrappers, VSCode settings, or non-standard Copilot integrations. Copilot support is best-effort instruction-based: verify usage by expanding a Copilot Chat response References list and confirming `.github/copilot-instructions.md` is listed. If Copilot cannot run terminal commands, it should state that the AICTX lifecycle could not be executed.
 
 ---
 

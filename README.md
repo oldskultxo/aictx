@@ -20,7 +20,7 @@ It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectab
 
 AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.4.2`
+Current documented implementation: `6.4.3`
 
 ![AICTX + Coding Agent Runtime Flow](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/aictx-runtime-flow.png)
 
@@ -146,7 +146,7 @@ aictx --version
 
 After that, keep using your coding agent.
 
-`aictx init` creates the repo-local instruction surfaces used by supported runners, including `AGENTS.md`, `CLAUDE.md`, `.claude/*`, and `.github/copilot-instructions.md`. The Copilot file is a standard repository file intended to stay versioned in git.
+`aictx init` creates the repo-local instruction surfaces used by supported runners, including `AGENTS.md`, `CLAUDE.md`, `.claude/*`, `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, and optional Copilot prompt files. Copilot files are standard repository files intended to stay versioned in git; Copilot adherence remains best-effort and instruction-based.
 
 The generated repo instructions and hooks guide supported agents to call AICTX automatically. The normal user experience is:
 
@@ -238,7 +238,7 @@ AICTX is runner-aware, not runner-locked.
 
 - **Codex-first:** `AGENTS.md`, optional global Codex setup, CLI/runtime JSON contract.
 - **Claude-aware:** `CLAUDE.md`, `.claude/settings.json`, `.claude/hooks/aictx_*.py`.
-- **GitHub Copilot:** repo-wide `.github/copilot-instructions.md` custom instructions created by `aictx init`.
+- **GitHub Copilot:** best-effort instruction hardening through `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, and optional prompt files created by `aictx init`.
 - **Generic fallback:** any agent that can read repo instructions, run CLI commands, and consume JSON/Markdown.
 
 ---
@@ -259,7 +259,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.4.2` is:
+The stable repo-local continuity artifact contract in `6.4.3` is:
 
 ```text
 .aictx/continuity/session.json
@@ -295,7 +295,7 @@ Optional or latest-run artifacts may also appear:
 .aictx/repo_map/status.json
 ```
 
-When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.2 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
+When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.3 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
 
 For lifecycle details, startup banner semantics, branch-safe loading rules, internal runtime commands, and compliance auditing, see [Technical overview](docs/TECHNICAL_OVERVIEW.md).
 

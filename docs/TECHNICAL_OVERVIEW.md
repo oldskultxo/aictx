@@ -48,7 +48,7 @@ prepare/startup context -> resume capsule -> execution -> finalize -> persist co
 | Component | Responsibility |
 |---|---|
 | Repo scaffold | Creates `.aictx/` and managed runner files |
-| Runner integrations | Writes `AGENTS.md`, `.github/copilot-instructions.md`, `CLAUDE.md`, and Claude hook configuration |
+| Runner integrations | Writes `AGENTS.md`, GitHub Copilot instruction/prompt files, `CLAUDE.md`, and Claude hook configuration |
 | Internal runtime CLI | Provides `boot`, `prepare`, `finalize`, and `run-execution` |
 | Public CLI | Provides install/init/resume/finalize/doctor/advanced/cleanup commands plus compatible diagnostic commands |
 | Middleware | Loads continuity before work and records evidence after work |
@@ -93,6 +93,8 @@ It can:
 - install repo runner integrations;
 - write `AGENTS.md`;
 - write `.github/copilot-instructions.md`;
+- write `.github/instructions/aictx.instructions.md`;
+- write optional Copilot prompt files in `.github/prompts/`;
 - write `CLAUDE.md`;
 - write `.claude/settings.json`;
 - write `.claude/hooks/*`;
@@ -307,8 +309,10 @@ Claude support uses:
 GitHub Copilot support uses:
 
 - `.github/copilot-instructions.md`;
+- `.github/instructions/aictx.instructions.md`;
+- optional `.github/prompts/aictx-resume.prompt.md` and `.github/prompts/aictx-finalize.prompt.md`;
 - the same `resume` / `finalize` CLI contract with explicit Copilot identity;
-- repository custom instructions only, without hooks, wrappers, or non-standard Copilot files.
+- best-effort repository instructions only, without hooks, wrappers, or non-standard Copilot integrations.
 
 ### Generic fallback
 
@@ -509,7 +513,7 @@ Older context is treated as evidence, not truth:
 | Execution Summary | `agent_summary_text`, `last_execution_summary.md` | final response, next session |
 | Real usage report | metrics/memory artifacts | `report real-usage` |
 | Doctor diagnostics | repo/runtime artifacts | `doctor --json` |
-| Runner integrations | `AGENTS.md`, `.github/copilot-instructions.md`, `CLAUDE.md`, `.claude/*` | Codex, GitHub Copilot, Claude, generic agents |
+| Runner integrations | `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, `.github/prompts/*`, `CLAUDE.md`, `.claude/*` | Codex, GitHub Copilot, Claude, generic agents |
 | Cleanup | managed blocks, registry, global files | `clean`, `uninstall` |
 
 ---
@@ -783,6 +787,8 @@ It may remove or update:
 - `.aictx/`;
 - AICTX Claude hooks;
 - AICTX-managed blocks in `.github/copilot-instructions.md`;
+- AICTX-managed blocks in `.github/instructions/aictx.instructions.md`;
+- AICTX-managed Copilot prompt files in `.github/prompts/`;
 - AICTX-managed blocks in `AGENTS.md`, `CLAUDE.md`, `AGENTS.override.md`;
 - AICTX entries in `.claude/settings.json`;
 - AICTX `.gitignore` entries.

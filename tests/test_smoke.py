@@ -2503,6 +2503,9 @@ def test_cmd_clean_removes_only_repo_managed_aictx_content(tmp_path: Path):
     assert 'User note.' in (repo / 'AGENTS.md').read_text(encoding='utf-8')
     assert 'AICTX:START' not in copilot_path.read_text(encoding='utf-8')
     assert 'Team Copilot note.' in copilot_path.read_text(encoding='utf-8')
+    assert not (repo / '.github' / 'instructions' / 'aictx.instructions.md').exists()
+    assert not (repo / '.github' / 'prompts' / 'aictx-resume.prompt.md').exists()
+    assert not (repo / '.github' / 'prompts' / 'aictx-finalize.prompt.md').exists()
     assert '.aictx/' not in (repo / '.gitignore').read_text(encoding='utf-8')
     assert 'CLAUDE.md' not in (repo / '.gitignore').read_text(encoding='utf-8')
     settings_path = repo / '.claude' / 'settings.json'
@@ -2576,6 +2579,9 @@ def test_cmd_uninstall_removes_global_and_registered_repo_content_only(tmp_path:
     assert (not codex_override.exists()) or ('AICTX:START' not in codex_override.read_text(encoding='utf-8'))
     assert 'AICTX:START' not in copilot_path.read_text(encoding='utf-8')
     assert 'Team Copilot note.' in copilot_path.read_text(encoding='utf-8')
+    assert not (repo / '.github' / 'instructions' / 'aictx.instructions.md').exists()
+    assert not (repo / '.github' / 'prompts' / 'aictx-resume.prompt.md').exists()
+    assert not (repo / '.github' / 'prompts' / 'aictx-finalize.prompt.md').exists()
     assert str(repo) in payload['repos_cleaned']
 
 

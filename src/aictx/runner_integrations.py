@@ -14,6 +14,10 @@ CODEX_CONFIG_PATH = CODEX_HOME / "config.toml"
 CLAUDE_GITIGNORE_COMMENT = "# AICTX managed Claude repo integration"
 CLAUDE_DIR_GITIGNORE_LINE = ".claude/"
 CLAUDE_MD_GITIGNORE_LINE = "CLAUDE.md"
+COPILOT_INSTRUCTIONS_PATH = Path(".github") / "copilot-instructions.md"
+COPILOT_PATH_INSTRUCTIONS_PATH = Path(".github") / "instructions" / "aictx.instructions.md"
+COPILOT_RESUME_PROMPT_PATH = Path(".github") / "prompts" / "aictx-resume.prompt.md"
+COPILOT_FINALIZE_PROMPT_PATH = Path(".github") / "prompts" / "aictx-finalize.prompt.md"
 
 
 def write_executable(path: Path, content: str) -> None:
@@ -120,11 +124,90 @@ def render_copilot_instructions_block() -> str:
     return f"""{AICTX_START}
 # AICTX GitHub Copilot integration
 
-These are repository custom instructions for GitHub Copilot. They describe AICTX behavior for this repository and do not install hooks, wrappers, VSCode settings, or non-standard Copilot integrations.
+These are repository custom instructions for GitHub Copilot. AICTX cannot force Copilot to run commands, but Copilot should follow this lifecycle whenever command execution is available.
 
-{render_aictx_lifecycle_rules(agent_id="copilot", adapter_id="copilot-vscode")}
+Critical lifecycle:
+- For non-trivial repository tasks, first run exactly once: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
+- Use the returned resume capsule as the operational brief before broad repo scanning.
+- Before the final response, run exactly once: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.
+- Append the AICTX final summary from finalize when available. If command execution is unavailable, say that the AICTX lifecycle could not be executed.
+- Do not inspect `.aictx/` directly during normal startup; use `aictx resume`.
+- Do not run exploratory AICTX commands during normal startup.
+- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a global `aictx` binary.
+
+Verification tip: in Copilot Chat, expand response References and confirm `.github/copilot-instructions.md` is listed.
 {AICTX_END}
 """
+
+
+def render_copilot_path_instructions_file() -> str:
+    return f"""---
+applyTo: "**/*"
+---
+
+{AICTX_START}
+# AICTX Copilot path-specific lifecycle
+
+Apply these instructions to repository work. They intentionally duplicate the minimal AICTX lifecycle because Copilot support varies by surface.
+
+- Start non-trivial repository tasks with: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
+- Use the resume capsule before broad repo scanning.
+- Finalize non-trivial repository tasks with: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.
+- If command execution is unavailable, state that the AICTX lifecycle could not be executed.
+- Do not inspect `.aictx/` directly during normal startup.
+{AICTX_END}
+"""
+
+
+def render_copilot_resume_prompt() -> str:
+    return f"""{AICTX_START}
+# AICTX resume prompt
+
+Use this prompt when starting a non-trivial GitHub Copilot repository task.
+
+1. Extract the task goal from the user request.
+2. Run:
+
+```bash
+aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json
+```
+
+3. Use the returned capsule as the operational brief before broad repo scanning.
+4. Do not inspect `.aictx/` directly during normal startup.
+{AICTX_END}
+"""
+
+
+def render_copilot_finalize_prompt() -> str:
+    return f"""{AICTX_START}
+# AICTX finalize prompt
+
+Use this prompt before the final response for a non-trivial GitHub Copilot repository task.
+
+1. Summarize what happened factually.
+2. Run:
+
+```bash
+aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json
+```
+
+3. Append the AICTX final summary when available.
+4. If finalize cannot run, say that the AICTX lifecycle could not be completed.
+{AICTX_END}
+"""
+
+
+def upsert_copilot_path_instructions(path: Path) -> None:
+    preamble = '---\napplyTo: "**/*"\n---\n\n'
+    if path.exists():
+        existing = path.read_text(encoding="utf-8")
+        if not existing.startswith("---\n") or "applyTo:" not in existing.split("---", 2)[1]:
+            path.write_text(preamble + existing.lstrip(), encoding="utf-8")
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(preamble, encoding="utf-8")
+    block = render_copilot_path_instructions_file().split("---\n", 2)[2].lstrip()
+    upsert_marked_block(path, block)
 
 
 def render_claude_settings() -> dict:
@@ -376,9 +459,15 @@ def install_codex_native_integration() -> list[Path]:
 
 
 def install_copilot_repo_integration(repo: Path) -> list[Path]:
-    path = repo / ".github" / "copilot-instructions.md"
+    path = repo / COPILOT_INSTRUCTIONS_PATH
     upsert_marked_block(path, render_copilot_instructions_block())
-    return [path]
+    path_instructions = repo / COPILOT_PATH_INSTRUCTIONS_PATH
+    upsert_copilot_path_instructions(path_instructions)
+    resume_prompt = repo / COPILOT_RESUME_PROMPT_PATH
+    upsert_marked_block(resume_prompt, render_copilot_resume_prompt())
+    finalize_prompt = repo / COPILOT_FINALIZE_PROMPT_PATH
+    upsert_marked_block(finalize_prompt, render_copilot_finalize_prompt())
+    return [path, path_instructions, resume_prompt, finalize_prompt]
 
 
 def install_repo_runner_integrations(repo: Path) -> list[Path]:
