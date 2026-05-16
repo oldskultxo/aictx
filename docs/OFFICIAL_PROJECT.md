@@ -9,6 +9,8 @@ AICTX is the official Python `aictx` package and CLI for repo-local continuity a
 
 AICTX is maintained by Santi Santamaria / oldskultxo and published from the canonical `oldskultxo/aictx` GitHub repository.
 
+For a shorter canonical identity hub, see [Official AICTX](/official/).
+
 ## Canonical project links
 
 | Project surface | Official location |
@@ -64,3 +66,8 @@ To verify you are using the official project:
 4. Use source code from [github.com/oldskultxo/aictx](https://github.com/oldskultxo/aictx).
 
 If another package, domain, or organization uses a similar name, do not assume it is connected to AICTX unless it points back to these official locations.
+
+## Related pages
+
+- [Official AICTX](/official/)
+- [Local memory for AI coding tools](/concepts/local-memory-for-ai-coding-tools.html)

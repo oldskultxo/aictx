@@ -1,6 +1,6 @@
 # AICTX agent-readable project guide
 
-AICTX is the official Python `aictx` package and CLI for repo-local continuity and operational memory for coding agents.
+AICTX is the official Python `aictx` package and CLI for repo-local continuity, operational memory and local memory for AI coding tools.
 
 Canonical identity:
 - Website: https://aictx.org
@@ -30,11 +30,13 @@ Core docs:
 - Usage: https://aictx.org/USAGE.html
 - Technical overview: https://aictx.org/TECHNICAL_OVERVIEW.html
 - Official identity: https://aictx.org/OFFICIAL_PROJECT.html
+- Official AICTX: https://aictx.org/official/
 
 High-value pages:
 - Codex memory: https://aictx.org/use-cases/codex-memory.html
 - Claude Code memory: https://aictx.org/use-cases/claude-code-memory.html
 - GitHub Copilot memory: https://aictx.org/use-cases/github-copilot-memory.html
+- Local memory for AI coding tools: https://aictx.org/concepts/local-memory-for-ai-coding-tools.html
 - AI coding agent memory: https://aictx.org/concepts/ai-coding-agent-memory.html
 - Repo-local memory: https://aictx.org/concepts/repo-local-memory.html
 - Failure memory: https://aictx.org/concepts/failure-memory-for-coding-agents.html

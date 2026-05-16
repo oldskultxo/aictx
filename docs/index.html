@@ -117,6 +117,48 @@
   }
   </script>
 
+  <!-- Structured data: FAQ -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is AICTX?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "AICTX is the official Python aictx CLI for repo-local memory and continuity for coding agents."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is AICTX an AI coding agent?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. AICTX is not an autonomous coding agent. It is a repo-local continuity layer used by tools such as Codex, Claude Code, GitHub Copilot and generic coding agents."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does AICTX remember?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "AICTX can preserve Work State, decisions, handoffs, failure memory, execution summaries and repo context across sessions."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Where is the official AICTX project?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The official AICTX website is https://aictx.org/, the official repository is https://github.com/oldskultxo/aictx, the official Python package is aictx on PyPI, and the canonical identity hub is https://aictx.org/official/."
+        }
+      }
+    ]
+  }
+  </script>
+
   <style>
     :root {
       --bg: #0b1117;
@@ -434,6 +476,7 @@
         <a href="#seo-pages">Use cases</a>
         <a href="#comparisons">Compare</a>
         <a href="#docs">Docs</a>
+        <a href="#faq">FAQ</a>
         <a href="https://github.com/oldskultxo/aictx">GitHub <span class="github-stars js-github-stars" aria-label="GitHub stars">(<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.969.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.979a.75.75 0 0 1-1.088-.79l.72-4.193L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path></svg> <span class="js-github-stars-count"></span> stars)</span></a>
         <a href="https://pypi.org/project/aictx/">PyPI</a>
       </nav>
@@ -458,6 +501,7 @@
               <p><strong>Official repository:</strong> <a href="https://github.com/oldskultxo/aictx">github.com/oldskultxo/aictx</a></p>
               <p><strong>Official PyPI package:</strong> <a href="https://pypi.org/project/aictx/">aictx</a></p>
               <p><strong>Official CLI:</strong> <code>aictx</code></p>
+              <p><strong>Official hub:</strong> <a href="/official/">Official AICTX</a></p>
             </div>
 
             <div class="actions">
@@ -687,11 +731,16 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
       <section id="concepts">
         <h2>Core memory concepts</h2>
         <p class="section-intro">
-          Learn the concepts behind repo-local memory, operational continuity,
-          failure memory and handoffs for AI coding agents. <a href="/concepts/">Browse all concepts</a>.
+          Learn the concepts behind local memory for AI coding tools, repo-local memory,
+          operational continuity, failure memory and handoffs for AI coding agents.
+          <a href="/concepts/">Browse all concepts</a>.
         </p>
 
         <div class="cards">
+          <article class="card">
+            <h3><a href="/concepts/local-memory-for-ai-coding-tools.html">Local memory for AI coding tools</a></h3>
+            <p>How AICTX keeps project memory local, inspectable and tied to the repository.</p>
+          </article>
           <article class="card">
             <h3><a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a></h3>
             <p>What coding-agent memory means when it is stored as project-local operational evidence.</p>
@@ -765,9 +814,11 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
           <li><a href="/LIMITATIONS.html">Limitations</a></li>
           <li><a href="/UPGRADE.html">Upgrade</a></li>
           <li><a href="/OFFICIAL_PROJECT.html">Official project identity</a></li>
+          <li><a href="/official/">Official AICTX</a></li>
           <li><a href="/use-cases/codex-memory.html">Codex memory</a></li>
           <li><a href="/use-cases/claude-code-memory.html">Claude Code memory</a></li>
           <li><a href="/use-cases/github-copilot-memory.html">GitHub Copilot memory</a></li>
+          <li><a href="/concepts/local-memory-for-ai-coding-tools.html">Local memory for AI coding tools</a></li>
           <li><a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a></li>
           <li><a href="/concepts/repo-local-memory.html">Repo-local memory</a></li>
           <li><a href="/concepts/operational-memory.html">Operational memory</a></li>
@@ -777,6 +828,49 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
           <li><a href="/compare/aictx-vs-vector-database.html">AICTX vs vector databases</a></li>
           <li><a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a></li>
         </ul>
+      </section>
+
+      <section id="faq">
+        <h2>AICTX FAQ</h2>
+
+        <div class="cards">
+          <article class="card">
+            <h3>What is AICTX?</h3>
+            <p>
+              AICTX is the official Python <code>aictx</code> CLI for repo-local memory
+              and continuity for coding agents.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Is AICTX an AI coding agent?</h3>
+            <p>
+              No. AICTX is not an autonomous coding agent. It is a repo-local continuity
+              layer used by tools such as Codex, Claude Code, GitHub Copilot and generic
+              coding agents.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>What does AICTX remember?</h3>
+            <p>
+              AICTX can preserve Work State, decisions, handoffs, failure memory,
+              execution summaries and repo context across sessions.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Where is the official AICTX project?</h3>
+            <p>
+              The official AICTX website is <a href="https://aictx.org/">aictx.org</a>,
+              the official repository is
+              <a href="https://github.com/oldskultxo/aictx">oldskultxo/aictx</a>,
+              the official Python package is
+              <a href="https://pypi.org/project/aictx/">aictx on PyPI</a>, and the
+              canonical identity hub is <a href="/official/">Official AICTX</a>.
+            </p>
+          </article>
+        </div>
       </section>
 
       <section id="community">
@@ -802,7 +896,8 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
           <p>
             AICTX is the official project maintained by Santi Santamaria /
             oldskultxo, published at <a href="https://aictx.org/">https://aictx.org</a>,
-            and distributed through the official <code>aictx</code> PyPI package.
+            documented at <a href="/official/">Official AICTX</a>, and distributed
+            through the official <code>aictx</code> PyPI package.
           </p>
 
           <p>

@@ -75,12 +75,15 @@
   {% elsif breadcrumb_section == 'concepts' %}
     {% assign breadcrumb_section_name = 'Concepts' %}
     {% assign breadcrumb_section_url = site.url | append: '/concepts/' %}
+  {% elsif breadcrumb_section == 'official' %}
+    {% assign breadcrumb_section_name = 'Official AICTX' %}
+    {% assign breadcrumb_section_url = site.url | append: '/official/' %}
   {% else %}
     {% assign breadcrumb_section_name = 'Docs' %}
     {% assign breadcrumb_section_url = site.url | append: '/' %}
   {% endif %}
   {% assign is_section_index = false %}
-  {% if page.url == '/use-cases/' or page.url == '/compare/' or page.url == '/concepts/' %}
+  {% if page.url == '/use-cases/' or page.url == '/compare/' or page.url == '/concepts/' or page.url == '/official/' %}
     {% assign is_section_index = true %}
   {% endif %}
   {% if page.url != '/' %}
@@ -171,12 +174,14 @@
       <a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a>
 
       <a class="docs-sidebar-section" href="/concepts/">Concepts</a>
+      <a href="/concepts/local-memory-for-ai-coding-tools.html">Local memory for AI coding tools</a>
       <a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a>
       <a href="/concepts/repo-local-memory.html">Repo-local memory</a>
       <a href="/concepts/operational-memory.html">Operational memory</a>
       <a href="/concepts/failure-memory-for-coding-agents.html">Failure memory</a>
 
       <span class="docs-sidebar-section">Project identity</span>
+      <a href="/official/">Official AICTX</a>
       <a href="/OFFICIAL_PROJECT.html">Official project</a>
       <a href="/PORTABILITY.html">Portability</a>
       <a href="/SAFETY.html">Safety</a>

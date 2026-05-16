@@ -34,6 +34,7 @@ Important limits:
 Core documentation:
 - Home: https://aictx.org/
 - Official identity: https://aictx.org/OFFICIAL_PROJECT.html
+- Official AICTX: https://aictx.org/official/
 - Quickstart: https://aictx.org/QUICKSTART.html
 - Installation: https://aictx.org/INSTALLATION.html
 - Usage: https://aictx.org/USAGE.html
@@ -48,6 +49,7 @@ Use cases:
 - GitHub Copilot memory with AICTX: https://aictx.org/use-cases/github-copilot-memory.html
 
 Concepts:
+- Local memory for AI coding tools: https://aictx.org/concepts/local-memory-for-ai-coding-tools.html
 - AI coding agent memory: https://aictx.org/concepts/ai-coding-agent-memory.html
 - Repo-local memory: https://aictx.org/concepts/repo-local-memory.html
 - Operational memory: https://aictx.org/concepts/operational-memory.html
