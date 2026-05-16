@@ -7,6 +7,11 @@
 
 **Repo-local continuity for coding agents.**
 
+**Official website:** https://aictx.org  
+**Official repository:** https://github.com/oldskultxo/aictx  
+**Official PyPI package:** https://pypi.org/project/aictx/  
+**Official CLI:** `aictx`
+
 AICTX helps a new coding-agent session start from the useful state left by the previous one: active task state, next action, known failures, decisions, execution evidence, and optional structural repo hints.
 
 It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectable artifacts in the repository under `.aictx/` and exposes one agent-facing resume command plus one finalize command.
@@ -148,6 +153,16 @@ install -> init -> use your coding agent
 ```
 
 See [Installation](docs/INSTALLATION.md) and [Quickstart](docs/QUICKSTART.md).
+
+---
+
+## Project identity
+
+## Project identity
+
+AICTX is the official project maintained by Santi Santamaria / oldskultxo, published at https://aictx.org, and distributed through the `aictx` PyPI package.
+
+It is not affiliated with similarly named npm packages, domains, or GitHub organizations.
 
 ---
 
