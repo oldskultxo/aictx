@@ -1,3 +1,8 @@
+---
+title: "AICTX Quickstart for Coding-Agent Memory"
+description: "Start using AICTX quickly with the official `aictx` CLI to create repo-local continuity and operational memory for coding agents."
+---
+
 # Quickstart
 
 This walkthrough shows the shortest path from setup to visible continuity.

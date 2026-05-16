@@ -1,3 +1,8 @@
+---
+title: "AICTX Doctor Diagnostics"
+description: "Use `aictx doctor` to inspect installation health, release readiness, portability state, and repo-local continuity diagnostics."
+---
+
 # Doctor diagnostics
 
 `aictx doctor` is a read-only diagnostic command. Default mode is a general support check for normal user repositories; `--release-readiness` adds strict checks for the aictx release gate.

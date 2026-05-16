@@ -1,3 +1,8 @@
+---
+title: "Install AICTX for Repo-Local Coding-Agent Memory"
+description: "Install and initialize the official Python `aictx` CLI for repo-local continuity, operational memory, and coding-agent handoffs."
+---
+
 # Installation
 
 This guide explains the setup flow and what AICTX asks during installation and repo initialization.

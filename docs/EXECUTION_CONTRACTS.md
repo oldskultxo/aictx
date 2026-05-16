@@ -1,3 +1,8 @@
+---
+title: "Execution Contracts for Coding-Agent Continuity"
+description: "Understand AICTX execution contracts, compliance records, and how coding agents preserve observable continuity across sessions."
+---
+
 # Execution Contracts and Compliance
 
 AICTX v6 keeps a compact contract loop around the normal agent lifecycle, with persisted contract records and evaluated-only reporting.

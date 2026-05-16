@@ -1,0 +1,42 @@
+# AICTX agent-readable project guide
+
+AICTX is the official Python `aictx` package and CLI for repo-local continuity and operational memory for coding agents.
+
+Canonical identity:
+- Website: https://aictx.org
+- GitHub: https://github.com/oldskultxo/aictx
+- PyPI: https://pypi.org/project/aictx/
+- CLI/package: aictx
+- Maintainer: Santi Santamaria / oldskultxo
+
+AICTX is not affiliated with similarly named npm packages, GitHub organizations, domains, products, or projects.
+
+What AICTX does:
+- stores repo-local continuity artifacts under `.aictx/`;
+- exposes a resume/finalize lifecycle for coding agents;
+- records work state, decisions, handoffs, failure memory, execution summaries, and optional RepoMap hints;
+- supports Codex-first, Claude-aware, GitHub Copilot-aware, and generic-agent workflows;
+- can optionally expose a safe portable subset through Git for small teams.
+
+What AICTX is not:
+- not an autonomous coding agent;
+- not a vector database;
+- not hidden cloud memory;
+- not a productivity guarantee.
+
+Core docs:
+- Quickstart: https://aictx.org/QUICKSTART.html
+- Installation: https://aictx.org/INSTALLATION.html
+- Usage: https://aictx.org/USAGE.html
+- Technical overview: https://aictx.org/TECHNICAL_OVERVIEW.html
+- Official identity: https://aictx.org/OFFICIAL_PROJECT.html
+
+High-value pages:
+- Codex memory: https://aictx.org/use-cases/codex-memory.html
+- Claude Code memory: https://aictx.org/use-cases/claude-code-memory.html
+- GitHub Copilot memory: https://aictx.org/use-cases/github-copilot-memory.html
+- AI coding agent memory: https://aictx.org/concepts/ai-coding-agent-memory.html
+- Repo-local memory: https://aictx.org/concepts/repo-local-memory.html
+- Failure memory: https://aictx.org/concepts/failure-memory-for-coding-agents.html
+- AICTX vs AGENTS.md: https://aictx.org/compare/aictx-vs-agents-md.html
+- AICTX vs long context: https://aictx.org/compare/aictx-vs-long-context.html

@@ -1,3 +1,8 @@
+---
+title: "Work State for Coding-Agent Continuity"
+description: "Learn how AICTX Work State preserves suspended active-task context so AI coding agents can resume work across sessions."
+---
+
 # Work State
 
 Work State is AICTX’s repo-local artifact for suspended active-task continuity.

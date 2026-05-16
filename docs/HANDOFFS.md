@@ -1,3 +1,8 @@
+---
+title: "Handoff Memory and Decisions for Coding Agents"
+description: "Preserve decisions, next steps, and handoff context between AI coding-agent sessions using repo-local continuity artifacts."
+---
+
 # Handoffs and Decisions
 
 Handoffs and Decisions preserve explicit continuity between executions.

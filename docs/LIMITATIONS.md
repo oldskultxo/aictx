@@ -1,3 +1,8 @@
+---
+title: "AICTX Limitations"
+description: "Understand what AICTX does and does not do: repo-local continuity and operational memory, not an autonomous agent or hidden cloud memory service."
+---
+
 # Limitations
 
 AICTX is a continuity runtime, not an autonomous coding system.

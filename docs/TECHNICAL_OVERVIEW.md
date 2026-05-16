@@ -1,3 +1,8 @@
+---
+title: "AICTX Technical Overview"
+description: "Technical map of AICTX as a repo-local continuity runtime for coding agents, including memory artifacts, lifecycle, and integrations."
+---
+
 # Technical overview
 
 AICTX is a repo-local continuity runtime for coding agents.

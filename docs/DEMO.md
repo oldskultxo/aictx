@@ -1,3 +1,8 @@
+---
+title: "AICTX Demo: Repo-Local Continuity for Coding Agents"
+description: "See how AICTX makes coding-agent continuity visible through work state, failure memory, handoffs, execution contracts, and repo context."
+---
+
 # Demo
 
 This demo shows AICTX as a repo-local continuity runtime for coding agents.

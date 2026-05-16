@@ -1,3 +1,8 @@
+---
+title: "AICTX Release Checklist"
+description: "Checklist for preparing AICTX releases, including version metadata, docs, PyPI identity, and release validation."
+---
+
 # Release checklist
 
 ## Release identity

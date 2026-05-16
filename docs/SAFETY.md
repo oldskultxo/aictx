@@ -1,3 +1,8 @@
+---
+title: "AICTX Safety and Secret Handling"
+description: "Learn AICTX safety boundaries, repo-local artifact behavior, portable continuity redaction, and secret-handling expectations."
+---
+
 # Safety
 
 AICTX is repo-local, inspectable, and conservative.

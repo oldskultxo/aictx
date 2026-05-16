@@ -1,3 +1,8 @@
+---
+title: "Git-Portable Continuity for AICTX"
+description: "Configure AICTX portable continuity so small teams can share safe, reviewable repo-local coding-agent memory through Git."
+---
+
 # Git-portable continuity
 
 AICTX does not sync anything. Git is the transport.

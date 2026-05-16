@@ -1,3 +1,8 @@
+---
+title: "AICTX Cleanup and Uninstall Guide"
+description: "Safely remove local AICTX continuity artifacts, repo scaffolding, and runtime state without confusing cleanup with normal coding-agent memory workflows."
+---
+
 # Cleanup
 
 AICTX provides two cleanup levels:

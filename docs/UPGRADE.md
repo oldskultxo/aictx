@@ -1,3 +1,8 @@
+---
+title: "Upgrade AICTX"
+description: "Upgrade the official Python `aictx` package and refresh repo-local coding-agent continuity instructions safely."
+---
+
 # Upgrade guide
 
 ## Current line: 6.4.x

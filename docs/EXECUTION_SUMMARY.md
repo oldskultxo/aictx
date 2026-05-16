@@ -1,3 +1,8 @@
+---
+title: "Execution Summaries for AI Coding Agents"
+description: "Learn how AICTX finalization produces compact user-facing summaries and detailed diagnostic records for future coding-agent sessions."
+---
+
 # Execution Summary
 
 AICTX finalization returns a deterministic summary for the coding agent.

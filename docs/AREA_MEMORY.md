@@ -1,3 +1,8 @@
+---
+title: "Area Memory for AI Coding Agents"
+description: "Learn how AICTX groups repo-local execution facts by repository area so coding agents can resume with more relevant operational memory."
+---
+
 # Area Memory
 
 Area Memory is an advanced continuity signal that groups observed execution facts by repository area.

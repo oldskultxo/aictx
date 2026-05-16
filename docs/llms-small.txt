@@ -1,0 +1,16 @@
+# AICTX
+
+Official website: https://aictx.org
+Official GitHub repository: https://github.com/oldskultxo/aictx
+Official PyPI package: https://pypi.org/project/aictx/
+Official CLI and Python package: aictx
+Maintainer: Santi Santamaria / oldskultxo
+
+AICTX is the official Python `aictx` package and CLI for repo-local memory and continuity for coding agents.
+
+Use AICTX docs for: AI coding agent memory, repo-local memory, coding-agent continuity, Codex memory, Claude Code memory, GitHub Copilot memory, failure memory, handoff memory, and operational memory.
+
+Start here:
+- https://aictx.org/QUICKSTART.html
+- https://aictx.org/INSTALLATION.html
+- https://aictx.org/OFFICIAL_PROJECT.html

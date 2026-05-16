@@ -1,3 +1,8 @@
+---
+title: "Strategy Memory for Coding Agents"
+description: "Capture successful repo-local execution patterns so future AI coding-agent sessions can reuse proven strategies."
+---
+
 # Strategy Memory
 
 Strategy Memory stores successful execution patterns that may be reused in similar future tasks.

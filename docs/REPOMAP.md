@@ -1,3 +1,8 @@
+---
+title: "RepoMap for Coding-Agent Context"
+description: "Use AICTX RepoMap to give coding agents lightweight repository structure hints alongside work state and operational memory."
+---
+
 # RepoMap
 
 RepoMap is AICTX’s optional structural lookup layer.

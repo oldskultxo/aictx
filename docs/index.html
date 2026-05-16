@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>AICTX - Repo-local continuity and operational memory for coding agents</title>
+  <title>AICTX - Repo-local memory and continuity for coding agents</title>
 
   <meta
     name="description"
@@ -27,7 +27,7 @@
 
   <!-- Open Graph -->
   <meta property="og:site_name" content="AICTX">
-  <meta property="og:title" content="AICTX - Repo-local continuity for coding agents">
+  <meta property="og:title" content="AICTX - Repo-local memory and continuity for coding agents">
   <meta
     property="og:description"
     content="Official AICTX website. Repo-local continuity and operational memory for AI coding agents: remembered decisions, failures, handoffs, execution evidence and repo context."
@@ -40,7 +40,7 @@
 
   <!-- Twitter / X -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AICTX - Repo-local continuity for coding agents">
+  <meta name="twitter:title" content="AICTX - Repo-local memory and continuity for coding agents">
   <meta
     name="twitter:description"
     content="Repo-local continuity and operational memory for AI coding agents. AICTX helps new sessions continue prior work with remembered decisions, failures, handoffs and repo context."
@@ -413,6 +413,8 @@
         <a href="#why-aictx">Why AICTX</a>
         <a href="#memory">Memory</a>
         <a href="#supported-agents">Agents</a>
+        <a href="#seo-pages">Use cases</a>
+        <a href="#comparisons">Compare</a>
         <a href="#docs">Docs</a>
         <a href="https://github.com/oldskultxo/aictx">GitHub</a>
         <a href="https://pypi.org/project/aictx/">PyPI</a>
@@ -425,7 +427,7 @@
           <div>
             <span class="eyebrow">Official AICTX project</span>
 
-            <h1>Repo-local continuity for coding agents.</h1>
+            <h1>Repo-local memory and continuity for coding agents.</h1>
 
             <p class="lead">
               AICTX is a repo-local continuity runtime that gives coding agents
@@ -641,6 +643,83 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
         </div>
       </section>
 
+      <section id="seo-pages">
+        <h2>Use cases for coding-agent memory</h2>
+        <p class="section-intro">
+          AICTX documents practical repo-local memory workflows for Codex,
+          Claude Code, GitHub Copilot and generic coding agents.
+        </p>
+
+        <div class="cards">
+          <article class="card">
+            <h3><a href="/use-cases/codex-memory.html">Codex memory</a></h3>
+            <p>Use AICTX as repo-local Codex memory with work state, failure memory, handoffs and the resume/finalize lifecycle.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/use-cases/claude-code-memory.html">Claude Code memory</a></h3>
+            <p>Give Claude Code workflows inspectable operational memory for active tasks, decisions, failures and handoffs.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/use-cases/github-copilot-memory.html">GitHub Copilot memory</a></h3>
+            <p>Use AICTX with Copilot-aware repository instructions and repo-local continuity artifacts.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="concepts">
+        <h2>Core memory concepts</h2>
+        <p class="section-intro">
+          Learn the concepts behind repo-local memory, operational continuity,
+          failure memory and handoffs for AI coding agents.
+        </p>
+
+        <div class="cards">
+          <article class="card">
+            <h3><a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a></h3>
+            <p>What coding-agent memory means when it is stored as project-local operational evidence.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/concepts/repo-local-memory.html">Repo-local memory</a></h3>
+            <p>Why storing continuity with the repository differs from relying only on provider history.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/concepts/operational-memory.html">Operational memory</a></h3>
+            <p>Task state, command outcomes, decisions and next actions preserved for future sessions.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/concepts/failure-memory-for-coding-agents.html">Failure memory</a></h3>
+            <p>How observed failures become repo-local signals for future coding-agent sessions.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="comparisons">
+        <h2>Compare AICTX</h2>
+        <p class="section-intro">
+          AICTX complements prompts, instructions and long context by preserving
+          structured continuity as repo-local artifacts.
+        </p>
+
+        <div class="cards">
+          <article class="card">
+            <h3><a href="/compare/aictx-vs-agents-md.html">AICTX vs AGENTS.md</a></h3>
+            <p>Instructions tell agents how to behave; AICTX also stores runtime memory and continuity.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/compare/aictx-vs-long-context.html">AICTX vs long context</a></h3>
+            <p>Long context holds more text in one session; AICTX preserves structured continuity across sessions.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/compare/aictx-vs-vector-database.html">AICTX vs vector databases</a></h3>
+            <p>Vector databases retrieve semantic chunks; AICTX records operational execution memory.</p>
+          </article>
+          <article class="card">
+            <h3><a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a></h3>
+            <p>Chat history is provider-bound; AICTX keeps continuity with the repository.</p>
+          </article>
+        </div>
+      </section>
+
       <section id="docs">
         <h2>Documentation</h2>
         <p class="section-intro">
@@ -667,6 +746,18 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
           <li><a href="/SAFETY.html">Safety</a></li>
           <li><a href="/LIMITATIONS.html">Limitations</a></li>
           <li><a href="/UPGRADE.html">Upgrade</a></li>
+          <li><a href="/OFFICIAL_PROJECT.html">Official project identity</a></li>
+          <li><a href="/use-cases/codex-memory.html">Codex memory</a></li>
+          <li><a href="/use-cases/claude-code-memory.html">Claude Code memory</a></li>
+          <li><a href="/use-cases/github-copilot-memory.html">GitHub Copilot memory</a></li>
+          <li><a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a></li>
+          <li><a href="/concepts/repo-local-memory.html">Repo-local memory</a></li>
+          <li><a href="/concepts/operational-memory.html">Operational memory</a></li>
+          <li><a href="/concepts/failure-memory-for-coding-agents.html">Failure memory for coding agents</a></li>
+          <li><a href="/compare/aictx-vs-agents-md.html">AICTX vs AGENTS.md</a></li>
+          <li><a href="/compare/aictx-vs-long-context.html">AICTX vs long context</a></li>
+          <li><a href="/compare/aictx-vs-vector-database.html">AICTX vs vector databases</a></li>
+          <li><a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a></li>
         </ul>
       </section>
 
@@ -706,7 +797,7 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
 
     <footer>
       <p>
-        AICTX - Repo-local continuity and operational memory for coding agents.
+        AICTX - Repo-local memory and continuity for coding agents.
       </p>
       <p>
         <a href="https://github.com/oldskultxo/aictx">GitHub</a>

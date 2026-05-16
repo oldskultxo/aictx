@@ -1,3 +1,8 @@
+---
+title: "Failure Memory for Coding Agents"
+description: "Learn how AICTX captures failed commands, tests, builds, and resolutions as repo-local failure memory for coding agents."
+---
+
 # Failure Memory
 
 Failure Memory stores observed failure patterns as repo-local, inspectable data.
