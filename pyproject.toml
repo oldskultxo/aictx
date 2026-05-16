@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aictx"
-version = "6.4.1"
+version = "6.4.2"
 description = "Repo-local continuity runtime for coding agents"
 readme = "README.md"
 requires-python = ">=3.11"

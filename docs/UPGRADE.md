@@ -7,9 +7,41 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 ## Current line: 6.4.x
 
-Current documented runtime: `6.4.1`.
+Current documented runtime: `6.4.2`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
+
+```bash
+aictx install
+aictx init
+```
+
+---
+## 6.4.2
+
+`6.4.2` is a patch release for SEO documentation architecture and canonical project identity improvements.
+
+Added:
+- New documentation clusters for use cases, comparisons, and concepts:
+  - `/use-cases/`
+  - `/compare/`
+  - `/concepts/`
+- Agent-readable docs files: `llms.txt`, `llms-small.txt`, and `llms-full.txt`.
+
+Changed:
+- Existing Markdown docs now have SEO-focused front matter titles and descriptions.
+- The docs homepage now emphasizes repo-local memory and continuity for coding agents and links to the new SEO hubs.
+- The official project identity page now clearly documents the canonical website, GitHub repository, PyPI package, CLI, maintainer, and non-affiliation notice.
+- Documentation pages now emit `TechArticle` JSON-LD and canonical breadcrumb structured data.
+- The sitemap now includes all new SEO pages and cluster indexes.
+
+Fixed:
+- Nested breadcrumb JSON-LD now includes canonical `item` URLs for Use cases, Comparisons, and Concepts section breadcrumbs.
+
+Upgrade notes:
+- No runtime migration is required.
+- No `.aictx/` data migration is required.
+- Re-run setup only if you want regenerated local docs/instructions from the current package:
 
 ```bash
 aictx install

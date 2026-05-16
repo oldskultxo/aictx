@@ -1,5 +1,23 @@
 # Changelog
 
+## 6.4.2 - 2026-05-16
+
+### Added
+- Added SEO-first documentation architecture for `https://aictx.org` with use-case, comparison, and concept page clusters.
+- Added agent-readable documentation entry points: `docs/llms.txt`, `docs/llms-small.txt`, and `docs/llms-full.txt`.
+- Added section index pages for `/use-cases/`, `/compare/`, and `/concepts/` so documentation clusters have canonical SEO hubs.
+
+### Changed
+- Added SEO-focused `title` and `description` front matter to existing Markdown documentation pages.
+- Expanded `docs/OFFICIAL_PROJECT.md` into the canonical AICTX identity page for the official website, GitHub repository, PyPI package, CLI, maintainer, and non-affiliation statement.
+- Updated the docs homepage to emphasize repo-local memory and continuity, link to high-value SEO pages, and show a dynamic GitHub star count with an inline star icon.
+- Updated docs layout navigation with Use cases, Comparisons, Concepts, and Project identity sections.
+- Added `TechArticle` and canonical `BreadcrumbList` JSON-LD for documentation pages, including section index URLs for nested breadcrumbs.
+- Updated `docs/sitemap.xml` with all new SEO pages and canonical cluster index URLs.
+
+### Fixed
+- Fixed nested docs breadcrumb structured data so section items such as Use cases, Comparisons, and Concepts include canonical `item` URLs.
+
 ## 6.4.1 - 2026-05-16
 
 ### Added

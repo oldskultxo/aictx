@@ -20,7 +20,7 @@ It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectab
 
 AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.4.1`
+Current documented implementation: `6.4.2`
 
 ![AICTX + Coding Agent Runtime Flow](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/aictx-runtime-flow.png)
 
@@ -259,7 +259,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.4.1` is:
+The stable repo-local continuity artifact contract in `6.4.2` is:
 
 ```text
 .aictx/continuity/session.json
@@ -295,7 +295,7 @@ Optional or latest-run artifacts may also appear:
 .aictx/repo_map/status.json
 ```
 
-When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.1 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
+When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.2 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
 
 For lifecycle details, startup banner semantics, branch-safe loading rules, internal runtime commands, and compliance auditing, see [Technical overview](docs/TECHNICAL_OVERVIEW.md).
 
@@ -312,6 +312,10 @@ Start here:
 
 Core concepts:
 
+- [AI coding agent memory](docs/concepts/ai-coding-agent-memory.md)
+- [Repo-local memory](docs/concepts/repo-local-memory.md)
+- [Operational memory](docs/concepts/operational-memory.md)
+- [Failure memory for coding agents](docs/concepts/failure-memory-for-coding-agents.md)
 - [Work State](docs/WORK_STATE.md)
 - [RepoMap](docs/REPOMAP.md)
 - [Failure Memory](docs/FAILURE_MEMORY.md)
@@ -320,6 +324,16 @@ Core concepts:
 - [Execution Summary](docs/EXECUTION_SUMMARY.md)
 - [Execution Contracts and Compliance](docs/EXECUTION_CONTRACTS.md)
 - [Doctor diagnostics](docs/DOCTOR.md)
+
+Use cases and comparisons:
+
+- [Codex memory](docs/use-cases/codex-memory.md)
+- [Claude Code memory](docs/use-cases/claude-code-memory.md)
+- [GitHub Copilot memory](docs/use-cases/github-copilot-memory.md)
+- [AICTX vs AGENTS.md](docs/compare/aictx-vs-agents-md.md)
+- [AICTX vs long context](docs/compare/aictx-vs-long-context.md)
+- [AICTX vs vector databases](docs/compare/aictx-vs-vector-database.md)
+- [AICTX vs chat history](docs/compare/aictx-vs-chat-history.md)
 
 Operations and trust:
 
