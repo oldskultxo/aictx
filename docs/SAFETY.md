@@ -7,7 +7,7 @@ Git-portable continuity is opt-in. Portable allowlisting alone is not enough to 
 This redaction is best-effort and built-in:
 - scope: only the portable `.aictx/` subset;
 - action: automatic redaction before persistence;
-- override: none in `6.4.0`.
+- override: none in `6.4.1`.
 
 Review `.aictx/` changes before committing because portable artifacts may still contain operational context even when secret values are scrubbed.
 

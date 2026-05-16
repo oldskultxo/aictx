@@ -2,9 +2,39 @@
 
 ## Current line: 6.4.x
 
-Current documented runtime: `6.4.0`.
+Current documented runtime: `6.4.1`.
 
 For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
+
+```bash
+aictx install
+aictx init
+```
+
+---
+## 6.4.1
+
+`6.4.1` is a patch release for portable continuity hardening and release/documentation identity consistency.
+
+Added:
+- `docs/OFFICIAL_PROJECT.md` as the canonical project identity page.
+
+Changed:
+- Portable continuity human status output now surfaces warning-level information directly in text mode:
+  - overall status
+  - portability drift
+  - invalid portable JSONL row count
+  - secret finding count
+  - warning messages
+- README, installation, usage, portability, safety, release checklist, and generated site metadata now describe the `6.4.1` line and official project identity consistently.
+
+Fixed:
+- `link_resolved_failures()` now rewrites `.aictx/failure_memory/failure_patterns.jsonl` through the shared portable JSONL writer instead of bypassing the portable rewrite path.
+- Shared portable JSONL rewrite flows now consistently follow the sanitizer-backed writer path for rewrites as well as appends.
+
+Upgrade notes:
+- No data migration is required.
+- Re-run setup only if you want regenerated local instructions or docs-aligned repo scaffolding:
 
 ```bash
 aictx install

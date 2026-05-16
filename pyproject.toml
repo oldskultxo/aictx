@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aictx"
-version = "6.4.0"
+version = "6.4.1"
 description = "Repo-local continuity runtime for coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,7 +26,8 @@ repomap = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/oldskultxo/aictx"
+Homepage = "https://aictx.org"
+Documentation = "https://aictx.org/"
 Repository = "https://github.com/oldskultxo/aictx"
 Issues = "https://github.com/oldskultxo/aictx/issues"
 

@@ -148,7 +148,7 @@ Current init decisions:
 | Repo path | current directory or `--repo <path>` | Selects target repository |
 | Write `.gitignore` entries | default yes unless `--no-gitignore` | Keeps local runtime artifacts ignored or applies the portable-continuity policy |
 | Register repo | default yes unless `--no-register` | Adds repo to AICTX registry for cleanup/uninstall |
-| Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy, writes `.aictx/continuity/portability.json`, and in 6.4.0 can manage `.gitattributes` merge hints for the portable subset |
+| Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy, writes `.aictx/continuity/portability.json`, and in 6.4.1 can manage `.gitattributes` merge hints for the portable subset |
 | Communication mode | default `disabled`; optional `caveman_full` | Stores repo preference under `.aictx/memory/user_preferences.json` |
 | Initialize scaffold | `Y` | Creates/updates `.aictx/`, `AGENTS.md`, `.github/copilot-instructions.md`, `CLAUDE.md`, `.claude/*`, and runtime scaffolding |
 | RepoMap initialization | default when globally requested | Writes/refreshes `.aictx/repo_map/*` if available |
@@ -187,7 +187,7 @@ aictx init --repo . --yes --portable-continuity
 aictx init --repo . --no-portable-continuity
 ```
 
-In `6.4.0`, `--portable-continuity` enables the team-safe profile for one engineer or small teams sharing the same Git repository. Git remains the transport; no external sync service is required.
+In `6.4.1`, `--portable-continuity` enables the team-safe profile for one engineer or small teams sharing the same Git repository. Git remains the transport; no external sync service is required.
 
 Demo/test setup without registry updates:
 

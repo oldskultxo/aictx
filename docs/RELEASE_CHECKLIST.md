@@ -7,6 +7,7 @@
 - [ ] README documented implementation updated
 - [ ] `docs/UPGRADE.md` current runtime updated
 - [ ] `CHANGELOG.md` updated
+- [ ] official website / repository / PyPI package links validated
 - [ ] tag format is `vX.Y.Z`
 
 ---

@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.4.1 - 2026-05-16
+
+### Added
+- Added `docs/OFFICIAL_PROJECT.md` as the canonical project identity page for the official website, repository, PyPI package, and CLI name.
+
+### Changed
+- Updated package/runtime/docs versioning from `6.4.0` to `6.4.1`.
+- Updated README project identity links so the official website, repository, package, and canonical project statement are easier to find.
+- Updated installation, usage, portability, safety, upgrade, release checklist, and generated site metadata/docs references for the `6.4.1` line.
+
+### Fixed
+- Closed the remaining portable JSONL rewrite bypass by routing resolved-failure rewrites through the shared portable JSONL writer path.
+- Aligned portable continuity JSONL rewrites on one shared helper so portable rewrite flows follow the same sanitizer rule as portable append flows.
+- Improved human-readable `aictx portability status` output so it surfaces overall status, drift, invalid JSONL rows, secret findings, and warnings without requiring `--json`.
+
 ## 6.4.0 - 2026-05-15
 
 ### Added

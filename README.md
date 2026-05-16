@@ -1,9 +1,11 @@
 # AICTX
 
 [![PyPI](https://img.shields.io/pypi/v/aictx.svg)](https://pypi.org/project/aictx/)
+[![Website](https://img.shields.io/badge/website-aictx.org-94b41e)](https://aictx.org)
 [![Python](https://img.shields.io/pypi/pyversions/aictx.svg)](https://pypi.org/project/aictx/)
 [![CI](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml/badge.svg)](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/aictx?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=BLUE&left_text=downloads)](https://pepy.tech/projects/aictx)
 
 **Repo-local continuity for coding agents.**
 
@@ -18,9 +20,9 @@ It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectab
 
 AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.4.0`
+Current documented implementation: `6.4.1`
 
-![AICTX + Coding Agent Runtime Flow](docs/images/aictx-runtime-flow.png)
+![AICTX + Coding Agent Runtime Flow](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/aictx-runtime-flow.png)
 
 ```bash
 pip install aictx
@@ -28,7 +30,7 @@ aictx install
 aictx init
 ```
 
-[Quickstart](docs/QUICKSTART.md) · [Installation](docs/INSTALLATION.md) · [Demo](docs/DEMO.md) · [Technical overview](docs/TECHNICAL_OVERVIEW.md)
+[Quickstart](docs/QUICKSTART.md) · [Installation](docs/INSTALLATION.md) · [Demo](docs/DEMO.md) · [Technical overview](docs/TECHNICAL_OVERVIEW.md) · [Official project](docs/OFFICIAL_PROJECT.md)
 
 ---
 
@@ -158,11 +160,11 @@ See [Installation](docs/INSTALLATION.md) and [Quickstart](docs/QUICKSTART.md).
 
 ## Project identity
 
-## Project identity
-
 AICTX is the official project maintained by Santi Santamaria / oldskultxo, published at https://aictx.org, and distributed through the `aictx` PyPI package.
 
 It is not affiliated with similarly named npm packages, domains, or GitHub organizations.
+
+For the canonical website / repository / package identity statement, see [Official project](docs/OFFICIAL_PROJECT.md).
 
 ---
 
@@ -257,7 +259,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.4.0` is:
+The stable repo-local continuity artifact contract in `6.4.1` is:
 
 ```text
 .aictx/continuity/session.json
@@ -293,7 +295,7 @@ Optional or latest-run artifacts may also appear:
 .aictx/repo_map/status.json
 ```
 
-When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.0 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
+When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.4.1 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
 
 For lifecycle details, startup banner semantics, branch-safe loading rules, internal runtime commands, and compliance auditing, see [Technical overview](docs/TECHNICAL_OVERVIEW.md).
 
