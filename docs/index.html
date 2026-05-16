@@ -193,6 +193,24 @@
       font-size: 0.95rem;
     }
 
+    .github-stars {
+      display: none;
+      align-items: center;
+      gap: 0.2rem;
+      white-space: nowrap;
+    }
+
+    .github-stars.is-visible {
+      display: inline-flex;
+    }
+
+    .github-stars svg {
+      width: 0.95em;
+      height: 0.95em;
+      vertical-align: -0.12em;
+      fill: currentColor;
+    }
+
     .hero {
       padding: 5rem 0 4rem;
     }
@@ -416,7 +434,7 @@
         <a href="#seo-pages">Use cases</a>
         <a href="#comparisons">Compare</a>
         <a href="#docs">Docs</a>
-        <a href="https://github.com/oldskultxo/aictx">GitHub</a>
+        <a href="https://github.com/oldskultxo/aictx">GitHub <span class="github-stars js-github-stars" aria-label="GitHub stars">(<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.969.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.979a.75.75 0 0 1-1.088-.79l.72-4.193L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path></svg> <span class="js-github-stars-count"></span> stars)</span></a>
         <a href="https://pypi.org/project/aictx/">PyPI</a>
       </nav>
     </header>
@@ -647,7 +665,7 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
         <h2>Use cases for coding-agent memory</h2>
         <p class="section-intro">
           AICTX documents practical repo-local memory workflows for Codex,
-          Claude Code, GitHub Copilot and generic coding agents.
+          Claude Code, GitHub Copilot and generic coding agents. <a href="/use-cases/">Browse all use cases</a>.
         </p>
 
         <div class="cards">
@@ -670,7 +688,7 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
         <h2>Core memory concepts</h2>
         <p class="section-intro">
           Learn the concepts behind repo-local memory, operational continuity,
-          failure memory and handoffs for AI coding agents.
+          failure memory and handoffs for AI coding agents. <a href="/concepts/">Browse all concepts</a>.
         </p>
 
         <div class="cards">
@@ -697,7 +715,7 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
         <h2>Compare AICTX</h2>
         <p class="section-intro">
           AICTX complements prompts, instructions and long context by preserving
-          structured continuity as repo-local artifacts.
+          structured continuity as repo-local artifacts. <a href="/compare/">Browse all comparisons</a>.
         </p>
 
         <div class="cards">
@@ -800,7 +818,7 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
         AICTX - Repo-local memory and continuity for coding agents.
       </p>
       <p>
-        <a href="https://github.com/oldskultxo/aictx">GitHub</a>
+        <a href="https://github.com/oldskultxo/aictx">GitHub <span class="github-stars js-github-stars" aria-label="GitHub stars">(<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.969.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.979a.75.75 0 0 1-1.088-.79l.72-4.193L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path></svg> <span class="js-github-stars-count"></span> stars)</span></a>
         ·
         <a href="https://pypi.org/project/aictx/">PyPI</a>
         ·
@@ -812,5 +830,54 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
       </p>
     </footer>
   </div>
+
+  <script>
+    (function () {
+      var targets = document.querySelectorAll('.js-github-stars');
+      if (!targets.length) return;
+
+      var cacheKey = 'aictx.github.stars';
+      var cacheTtlMs = 6 * 60 * 60 * 1000;
+
+      function render(count) {
+        var formatted = Number(count).toLocaleString();
+        targets.forEach(function (target) {
+          var countNode = target.querySelector('.js-github-stars-count');
+          if (!countNode) return;
+          countNode.textContent = formatted;
+          target.classList.add('is-visible');
+        });
+      }
+
+      function readCache() {
+        try {
+          var cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+          if (!cached || typeof cached.count !== 'number') return null;
+          if (Date.now() - cached.timestamp > cacheTtlMs) return null;
+          return cached.count;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function writeCache(count) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ count: count, timestamp: Date.now() }));
+        } catch (error) {}
+      }
+
+      var cachedCount = readCache();
+      if (cachedCount !== null) render(cachedCount);
+
+      fetch('https://api.github.com/repos/oldskultxo/aictx', { headers: { Accept: 'application/vnd.github+json' } })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (data) {
+          if (!data || typeof data.stargazers_count !== 'number') return;
+          writeCache(data.stargazers_count);
+          render(data.stargazers_count);
+        })
+        .catch(function () {});
+    }());
+  </script>
 </body>
 </html>

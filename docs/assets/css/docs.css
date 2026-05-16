@@ -106,6 +106,10 @@ a:hover {
   text-transform: uppercase;
 }
 
+.docs-sidebar a.docs-sidebar-section {
+  color: var(--accent-strong);
+}
+
 .docs-content {
   min-width: 0;
   padding: 2.25rem;

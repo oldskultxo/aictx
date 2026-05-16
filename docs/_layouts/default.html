@@ -65,6 +65,24 @@
 
   {% assign page_parts = page.url | split: '/' %}
   {% assign breadcrumb_section = page_parts[1] %}
+  {% assign breadcrumb_url = site.url | append: page.url | replace:'index.html','' %}
+  {% if breadcrumb_section == 'use-cases' %}
+    {% assign breadcrumb_section_name = 'Use cases' %}
+    {% assign breadcrumb_section_url = site.url | append: '/use-cases/' %}
+  {% elsif breadcrumb_section == 'compare' %}
+    {% assign breadcrumb_section_name = 'Comparisons' %}
+    {% assign breadcrumb_section_url = site.url | append: '/compare/' %}
+  {% elsif breadcrumb_section == 'concepts' %}
+    {% assign breadcrumb_section_name = 'Concepts' %}
+    {% assign breadcrumb_section_url = site.url | append: '/concepts/' %}
+  {% else %}
+    {% assign breadcrumb_section_name = 'Docs' %}
+    {% assign breadcrumb_section_url = site.url | append: '/' %}
+  {% endif %}
+  {% assign is_section_index = false %}
+  {% if page.url == '/use-cases/' or page.url == '/compare/' or page.url == '/concepts/' %}
+    {% assign is_section_index = true %}
+  {% endif %}
   {% if page.url != '/' %}
   <script type="application/ld+json">
   {
@@ -76,23 +94,24 @@
         "position": 1,
         "name": "Home",
         "item": "{{ site.url }}/"
-      }{% if page_parts.size > 2 %},
+      }{% if page_parts.size > 2 and is_section_index == false %},
       {
         "@type": "ListItem",
         "position": 2,
-        "name": "{% case breadcrumb_section %}{% when 'use-cases' %}Use cases{% when 'compare' %}Comparisons{% when 'concepts' %}Concepts{% else %}Docs{% endcase %}"
+        "name": {{ breadcrumb_section_name | jsonify }},
+        "item": "{{ breadcrumb_section_url }}"
       },
       {
         "@type": "ListItem",
         "position": 3,
-        "name": "{{ page.title | default: site.title }}",
-        "item": "{{ site.url }}{{ page.url | replace:'index.html','' }}"
+        "name": {{ page.title | default: site.title | jsonify }},
+        "item": "{{ breadcrumb_url }}"
       }{% else %},
       {
         "@type": "ListItem",
         "position": 2,
-        "name": "{{ page.title | default: site.title }}",
-        "item": "{{ site.url }}{{ page.url | replace:'index.html','' }}"
+        "name": {{ page.title | default: site.title | jsonify }},
+        "item": "{{ breadcrumb_url }}"
       }{% endif %}
     ]
   }
@@ -140,18 +159,18 @@
       <a href="/EXECUTION_CONTRACTS.html">Execution Contracts</a>
       <a href="/REPOMAP.html">RepoMap</a>
 
-      <span class="docs-sidebar-section">Use cases</span>
+      <a class="docs-sidebar-section" href="/use-cases/">Use cases</a>
       <a href="/use-cases/codex-memory.html">Codex memory</a>
       <a href="/use-cases/claude-code-memory.html">Claude Code memory</a>
       <a href="/use-cases/github-copilot-memory.html">GitHub Copilot memory</a>
 
-      <span class="docs-sidebar-section">Comparisons</span>
+      <a class="docs-sidebar-section" href="/compare/">Comparisons</a>
       <a href="/compare/aictx-vs-agents-md.html">AICTX vs AGENTS.md</a>
       <a href="/compare/aictx-vs-long-context.html">AICTX vs long context</a>
       <a href="/compare/aictx-vs-vector-database.html">AICTX vs vector databases</a>
       <a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a>
 
-      <span class="docs-sidebar-section">Concepts</span>
+      <a class="docs-sidebar-section" href="/concepts/">Concepts</a>
       <a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a>
       <a href="/concepts/repo-local-memory.html">Repo-local memory</a>
       <a href="/concepts/operational-memory.html">Operational memory</a>
