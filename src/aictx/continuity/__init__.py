@@ -41,6 +41,8 @@ CONTINUITY_METRICS_PATH = REPO_CONTINUITY_DIR / "continuity_metrics.json"
 LAST_EXECUTION_SUMMARY_PATH = REPO_CONTINUITY_DIR / "last_execution_summary.md"
 RESUME_CAPSULE_MARKDOWN_PATH = REPO_CONTINUITY_DIR / "resume_capsule.md"
 RESUME_CAPSULE_JSON_PATH = REPO_CONTINUITY_DIR / "resume_capsule.json"
+CONTINUITY_VIEW_MARKDOWN_PATH = Path(".aictx") / "reports" / "continuity-view.md"
+CONTINUITY_VIEW_MERMAID_PATH = Path(".aictx") / "reports" / "continuity-map.mmd"
 AICTX_TEXT_SEPARATOR = "────────────────────────────────"
 ENTRYPOINT_ARBITER_TIMEOUT_SECONDS = 2.0
 
@@ -2013,6 +2015,21 @@ def _resume_source(relative_path: Path, repo_root: Path) -> str:
     return relative_path.as_posix() if (repo_root / relative_path).exists() else ""
 
 
+def _resume_continuity_view_status(repo_root: Path) -> dict[str, Any]:
+    markdown_path = repo_root / CONTINUITY_VIEW_MARKDOWN_PATH
+    payload: dict[str, Any] = {
+        "exists": markdown_path.exists(),
+        "markdown_path": CONTINUITY_VIEW_MARKDOWN_PATH.as_posix(),
+        "mermaid_path": CONTINUITY_VIEW_MERMAID_PATH.as_posix(),
+    }
+    if markdown_path.exists():
+        try:
+            payload["generated_at"] = datetime.fromtimestamp(markdown_path.stat().st_mtime, tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        except OSError:
+            payload["generated_at"] = ""
+    return payload
+
+
 def _resume_item_text(item: dict[str, Any]) -> str:
     title = str(item.get("title") or item.get("id") or "").strip()
     reasons = _clean_string_list(item.get("reasons"), limit=2)
@@ -3189,6 +3206,7 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     task_state = payload.get("task_state") if isinstance(payload.get("task_state"), dict) else {}
     sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
     written = payload.get("written_files") if isinstance(payload.get("written_files"), dict) else {}
+    continuity_view = payload.get("continuity_view") if isinstance(payload.get("continuity_view"), dict) else {}
     contract = payload.get("execution_contract") if isinstance(payload.get("execution_contract"), dict) else {}
     previous_contract = payload.get("previous_contract_result") if isinstance(payload.get("previous_contract_result"), dict) else {}
     first_action = capsule.get("first_action") if isinstance(capsule.get("first_action"), dict) else {}
@@ -3320,6 +3338,13 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     lines.extend(["", "Strategy", str(capsule.get("strategy") or "None relevant"), "", "Avoid"])
     for item in _clean_string_list(capsule.get("avoid"), limit=(10 if full else 6)):
         lines.append(f"- {item}")
+
+    lines.extend(["", "Continuity View"])
+    view_path = str(continuity_view.get("markdown_path") or CONTINUITY_VIEW_MARKDOWN_PATH.as_posix())
+    if continuity_view.get("exists"):
+        lines.append(f"- Before making changes, inspect: {view_path}")
+    else:
+        lines.append(f"- Not generated yet. Run `aictx view` to create: {view_path}")
 
     lines.extend(["", "Source index"])
     source_lines = [
@@ -3543,6 +3568,7 @@ def build_resume_capsule(
             "avoid": avoid,
         },
         "sources": sources,
+        "continuity_view": _resume_continuity_view_status(repo_root),
         "written_files": {
             "markdown": RESUME_CAPSULE_MARKDOWN_PATH.as_posix(),
             "json": RESUME_CAPSULE_JSON_PATH.as_posix(),

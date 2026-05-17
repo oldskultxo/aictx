@@ -47,6 +47,16 @@ After task work, supported agents should close the lifecycle with the public fin
 aictx finalize --repo . --status success|failure --summary "<what happened>" --json
 ```
 
+To generate an inspectable local Markdown/Mermaid map of current repo continuity, run:
+
+```bash
+aictx view --repo .
+```
+
+`aictx view` writes `.aictx/reports/continuity-view.md` and `.aictx/reports/continuity-map.mmd`. It shows active/relevant operational continuity, not just the latest execution. The coding agent may trigger the command, but AICTX generates the Mermaid deterministically from repo-local artifacts. See [Continuity View](CONTINUITY_VIEW.md).
+
+When finalization includes Continuity View links, the agent should append the AICTX final summary with the exact local `continuity-map.mmd` link and exact `mermaid.live view` link returned by AICTX. The agent should not invent, shorten, placeholder, or manually rebuild the Mermaid pako URL.
+
 `aictx finalize` is the normal public CLI surface for finalization. Advanced integrations can still use `aictx internal execution finalize ...` when they already have a prepared execution payload.
 
 For JSON inspection, use a JSON parser:
@@ -67,7 +77,7 @@ Portable continuity remains opt-in:
 aictx init --repo . --portable-continuity
 ```
 
-In `6.4.3`, this enables the team-safe portability profile. Git stays the only transport. AICTX exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone latest-run snapshots local-only, and can manage `.gitattributes` merge hints for portable JSONL files.
+In `6.5.0`, this enables the team-safe portability profile. Git stays the only transport. AICTX exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone latest-run snapshots local-only, and can manage `.gitattributes` merge hints for portable JSONL files.
 
 Portable writes are also secret-safe by default. AICTX redacts detected passwords, tokens, API keys, private keys, credential-bearing URLs, and similar secret-shaped values before persisting the portable subset.
 
@@ -104,6 +114,7 @@ aictx next
 aictx task status --json
 aictx map status
 aictx doctor --repo . --json
+aictx view --repo . --json
 aictx report real-usage
 ```
 
@@ -117,6 +128,10 @@ aictx init
 aictx init --portable-continuity
 aictx resume --repo . --task "continue current work" --json
 aictx finalize --repo . --status success --summary "targeted tests passed" --json
+aictx finalize --repo . --status success --summary "targeted tests passed" --include-view --json
+aictx view --repo .
+aictx view --repo . --mermaid
+aictx view --repo . --json
 aictx portability status --repo . --json
 aictx portability compact --repo . --apply --json
 aictx advanced
@@ -139,6 +154,7 @@ aictx map status
 aictx map refresh
 aictx map query "startup banner"
 aictx doctor --repo . --json
+aictx view --repo . --json
 aictx report real-usage
 aictx clean --repo .
 aictx uninstall

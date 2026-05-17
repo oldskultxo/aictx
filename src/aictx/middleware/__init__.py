@@ -24,6 +24,7 @@ from ..continuity import (
     update_continuity_metrics,
     write_last_execution_summary,
 )
+from ..continuity_view import continuity_view_summary_links
 from ..execution import ExecutionEnvelope
 from ..failures import link_resolved_failures, lookup_failures, persist_failure_pattern
 from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, messages_muted
@@ -1243,6 +1244,23 @@ def build_agent_summary_render_payload(summary: dict[str, Any], *, details_path:
             "link_text": "last_execution_summary.md",
             "markdown_link": details_link,
         })
+    continuity_view = summary.get("continuity_view") if isinstance(summary.get("continuity_view"), dict) else {}
+    view_file_link = str(continuity_view.get("file_link") or "").strip()
+    view_online_link = str(continuity_view.get("online_link") or "").strip()
+    if view_file_link:
+        sections.append({
+            "kind": "continuity_view_file",
+            "canonical_text": f"Continuity view file: {view_file_link}",
+            "path": str(continuity_view.get("file_path") or ""),
+            "markdown_link": view_file_link,
+        })
+    if view_online_link:
+        sections.append({
+            "kind": "continuity_view_online",
+            "canonical_text": f"View continuity online: {view_online_link}",
+            "url": str(continuity_view.get("online_url") or ""),
+            "markdown_link": view_online_link,
+        })
     lines = ["AICTX summary", ""] + [str(section.get("canonical_text") or "") for section in sections]
     return {
         "title": "AICTX summary",
@@ -1644,6 +1662,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             except ValueError:
                 details_path = resolved_path
     agent_summary["structured"]["polished_summary"] = build_polished_agent_summary(agent_summary["structured"], details_path=details_path)
+    agent_summary["structured"]["continuity_view"] = continuity_view_summary_links(repo_root)
     agent_summary_render_payload = build_agent_summary_render_payload(agent_summary["structured"], details_path=details_path)
     agent_summary_text = prepend_aictx_text_separator(str(agent_summary_render_payload.get("canonical_text") or ""))
     returned_agent_summary_text = "" if message_output_muted else agent_summary_text
@@ -1701,7 +1720,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "do_not_invent": True,
             "preserve_technical_tokens": True,
             "render_payload_field": "agent_summary_render_payload",
-            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, or other technical tokens. Do not invent or enrich facts.",
+            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available and render every provided section, including details, continuity_view_file, and continuity_view_online. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, Continuity View file links, Mermaid online view links, or other technical tokens. Do not replace URLs with placeholders and do not manually reconstruct or retype pako URLs. Do not invent or enrich facts.",
         },
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),

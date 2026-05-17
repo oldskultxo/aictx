@@ -23,6 +23,7 @@ from ..middleware import cli_finalize_execution, cli_prepare_execution, finalize
 from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
 from ..portability import compact_portable_jsonl, detect_portable_continuity_from_gitignore, load_portability_state, portability_status
 from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
+from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, render_continuity_mermaid, write_continuity_view
 from ..doctor import build_doctor_report
 from ..runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from ..runtime_launcher import cli_run_execution
@@ -560,10 +561,53 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         "work_state": {},
     }
     payload = finalize_execution(prepared, result)
+    if bool(getattr(args, "include_view", False) or getattr(args, "view", False)):
+        view_payload = write_continuity_view(repo)
+        payload["continuity_view"] = view_payload.get("view", {})
+        view = view_payload.get("view", {}) if isinstance(view_payload.get("view"), dict) else {}
+        lines = [
+            "",
+            "Continuity View:",
+            f"- Markdown: {view.get('markdown_path') or '.aictx/reports/continuity-view.md'}",
+            f"- Mermaid: {view.get('mermaid_path') or '.aictx/reports/continuity-map.mmd'}",
+        ]
+        if isinstance(payload.get("agent_summary_text"), str) and payload["agent_summary_text"]:
+            payload["agent_summary_text"] = str(payload["agent_summary_text"]).rstrip() + "\n" + "\n".join(lines)
     if bool(getattr(args, "json", False)):
         _print_json(payload)
     else:
         print(str(payload.get("agent_summary_text") or "AICTX summary unavailable"))
+    return 0
+
+
+def cmd_view(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    if bool(getattr(args, "mermaid", False)):
+        model = build_continuity_view_model(repo)
+        mermaid = render_continuity_mermaid(model)
+        map_path = repo / CONTINUITY_MAP_PATH
+        map_path.parent.mkdir(parents=True, exist_ok=True)
+        map_path.write_text(mermaid, encoding="utf-8")
+        print(mermaid, end="")
+        return 0
+    payload = write_continuity_view(repo, output=getattr(args, "output", "") or None)
+    if bool(getattr(args, "json", False)):
+        _print_json({key: value for key, value in payload.items() if key != "model"})
+        return 0
+    view = payload.get("view", {}) if isinstance(payload.get("view"), dict) else {}
+    print(
+        "\n".join(
+            [
+                "AICTX Continuity View generated.",
+                "",
+                "Markdown view:",
+                str(view.get("markdown_path") or ".aictx/reports/continuity-view.md"),
+                "",
+                "Mermaid map:",
+                str(view.get("mermaid_path") or ".aictx/reports/continuity-map.mmd"),
+            ]
+        )
+    )
     return 0
 
 
@@ -1237,7 +1281,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,portability,resume,finalize,doctor,advanced,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,portability,resume,finalize,view,doctor,advanced,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1282,6 +1326,13 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     resume.set_defaults(func=cmd_resume)
 
+    view = sub.add_parser("view", help="Generate a local deterministic Continuity View")
+    view.add_argument("--repo", default=".", help="Repository root")
+    view.add_argument("--mermaid", action="store_true", help="Print Mermaid only")
+    view.add_argument("--output", default="", help="Write Markdown to an explicit path")
+    view.add_argument("--json", action="store_true", help="Print structured view generation JSON")
+    view.set_defaults(func=cmd_view)
+
     finalize = sub.add_parser("finalize", help="Finalize an AICTX task execution and produce the final summary")
     finalize.add_argument("--repo", default=".", help="Repository root")
     finalize.add_argument("--status", choices=["success", "failure"], required=True, help="Task outcome")
@@ -1296,6 +1347,8 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--tests-executed", nargs="*", default=[], help="Explicit tests executed during execution")
     finalize.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
     finalize.add_argument("--error", default="", help="Compact failure/error detail")
+    finalize.add_argument("--include-view", action="store_true", help="Generate Continuity View after finalize")
+    finalize.add_argument("--view", action="store_true", help=argparse.SUPPRESS)
     finalize.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
     finalize.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
     finalize.add_argument("--session-id", default="", help=argparse.SUPPRESS)

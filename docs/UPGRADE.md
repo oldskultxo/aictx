@@ -5,11 +5,48 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 # Upgrade guide
 
-## Current line: 6.4.x
+## Current line: 6.5.x
 
-Current documented runtime: `6.4.3`.
+Current documented runtime: `6.5.0`.
 
-For users already on recent `4.x` or `5.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
+For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
+
+```bash
+aictx install
+aictx init
+```
+
+---
+## 6.5.0
+
+`6.5.0` adds Continuity View: a local, deterministic Markdown and Mermaid report for current repo continuity.
+
+Added:
+- Public Continuity View commands:
+  - `aictx view --repo .`
+  - `aictx view --repo . --mermaid`
+  - `aictx view --repo . --json`
+- Stable local report artifacts:
+  - `.aictx/reports/continuity-view.md`
+  - `.aictx/reports/continuity-map.mmd`
+- `aictx finalize --include-view` / `--view` support so final summaries can include Continuity View links.
+- `resume --json` `continuity_view` metadata with stable Markdown/Mermaid paths and existence state.
+- Dedicated Continuity View documentation and site placement.
+
+Changed:
+- The artifact contract now documents `.aictx/reports/*` and the stable Continuity View report/map paths.
+- The docs now position Continuity View as inspectable repo continuity, not a generic graph viewer.
+- Agent-facing docs now state that AICTX generates the Mermaid deterministically and agents preserve the exact local `.mmd` and `mermaid.live view` summary links.
+- Overview active-task semantics now distinguish actual active Work State from paused/blocked carryover.
+
+Fixed:
+- Continuity View Overview no longer counts recent paused or blocked carryover as the current active task. Carryover can still appear as `Paused Work` or `Blocked Work` where relevant.
+
+Upgrade notes:
+- No data migration is required.
+- Existing `.aictx/` continuity data remains compatible.
+- Run `aictx view --repo .` to create the first local Continuity View in an existing repository.
+- Re-run setup if you want regenerated local runner instructions from the current package:
 
 ```bash
 aictx install

@@ -40,11 +40,15 @@ def test_copilot_instructions_include_expected_resume_and_finalize_commands(tmp_
     assert 'aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json' in text
     assert 'aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json' in text
     assert "If command execution is unavailable" in text
+    assert "continuity_view_online" in text
+    assert "Mermaid online view links" in text
+    assert "do not replace URLs with placeholders" in text
 
     path_text = (repo / COPILOT_PATH_INSTRUCTIONS_PATH).read_text(encoding="utf-8")
     assert 'applyTo: "**/*"' in path_text
     assert 'aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json' in path_text
     assert 'aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json' in path_text
+    assert "continuity_view_online" in path_text
 
 
 def test_install_repo_runner_integrations_is_idempotent_for_copilot_block(tmp_path: Path):

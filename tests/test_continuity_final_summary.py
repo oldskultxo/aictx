@@ -67,7 +67,9 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     assert "Saved: updated handoff and updated decision memory." in text
     assert "Entry point: src/aictx/middleware.py." in text
     assert "0 tests" not in text
-    assert text.endswith("Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)")
+    assert "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)" in text
+    assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in text
+    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in text
     assert finalized["agent_summary"]["handoff_stored"] is True
     assert finalized["agent_summary"]["decision_stored"] is True
     policy = finalized["agent_summary_policy"]
@@ -107,12 +109,14 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
     )
 
     text = finalized["agent_summary_text"]
-    assert text == (
+    assert text.startswith(
         f"{AICTX_TEXT_SEPARATOR}\n"
         "AICTX summary\n\n"
         "Context: loaded preferences.\n"
-        "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)"
+        "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)\n"
     )
+    assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in text
+    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in text
     assert finalized["contract_compliance"]["status"] == "not_evaluated"
     assert not (repo / ".aictx" / "metrics" / "contract_compliance.jsonl").exists()
 

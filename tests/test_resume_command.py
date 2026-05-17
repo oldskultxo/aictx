@@ -336,6 +336,9 @@ def test_runtime_instructions_require_task_goal_only():
         assert "output format rules" in text
         assert "aictx finalize --repo ." in text
         assert "final AICTX summary" in text
+        assert "continuity_view_online" in text
+        assert "Mermaid" in text
+        assert "replace" in text
 
 
 def test_resume_json_stdout_is_valid_for_json_tool(tmp_path: Path):
@@ -1289,7 +1292,7 @@ def test_top_level_help_hides_advanced_commands(capsys):
     assert "resume" in output
     assert "finalize" in output
     assert "advanced" in output
-    assert "{install,init,portability,resume,finalize,doctor,advanced,clean,uninstall}" in output
+    assert "{install,init,portability,resume,finalize,view,doctor,advanced,clean,uninstall}" in output
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert f"    {command}" not in output
 

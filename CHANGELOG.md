@@ -1,5 +1,23 @@
 # Changelog
 
+## 6.5.0 - 2026-05-17
+
+### Added
+- Added Continuity View as a public inspectable continuity feature with `aictx view`, `aictx view --mermaid`, and `aictx view --json`.
+- Added local deterministic Continuity View artifacts under `.aictx/reports/`: `continuity-view.md` and `continuity-map.mmd`.
+- Added `aictx finalize --include-view` / `--view` integration so final summaries can link the local Mermaid map and generated `mermaid.live` online view.
+- Added `continuity_view` metadata to `aictx resume --json` so agents can discover whether the latest view exists and where to inspect it.
+- Added dedicated Continuity View documentation, sitemap entry, docs homepage placement, README positioning, and agent-readable docs references.
+
+### Changed
+- Updated the documented/runtime package version to `6.5.0`.
+- Extended the documented artifact contract to include `.aictx/reports/*` and the stable Continuity View report/map paths.
+- Clarified active-task semantics: recent paused or blocked carryover may appear as `Paused Work` or `Blocked Work`, but it is not counted as the current active task.
+- Clarified final-summary behavior: agents must preserve exact `continuity-map.mmd` and `mermaid.live view` links returned by AICTX, without placeholders or manual pako URL reconstruction.
+
+### Fixed
+- Fixed Continuity View overview reporting so recent paused/blocked carryover is no longer rendered or counted as an active task.
+
 ## 6.4.3 - 2026-05-16
 
 ### Fixed

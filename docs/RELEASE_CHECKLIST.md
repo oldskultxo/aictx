@@ -28,6 +28,7 @@ description: "Checklist for preparing AICTX releases, including version metadata
 - [ ] Communication mode is documented under init, not install
 - [ ] Cleanup is documented
 - [ ] Technical overview covers all runtime capabilities
+- [ ] Continuity View docs, README placement, docs homepage card, sitemap entry, and `llms*.txt` references are current
 - [ ] `aictx doctor --repo . --release-readiness --json` reflects release diagnostics without modifying repo state
 - [ ] Docs distinguish `internal boot` diagnostic output from user-visible startup banner
 - [ ] Strategy Memory and Handoffs have dedicated docs if listed as README core concepts

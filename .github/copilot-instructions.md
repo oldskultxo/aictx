@@ -1,16 +1,16 @@
 <!-- AICTX:START -->
 # AICTX GitHub Copilot integration
 
-These are repository custom instructions for GitHub Copilot. They describe AICTX behavior for this repository and do not install hooks, wrappers, VSCode settings, or non-standard Copilot integrations.
+These are repository custom instructions for GitHub Copilot. AICTX cannot force Copilot to run commands, but Copilot should follow this lifecycle whenever command execution is available.
 
-- The lifecycle remains `resume -> work -> finalize -> final AICTX summary/persistence`.
-- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
+Critical lifecycle:
+- For non-trivial repository tasks, first run exactly once: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the returned resume capsule as the operational brief before broad repo scanning.
-- After work, run exactly one AICTX finalization command: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.
-- Do not inspect `.aictx/` during normal startup.
+- Before the final response, run exactly once: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.
+- Append the AICTX final summary from finalize when available. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; preserve Continuity View file links and Mermaid online view links; do not replace URLs with placeholders and do not manually reconstruct or retype pako URLs. If command execution is unavailable, say that the AICTX lifecycle could not be executed.
+- Do not inspect `.aictx/` directly during normal startup; use `aictx resume`.
 - Do not run exploratory AICTX commands during normal startup.
-- If `startup_banner_policy.show_in_first_user_visible_response` is true, render the selected startup banner at the start of the first substantive user-visible response.
-- Prefer `startup_banner_render_payload` when present; use `startup_banner_text` as fallback.
-- After finalize, append the AICTX final summary using `agent_summary_render_payload` when present; use `agent_summary_text` as fallback.
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a global `aictx` binary.
+
+Verification tip: in Copilot Chat, expand response References and confirm `.github/copilot-instructions.md` is listed.
 <!-- AICTX:END -->

@@ -13,7 +13,7 @@
 
   <meta
     name="keywords"
-    content="AICTX, aictx, coding agents, AI coding agents, agent memory, operational memory, execution memory, repo-local memory, repo-local continuity, context engineering, Codex, Claude, GitHub Copilot, failure memory, decision memory, handoff memory"
+    content="AICTX, aictx, coding agents, AI coding agents, agent memory, operational memory, execution memory, repo-local memory, repo-local continuity, context engineering, Codex, Claude, GitHub Copilot, failure memory, decision memory, handoff memory, continuity view, Mermaid map"
   >
 
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -71,7 +71,7 @@
     },
     "codeRepository": "https://github.com/oldskultxo/aictx",
     "downloadUrl": "https://pypi.org/project/aictx/",
-    "softwareVersion": "6.4.3",
+    "softwareVersion": "6.5.0",
     "license": "https://github.com/oldskultxo/aictx/blob/main/LICENSE",
     "keywords": [
       "AICTX",
@@ -522,6 +522,7 @@ aictx install
 aictx init
 
 aictx resume --repo . --task "continue parser work" --json
+aictx view --repo .
 aictx finalize --repo . --status success --summary "tests updated" --json</code></pre>
           </div>
         </div>
@@ -648,6 +649,14 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
             <p>
               Records what happened during execution and makes continuity visible
               instead of depending only on chat history.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3><a href="/CONTINUITY_VIEW.html">Continuity View</a></h3>
+            <p>
+              Generates a local Markdown report and deterministic Mermaid map of
+              active repo continuity for users and coding agents.
             </p>
           </article>
 
@@ -800,6 +809,7 @@ aictx finalize --repo . --status success --summary "tests updated" --json</code>
           <li><a href="/USAGE.html">Usage</a></li>
           <li><a href="/DEMO.html">Demo</a></li>
           <li><a href="/TECHNICAL_OVERVIEW.html">Technical overview</a></li>
+          <li><a href="/CONTINUITY_VIEW.html">Continuity View</a></li>
           <li><a href="/WORK_STATE.html">Work State</a></li>
           <li><a href="/HANDOFFS.html">Handoffs and decisions</a></li>
           <li><a href="/FAILURE_MEMORY.html">Failure Memory</a></li>
