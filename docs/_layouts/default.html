@@ -8,34 +8,33 @@
 
   <meta
     name="description"
-    content="{% if page.description %}{{ page.description }}{% else %}AICTX documentation for repo-local continuity and operational memory for coding agents.{% endif %}"
+    content="{% if page.description %}{{ page.description }}{% else %}AICTX documentation for operational continuity between AI coding-agent sessions.{% endif %}"
   >
 
   <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="{{ site.url }}{{ page.url | replace:'index.html','' }}">
 
-  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" href="/images/aictx-logo.png">
   <link rel="stylesheet" href="/assets/css/docs.css">
 
   <meta property="og:site_name" content="AICTX">
   <meta property="og:title" content="{% if page.title %}{{ page.title }} - {% endif %}AICTX Docs">
-  <meta property="og:description" content="{% if page.description %}{{ page.description }}{% else %}Official AICTX documentation for repo-local continuity and operational memory for coding agents.{% endif %}">
+  <meta property="og:description" content="{% if page.description %}{{ page.description }}{% else %}Official AICTX documentation for operational continuity between AI coding-agent sessions.{% endif %}">
   <meta property="og:url" content="{{ site.url }}{{ page.url }}">
   <meta property="og:type" content="article">
   <meta property="og:image" content="https://aictx.org/images/aictx-logo.png">
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{% if page.title %}{{ page.title }} - {% endif %}AICTX Docs">
-  <meta name="twitter:description" content="{% if page.description %}{{ page.description }}{% else %}Official AICTX documentation for coding-agent continuity and operational memory.{% endif %}">
+  <meta name="twitter:description" content="{% if page.description %}{{ page.description }}{% else %}Official AICTX documentation for AI coding-agent operational continuity.{% endif %}">
   <meta name="twitter:image" content="https://aictx.org/images/aictx-logo.png">
-
 
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
     "headline": "{{ page.title | default: site.title }}",
-    "description": "{% if page.description %}{{ page.description }}{% else %}AICTX documentation for repo-local continuity and operational memory for coding agents.{% endif %}",
+    "description": "{% if page.description %}{{ page.description }}{% else %}AICTX documentation for operational continuity between AI coding-agent sessions.{% endif %}",
     "url": "{{ site.url }}{{ page.url | replace:'index.html','' }}",
     "mainEntityOfPage": "{{ site.url }}{{ page.url | replace:'index.html','' }}",
     "author": {
@@ -53,12 +52,13 @@
       }
     },
     "about": [
-      "AI coding agent memory",
-      "repo-local memory",
-      "coding-agent continuity",
-      "operational memory",
+      "AI coding agent continuity",
+      "operational continuity",
+      "repo-local continuity",
+      "execution state",
+      "Work State",
       "failure memory",
-      "handoff memory"
+      "coding-agent handoffs"
     ]
   }
   </script>
@@ -120,7 +120,6 @@
   }
   </script>
   {% endif %}
-
 </head>
 
 <body>
@@ -132,9 +131,9 @@
 
       <nav class="docs-nav" aria-label="Documentation navigation">
         <a href="/">Home</a>
-        <a href="/QUICKSTART.html">Quickstart</a>
+        <a href="/QUICKSTART.html"><span class="nav-label-full">Quickstart</span><span class="nav-label-short">Quick</span></a>
         <a href="/INSTALLATION.html">Install</a>
-        <a href="/TECHNICAL_OVERVIEW.html">Technical</a>
+        <a href="/TECHNICAL_OVERVIEW.html"><span class="nav-label-full">Technical</span><span class="nav-label-short">Tech</span></a>
         <a href="https://github.com/oldskultxo/aictx">GitHub</a>
         <a href="https://pypi.org/project/aictx/">PyPI</a>
       </nav>
@@ -152,20 +151,21 @@
       <a href="/DEMO.html">Demo</a>
       <a href="/TECHNICAL_OVERVIEW.html">Technical overview</a>
 
-      <span class="docs-sidebar-section">Memory</span>
+      <span class="docs-sidebar-section">Operational continuity</span>
+      <a href="/CONTINUITY_VIEW.html">Continuity View</a>
       <a href="/WORK_STATE.html">Work State</a>
+      <a href="/EXECUTION_CONTRACTS.html">Execution Contracts</a>
+      <a href="/EXECUTION_SUMMARY.html">Execution Summary</a>
+      <a href="/HANDOFFS.html">Handoffs and Decisions</a>
       <a href="/FAILURE_MEMORY.html">Failure Memory</a>
       <a href="/STRATEGY_MEMORY.html">Strategy Memory</a>
-      <a href="/HANDOFFS.html">Handoffs</a>
-      <a href="/AREA_MEMORY.html">Area Memory</a>
-      <a href="/EXECUTION_SUMMARY.html">Execution Summary</a>
-      <a href="/EXECUTION_CONTRACTS.html">Execution Contracts</a>
+      <a href="/AREA_MEMORY.html">Area Signals</a>
       <a href="/REPOMAP.html">RepoMap</a>
 
       <a class="docs-sidebar-section" href="/use-cases/">Use cases</a>
-      <a href="/use-cases/codex-memory.html">Codex memory</a>
-      <a href="/use-cases/claude-code-memory.html">Claude Code memory</a>
-      <a href="/use-cases/github-copilot-memory.html">GitHub Copilot memory</a>
+      <a href="/use-cases/codex-memory.html">Codex continuity</a>
+      <a href="/use-cases/claude-code-memory.html">Claude Code continuity</a>
+      <a href="/use-cases/github-copilot-memory.html">GitHub Copilot continuity</a>
 
       <a class="docs-sidebar-section" href="/compare/">Comparisons</a>
       <a href="/compare/aictx-vs-agents-md.html">AICTX vs AGENTS.md</a>
@@ -174,10 +174,10 @@
       <a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a>
 
       <a class="docs-sidebar-section" href="/concepts/">Concepts</a>
+      <a href="/concepts/operational-memory.html">Operational continuity</a>
+      <a href="/concepts/repo-local-memory.html">Repo-local continuity</a>
+      <a href="/concepts/ai-coding-agent-memory.html">AI coding-agent memory</a>
       <a href="/concepts/local-memory-for-ai-coding-tools.html">Local memory for AI coding tools</a>
-      <a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a>
-      <a href="/concepts/repo-local-memory.html">Repo-local memory</a>
-      <a href="/concepts/operational-memory.html">Operational memory</a>
       <a href="/concepts/failure-memory-for-coding-agents.html">Failure memory</a>
 
       <span class="docs-sidebar-section">Project identity</span>
@@ -198,7 +198,7 @@
 
   <footer class="docs-footer">
     <p>
-      AICTX - Repo-local continuity and operational memory for coding agents.
+      AICTX - Operational continuity for AI coding agents.
     </p>
     <p>
       <a href="https://aictx.org/">Official website</a>
