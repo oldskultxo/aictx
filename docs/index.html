@@ -3,51 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <title>AICTX - Repo-local memory and continuity for coding agents</title>
-
+  <title>AICTX - Operational continuity for AI coding agents</title>
   <meta
     name="description"
-    content="AICTX is the official repo-local continuity runtime for coding agents. It gives Codex, Claude, GitHub Copilot and other AI coding tools operational memory across sessions: decisions, failures, handoffs, execution state and repo context."
+    content="AICTX is the official operational continuity layer for AI coding agents. It helps Codex, Claude, GitHub Copilot and other agents continue work across sessions from repo-local execution state, handoffs, failures, decisions and validation evidence."
   >
-
   <meta
     name="keywords"
-    content="AICTX, aictx, coding agents, AI coding agents, agent memory, operational memory, execution memory, repo-local memory, repo-local continuity, context engineering, Codex, Claude, GitHub Copilot, failure memory, decision memory, handoff memory, continuity view, Mermaid map"
+    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View"
   >
-
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="author" content="Santi Santamaria">
   <meta name="application-name" content="AICTX">
   <meta name="theme-color" content="#101820">
-
   <link rel="canonical" href="https://aictx.org/">
-
   <link rel="icon" href="/favicon.ico">
 
-  <!-- Open Graph -->
   <meta property="og:site_name" content="AICTX">
-  <meta property="og:title" content="AICTX - Repo-local memory and continuity for coding agents">
+  <meta property="og:title" content="AICTX - Operational continuity for AI coding agents">
   <meta
     property="og:description"
-    content="Official AICTX website. Repo-local continuity and operational memory for AI coding agents: remembered decisions, failures, handoffs, execution evidence and repo context."
+    content="The next coding-agent session starts from what actually happened, not from zero. Repo-local operational continuity for Codex, Claude, GitHub Copilot and generic agents."
   >
   <meta property="og:url" content="https://aictx.org/">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://aictx.org/images/aictx-logo.png">
-  <meta property="og:image:alt" content="AICTX runtime flow for repo-local continuity and coding-agent memory">
+  <meta property="og:image:alt" content="AICTX operational continuity for AI coding agents">
   <meta property="og:locale" content="en_US">
 
-  <!-- Twitter / X -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AICTX - Repo-local memory and continuity for coding agents">
+  <meta name="twitter:title" content="AICTX - Operational continuity for AI coding agents">
   <meta
     name="twitter:description"
-    content="Repo-local continuity and operational memory for AI coding agents. AICTX helps new sessions continue prior work with remembered decisions, failures, handoffs and repo context."
+    content="AICTX helps new coding-agent sessions continue from the last useful execution state: active work, failures, decisions, validation evidence and next actions."
   >
   <meta name="twitter:image" content="https://aictx.org/images/aictx-logo.png">
 
-  <!-- Structured data: software -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -58,7 +49,7 @@
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
     "programmingLanguage": "Python",
-    "description": "AICTX is a repo-local continuity runtime for coding agents. It provides operational memory across sessions: decisions, failures, handoffs, execution state and repo context.",
+    "description": "AICTX is an operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions.",
     "creator": {
       "@type": "Person",
       "name": "Santi Santamaria",
@@ -71,22 +62,20 @@
     },
     "codeRepository": "https://github.com/oldskultxo/aictx",
     "downloadUrl": "https://pypi.org/project/aictx/",
-    "softwareVersion": "6.5.1",
+    "softwareVersion": "6.5.0",
     "license": "https://github.com/oldskultxo/aictx/blob/main/LICENSE",
     "keywords": [
       "AICTX",
       "aictx",
+      "operational continuity",
       "coding agents",
       "AI coding agents",
-      "agent memory",
-      "operational memory",
-      "execution memory",
-      "repo-local memory",
       "repo-local continuity",
+      "execution state",
+      "Work State",
       "failure memory",
-      "decision memory",
-      "handoff memory",
-      "context engineering",
+      "handoffs",
+      "execution contracts",
       "Codex",
       "Claude",
       "GitHub Copilot"
@@ -98,7 +87,6 @@
   }
   </script>
 
-  <!-- Structured data: organization/project identity -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -117,7 +105,6 @@
   }
   </script>
 
-  <!-- Structured data: FAQ -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -128,7 +115,7 @@
         "name": "What is AICTX?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "AICTX is the official Python aictx CLI for repo-local memory and continuity for coding agents."
+          "text": "AICTX is the official Python aictx CLI for operational continuity between AI coding-agent sessions."
         }
       },
       {
@@ -141,10 +128,10 @@
       },
       {
         "@type": "Question",
-        "name": "What does AICTX remember?",
+        "name": "What does AICTX preserve?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "AICTX can preserve Work State, decisions, handoffs, failure memory, execution summaries and repo context across sessions."
+          "text": "AICTX can preserve Work State, decisions, handoffs, known failures, execution summaries, contract signals, repo context and next actions across sessions."
         }
       },
       {
@@ -152,7 +139,7 @@
         "name": "Where is the official AICTX project?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "The official AICTX website is https://aictx.org/, the official repository is https://github.com/oldskultxo/aictx, the official Python package is aictx on PyPI, and the canonical identity hub is https://aictx.org/official/."
+          "text": "The official AICTX website is https://aictx.org/, the official repository is https://github.com/oldskultxo/aictx, and the official Python package is aictx on PyPI."
         }
       }
     ]
@@ -176,12 +163,14 @@
       box-sizing: border-box;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(148, 180, 30, 0.16), transparent 32rem),
-        linear-gradient(180deg, #0b1117 0%, #0f1722 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, rgba(148, 180, 30, 0.14), transparent 32rem), var(--bg);
       color: var(--text);
       line-height: 1.6;
     }
@@ -195,44 +184,39 @@
       text-decoration: underline;
     }
 
-    .page {
-      width: min(1120px, calc(100% - 32px));
+    .shell {
+      max-width: 1120px;
       margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
     }
 
-    .site-header {
+    header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
-      padding: 1.25rem 0;
+      padding: 1rem 0 3rem;
     }
 
     .brand {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: .75rem;
       color: var(--text);
-      font-weight: 800;
-      letter-spacing: 0.04em;
+      font-weight: 700;
+      letter-spacing: .03em;
     }
 
-    .brand-mark {
-      width: 2rem;
-      height: 2rem;
-      display: grid;
-      place-items: center;
-      border-radius: 0.55rem;
-      background: var(--accent);
-      color: #101820;
-      font-weight: 900;
+    .brand img {
+      width: 42px;
+      height: 42px;
     }
 
-    .nav {
+    nav {
       display: flex;
       flex-wrap: wrap;
       gap: 1rem;
-      font-size: 0.95rem;
+      font-size: .95rem;
     }
 
     .github-stars {
@@ -254,71 +238,53 @@
     }
 
     .hero {
-      padding: 5rem 0 4rem;
-    }
-
-    .hero-grid {
       display: grid;
-      grid-template-columns: 1.2fr 0.8fr;
+      grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
       gap: 2rem;
       align-items: center;
+      padding: 3rem 0 2rem;
     }
 
     .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.35rem 0.65rem;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: var(--accent-soft);
       color: var(--accent);
       font-weight: 700;
-      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: .78rem;
+      margin-bottom: .75rem;
     }
 
     h1 {
-      margin: 1.25rem 0 1rem;
-      max-width: 820px;
-      font-size: clamp(2.4rem, 7vw, 5.3rem);
-      line-height: 0.95;
-      letter-spacing: -0.06em;
+      margin: 0;
+      font-size: clamp(2.7rem, 7vw, 5.4rem);
+      line-height: .96;
+      letter-spacing: -.06em;
     }
 
     .lead {
-      max-width: 760px;
+      font-size: clamp(1.1rem, 2vw, 1.35rem);
       color: var(--muted);
-      font-size: clamp(1.05rem, 2vw, 1.35rem);
+      margin: 1.5rem 0 0;
+      max-width: 68ch;
     }
 
-    .official-box {
-      margin-top: 1.5rem;
-      padding: 1rem;
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      background: rgba(255, 255, 255, 0.04);
-    }
-
-    .official-box p {
-      margin: 0.35rem 0;
-    }
-
-    .actions {
+    .hero-actions,
+    .cta-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.8rem;
-      margin-top: 1.5rem;
+      gap: .8rem;
+      margin-top: 1.6rem;
     }
 
     .button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 0.75rem 1rem;
-      border-radius: 0.7rem;
       border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: .75rem 1rem;
       color: var(--text);
-      background: var(--panel);
+      background: rgba(255,255,255,.04);
       font-weight: 700;
     }
 
@@ -328,155 +294,139 @@
       border-color: var(--accent);
     }
 
-    .terminal {
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
       border: 1px solid var(--border);
-      border-radius: 1rem;
-      background: var(--code-bg);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
-      overflow: hidden;
-    }
-
-    .terminal-bar {
-      display: flex;
-      gap: 0.45rem;
-      padding: 0.8rem;
-      border-bottom: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.04);
-    }
-
-    .dot {
-      width: 0.7rem;
-      height: 0.7rem;
-      border-radius: 50%;
-      background: var(--muted);
-      opacity: 0.7;
+      border-radius: 1.25rem;
+      padding: 1.25rem;
+      box-shadow: 0 24px 70px rgba(0,0,0,.25);
     }
 
     pre {
-      margin: 0;
-      padding: 1.1rem;
-      overflow-x: auto;
-      color: #d9f99d;
-      font-size: 0.95rem;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1rem;
+      overflow: auto;
+      color: #dce9f2;
+      font-size: .9rem;
     }
 
-    section {
+    .section {
       padding: 3rem 0;
+      scroll-margin-top: 2rem;
     }
 
-    h2 {
-      margin: 0 0 1rem;
+    .section h2 {
       font-size: clamp(1.8rem, 4vw, 3rem);
       line-height: 1.05;
-      letter-spacing: -0.04em;
+      margin: 0 0 1rem;
+      letter-spacing: -.04em;
     }
 
-    .section-intro {
-      max-width: 760px;
+    .muted {
       color: var(--muted);
-      font-size: 1.1rem;
     }
 
-    .cards {
+    .grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 1rem;
-      margin-top: 1.5rem;
     }
 
-    .card {
-      padding: 1.25rem;
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      background: var(--panel);
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .card h3 {
-      margin: 0 0 0.5rem;
-      font-size: 1.1rem;
+    .docs-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
     }
 
-    .card p {
+    .docs-card h3 {
+      margin-top: 0;
+      margin-bottom: .5rem;
+    }
+
+    .docs-card ul {
+      list-style: none;
+      padding: 0;
       margin: 0;
-      color: var(--muted);
     }
 
-    .identity {
-      border: 1px solid var(--border);
-      border-radius: 1.25rem;
-      padding: 1.5rem;
-      background: var(--panel-soft);
+    .docs-card li + li {
+      margin-top: .35rem;
     }
 
-    .docs-list {
-      columns: 2;
-      padding-left: 1.2rem;
+    .pill {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(148,180,30,.32);
+      border-radius: 999px;
+      padding: .25rem .65rem;
+      font-size: .82rem;
+      font-weight: 700;
     }
 
-    .docs-list li {
-      margin: 0.35rem 0;
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .comparison h3 {
+      margin-top: 0;
     }
 
     footer {
-      padding: 2rem 0 3rem;
-      color: var(--muted);
       border-top: 1px solid var(--border);
+      color: var(--muted);
+      padding: 2rem 0 0;
       margin-top: 2rem;
     }
 
-    .brand-logo {
-      display: block;
-      width: 180px;
-      max-width: 52vw;
-      height: auto;
+    @media (max-width: 950px) {
+      .docs-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
-    
-    @media (max-width: 820px) {
-      .hero-grid {
+
+    @media (max-width: 850px) {
+      header,
+      .hero {
+        display: block;
+      }
+
+      nav {
+        margin-top: 1rem;
+      }
+
+      .grid,
+      .grid.two,
+      .comparison,
+      .docs-grid {
         grid-template-columns: 1fr;
       }
 
-      .cards {
-        grid-template-columns: 1fr;
-      }
-
-      .docs-list {
-        columns: 1;
-      }
-
-      .site-header {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-      .brand-logo {
-        width: 220px;
+      .hero {
+        padding-top: 1rem;
       }
     }
   </style>
 </head>
-
 <body>
-  <div class="page">
-    <header class="site-header">
-      <a class="brand" href="https://aictx.org/" aria-label="AICTX official website">
-        <img
-            class="brand-logo"
-            src="/images/aictx-logo-nobackground.png"
-            alt="AICTX"
-            width="2172"
-            height="724"
-        >
+  <div class="shell">
+    <header>
+      <a class="brand" href="/" aria-label="AICTX home">
+        <img src="/images/aictx-logo.png" alt="AICTX">
+        <span>AICTX</span>
       </a>
-
-      <nav class="nav" aria-label="Primary navigation">
-        <a href="#what-is-aictx">What it does</a>
-        <a href="#why-aictx">Why AICTX</a>
-        <a href="#memory">Memory</a>
-        <a href="#supported-agents">Agents</a>
-        <a href="#seo-pages">Use cases</a>
-        <a href="#comparisons">Compare</a>
+      <nav aria-label="Main navigation">
+        <a href="/QUICKSTART.html">Quickstart</a>
+        <a href="/CONTINUITY_VIEW.html">Continuity View</a>
         <a href="#docs">Docs</a>
-        <a href="#faq">FAQ</a>
         <a href="https://github.com/oldskultxo/aictx">GitHub <span class="github-stars js-github-stars" aria-label="GitHub stars">(<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.969.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.979a.75.75 0 0 1-1.088-.79l.72-4.193L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path></svg> <span class="js-github-stars-count"></span> stars)</span></a>
         <a href="https://pypi.org/project/aictx/">PyPI</a>
       </nav>
@@ -484,454 +434,257 @@
 
     <main>
       <section class="hero">
-        <div class="hero-grid">
-          <div>
-            <span class="eyebrow">Official AICTX project</span>
-
-            <h1>Repo-local memory and continuity for coding agents.</h1>
-
-            <p class="lead">
-              AICTX is a repo-local continuity runtime that gives coding agents
-              operational memory across sessions: decisions, failures, handoffs,
-              execution state and relevant repo context.
-            </p>
-
-            <div class="official-box">
-              <p><strong>Official website:</strong> <a href="https://aictx.org/">https://aictx.org</a></p>
-              <p><strong>Official repository:</strong> <a href="https://github.com/oldskultxo/aictx">github.com/oldskultxo/aictx</a></p>
-              <p><strong>Official PyPI package:</strong> <a href="https://pypi.org/project/aictx/">aictx</a></p>
-              <p><strong>Official CLI:</strong> <code>aictx</code></p>
-              <p><strong>Official hub:</strong> <a href="/official/">Official AICTX</a></p>
-            </div>
-
-            <div class="actions">
-              <a class="button primary" href="https://github.com/oldskultxo/aictx">View on GitHub</a>
-              <a class="button" href="https://pypi.org/project/aictx/">Install from PyPI</a>
-              <a class="button" href="/QUICKSTART.html">Read quickstart</a>
-            </div>
+        <div>
+          <div class="eyebrow">Repo-local execution state for coding agents</div>
+          <h1>Operational continuity for AI coding agents.</h1>
+          <p class="lead">
+            AICTX helps Codex, Claude, GitHub Copilot and other coding agents continue work across sessions by preserving the last useful execution state: active work, next actions, decisions, failures, validation evidence and repo context.
+          </p>
+          <p class="lead">
+            The next agent starts from what actually happened, not from zero.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="/QUICKSTART.html">Start in 2 minutes</a>
+            <a class="button" href="/CONTINUITY_VIEW.html">See Continuity View</a>
+            <a class="button" href="https://github.com/oldskultxo/aictx">View on GitHub</a>
           </div>
+        </div>
 
-          <div class="terminal" aria-label="AICTX install command">
-            <div class="terminal-bar">
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="dot"></span>
-            </div>
-            <pre><code>pip install aictx
+        <div class="card">
+          <span class="pill">resume → work → finalize</span>
+          <pre><code>pip install aictx
 aictx install
 aictx init
 
 aictx resume --repo . --task "continue parser work" --json
-aictx view --repo .
-aictx finalize --repo . --status success --summary "tests updated" --json</code></pre>
+# agent works
+aictx finalize --repo . --status success --summary "parser tests updated" --json</code></pre>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Disconnected sessions are the problem.</h2>
+        <p class="muted">
+          Coding agents can reason through code, but every new session often starts operationally cold: it has to rediscover the repo, infer the task state, avoid old mistakes and guess which validation matters.
+        </p>
+
+        <div class="comparison">
+          <div class="card">
+            <h3>Without AICTX</h3>
+            <pre><code>A new agent session starts cold.
+It scans README, docs and Makefile.
+It rediscovers decisions.
+It may repeat failed commands.
+It guesses what should happen next.</code></pre>
+          </div>
+          <div class="card">
+            <h3>With AICTX</h3>
+            <pre><code>The agent loads a resume capsule.
+It sees active work and next action.
+It sees known failures and validation path.
+It finalizes factual evidence for the next session.</code></pre>
           </div>
         </div>
       </section>
 
-      <section id="what-is-aictx">
-        <h2>What AICTX does</h2>
-        <p class="section-intro">
-          AICTX helps a new coding-agent session start from the useful state left
-          by the previous one. Instead of rediscovering the repository, the agent
-          can resume from repo-local evidence: active task state, next action,
-          known failures, decisions, execution summaries and optional structural
-          repo hints.
-        </p>
-
-        <div class="cards">
-          <article class="card">
-            <h3>Continuity runtime</h3>
-            <p>
-              A small resume/finalize loop lets coding agents load useful context
-              before work and record factual evidence after work.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Repo-local context</h3>
-            <p>
-              AICTX stores inspectable continuity artifacts inside the repository,
-              not as hidden cloud memory or a private black box.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Agent-aware workflow</h3>
-            <p>
-              Codex-first, Claude-aware, GitHub Copilot-aware and compatible with
-              generic agents that can read repo instructions and run CLI commands.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section id="why-aictx">
-        <h2>Why AICTX?</h2>
-
-        <p class="section-intro">
-            Most coding-agent sessions still start cold. The agent reopens broad docs,
-            rediscovers repository structure, repeats failed commands and depends on
-            chat history to understand unfinished work.
-        </p>
-
-        <div class="cards">
-            <article class="card">
-            <h3>Without AICTX</h3>
-            <p>
-                Session 1 does the work, the chat ends, and Session 2 starts by
-                rediscovering the repo, repeating context gathering and risking the same
-                mistakes again.
-            </p>
-            </article>
-
-            <article class="card">
-            <h3>With AICTX</h3>
-            <p>
-                Session 1 records continuity, and Session 2 resumes from a compact
-                capsule with the active task, next action, known failures, decisions and
-                relevant repo context.
-            </p>
-            </article>
-
-            <article class="card">
-            <h3>Result</h3>
-            <p>
-                The next coding-agent session can start closer to the intended work
-                surface instead of spending its first minutes recovering project state.
-            </p>
-            </article>
-        </div>
-      </section>
-
-      <section id="memory">
-        <h2>Operational memory for AI coding agents</h2>
-        <p class="section-intro">
-          AICTX is not just a prompt. It is a repo-local memory layer focused on
-          operational continuity: what happened, what failed, what was decided,
-          what should happen next and where the agent should look first.
-        </p>
-
-        <div class="cards">
-          <article class="card">
+      <section class="section">
+        <h2>What carries forward?</h2>
+        <div class="grid">
+          <div class="card">
             <h3>Work State</h3>
-            <p>
-              Preserves active task, hypothesis, files, next action, risks and
-              verification state so the next session knows what was in progress.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Decision memory</h3>
-            <p>
-              Keeps explicit architecture, product and implementation decisions
-              available to future coding-agent sessions.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Failure memory</h3>
-            <p>
-              Stores observed command, test, build and lint failures as evidence
-              so agents do not blindly repeat known mistakes.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Handoff memory</h3>
-            <p>
-              Captures factual summaries and next steps that let a later session
-              continue from the right surface.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Execution memory</h3>
-            <p>
-              Records what happened during execution and makes continuity visible
-              instead of depending only on chat history.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3><a href="/CONTINUITY_VIEW.html">Continuity View</a></h3>
-            <p>
-              Generates a local Markdown report and deterministic Mermaid map of
-              active repo continuity for users and coding agents.
-            </p>
-          </article>
-
-          <article class="card">
+            <p class="muted">The live unfinished task: goal, hypothesis, active files, risks, next action and recommended commands.</p>
+          </div>
+          <div class="card">
+            <h3>Handoffs and decisions</h3>
+            <p class="muted">What the previous session left behind and which project decisions should not be rediscovered.</p>
+          </div>
+          <div class="card">
+            <h3>Known failures</h3>
+            <p class="muted">Observed failed commands, tests, builds and resolutions that may matter to the next session.</p>
+          </div>
+          <div class="card">
+            <h3>Execution contracts</h3>
+            <p class="muted">Expected first action, edit scope, validation command and compliance signals for audit-only continuity.</p>
+          </div>
+          <div class="card">
             <h3>RepoMap hints</h3>
-            <p>
-              Optional structural repo lookup can provide compact entry points
-              for where the agent should inspect first.
-            </p>
-          </article>
+            <p class="muted">Optional structural entry points so the agent knows where to look first.</p>
+          </div>
+          <div class="card">
+            <h3>Continuity View</h3>
+            <p class="muted">A local Markdown and Mermaid map of the operational continuity your next agent will use.</p>
+          </div>
         </div>
       </section>
 
-      <section id="supported-agents">
-        <h2>Supported coding agents</h2>
-
-        <p class="section-intro">
-            AICTX is runner-aware, not runner-locked. It is designed for coding agents
-            that can read repository instructions, run CLI commands and consume
-            structured JSON output.
+      <section class="section">
+        <h2>Inspectable, not hidden.</h2>
+        <p class="muted">
+          AICTX stores continuity in repo-local artifacts under <code>.aictx/</code>. It is not hidden provider memory and it is not a vector database. You can inspect what was recorded, clean it up and optionally share a safe subset through Git.
         </p>
+        <div class="card">
+          <pre><code>aictx view --repo .
 
-        <div class="cards">
-            <article class="card">
+# writes:
+.aictx/reports/continuity-view.md
+.aictx/reports/continuity-map.mmd</code></pre>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Works around the agents you already use.</h2>
+        <div class="grid">
+          <div class="card">
             <h3>Codex</h3>
-            <p>
-                Codex-first workflow with repo instructions and a CLI/runtime contract
-                built around resume and finalize.
-            </p>
-            </article>
-
-            <article class="card">
+            <p class="muted">A repo-local continuity loop for sessions that can run CLI commands and consume structured output.</p>
+            <a href="/use-cases/codex-memory.html">Codex continuity →</a>
+          </div>
+          <div class="card">
+            <h3>Claude Code</h3>
+            <p class="muted">Project instructions and runtime artifacts for handoffs, failures, decisions and execution summaries.</p>
+            <a href="/use-cases/claude-code-memory.html">Claude Code continuity →</a>
+          </div>
+          <div class="card">
             <h3>GitHub Copilot</h3>
-            <p>
-                Repository-wide custom instructions through
-                <code>.github/copilot-instructions.md</code>.
-            </p>
-            </article>
-
-            <article class="card">
-            <h3>Claude</h3>
-            <p>
-                Claude-aware setup through project instructions and workspace-oriented
-                guidance.
-            </p>
-            </article>
-
-            <article class="card">
-            <h3>Generic agents</h3>
-            <p>
-                Any agent that can read repo instructions, run shell commands and consume
-                JSON can use the AICTX runtime loop.
-            </p>
-            </article>
+            <p class="muted">Instruction and prompt surfaces for best-effort lifecycle adoption where command execution is available.</p>
+            <a href="/use-cases/github-copilot-memory.html">Copilot continuity →</a>
+          </div>
         </div>
       </section>
 
-      <section id="seo-pages">
-        <h2>Use cases for coding-agent memory</h2>
-        <p class="section-intro">
-          AICTX documents practical repo-local memory workflows for Codex,
-          Claude Code, GitHub Copilot and generic coding agents. <a href="/use-cases/">Browse all use cases</a>.
+      <section class="section" id="docs">
+        <h2>Browse the documentation</h2>
+        <p class="muted">
+          The home page is the social entry point, but every major GitHub Pages document should also be reachable from here.
         </p>
 
-        <div class="cards">
-          <article class="card">
-            <h3><a href="/use-cases/codex-memory.html">Codex memory</a></h3>
-            <p>Use AICTX as repo-local Codex memory with work state, failure memory, handoffs and the resume/finalize lifecycle.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/use-cases/claude-code-memory.html">Claude Code memory</a></h3>
-            <p>Give Claude Code workflows inspectable operational memory for active tasks, decisions, failures and handoffs.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/use-cases/github-copilot-memory.html">GitHub Copilot memory</a></h3>
-            <p>Use AICTX with Copilot-aware repository instructions and repo-local continuity artifacts.</p>
-          </article>
+        <div class="docs-grid">
+          <div class="card docs-card">
+            <h3>Start</h3>
+            <ul>
+              <li><a href="/QUICKSTART.html">Quickstart</a></li>
+              <li><a href="/INSTALLATION.html">Installation</a></li>
+              <li><a href="/USAGE.html">Usage</a></li>
+              <li><a href="/DEMO.html">Demo</a></li>
+              <li><a href="/TECHNICAL_OVERVIEW.html">Technical overview</a></li>
+            </ul>
+          </div>
+
+          <div class="card docs-card">
+            <h3>Operational continuity</h3>
+            <ul>
+              <li><a href="/CONTINUITY_VIEW.html">Continuity View</a></li>
+              <li><a href="/WORK_STATE.html">Work State</a></li>
+              <li><a href="/EXECUTION_CONTRACTS.html">Execution Contracts</a></li>
+              <li><a href="/EXECUTION_SUMMARY.html">Execution Summary</a></li>
+              <li><a href="/HANDOFFS.html">Handoffs and Decisions</a></li>
+              <li><a href="/FAILURE_MEMORY.html">Failure Memory</a></li>
+              <li><a href="/STRATEGY_MEMORY.html">Strategy Memory</a></li>
+              <li><a href="/AREA_MEMORY.html">Area Signals</a></li>
+              <li><a href="/REPOMAP.html">RepoMap</a></li>
+            </ul>
+          </div>
+
+          <div class="card docs-card">
+            <h3>Use cases</h3>
+            <ul>
+              <li><a href="/use-cases/">Use cases overview</a></li>
+              <li><a href="/use-cases/codex-memory.html">Codex continuity</a></li>
+              <li><a href="/use-cases/claude-code-memory.html">Claude Code continuity</a></li>
+              <li><a href="/use-cases/github-copilot-memory.html">GitHub Copilot continuity</a></li>
+            </ul>
+          </div>
+
+          <div class="card docs-card">
+            <h3>Comparisons</h3>
+            <ul>
+              <li><a href="/compare/">Comparisons overview</a></li>
+              <li><a href="/compare/aictx-vs-agents-md.html">AICTX vs AGENTS.md</a></li>
+              <li><a href="/compare/aictx-vs-long-context.html">AICTX vs long context</a></li>
+              <li><a href="/compare/aictx-vs-vector-database.html">AICTX vs vector databases</a></li>
+              <li><a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a></li>
+            </ul>
+          </div>
+
+          <div class="card docs-card">
+            <h3>Concepts</h3>
+            <ul>
+              <li><a href="/concepts/">Concepts overview</a></li>
+              <li><a href="/concepts/operational-memory.html">Operational continuity</a></li>
+              <li><a href="/concepts/repo-local-memory.html">Repo-local continuity</a></li>
+              <li><a href="/concepts/ai-coding-agent-memory.html">AI coding-agent memory</a></li>
+              <li><a href="/concepts/local-memory-for-ai-coding-tools.html">Local memory for AI coding tools</a></li>
+              <li><a href="/concepts/failure-memory-for-coding-agents.html">Failure memory</a></li>
+            </ul>
+          </div>
+
+          <div class="card docs-card">
+            <h3>Project identity</h3>
+            <ul>
+              <li><a href="/official/">Official AICTX</a></li>
+              <li><a href="/OFFICIAL_PROJECT.html">Official project</a></li>
+              <li><a href="/SAFETY.html">Safety</a></li>
+              <li><a href="/LIMITATIONS.html">Limitations</a></li>
+            </ul>
+          </div>
+
+          <div class="card docs-card">
+            <h3>Operations</h3>
+            <ul>
+              <li><a href="/PORTABILITY.html">Portability</a></li>
+              <li><a href="/DOCTOR.html">Doctor diagnostics</a></li>
+              <li><a href="/CLEANUP.html">Cleanup</a></li>
+              <li><a href="/UPGRADE.html">Upgrade</a></li>
+            </ul>
+          </div>
+
+          <div class="card docs-card">
+            <h3>Machine-readable</h3>
+            <ul>
+              <li><a href="/llms.txt">llms.txt</a></li>
+              <li><a href="/llms-small.txt">llms-small.txt</a></li>
+              <li><a href="/llms-full.txt">llms-full.txt</a></li>
+              <li><a href="/sitemap.xml">sitemap.xml</a></li>
+            </ul>
+          </div>
         </div>
       </section>
 
-      <section id="concepts">
-        <h2>Core memory concepts</h2>
-        <p class="section-intro">
-          Learn the concepts behind local memory for AI coding tools, repo-local memory,
-          operational continuity, failure memory and handoffs for AI coding agents.
-          <a href="/concepts/">Browse all concepts</a>.
+      <section class="section">
+        <h2>What AICTX is not</h2>
+        <div class="grid two">
+          <div class="card">
+            <p>AICTX is not an autonomous coding agent, a cloud memory service, a dashboard, a vector database or a replacement for human review.</p>
+          </div>
+          <div class="card">
+            <p>AICTX does not guarantee correctness, productivity gains, token savings or that every agent will follow the lifecycle perfectly.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Start from continuity, not from zero.</h2>
+        <p class="muted">
+          Install once, initialize the repository, then let each supported agent resume from operational evidence and finalize what happened for the next session.
         </p>
-
-        <div class="cards">
-          <article class="card">
-            <h3><a href="/concepts/local-memory-for-ai-coding-tools.html">Local memory for AI coding tools</a></h3>
-            <p>How AICTX keeps project memory local, inspectable and tied to the repository.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a></h3>
-            <p>What coding-agent memory means when it is stored as project-local operational evidence.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/concepts/repo-local-memory.html">Repo-local memory</a></h3>
-            <p>Why storing continuity with the repository differs from relying only on provider history.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/concepts/operational-memory.html">Operational memory</a></h3>
-            <p>Task state, command outcomes, decisions and next actions preserved for future sessions.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/concepts/failure-memory-for-coding-agents.html">Failure memory</a></h3>
-            <p>How observed failures become repo-local signals for future coding-agent sessions.</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="comparisons">
-        <h2>Compare AICTX</h2>
-        <p class="section-intro">
-          AICTX complements prompts, instructions and long context by preserving
-          structured continuity as repo-local artifacts. <a href="/compare/">Browse all comparisons</a>.
-        </p>
-
-        <div class="cards">
-          <article class="card">
-            <h3><a href="/compare/aictx-vs-agents-md.html">AICTX vs AGENTS.md</a></h3>
-            <p>Instructions tell agents how to behave; AICTX also stores runtime memory and continuity.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/compare/aictx-vs-long-context.html">AICTX vs long context</a></h3>
-            <p>Long context holds more text in one session; AICTX preserves structured continuity across sessions.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/compare/aictx-vs-vector-database.html">AICTX vs vector databases</a></h3>
-            <p>Vector databases retrieve semantic chunks; AICTX records operational execution memory.</p>
-          </article>
-          <article class="card">
-            <h3><a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a></h3>
-            <p>Chat history is provider-bound; AICTX keeps continuity with the repository.</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="docs">
-        <h2>Documentation</h2>
-        <p class="section-intro">
-          Start with the quickstart, then use the technical docs to understand the
-          runtime contract, memory artifacts and supported agent integrations.
-        </p>
-
-        <ul class="docs-list">
-          <li><a href="/QUICKSTART.html">Quickstart</a></li>
-          <li><a href="/INSTALLATION.html">Installation</a></li>
-          <li><a href="/USAGE.html">Usage</a></li>
-          <li><a href="/DEMO.html">Demo</a></li>
-          <li><a href="/TECHNICAL_OVERVIEW.html">Technical overview</a></li>
-          <li><a href="/CONTINUITY_VIEW.html">Continuity View</a></li>
-          <li><a href="/WORK_STATE.html">Work State</a></li>
-          <li><a href="/HANDOFFS.html">Handoffs and decisions</a></li>
-          <li><a href="/FAILURE_MEMORY.html">Failure Memory</a></li>
-          <li><a href="/STRATEGY_MEMORY.html">Strategy Memory</a></li>
-          <li><a href="/AREA_MEMORY.html">Area Memory</a></li>
-          <li><a href="/EXECUTION_SUMMARY.html">Execution Summary</a></li>
-          <li><a href="/EXECUTION_CONTRACTS.html">Execution Contracts</a></li>
-          <li><a href="/REPOMAP.html">RepoMap</a></li>
-          <li><a href="/PORTABILITY.html">Git-portable continuity</a></li>
-          <li><a href="/DOCTOR.html">Doctor diagnostics</a></li>
-          <li><a href="/SAFETY.html">Safety</a></li>
-          <li><a href="/LIMITATIONS.html">Limitations</a></li>
-          <li><a href="/UPGRADE.html">Upgrade</a></li>
-          <li><a href="/OFFICIAL_PROJECT.html">Official project identity</a></li>
-          <li><a href="/official/">Official AICTX</a></li>
-          <li><a href="/use-cases/codex-memory.html">Codex memory</a></li>
-          <li><a href="/use-cases/claude-code-memory.html">Claude Code memory</a></li>
-          <li><a href="/use-cases/github-copilot-memory.html">GitHub Copilot memory</a></li>
-          <li><a href="/concepts/local-memory-for-ai-coding-tools.html">Local memory for AI coding tools</a></li>
-          <li><a href="/concepts/ai-coding-agent-memory.html">AI coding agent memory</a></li>
-          <li><a href="/concepts/repo-local-memory.html">Repo-local memory</a></li>
-          <li><a href="/concepts/operational-memory.html">Operational memory</a></li>
-          <li><a href="/concepts/failure-memory-for-coding-agents.html">Failure memory for coding agents</a></li>
-          <li><a href="/compare/aictx-vs-agents-md.html">AICTX vs AGENTS.md</a></li>
-          <li><a href="/compare/aictx-vs-long-context.html">AICTX vs long context</a></li>
-          <li><a href="/compare/aictx-vs-vector-database.html">AICTX vs vector databases</a></li>
-          <li><a href="/compare/aictx-vs-chat-history.html">AICTX vs chat history</a></li>
-        </ul>
-      </section>
-
-      <section id="faq">
-        <h2>AICTX FAQ</h2>
-
-        <div class="cards">
-          <article class="card">
-            <h3>What is AICTX?</h3>
-            <p>
-              AICTX is the official Python <code>aictx</code> CLI for repo-local memory
-              and continuity for coding agents.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Is AICTX an AI coding agent?</h3>
-            <p>
-              No. AICTX is not an autonomous coding agent. It is a repo-local continuity
-              layer used by tools such as Codex, Claude Code, GitHub Copilot and generic
-              coding agents.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>What does AICTX remember?</h3>
-            <p>
-              AICTX can preserve Work State, decisions, handoffs, failure memory,
-              execution summaries and repo context across sessions.
-            </p>
-          </article>
-
-          <article class="card">
-            <h3>Where is the official AICTX project?</h3>
-            <p>
-              The official AICTX website is <a href="https://aictx.org/">aictx.org</a>,
-              the official repository is
-              <a href="https://github.com/oldskultxo/aictx">oldskultxo/aictx</a>,
-              the official Python package is
-              <a href="https://pypi.org/project/aictx/">aictx on PyPI</a>, and the
-              canonical identity hub is <a href="/official/">Official AICTX</a>.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section id="community">
-        <h2>Community and support</h2>
-
-        <p class="section-intro">
-            AICTX is an open-source developer tool. Use GitHub Discussions for ideas and
-            questions, Issues for bugs or feature requests, and the contribution guide
-            if you want to help improve the project.
-        </p>
-
-        <div class="actions">
-            <a class="button" href="https://github.com/oldskultxo/aictx/discussions">Discussions</a>
-            <a class="button" href="https://github.com/oldskultxo/aictx/issues">Issues</a>
-            <a class="button" href="https://github.com/oldskultxo/aictx/blob/main/CONTRIBUTING.md">Contributing</a>
-        </div>
-      </section>
-
-      <section id="project-identity">
-        <div class="identity">
-          <h2>Official AICTX project identity</h2>
-
-          <p>
-            AICTX is the official project maintained by Santi Santamaria /
-            oldskultxo, published at <a href="https://aictx.org/">https://aictx.org</a>,
-            documented at <a href="/official/">Official AICTX</a>, and distributed
-            through the official <code>aictx</code> PyPI package.
-          </p>
-
-          <p>
-            AICTX is not affiliated with similarly named npm packages, domains,
-            or GitHub organizations.
-          </p>
+        <div class="cta-row">
+          <a class="button primary" href="/QUICKSTART.html">Quickstart</a>
+          <a class="button" href="/INSTALLATION.html">Installation</a>
+          <a class="button" href="/TECHNICAL_OVERVIEW.html">Technical overview</a>
         </div>
       </section>
     </main>
 
     <footer>
-      <p>
-        AICTX - Repo-local memory and continuity for coding agents.
-      </p>
+      <p>AICTX — operational continuity for AI coding agents.</p>
       <p>
         <a href="https://github.com/oldskultxo/aictx">GitHub <span class="github-stars js-github-stars" aria-label="GitHub stars">(<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.969.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.979a.75.75 0 0 1-1.088-.79l.72-4.193L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path></svg> <span class="js-github-stars-count"></span> stars)</span></a>
         ·
         <a href="https://pypi.org/project/aictx/">PyPI</a>
         ·
-        <a href="#community">Community</a>
+        <a href="/official/">Official project identity</a>
         ·
-        <a href="/sitemap.xml">Sitemap</a>
-        ·
-        <a href="/robots.txt">Robots</a>
+        <a href="#docs">Docs index</a>
       </p>
     </footer>
   </div>

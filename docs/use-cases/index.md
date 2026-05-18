@@ -5,7 +5,7 @@ description: "Practical AICTX use cases for repo-local memory and continuity wit
 
 # AICTX Use Cases
 
-AICTX use cases focus on repo-local memory and continuity for coding agents. These pages explain how the official `aictx` CLI can support Codex, Claude Code, GitHub Copilot, and generic agents without replacing those tools.
+AICTX use cases focus on repo-local memory and continuity for coding agents. These pages explain how `aictx` CLI can support Codex, Claude Code, GitHub Copilot, and generic agents without replacing those tools.
 
 Use these guides to understand how Work State, handoffs, failure memory, decisions, and execution summaries fit into each coding-agent workflow.
 

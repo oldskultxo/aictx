@@ -1,6 +1,6 @@
 ---
 title: "AICTX CLI Usage"
-description: "Command reference for the official `aictx` CLI, including setup, resume, finalize, portability, diagnostics, and cleanup workflows."
+description: "Command reference for `aictx` CLI, including setup, resume, finalize, portability, diagnostics, and cleanup workflows."
 ---
 
 # Usage

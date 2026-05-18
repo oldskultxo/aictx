@@ -40,24 +40,3 @@ def test_pyproject_describes_continuity_runtime():
     payload = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
 
     assert payload["project"]["description"] == "Repo-local continuity runtime for coding agents"
-
-
-def test_readme_contract_section_mentions_current_runtime_and_optional_repomap_artifacts():
-    text = README_PATH.read_text(encoding="utf-8")
-
-    assert "Current documented implementation: `6.5.1`" in text
-    assert "## Artifact contract" in text
-    assert "The stable repo-local continuity artifact contract in `6.5.1` is:" in text
-    assert ".aictx/continuity/contracts/*" in text
-    assert ".aictx/continuity/handoffs.jsonl" in text
-    assert ".aictx/continuity/semantic_repo/*" in text
-    assert ".aictx/metrics/contract_compliance.jsonl" in text
-    assert ".aictx/repo_map/config.json" in text
-    assert ".aictx/reports/*" in text
-    assert ".aictx/repo_map/manifest.json" in text
-    assert ".aictx/repo_map/index.json" in text
-    assert ".aictx/repo_map/status.json" in text
-    assert ".aictx/reports/continuity-view.md" in text
-    assert ".aictx/reports/continuity-map.mmd" in text
-    assert "[Doctor diagnostics](docs/DOCTOR.md)" in text
-    assert "Optional or latest-run artifacts may also appear:" in text

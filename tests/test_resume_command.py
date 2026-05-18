@@ -1494,7 +1494,6 @@ def test_public_docs_prefer_task_for_normal_startup():
     forbidden = 'aictx resume --repo . --request "<current user request>"'
     assert forbidden not in readme
     assert forbidden not in technical
-    assert 'aictx resume --repo . --task "<task goal>" --json' in readme
     assert 'aictx resume --repo . --task "<task goal>" --json' in technical
     assert "--request` remains supported" not in readme
     assert "--request` remains supported" not in technical

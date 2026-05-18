@@ -1,19 +1,19 @@
 ---
-title: "AICTX Quickstart for Coding-Agent Memory"
-description: "Start using AICTX quickly with the official `aictx` CLI to create repo-local continuity and operational memory for coding agents."
+title: "AICTX Quickstart for Operational Continuity"
+description: "Start using AICTX to preserve operational continuity across AI coding-agent sessions with the official aictx CLI."
 ---
 
 # Quickstart
 
-This walkthrough shows the shortest path from setup to visible continuity.
+This walkthrough shows the shortest path from setup to visible operational continuity.
 
-For detailed setup prompts, see [Installation](INSTALLATION.md).
+AICTX is built around one loop:
 
----
+```text
+resume before work -> work normally -> finalize evidence -> next session continues
+```
 
 ## 1. Install and initialize
-
-From inside your repository:
 
 ```bash
 pip install aictx
@@ -21,66 +21,59 @@ aictx install
 aictx init
 ```
 
-Optional install check:
+Optional check:
 
 ```bash
 aictx --version
 aictx doctor --repo . --json
 ```
 
-Explicit form:
-
-```bash
-aictx init --repo .
-```
-
-After this, keep using your coding agent. AICTX is designed to be agent-driven.
-
-Repo initialization writes the runner-facing instruction surfaces used by supported tools, including `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, optional `.github/prompts/aictx-*.prompt.md` files, `CLAUDE.md`, and `.claude/*`.
-
----
-
-## 2. Inspect continuity manually
-
-Manual inspection is optional. Normal supported agent startup should use `--task` with only the work goal:
+## 2. See what the next agent receives
 
 ```bash
 aictx resume --repo . --task "continue current work" --json
 ```
 
-To inspect that JSON with Python, pipe it to a JSON reader, not to `python3 -` as a script:
+Inspect JSON:
 
 ```bash
 aictx resume --repo . --task "continue current work" --json | python3 -m json.tool
 ```
 
-`--task` is the normal startup path; legacy `--request` startup input has been removed in v6.
-
-A fresh repo may have little continuity. That is expected.
-
----
+A fresh repo may have little continuity. That is expected. AICTX becomes more useful after work has been finalized and Work State, failures, decisions or handoffs exist.
 
 ## 3. Create visible Work State
 
 ```bash
 aictx task start "Fix login token refresh" --json
-```
-
-Add a next action:
-
-```bash
-aictx task update --json --json-patch '{"current_hypothesis":"token refresh replay happens before persisted token update","next_action":"inspect auth interceptor ordering","active_files":["src/api/client.ts"],"recommended_commands":["pytest -q tests/test_auth.py"]}'
-```
-
-Inspect:
-
-```bash
+aictx task update --json --json-patch '{"next_action":"inspect auth interceptor ordering","active_files":["src/api/client.ts"],"recommended_commands":["pytest -q tests/test_auth.py"]}'
 aictx resume --repo . --task "continue token refresh work" --json
 ```
 
----
+## 4. Finalize evidence
 
-## 4. Optional RepoMap
+```bash
+aictx finalize --repo . --status success --summary "targeted auth test passed" --json
+```
+
+Finalize is what turns one session's work into factual continuity for the next session.
+
+## 5. Inspect Continuity View
+
+```bash
+aictx view --repo .
+```
+
+Default output:
+
+```text
+.aictx/reports/continuity-view.md
+.aictx/reports/continuity-map.mmd
+```
+
+Not hidden memory. Reviewable operational continuity.
+
+## 6. Optional RepoMap
 
 ```bash
 pip install "aictx[repomap]"
@@ -91,55 +84,3 @@ aictx map query "auth interceptor"
 ```
 
 RepoMap is optional. Core continuity works without it.
-
-When enabled and indexed, `aictx resume --repo . --task "<goal>"` may show compact structural entry points. Work State tells the agent what was happening; RepoMap tells it where to look first. Execution Contracts can later record whether observed files aligned with those suggested entry points.
-
-`aictx map status --json` separates provider availability from index/query availability. This avoids the ambiguous case where a provider is unavailable but an existing index can still answer queries.
-
----
-
-## 5. What supported agents should do
-
-Supported agents should follow generated runtime guidance:
-
-```text
-prepare/startup context remains available
-extract the task goal only from the user prompt
-run one agent-facing continuity query: aictx resume --repo . --task "<task goal>" --json
-use the returned capsule and execution_contract as the operational brief
-execute the task
-finalize after execution
-use agent_summary_text as the factual final summary source
-```
-
-`resume` does not replace prepare/finalize, the startup banner, the final AICTX summary, or persistence. It compiles continuity so the agent does not discover AICTX internals at startup.
-
-When observable execution evidence is available, finalize can add a compact contract compliance line such as `Contract: followed.` or `Contract: partial — canonical test was not observed.`.
-
-When a contract gap remains unresolved, finalize can carry it into Work State as `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids`, so the next `resume` sees the pending work before old completed handoffs.
-
-The user does not need to call internal commands in normal use.
-
----
-
-## 6. Advanced manual runtime simulation
-
-Prepare:
-
-```bash
-aictx internal execution prepare --repo . --task "continue token refresh work" --agent-id demo --execution-id demo-1 > prepared.json
-```
-
-Finalize:
-
-```bash
-aictx internal execution finalize --prepared prepared.json --success --result-summary "targeted auth test passed" --tests-executed "pytest -q tests/test_auth.py"
-```
-
-Inspect:
-
-```bash
-aictx task status --json
-cat .aictx/continuity/last_execution_summary.md
-cat .aictx/metrics/contract_compliance.jsonl 2>/dev/null || true
-```

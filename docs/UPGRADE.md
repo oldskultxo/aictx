@@ -7,9 +7,58 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 ## Current line: 6.5.x
 
-Current documented runtime: `6.5.0`.
+Current documented runtime: `6.5.1`.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
+
+```bash
+aictx install
+aictx init
+```
+
+---
+## 6.5.1
+
+`6.5.1` is a patch release for contract-gap guidance hardening and legacy runtime quarantine.
+
+Changed:
+- Contract gaps now carry compact guidance fields:
+  - `severity`
+  - `policy`
+  - `blocking`
+  - `expected`
+  - `observed`
+- Initial severity mapping is now explicit:
+
+```text
+missing_validation -> needs-validation
+edit_outside_scope -> needs-review
+missing_first_action -> caution
+structural_entrypoints_ignored -> caution
+```
+
+- Work State now preserves structured `contract_gaps` plus `strongest_contract_gap`.
+- `aictx resume --json` now surfaces `carryover_gaps`, `strongest_carryover_gap`, and clearer carryover reasons such as `contract_gap:needs-validation`.
+
+Fixed:
+- Legacy generated runtime directories are now quarantined instead of being treated as normal editable/discoverable paths:
+  - `.aictx_memory`
+  - `.aictx_task_memory`
+  - `.aictx_failure_memory`
+  - `.context_metrics`
+- Semantic repo shard filenames are now collision-safe.
+- Area memory shard filenames are now collision-safe.
+- `migrate_portability_scaffold()` now rewrites the AICTX-managed `.gitignore` block back to local-only policy when portability is disabled.
+- Latest `resume_capsule.json` contract fallback is now stricter and no longer accepts weak fuzzy task matches.
+- `aictx doctor` now reports partial contract compliance as `warning` instead of treating it as fully healthy.
+- `python -m aictx.cli` is supported again through `src/aictx/cli/__main__.py`.
+
+Upgrade notes:
+- No data migration is required.
+- AICTX 6.x continues to use `.aictx/` as the canonical runtime and continuity root.
+- Older experimental runtime directories such as `.aictx_memory`, `.aictx_task_memory`, `.aictx_failure_memory`, and `.context_metrics` are not migrated or read by AICTX 6.x. They are treated as legacy generated artifacts and should not be edited directly.
+- If you still need information from those directories, copy it manually into `.aictx/memory/source/` before removing them.
+- Re-run setup if you want regenerated local runner instructions from the current package:
 
 ```bash
 aictx install
