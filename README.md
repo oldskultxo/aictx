@@ -20,7 +20,7 @@ It is a local CLI/runtime layer for `.aictx_*` integrations. It stores inspectab
 
 AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
-Current documented implementation: `6.5.0`
+Current documented implementation: `6.5.1`
 
 ![AICTX + Coding Agent Runtime Flow](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/aictx-runtime-flow.png)
 
@@ -272,7 +272,7 @@ AICTX is not:
 
 ## Artifact contract
 
-The stable repo-local continuity artifact contract in `6.5.0` is:
+The stable repo-local continuity artifact contract in `6.5.1` is:
 
 ```text
 .aictx/continuity/session.json
@@ -311,7 +311,7 @@ Optional or latest-run artifacts may also appear:
 .aictx/reports/continuity-map.mmd
 ```
 
-When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.5.0 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
+When `aictx init --portable-continuity` is enabled, AICTX still uses Git as the only transport. The 6.5.1 team-safe profile exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone snapshots local-only, can add `.gitattributes` merge hints for portable JSONL files, and redacts detected secret-like values before writing the portable subset. See [Git-portable continuity](docs/PORTABILITY.md).
 
 For lifecycle details, startup banner semantics, branch-safe loading rules, internal runtime commands, and compliance auditing, see [Technical overview](docs/TECHNICAL_OVERVIEW.md).
 

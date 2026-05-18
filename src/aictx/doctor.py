@@ -239,7 +239,7 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
     violated = int(contract.get("violated") or 0)
     partial = int(contract.get("partial") or 0)
     evaluated = int(contract.get("evaluated") or 0)
-    contract_status = "ok" if evaluated and not violated and partial <= evaluated else "warning"
+    contract_status = "ok" if evaluated > 0 and violated == 0 and partial == 0 else "warning"
     checks.append(_check(
         "contract_compliance_health",
         contract_status,

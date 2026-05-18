@@ -1,5 +1,27 @@
 # Changelog
 
+## 6.5.1 - 2026-05-18
+
+### Changed
+- Include severity, policy, blocking, expected, observed within Contract_gaps.
+- New mapping:
+```
+missing_validation -> needs-validation
+edit_outside_scope -> needs-review
+missing_first_action -> caution
+structural_entrypoints_ignored -> caution
+```
+- Work State preservs contract_gaps + strongest_contract_gap.
+- `resume` exposes carryover_gaps, strongest_carryover_gap, and reasons like `contract_gap:needs-validation`
+
+### Fixed
+- Ignore legacy runtime dirs
+- Make shard filenames collision-safe with slug + hash
+- `migrate_portability_scaffold()` rewrites `.gitignore` to a local-only policy when portability is disabled.
+- `load_latest_resume_contract()` fallback no longer accepts fuzzy weak matches from `resume_capsule.json`; it now requires exact/strong substrings.
+- `doctor` marks partial contract compliance as a warning.
+- The `python -m aictx.cli` shim has been added via `src/aictx/cli/__main__.py`.
+
 ## 6.5.0 - 2026-05-17
 
 ### Added

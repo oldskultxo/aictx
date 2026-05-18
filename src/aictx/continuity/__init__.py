@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -878,8 +879,11 @@ def _semantic_session(prepared: dict[str, Any]) -> int:
 
 
 def _semantic_shard_name(name: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(name or "subsystem").strip().strip("/"))
-    return (cleaned or "subsystem")[:96]
+    raw = str(name or "subsystem").strip().strip("/")
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw)
+    slug = (cleaned or "subsystem").strip("-._") or "subsystem"
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
+    return f"{slug[:84]}--{digest}"
 
 
 def _normalize_semantic_subsystem(raw: dict[str, Any]) -> dict[str, Any] | None:

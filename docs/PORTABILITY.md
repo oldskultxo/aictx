@@ -40,7 +40,7 @@ AICTX can expose this portable subset to Git:
 .aictx/repo_map/config.json
 ```
 
-Portable artifacts are written through a secret scrubber. AICTX redacts detected passwords, tokens, API keys, private keys, credential-bearing URLs, bearer/JWT-style values, and similar secret-shaped strings. There is no bypass/override in `6.5.0`.
+Portable artifacts are written through a secret scrubber. AICTX redacts detected passwords, tokens, API keys, private keys, credential-bearing URLs, bearer/JWT-style values, and similar secret-shaped strings. There is no bypass/override in `6.5.1`.
 
 ## Local-only artifacts
 

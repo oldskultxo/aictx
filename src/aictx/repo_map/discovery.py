@@ -4,9 +4,11 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from ..generated_paths import LEGACY_GENERATED_DIRS
 
 _GENERATED_PATH_PARTS = {
     ".aictx",
+    *LEGACY_GENERATED_DIRS,
     ".git",
     ".hg",
     ".mypy_cache",

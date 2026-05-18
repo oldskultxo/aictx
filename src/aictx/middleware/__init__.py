@@ -707,6 +707,18 @@ def _task_goal_matches_contract(task_goal: str, contract_goal: str) -> bool:
     return bool(left_words and right_words and len(left_words & right_words) / max(1, len(left_words | right_words)) >= 0.35)
 
 
+def _task_goal_strong_match_level(task_goal: str, contract_goal: str) -> str:
+    left = re.sub(r"\s+", " ", str(task_goal or "").strip().lower())
+    right = re.sub(r"\s+", " ", str(contract_goal or "").strip().lower())
+    if not left or not right:
+        return ""
+    if left == right:
+        return "exact"
+    if min(len(left), len(right)) >= 16 and (left in right or right in left):
+        return "substring"
+    return ""
+
+
 def load_latest_resume_contract(repo_root: Path, task_goal: str = "", *, session_id: str = "", execution_id: str = "") -> dict[str, Any]:
     persisted = load_persisted_resume_contract(repo_root, task_goal=task_goal, session_id=session_id, execution_id=execution_id)
     if persisted:
@@ -719,16 +731,16 @@ def load_latest_resume_contract(repo_root: Path, task_goal: str = "", *, session
     if not contract:
         return {}
     contract_goal = str(contract.get("task_goal") or payload.get("request") or "")
-    task_matches = _task_goal_matches_contract(task_goal, contract_goal)
-    if task_goal and not task_matches:
+    match_level = _task_goal_strong_match_level(task_goal, contract_goal)
+    if task_goal and not match_level:
         return {}
     return {
         "execution_contract": contract,
         "contract_checks": payload.get("contract_checks") if isinstance(payload.get("contract_checks"), dict) else {},
         "generated_at": str(payload.get("generated_at") or ""),
         "task_goal": contract_goal,
-        "task_goal_match": task_matches,
-        "task_goal_match_level": "latest_capsule_fuzzy",
+        "task_goal_match": bool(match_level),
+        "task_goal_match_level": f"latest_capsule_{match_level}" if match_level else "",
         "selection_reason": "latest_resume_capsule_fallback",
     }
 

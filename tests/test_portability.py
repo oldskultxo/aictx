@@ -9,8 +9,8 @@ from pathlib import Path
 
 import aictx.cli as cli
 from aictx.cleanup import remove_gitattributes_aictx_entries, remove_gitignore_aictx_entries
-from aictx.continuity import HANDOFFS_HISTORY_PATH, append_handoff_history, load_continuity_context, persist_decision_memory, persist_semantic_repo_memory
-from aictx.area_memory import load_area_memory, update_area_memory
+from aictx.continuity import HANDOFFS_HISTORY_PATH, _semantic_shard_name, append_handoff_history, load_continuity_context, persist_decision_memory, persist_semantic_repo_memory
+from aictx.area_memory import _area_shard_name, load_area_memory, update_area_memory
 from aictx.failures import persist_failure_pattern
 from aictx.portability import PORTABILITY_STATE_PATH, load_portability_state, write_portability_state
 from aictx.repo_map.config import write_repomap_config
@@ -25,10 +25,10 @@ PORTABLE_FILES = {
     ".aictx/continuity/portability.json": '{"version": 1}\n',
     ".aictx/continuity/handoffs.jsonl": '{"summary": "keep"}\n',
     ".aictx/continuity/decisions.jsonl": '{"decision": "keep"}\n',
-    ".aictx/continuity/semantic_repo/runtime.json": '{"name": "runtime"}\n',
+    f'.aictx/continuity/semantic_repo/{_semantic_shard_name("runtime")}.json': '{"name": "runtime"}\n',
     ".aictx/failure_memory/failure_patterns.jsonl": '{"failure": "keep"}\n',
     ".aictx/strategy_memory/strategies.jsonl": '{"strategy": "keep"}\n',
-    ".aictx/area_memory/areas/src-aictx.json": '{"area_id": "src/aictx"}\n',
+    f'.aictx/area_memory/areas/{_area_shard_name("src/aictx")}.json': '{"area_id": "src/aictx"}\n',
     ".aictx/repo_map/config.json": '{"enabled": true}\n',
 }
 
@@ -465,13 +465,15 @@ def test_portable_policy_derives_snapshots_from_shards_and_history(tmp_path: Pat
     repo = tmp_path / "repo"
     init_git_repo(repo)
     init_repo_scaffold(repo, portable_continuity=True)
+    semantic_shard = _semantic_shard_name("runtime")
+    area_shard = _area_shard_name("src/aictx")
     write_files(
         repo,
         {
             ".aictx/tasks/threads/task-1.json": '{"task_id": "task-1", "goal": "portable", "status": "in_progress"}\n',
             ".aictx/continuity/handoffs.jsonl": '{"execution_id": "exec-1", "timestamp": "2026-05-15T00:00:00Z", "summary": "latest portable handoff", "status": "resolved"}\n',
-            ".aictx/continuity/semantic_repo/runtime.json": '{"name": "runtime", "description": "portable shard", "key_paths": ["src/aictx/runtime.py"]}\n',
-            ".aictx/area_memory/areas/src-aictx.json": '{"area_id": "src/aictx", "executions": 3, "related_files": ["src/aictx/portability.py"], "related_tests": ["tests/test_portability.py"]}\n',
+            f".aictx/continuity/semantic_repo/{semantic_shard}.json": '{"name": "runtime", "description": "portable shard", "key_paths": ["src/aictx/runtime.py"]}\n',
+            f".aictx/area_memory/areas/{area_shard}.json": '{"area_id": "src/aictx", "executions": 3, "related_files": ["src/aictx/portability.py"], "related_tests": ["tests/test_portability.py"]}\n',
         },
     )
 
@@ -479,8 +481,8 @@ def test_portable_policy_derives_snapshots_from_shards_and_history(tmp_path: Pat
     assert is_ignored(repo, ".aictx/continuity/handoff.json") is True
     assert is_ignored(repo, ".aictx/continuity/semantic_repo.json") is True
     assert is_ignored(repo, ".aictx/area_memory/areas.json") is True
-    assert is_ignored(repo, ".aictx/continuity/semantic_repo/runtime.json") is False
-    assert is_ignored(repo, ".aictx/area_memory/areas/src-aictx.json") is False
+    assert is_ignored(repo, f".aictx/continuity/semantic_repo/{semantic_shard}.json") is False
+    assert is_ignored(repo, f".aictx/area_memory/areas/{area_shard}.json") is False
     assert load_active_task_id(repo) == "task-1"
     assert load_active_work_state(repo)["goal"] == "portable"
     context = load_continuity_context(repo, request_text="runtime")
@@ -587,8 +589,8 @@ def test_enabling_portability_migrates_existing_snapshots_to_portable_sources(tm
     init_repo_scaffold(repo, portable_continuity=True)
 
     assert (repo / HANDOFFS_HISTORY_PATH).read_text(encoding="utf-8")
-    assert (repo / ".aictx" / "continuity" / "semantic_repo" / "runtime.json").exists()
-    assert (repo / ".aictx" / "area_memory" / "areas" / "src-aictx.json").exists()
+    assert (repo / ".aictx" / "continuity" / "semantic_repo" / f"{_semantic_shard_name('runtime')}.json").exists()
+    assert (repo / ".aictx" / "area_memory" / "areas" / f"{_area_shard_name('src/aictx')}.json").exists()
     context = load_continuity_context(repo, request_text="runtime")
     assert context["handoff"]["summary"] == "snapshot handoff"
     assert context["semantic_repo"]["subsystems"][0]["name"] == "runtime"
@@ -600,7 +602,7 @@ def test_area_memory_writes_portable_shard(tmp_path: Path):
 
     update_area_memory(repo, {"area_id": "src/aictx", "files_opened": ["src/aictx/portability.py"], "tests_executed": ["tests/test_portability.py"]})
 
-    assert (repo / ".aictx" / "area_memory" / "areas" / "src-aictx.json").exists()
+    assert (repo / ".aictx" / "area_memory" / "areas" / f"{_area_shard_name('src/aictx')}.json").exists()
 
 
 def test_portable_work_state_redacts_thread_and_event_secrets(tmp_path: Path):
@@ -686,8 +688,8 @@ def test_portable_artifact_writers_redact_secrets_and_keep_local_snapshots_raw(t
     portable_texts = [
         (repo / ".aictx" / "continuity" / "handoffs.jsonl").read_text(encoding="utf-8"),
         (repo / ".aictx" / "continuity" / "decisions.jsonl").read_text(encoding="utf-8"),
-        (repo / ".aictx" / "continuity" / "semantic_repo" / "runtime.json").read_text(encoding="utf-8"),
-        (repo / ".aictx" / "area_memory" / "areas" / "src-aictx.json").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "continuity" / "semantic_repo" / f"{_semantic_shard_name('runtime')}.json").read_text(encoding="utf-8"),
+        (repo / ".aictx" / "area_memory" / "areas" / f"{_area_shard_name('src/aictx')}.json").read_text(encoding="utf-8"),
         (repo / ".aictx" / "failure_memory" / "failure_patterns.jsonl").read_text(encoding="utf-8"),
         (repo / ".aictx" / "strategy_memory" / "strategies.jsonl").read_text(encoding="utf-8"),
         (repo / ".aictx" / "repo_map" / "config.json").read_text(encoding="utf-8"),
@@ -719,8 +721,8 @@ def test_portable_migrations_redact_secrets_in_history_and_shards(tmp_path: Path
     init_repo_scaffold(repo, portable_continuity=True)
 
     assert "super-secret-value-12345" not in (repo / HANDOFFS_HISTORY_PATH).read_text(encoding="utf-8")
-    assert "ghp_abcdefghijklmnopqrstuvwxyz123456" not in (repo / ".aictx" / "continuity" / "semantic_repo" / "runtime.json").read_text(encoding="utf-8")
-    assert "super-secret-value-12345" not in (repo / ".aictx" / "area_memory" / "areas" / "src-aictx.json").read_text(encoding="utf-8")
+    assert "ghp_abcdefghijklmnopqrstuvwxyz123456" not in (repo / ".aictx" / "continuity" / "semantic_repo" / f"{_semantic_shard_name('runtime')}.json").read_text(encoding="utf-8")
+    assert "super-secret-value-12345" not in (repo / ".aictx" / "area_memory" / "areas" / f"{_area_shard_name('src/aictx')}.json").read_text(encoding="utf-8")
 
 
 def test_portability_status_and_compact_cli(tmp_path: Path):

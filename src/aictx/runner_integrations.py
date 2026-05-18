@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_runtime import upsert_marked_block
+from .generated_paths import GENERATED_RUNTIME_DIRS
 
 AICTX_START = "<!-- AICTX:START -->"
 AICTX_END = "<!-- AICTX:END -->"
@@ -356,6 +357,7 @@ print(json.dumps({
 
 
 def render_claude_pre_tool_use_script() -> str:
+    generated_prefixes = [f"{name}/" for name in sorted(GENERATED_RUNTIME_DIRS)]
     return """#!/usr/bin/env python3
 import json
 import os
@@ -364,7 +366,7 @@ from pathlib import Path
 
 
 GENERATED_PREFIXES = [
-    ".aictx/",
+""" + "\n".join(f'    "{prefix}",' for prefix in generated_prefixes) + """
 ]
 EDITABLE_SOURCE_PREFIXES = [
     ".aictx/memory/source/",
@@ -413,7 +415,7 @@ if tool_name == "Bash":
     command = str(tool_input.get("command") or "")
     lowered = command.lower()
     risky_tokens = ["rm ", "mv ", "cp ", "sed ", "perl ", "python ", "python3 ", "cat >", "> ", ">> ", "tee "]
-    mentions_generated = ".aictx/" in command
+    mentions_generated = any(prefix in command for prefix in GENERATED_PREFIXES) or any(prefix.rstrip("/") in command for prefix in GENERATED_PREFIXES)
     if mentions_generated and any(token in lowered for token in risky_tokens):
         deny(
             "AICTX policy: do not mutate generated runtime artifacts from Bash. "

@@ -294,6 +294,7 @@ def migrate_portability_scaffold(repo: Path) -> dict[str, Any]:
         ensure_gitattributes(repo, portable_continuity=True)
         compact_report = compact_portable_jsonl(repo, apply=True)
     else:
+        ensure_gitignore(repo, portable_continuity=False)
         ensure_gitattributes(repo, portable_continuity=False)
         compact_report = {"applied": False, "files": [], "changed": False}
         continuity_migration = {"migrated": []}

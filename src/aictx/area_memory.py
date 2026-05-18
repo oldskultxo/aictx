@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import hashlib
 from pathlib import Path
 import re
 from typing import Any
@@ -44,8 +45,11 @@ def load_area_memory(repo_root: Path) -> dict[str, Any]:
 
 
 def _area_shard_name(area_id: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(area_id or "unknown").strip().strip("/"))
-    return (cleaned or "unknown")[:96]
+    raw = str(area_id or "unknown").strip().strip("/")
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw)
+    slug = (cleaned or "unknown").strip("-._") or "unknown"
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
+    return f"{slug[:84]}--{digest}"
 
 
 def _top(counter: dict[str, int], limit: int = 8) -> list[str]:

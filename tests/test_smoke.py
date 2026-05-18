@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +24,7 @@ import aictx.runtime_task_memory as runtime_task_memory
 import aictx.runtime_metrics as runtime_metrics
 import aictx.strategy_memory as strategy_memory
 import aictx.report as report_module
-from aictx.area_memory import derive_area_id
+from aictx.area_memory import _area_shard_name, derive_area_id
 from aictx.failure_memory import load_failures, lookup_failures
 from aictx.runtime_capture import build_capture
 from aictx.agent_runtime import (
@@ -34,9 +35,12 @@ from aictx.agent_runtime import (
     resolve_workspace_root,
     upsert_marked_block,
 )
+from aictx.doctor import build_doctor_report
 from aictx.core_runtime import communication_policy_from_defaults
-from aictx.middleware import finalize_execution, prepare_execution
-from aictx.continuity import HANDOFF_PATH, build_resume_capsule
+from aictx.middleware import finalize_execution, load_latest_resume_contract, prepare_execution
+from aictx.continuity import HANDOFF_PATH, RESUME_CAPSULE_JSON_PATH, _semantic_shard_name, build_resume_capsule
+from aictx.portability import write_portability_state
+from aictx.repo_map.discovery import discover_repo_files
 from aictx.runner_integrations import (
     CLAUDE_GITIGNORE_COMMENT,
     CLAUDE_DIR_GITIGNORE_LINE,
@@ -46,7 +50,7 @@ from aictx.runner_integrations import (
     render_claude_md_block,
     render_user_prompt_submit_script,
 )
-from aictx.scaffold import TEMPLATES_DIR, ensure_repo_memory_sources, ensure_repo_user_preferences, init_repo_scaffold
+from aictx.scaffold import TEMPLATES_DIR, ensure_repo_memory_sources, ensure_repo_user_preferences, init_repo_scaffold, migrate_portability_scaffold
 from aictx.state import Workspace, default_global_config, read_json
 
 
@@ -323,6 +327,65 @@ def test_ensure_repo_memory_sources_ignores_legacy_source_files(tmp_path: Path):
     assert index_payload["common"] == [".aictx/memory/source/common/user_working_preferences.md"]
     symptoms_payload = json.loads((repo / ".aictx" / "memory" / "source" / "symptoms.json").read_text(encoding="utf-8"))
     assert symptoms_payload == {"version": 2, "symptoms": {}}
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git unavailable")
+def test_repomap_discovery_ignores_legacy_generated_runtime_dirs_in_git_mode(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    (repo / ".gitignore").write_text("", encoding="utf-8")
+    (repo / "tracked.py").write_text("print('x')\n", encoding="utf-8")
+    for dirname in (".aictx_memory", ".aictx_task_memory", ".aictx_failure_memory", ".context_metrics"):
+        path = repo / dirname
+        path.mkdir(parents=True)
+        (path / "payload.json").write_text("{}", encoding="utf-8")
+    subprocess.run(["git", "add", ".gitignore", "tracked.py"], cwd=repo, check=True, capture_output=True)
+
+    payload = discover_repo_files(repo)
+
+    assert "tracked.py" in payload["files"]
+    assert all(not item.startswith(".aictx_memory/") for item in payload["files"])
+    assert all(not item.startswith(".aictx_task_memory/") for item in payload["files"])
+    assert all(not item.startswith(".aictx_failure_memory/") for item in payload["files"])
+    assert all(not item.startswith(".context_metrics/") for item in payload["files"])
+
+
+def test_repomap_discovery_ignores_legacy_generated_runtime_dirs_in_scan_mode(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "visible.py").write_text("print('x')\n", encoding="utf-8")
+    for dirname in (".aictx_memory", ".aictx_task_memory", ".aictx_failure_memory", ".context_metrics"):
+        path = repo / dirname
+        path.mkdir(parents=True)
+        (path / "payload.json").write_text("{}", encoding="utf-8")
+
+    payload = discover_repo_files(repo)
+
+    assert payload["files"] == ["visible.py"]
+
+
+def test_semantic_shard_names_are_collision_safe():
+    left = _semantic_shard_name("api/auth")
+    right = _semantic_shard_name("api-auth")
+    docs_left = _semantic_shard_name("docs/foo")
+    docs_right = _semantic_shard_name("docs-foo")
+
+    assert left != right
+    assert docs_left != docs_right
+    assert left.endswith(".json") is False
+    assert "--" in left
+
+
+def test_area_shard_names_are_collision_safe():
+    left = _area_shard_name("docs/foo")
+    right = _area_shard_name("docs-foo")
+    src_left = _area_shard_name("src/api")
+    src_right = _area_shard_name("src-api")
+
+    assert left != right
+    assert src_left != src_right
+    assert "--" in left
 
 
 def test_prepare_execution_plain_mode_without_skill_metadata(tmp_path: Path):
@@ -1847,6 +1910,48 @@ def test_claude_pre_tool_hook_blocks_generated_runtime_edits(tmp_path: Path):
     assert "generated runtime artifacts" in proc.stderr
 
 
+def test_claude_pre_tool_hook_blocks_legacy_generated_runtime_edits_and_bash_mutations(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    install_repo_runner_integrations(repo)
+    script = repo / ".claude" / "hooks" / "aictx_pre_tool_use.py"
+
+    for legacy_dir in (".aictx_memory", ".aictx_task_memory", ".aictx_failure_memory", ".context_metrics"):
+        write_payload = {
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": str(repo / legacy_dir / "payload.json"),
+            },
+        }
+        proc = subprocess.run(
+            ["python3", str(script)],
+            input=json.dumps(write_payload),
+            text=True,
+            capture_output=True,
+            env={"CLAUDE_PROJECT_DIR": str(repo)},
+            check=False,
+        )
+        assert proc.returncode == 2
+        assert "generated runtime artifacts" in proc.stderr
+
+        bash_payload = {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": f"rm -rf {repo / legacy_dir}",
+            },
+        }
+        proc = subprocess.run(
+            ["python3", str(script)],
+            input=json.dumps(bash_payload),
+            text=True,
+            capture_output=True,
+            env={"CLAUDE_PROJECT_DIR": str(repo)},
+            check=False,
+        )
+        assert proc.returncode == 2
+        assert "do not mutate generated runtime artifacts from Bash" in proc.stderr
+
+
 def test_claude_pre_tool_hook_allows_normal_edits(tmp_path: Path):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -1857,6 +1962,29 @@ def test_claude_pre_tool_hook_allows_normal_edits(tmp_path: Path):
         "tool_name": "Write",
         "tool_input": {
             "file_path": str(repo / "src" / "main.py"),
+        },
+    }
+    proc = subprocess.run(
+        ["python3", str(script)],
+        input=json.dumps(write_payload),
+        text=True,
+        capture_output=True,
+        env={"CLAUDE_PROJECT_DIR": str(repo)},
+        check=False,
+    )
+    assert proc.returncode == 0
+
+
+def test_claude_pre_tool_hook_allows_memory_source_edits(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    install_repo_runner_integrations(repo)
+    script = repo / ".claude" / "hooks" / "aictx_pre_tool_use.py"
+
+    write_payload = {
+        "tool_name": "Write",
+        "tool_input": {
+            "file_path": str(repo / ".aictx" / "memory" / "source" / "note.md"),
         },
     }
     proc = subprocess.run(
@@ -2697,3 +2825,71 @@ def test_claude_hook_does_not_resume_with_request_prompt(tmp_path: Path):
     user_prompt_hook = (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").read_text(encoding="utf-8")
     assert 'run_json(["aictx", "resume"' not in user_prompt_hook
     assert '"--task", prompt' not in user_prompt_hook
+
+
+def test_migrate_portability_scaffold_rewrites_local_only_gitignore_when_disabled(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, portable_continuity=True)
+    write_portability_state(repo, enabled=False)
+
+    result = migrate_portability_scaffold(repo)
+    gitignore = (repo / ".gitignore").read_text(encoding="utf-8")
+
+    assert result["enabled"] is False
+    assert "# mode: local-only" in gitignore
+    assert "!.aictx/tasks/" not in gitignore
+    assert ".aictx/" in gitignore
+    assert not (repo / ".gitattributes").exists()
+
+
+def test_load_latest_resume_contract_rejects_weak_fuzzy_latest_capsule_match(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    write_path = repo / RESUME_CAPSULE_JSON_PATH
+    write_path.parent.mkdir(parents=True, exist_ok=True)
+    write_path.write_text(json.dumps({
+        "generated_at": "2026-05-18T00:00:00Z",
+        "request": "update docs",
+        "execution_contract": {
+            "task_goal": "update docs",
+            "first_action": {"path": "README.md", "binding": "must_open_first"},
+            "test_command": {"command": "make test"},
+        },
+        "contract_checks": {"expected_test_command": "make test"},
+    }), encoding="utf-8")
+
+    unrelated = load_latest_resume_contract(repo, task_goal="update package docs")
+    exact = load_latest_resume_contract(repo, task_goal="update docs")
+
+    assert unrelated == {}
+    assert exact["execution_contract"]["task_goal"] == "update docs"
+    assert exact["task_goal_match_level"] == "latest_capsule_exact"
+
+
+def test_doctor_marks_partial_contract_compliance_as_warning(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    log_path = repo / ".aictx" / "metrics" / "contract_compliance.jsonl"
+    log_path.write_text(json.dumps({
+        "timestamp": "2026-05-18T00:00:00Z",
+        "status": "partial",
+        "score": 0.8,
+        "task_goal": "fix parser",
+        "checks": {},
+        "violations": [],
+        "warnings": [{"code": "canonical_test_not_observed"}],
+    }) + "\n", encoding="utf-8")
+
+    report = build_doctor_report(repo)
+    check = next(item for item in report["checks"] if item["name"] == "contract_compliance_health")
+
+    assert check["status"] == "warning"
+
+
+def test_python_m_aictx_cli_module_invocation_works():
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    proc = subprocess.run([sys.executable, "-m", "aictx.cli", "--help"], capture_output=True, text=True, check=False, env=env)
+
+    assert proc.returncode == 0
+    assert "usage:" in proc.stdout.lower()
