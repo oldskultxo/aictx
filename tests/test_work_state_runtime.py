@@ -165,9 +165,13 @@ def test_finalize_execution_carries_contract_gap_into_work_state(tmp_path: Path)
     state = load_work_state(repo, "contract-carryover-fix-parser")
 
     assert finalized["contract_gaps"][0]["kind"] == "missing_validation"
+    assert finalized["contract_gaps"][0]["severity"] == "needs-validation"
+    assert finalized["contract_gaps"][0]["blocking"] is False
     assert finalized["work_state_updated"]["task_id"] == "contract-carryover-fix-parser"
     assert state["status"] == "paused"
-    assert "Canonical test command was not observed." in state["unverified"]
+    assert any("needs-validation" in item and "Canonical test command was not observed." in item for item in state["unverified"])
+    assert state["contract_gaps"][0]["severity"] == "needs-validation"
+    assert state["strongest_contract_gap"]["severity"] == "needs-validation"
     assert "make test" in state["recommended_commands"]
     assert state["next_action"] == "run expected validation command: make test"
     assert "exec-contract-gap" in state["source_execution_ids"]

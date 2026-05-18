@@ -25,6 +25,7 @@ _MAX_ITEMS = {
     "risks": 8,
     "uncertainties": 8,
     "source_execution_ids": 12,
+    "contract_gaps": 8,
 }
 _ALLOWED_STATUS = {"in_progress", "resolved", "abandoned", "blocked", "paused"}
 _LIST_FIELDS = {
@@ -35,9 +36,10 @@ _LIST_FIELDS = {
     "recommended_commands",
     "risks",
     "source_execution_ids",
+    "contract_gaps",
 }
 _STRING_FIELDS = {"task_id", "status", "goal", "current_hypothesis", "next_action", "created_at", "updated_at"}
-_ALLOWED_FIELDS = _STRING_FIELDS | _LIST_FIELDS | {"version", "uncertainties"}
+_ALLOWED_FIELDS = _STRING_FIELDS | _LIST_FIELDS | {"version", "uncertainties", "strongest_contract_gap"}
 
 
 def now_iso() -> str:
@@ -85,6 +87,57 @@ def _normalize_uncertainty(item: Any) -> dict[str, str] | None:
         "confidence": confidence,
         "needs_validation": needs_validation,
     }
+
+
+def _normalize_contract_gap(item: Any) -> dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    kind = _truncate(item.get("kind"), 80)
+    severity = _truncate(item.get("severity"), 40)
+    if not kind:
+        return None
+    payload: dict[str, Any] = {
+        "kind": kind,
+        "severity": severity or "info",
+        "policy": _truncate(item.get("policy"), 80),
+        "blocking": bool(item.get("blocking")),
+        "summary": _truncate(item.get("summary")),
+        "expected": _truncate(item.get("expected")),
+        "next_action": _truncate(item.get("next_action")),
+        "recommended_command": _truncate(item.get("recommended_command")),
+        "source_execution_id": _truncate(item.get("source_execution_id"), 80),
+        "related_paths": _dedupe_strings(item.get("related_paths"), limit=8),
+    }
+    return {key: value for key, value in payload.items() if value not in ("", [], None)}
+
+
+def _severity_rank(value: Any) -> int:
+    return {"info": 0, "caution": 1, "needs-review": 2, "needs-validation": 3, "blocking": 4}.get(str(value or "info").strip(), 0)
+
+
+def _normalize_contract_gaps(values: Any) -> list[dict[str, Any]]:
+    if not isinstance(values, list):
+        return []
+    seen: set[tuple[str, str, str]] = set()
+    cleaned: list[dict[str, Any]] = []
+    for item in values:
+        payload = _normalize_contract_gap(item)
+        if not payload:
+            continue
+        key = (str(payload.get("kind") or ""), str(payload.get("summary") or ""), str(payload.get("source_execution_id") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(payload)
+        if len(cleaned) >= _MAX_ITEMS["contract_gaps"]:
+            break
+    return cleaned
+
+
+def _strongest_contract_gap(gaps: list[dict[str, Any]]) -> dict[str, Any]:
+    if not gaps:
+        return {}
+    return max(gaps, key=lambda gap: _severity_rank(gap.get("severity")))
 
 
 def _normalize_uncertainties(values: Any) -> list[dict[str, str]]:
@@ -215,9 +268,13 @@ def normalize_work_state(payload: dict[str, Any]) -> dict[str, Any]:
         "recommended_commands": _dedupe_strings(payload.get("recommended_commands"), limit=_MAX_ITEMS["recommended_commands"]),
         "risks": _dedupe_strings(payload.get("risks"), limit=_MAX_ITEMS["risks"]),
         "source_execution_ids": _dedupe_strings(payload.get("source_execution_ids"), limit=_MAX_ITEMS["source_execution_ids"]),
+        "contract_gaps": _normalize_contract_gaps(payload.get("contract_gaps")),
         "created_at": created_at,
         "updated_at": updated_at,
     }
+    strongest = _strongest_contract_gap(state.get("contract_gaps", []))
+    if strongest:
+        state["strongest_contract_gap"] = strongest
     git_context = _normalize_git_context(payload.get("git_context"))
     if git_context:
         state["git_context"] = git_context
@@ -617,6 +674,7 @@ def compact_work_state_for_prepare(state: dict[str, Any]) -> dict[str, Any]:
             normalized.get("unverified"),
             normalized.get("recommended_commands"),
             normalized.get("risks"),
+            normalized.get("contract_gaps"),
         ]
     )
     if not has_signal:
@@ -632,9 +690,11 @@ def compact_work_state_for_prepare(state: dict[str, Any]) -> dict[str, Any]:
         "next_action": normalized.get("next_action", ""),
         "recommended_commands": list(normalized.get("recommended_commands", []))[:4],
         "risks": list(normalized.get("risks", []))[:4],
+        "contract_gaps": list(normalized.get("contract_gaps", []))[:4],
+        "strongest_contract_gap": dict(normalized.get("strongest_contract_gap", {})) if isinstance(normalized.get("strongest_contract_gap"), dict) else {},
         "updated_at": normalized.get("updated_at", ""),
     }
-    return {key: value for key, value in compact.items() if value not in ("", [], None)}
+    return {key: value for key, value in compact.items() if value not in ("", [], None, {})}
 
 
 def render_work_state_summary(state: dict[str, Any]) -> str:

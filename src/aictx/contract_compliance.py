@@ -15,6 +15,13 @@ CONTRACT_STORE_DIR = REPO_CONTINUITY_DIR / "contracts"
 CONTRACT_INDEX_PATH = CONTRACT_STORE_DIR / "index.json"
 
 _ALLOWED_STATUSES = {"followed", "partial", "violated", "not_evaluated"}
+_GAP_POLICY_BY_KIND = {
+    "missing_validation": {"severity": "needs-validation", "policy": "prioritize_before_new_work", "blocking": False},
+    "edit_outside_scope": {"severity": "needs-review", "policy": "surface_before_continuing", "blocking": False},
+    "missing_first_action": {"severity": "caution", "policy": "surface_before_continuing", "blocking": False},
+    "structural_entrypoints_ignored": {"severity": "caution", "policy": "surface_as_context", "blocking": False},
+}
+_GAP_SEVERITY_ORDER = {"info": 0, "caution": 1, "needs-review": 2, "needs-validation": 3, "blocking": 4}
 
 
 def _now_iso() -> str:
@@ -77,23 +84,41 @@ def _human_issue(code: str) -> str:
 def _gap(
     kind: str,
     *,
-    severity: str,
     source_code: str,
     summary: str,
     next_action: str = "",
     recommended_command: str = "",
     related_paths: list[str] | None = None,
+    expected: str = "",
+    observed: list[str] | None = None,
 ) -> dict[str, Any]:
+    gap_kind = str(kind or "").strip()
+    policy = dict(_GAP_POLICY_BY_KIND.get(gap_kind, {"severity": "info", "policy": "surface_as_context", "blocking": False}))
     payload = {
-        "kind": str(kind or "").strip(),
-        "severity": str(severity or "").strip() or "warning",
+        "kind": gap_kind,
+        "severity": str(policy.get("severity") or "info"),
+        "policy": str(policy.get("policy") or "surface_as_context"),
+        "blocking": bool(policy.get("blocking")),
         "source_code": str(source_code or "").strip(),
         "summary": str(summary or "").strip(),
+        "expected": str(expected or "").strip(),
+        "observed": _clean_string_list(observed or [], limit=8),
         "next_action": str(next_action or "").strip(),
         "recommended_command": str(recommended_command or "").strip(),
         "related_paths": _clean_string_list(related_paths or [], limit=8),
     }
     return {key: value for key, value in payload.items() if value not in ("", [], None)}
+
+
+def contract_gap_strength(severity: str) -> int:
+    return _GAP_SEVERITY_ORDER.get(str(severity or "info").strip(), 0)
+
+
+def strongest_contract_gap(gaps: list[dict[str, Any]]) -> dict[str, Any]:
+    rows = [gap for gap in gaps if isinstance(gap, dict)]
+    if not rows:
+        return {}
+    return max(rows, key=lambda gap: contract_gap_strength(str(gap.get("severity") or "info")))
 
 
 def contract_gaps_from_compliance(compliance: dict[str, Any]) -> list[dict[str, Any]]:
@@ -120,11 +145,12 @@ def contract_gaps_from_compliance(compliance: dict[str, Any]) -> list[dict[str, 
         gaps.append(
             _gap(
                 "missing_validation",
-                severity="violation" if source_code == "canonical_test_missing" else "warning",
                 source_code=source_code,
                 summary=detail,
                 next_action=f"run expected validation command: {command_text}" if command_text else "run expected validation command",
                 recommended_command=command_text,
+                expected=command_text,
+                observed=_clean_string_list((payload.get("test_command") if isinstance(payload.get("test_command"), dict) else {}).get("observed"), limit=8),
             )
         )
 
@@ -133,11 +159,12 @@ def contract_gaps_from_compliance(compliance: dict[str, Any]) -> list[dict[str, 
         gaps.append(
             _gap(
                 "missing_first_action",
-                severity="violation",
                 source_code="missing_first_action",
                 summary=str(by_code.get("missing_first_action", {}).get("detail") or "Expected first action was not observed."),
                 next_action=f"inspect required first action: {expected}" if expected else "inspect required first action",
                 related_paths=[expected] if expected else [],
+                expected=expected,
+                observed=_clean_string_list((payload.get("first_action") if isinstance(payload.get("first_action"), dict) else {}).get("observed"), limit=8),
             )
         )
 
@@ -147,11 +174,11 @@ def contract_gaps_from_compliance(compliance: dict[str, Any]) -> list[dict[str, 
         gaps.append(
             _gap(
                 "edit_outside_scope",
-                severity="violation",
                 source_code="edit_outside_scope",
                 summary="Edited files outside contract scope.",
                 next_action="review out-of-scope edits and run expected validation",
                 related_paths=outside,
+                observed=outside,
             )
         )
 
@@ -161,11 +188,12 @@ def contract_gaps_from_compliance(compliance: dict[str, Any]) -> list[dict[str, 
         gaps.append(
             _gap(
                 "structural_entrypoints_ignored",
-                severity="warning",
                 source_code="structural_alignment_ignored",
                 summary="Expected structural entry points were not inspected or edited.",
                 next_action="inspect expected structural entry points before continuing",
                 related_paths=expected_paths,
+                expected=", ".join(expected_paths),
+                observed=_clean_string_list(structural.get("observed_files"), limit=8),
             )
         )
 

@@ -12,7 +12,7 @@ from typing import Any
 from .. import core_runtime
 from ..area_memory import area_hints, derive_area_id, update_area_memory
 from ..adapters import resolve_adapter_profile
-from ..contract_compliance import append_contract_compliance, contract_gaps_from_compliance, evaluate_contract_compliance, load_persisted_resume_contract
+from ..contract_compliance import append_contract_compliance, contract_gaps_from_compliance, evaluate_contract_compliance, load_persisted_resume_contract, strongest_contract_gap
 from ..continuity import (
     AICTX_TEXT_SEPARATOR,
     RESUME_CAPSULE_JSON_PATH,
@@ -1556,32 +1556,42 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     }
     prepared["contract_compliance"] = contract_compliance
     contract_gaps = contract_gaps_from_compliance(contract_compliance)
+    execution_id = str(prepared.get("envelope", {}).get("execution_id") or "").strip()
+    if execution_id:
+        contract_gaps = [dict(gap, source_execution_id=execution_id) for gap in contract_gaps]
     prepared["contract_gaps"] = contract_gaps
     if contract_gaps:
         existing_work_state = normalized_result.get("work_state") if isinstance(normalized_result.get("work_state"), dict) else {}
         work_patch = dict(existing_work_state)
         task_goal = str(contract_compliance.get("task_goal") or prepared.get("envelope", {}).get("user_request") or "contract carryover").strip()
-        execution_id = str(prepared.get("envelope", {}).get("execution_id") or "").strip()
         work_patch.setdefault("task_id", f"contract-carryover-{slugify(task_goal or execution_id or 'task')[:60]}")
         work_patch.setdefault("goal", task_goal)
-        severe = any(str(gap.get("severity") or "") == "violation" for gap in contract_gaps)
+        strongest_gap = strongest_contract_gap(contract_gaps)
+        strongest_severity = str(strongest_gap.get("severity") or "info")
+        severe = strongest_severity == "blocking"
         if normalized_result["success"]:
             work_patch["status"] = "paused"
         elif severe:
             work_patch["status"] = str(work_patch.get("status") or "blocked")
         else:
             work_patch["status"] = str(work_patch.get("status") or "paused")
-        unverified = [str(gap.get("summary") or gap.get("kind") or "").strip() for gap in contract_gaps]
-        risks = [
-            f"Contract gap: {gap.get('summary') or gap.get('kind')}"
+        unverified = [
+            f"Contract gap ({gap.get('severity') or 'info'}): {gap.get('summary') or gap.get('kind')}"
             for gap in contract_gaps
-            if str(gap.get("severity") or "") == "violation"
+        ]
+        risks = [
+            f"Contract gap ({gap.get('severity') or 'info'}): {gap.get('summary') or gap.get('kind')}"
+            for gap in contract_gaps
+            if str(gap.get("severity") or "") in {"needs-review", "blocking"}
         ]
         recommended = [str(gap.get("recommended_command") or "").strip() for gap in contract_gaps if str(gap.get("recommended_command") or "").strip()]
         next_actions = [str(gap.get("next_action") or "").strip() for gap in contract_gaps if str(gap.get("next_action") or "").strip()]
         work_patch["unverified"] = list(work_patch.get("unverified", []) or []) + [item for item in unverified if item]
         if risks:
             work_patch["risks"] = list(work_patch.get("risks", []) or []) + risks
+        work_patch["contract_gaps"] = list(work_patch.get("contract_gaps", []) or []) + contract_gaps
+        if strongest_gap:
+            work_patch["current_hypothesis"] = str(work_patch.get("current_hypothesis") or f"Carryover: {strongest_severity} — {strongest_gap.get('summary') or strongest_gap.get('kind')}")
         if recommended:
             work_patch["recommended_commands"] = list(work_patch.get("recommended_commands", []) or []) + recommended
         if next_actions and not str(work_patch.get("next_action") or "").strip():

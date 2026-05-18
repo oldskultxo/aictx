@@ -111,7 +111,18 @@ In v6.3, unresolved contract gaps can also become Work State carryover. The mini
 - `edit_outside_scope`
 - `structural_entrypoints_ignored`
 
-They are saved through existing Work State fields such as `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids`. This means a successful execution with pending validation can pause the Work State for the next `resume` instead of being hidden behind a completed handoff.
+Each gap carries compact guidance metadata: `severity`, `policy`, and `blocking`. Initial severities are conservative:
+
+| Gap kind | Severity | Policy | Blocking by default |
+|---|---|---|---|
+| `missing_validation` | `needs-validation` | `prioritize_before_new_work` | no |
+| `edit_outside_scope` | `needs-review` | `surface_before_continuing` | no |
+| `missing_first_action` | `caution` | `surface_before_continuing` | no |
+| `structural_entrypoints_ignored` | `caution` | `surface_as_context` | no |
+
+`blocking` exists as a possible severity, but current gap carryover does not hard-block by default. Severity is guidance from observable execution evidence, not proof of correctness.
+
+Gaps are saved through existing Work State fields such as `unverified`, `risks`, `recommended_commands`, `next_action`, and `source_execution_ids`, and may also be preserved in a compact structured `contract_gaps` field. This means a successful execution with pending validation can pause the Work State for the next `resume` instead of being hidden behind a completed handoff. If multiple gaps are present, the strongest severity is surfaced in Work State / resume guidance.
 
 ---
 

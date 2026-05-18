@@ -29,7 +29,8 @@ A Work State thread can preserve:
 - recommended commands;
 - risks;
 - uncertainties;
-- source execution ids.
+- source execution ids;
+- compact `contract_gaps` and strongest carried gap metadata when unresolved contract gaps exist.
 
 ---
 
@@ -77,7 +78,7 @@ These commands are available for inspection and advanced control. In normal supp
 
 Automatic updates stay conservative.
 
-In v6.3, unresolved contract compliance gaps can also carry over into Work State after finalize. AICTX reuses existing Work State fields instead of adding a new store:
+Unresolved contract compliance gaps can also carry over into Work State after finalize. AICTX reuses existing Work State fields and may also preserve compact structured gap metadata:
 
 ```text
 unverified
@@ -85,9 +86,13 @@ risks
 recommended_commands
 next_action
 source_execution_ids
+contract_gaps
+strongest_contract_gap
 ```
 
-For example, a successful execution that did not observe the canonical validation command can be saved as `status: paused` with `next_action: run expected validation command`. The next `resume` should surface that carryover before completed handoffs.
+Contract gap severities are guidance, not deterministic enforcement. Initial mapping is `missing_validation -> needs-validation`, `edit_outside_scope -> needs-review`, `missing_first_action -> caution`, and `structural_entrypoints_ignored -> caution`; none are hard-blocking by default.
+
+For example, a successful execution that did not observe the canonical validation command can be saved as `status: paused` with `next_action: run expected validation command` and a `needs-validation` carryover gap. The next `resume` should surface that carryover before completed handoffs.
 
 ---
 

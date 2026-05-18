@@ -278,7 +278,7 @@ def test_resume_prioritizes_contract_gap_carryover_over_completed_handoff(tmp_pa
     finalize_execution(prepared, {"success": True, "result_summary": "updated parser without running canonical validation"})
     state = load_work_state(repo, "contract-carryover-fix-parser")
     assert state["status"] == "paused"
-    assert "Canonical test command was not observed." in state["unverified"]
+    assert any("needs-validation" in item and "Canonical test command was not observed." in item for item in state["unverified"])
 
     args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "fix parser", "--json"])
     assert args.func(args) == 0
@@ -1172,7 +1172,21 @@ def test_resume_paused_work_state_carryover_wins_over_completed_handoff(tmp_path
     start_work_state(
         repo,
         "Validate parser carryover",
-        initial={"unverified": ["Canonical test command was not observed."], "next_action": "run expected validation command: make test"},
+        initial={
+            "unverified": ["Contract gap (needs-validation): Canonical test command was not observed."],
+            "next_action": "run expected validation command: make test",
+            "contract_gaps": [
+                {
+                    "kind": "missing_validation",
+                    "severity": "needs-validation",
+                    "policy": "prioritize_before_new_work",
+                    "blocking": False,
+                    "summary": "Canonical test command was not observed.",
+                    "recommended_command": "make test",
+                    "next_action": "run expected validation command: make test",
+                }
+            ],
+        },
     )
     close_work_state(repo, status="paused")
     write_json(repo / HANDOFF_PATH, {"status": "completed", "summary": "Old handoff finished.", "completed": ["old done"], "next_steps": ["continue old task"]})
@@ -1183,9 +1197,13 @@ def test_resume_paused_work_state_carryover_wins_over_completed_handoff(tmp_path
     payload = json.loads(capsys.readouterr().out)
     assert payload["task_state"]["status"] == "blocked"
     assert payload["capsule"]["next_action"] == "run expected validation command: make test"
+    assert payload["strongest_carryover_gap"]["severity"] == "needs-validation"
+    assert payload["carryover_gaps"][0]["policy"] == "prioritize_before_new_work"
+    assert "needs-validation" in payload["task_state"]["reason"]
     assert payload["loaded_context"][0]["kind"] == "work_state"
     assert payload["loaded_context"][0]["role"] == "carryover"
     assert payload["loaded_context"][0]["selection_reason"]
+    assert "contract_gap:needs-validation" in payload["loaded_context"][0]["match_reasons"]
     assert any(item["kind"] == "handoff" and item["role"] == "background" for item in payload["loaded_context"])
 
 

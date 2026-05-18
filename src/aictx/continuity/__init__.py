@@ -3102,6 +3102,7 @@ def _resume_task_state(repo_root: Path, context: dict[str, Any], request_text: s
 
     status = "unknown"
     reason = "No active Work State or handoff status available."
+    strongest_gap = active.get("strongest_contract_gap") if isinstance(active.get("strongest_contract_gap"), dict) else recent.get("strongest_contract_gap") if isinstance(recent.get("strongest_contract_gap"), dict) else {}
     if active:
         status = "active"
         reason = "Active Work State is present."
@@ -3128,6 +3129,9 @@ def _resume_task_state(repo_root: Path, context: dict[str, Any], request_text: s
     if broken:
         confidence = "low" if not entry_points else "medium"
         reason += " Some prior entry points are missing."
+    if strongest_gap:
+        severity = str(strongest_gap.get("severity") or "info")
+        reason += f" Strongest carried contract gap is {severity}."
     if request_text and status == "completed":
         confidence = "medium" if entry_points or ranked else "low"
         reason += " Current request wins over completed prior work."
@@ -3511,6 +3515,11 @@ def build_resume_capsule(
     banner_already_shown = bool(session_key and str(session.get("banner_shown_session_id") or "") == session_key)
     startup_banner_text = "" if banner_already_shown else str(context.get("startup_banner_text") or "")
     startup_banner_render_payload = context.get("startup_banner_render_payload") if isinstance(context.get("startup_banner_render_payload"), dict) else {}
+    carryover_gaps = []
+    for state in (active, recent):
+        if isinstance(state, dict) and isinstance(state.get("contract_gaps"), list):
+            carryover_gaps.extend([gap for gap in state.get("contract_gaps", []) if isinstance(gap, dict)])
+    carryover_gaps = carryover_gaps[:8]
     loaded_context = build_loaded_context_metadata(
         repo_root,
         request_text=request,
@@ -3552,6 +3561,8 @@ def build_resume_capsule(
         "previous_contract_result": previous_contract_result,
         "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
         "task_state": task_state,
+        "carryover_gaps": carryover_gaps,
+        "strongest_carryover_gap": (active.get("strongest_contract_gap") if isinstance(active.get("strongest_contract_gap"), dict) and active.get("strongest_contract_gap") else recent.get("strongest_contract_gap") if isinstance(recent.get("strongest_contract_gap"), dict) else {}),
         "capsule": {
             "current_request": request,
             "first_action": first_action,

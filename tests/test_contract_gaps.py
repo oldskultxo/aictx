@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aictx.contract_compliance import contract_gaps_from_compliance, evaluate_contract_compliance
+from aictx.contract_compliance import contract_gaps_from_compliance, evaluate_contract_compliance, strongest_contract_gap
 
 
 def _contract() -> dict:
@@ -22,7 +22,9 @@ def test_success_without_canonical_test_becomes_missing_validation_gap() -> None
     gaps = contract_gaps_from_compliance(compliance)
 
     assert gaps[0]["kind"] == "missing_validation"
-    assert gaps[0]["severity"] == "warning"
+    assert gaps[0]["severity"] == "needs-validation"
+    assert gaps[0]["policy"] == "prioritize_before_new_work"
+    assert gaps[0]["blocking"] is False
     assert gaps[0]["recommended_command"] == "make test"
     assert gaps[0]["next_action"] == "run expected validation command: make test"
 
@@ -38,5 +40,11 @@ def test_violations_become_scope_and_first_action_gaps() -> None:
     kinds = {gap["kind"] for gap in gaps}
 
     assert {"missing_first_action", "edit_outside_scope", "missing_validation", "structural_entrypoints_ignored"} <= kinds
-    assert any(gap["severity"] == "violation" for gap in gaps if gap["kind"] == "edit_outside_scope")
+    by_kind = {gap["kind"]: gap for gap in gaps}
+    assert by_kind["edit_outside_scope"]["severity"] == "needs-review"
+    assert by_kind["edit_outside_scope"]["policy"] == "surface_before_continuing"
+    assert by_kind["edit_outside_scope"]["blocking"] is False
+    assert by_kind["missing_first_action"]["severity"] == "caution"
+    assert by_kind["structural_entrypoints_ignored"]["severity"] == "caution"
+    assert strongest_contract_gap(gaps)["severity"] == "needs-validation"
     assert any("README.md" in gap.get("related_paths", []) for gap in gaps if gap["kind"] == "edit_outside_scope")

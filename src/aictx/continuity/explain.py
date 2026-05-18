@@ -161,9 +161,16 @@ def _work_state_items(repo_root: Path, *, context: dict[str, Any], candidate_pat
     if state.get("unverified"):
         reasons.append("work_state_has_unverified")
         role = "carryover"
+    strongest = state.get("strongest_contract_gap") if isinstance(state.get("strongest_contract_gap"), dict) else {}
+    if strongest:
+        severity = str(strongest.get("severity") or "info").strip()
+        reasons.append(f"contract_gap:{severity}")
+        role = "carryover"
     if state.get("risks"):
         reasons.append("work_state_has_risks")
+    carryover = f"Carryover: {strongest.get('severity')} — {strongest.get('summary') or strongest.get('kind')}" if strongest else ""
     summary = _compact_text(
+        carryover,
         state.get("next_action"),
         _clean_string_list(state.get("unverified"), limit=1)[0] if _clean_string_list(state.get("unverified"), limit=1) else "",
         state.get("goal"),
