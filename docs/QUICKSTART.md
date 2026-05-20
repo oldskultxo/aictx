@@ -53,6 +53,7 @@ Need more setup detail? See [Installation](INSTALLATION.md).
 - Session starts
 - The user asks for a task
 - AICTX provides the agent with a continuity resume capsule
+
 ```bash
 codex@my-repo · session #12 · awake
 
@@ -61,9 +62,11 @@ Last progress: `tests/test_parser.py` passes; next step is to update error recov
 
 ────────────────────────────────
 ```
+
 - Agent performs the task
 - AICTX updates continuity artifacts
 - Agent provides the user with a continuity summary
+
 ```bash
 ────────────────────────────────
 AICTX summary
