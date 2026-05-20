@@ -79,3 +79,7 @@ If observable execution evidence is missing, AICTX should report compliance as `
 AICTX does not guarantee productivity or token savings, autonomously repair repositories, replace human review, hide cloud memory, or infer missing facts as truth.
 
 It keeps missing data empty, `unknown`, or `not_evaluated` depending on the surface.
+
+## MCP safety boundaries
+
+AICTX MCP is local-first. It exposes no arbitrary shell command, generic file read/write, git push/commit, hosted service, account flow, API key requirement, or cloud sync. Write tools validate repo paths, bound payload sizes, and persist only AICTX continuity artifacts.

@@ -1,0 +1,12 @@
+{
+  "name": "aictx",
+  "description": "Use AICTX repo-local operational continuity in Claude Code.",
+  "version": "6.6.0",
+  "author": {
+    "name": "Santi Santamaria",
+    "url": "https://github.com/oldskultxo"
+  },
+  "homepage": "https://aictx.org",
+  "repository": "https://github.com/oldskultxo/aictx",
+  "license": "MIT"
+}

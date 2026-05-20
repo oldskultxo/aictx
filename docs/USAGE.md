@@ -288,3 +288,11 @@ aictx uninstall
 ```
 
 See [Cleanup](CLEANUP.md).
+
+## Using AICTX through MCP
+
+Compatible agents should prefer MCP tools when available: call `aictx_resume` before work and `aictx_finalize` at the end. If MCP is unavailable, use the equivalent CLI lifecycle: `aictx resume --repo . --task "<task goal>" --json` and `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
+
+## Agent plugins
+
+AICTX ships Claude Code and Codex plugin artifacts. They are MCP-first and CLI-fallback: use `aictx_resume`, `aictx_finalize`, and `aictx_view` when available, otherwise use the AICTX CLI lifecycle. See [Plugins](PLUGINS.md).

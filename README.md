@@ -69,6 +69,29 @@ resume useful context -> do the work -> finalize evidence -> next session contin
 
 AICTX stores continuity locally under `.aictx/`, so it is inspectable, reviewable and not dependent on hidden chat history.
 
+## MCP server
+
+AICTX can expose repo-local continuity as local MCP tools, resources and prompts.
+
+Compatible agents can launch:
+
+```bash
+aictx mcp-server --repo . --profile full
+```
+
+The default `aictx install` / `aictx init` flow prepares MCP support through AICTX-managed, reversible configuration. Agents should prefer MCP tools when available and fall back to CLI commands otherwise.
+
+See [MCP](docs/MCP.md).
+
+
+## Agent plugins
+
+AICTX also ships Claude Code and Codex plugin artifacts.
+
+The plugins are MCP-first and CLI-fallback: compatible agents should call AICTX MCP tools such as `aictx_resume`, `aictx_finalize`, and `aictx_view`; when MCP is unavailable they fall back to the AICTX CLI.
+
+See [Plugins](docs/PLUGINS.md).
+
 ## What changes?
 
 ### Without operational continuity
@@ -212,3 +235,4 @@ AICTX improves continuity only when agents or integrations cooperate with the ru
 AICTX does not claim measured productivity gains, guaranteed speedups, or automatic correctness.
 
 It makes operational continuity visible, inspectable, and reusable.
+

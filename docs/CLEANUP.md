@@ -116,3 +116,7 @@ For full uninstall:
 ```bash
 aictx uninstall
 ```
+
+## MCP cleanup
+
+`aictx clean` removes AICTX-managed repo-local MCP config entries and files. `aictx uninstall` removes AICTX-managed global MCP state. User-authored MCP servers and unrelated client settings are preserved.

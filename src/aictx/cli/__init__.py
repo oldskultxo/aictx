@@ -26,6 +26,7 @@ from ..continuity import build_resume_capsule, load_continuity_context, render_n
 from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, render_continuity_mermaid, write_continuity_view
 from ..doctor import build_doctor_report
 from ..runner_integrations import install_codex_native_integration, install_repo_runner_integrations
+from ..integrations.mcp_config import DEFAULT_MCP_PROFILE, install_global_mcp_config, install_repo_mcp_config, mcp_status, normalize_mcp_profile
 from ..runtime_launcher import cli_run_execution
 from ..runtime_compact import compact_repo_records
 from ..runtime_versioning import compat_version_payload
@@ -1014,6 +1015,48 @@ def _init_repomap_from_global(repo: Path, global_config: dict[str, Any]) -> tupl
     return created + [path for path in repomap_paths if path not in created], str(refresh.get("status") or "ok")
 
 
+
+def cmd_mcp_server(args: argparse.Namespace) -> int:
+    from ..mcp.server import serve_stdio
+
+    return serve_stdio(repo=str(getattr(args, "repo", ".") or "."), profile=str(getattr(args, "profile", DEFAULT_MCP_PROFILE) or DEFAULT_MCP_PROFILE))
+
+
+def cmd_mcp_status(args: argparse.Namespace) -> int:
+    repo = Path(getattr(args, "repo", ".") or ".").expanduser().resolve()
+    payload = mcp_status(repo)
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+        return 0
+    print("AICTX MCP support")
+    print(f"- global enabled: {bool(payload.get('global', {}).get('enabled'))}")
+    print(f"- repo enabled: {bool(payload.get('repo', {}).get('enabled'))}")
+    print(f"- profile: {payload.get('global', {}).get('profile') or DEFAULT_MCP_PROFILE}")
+    print("- transport: stdio")
+    for file_path in payload.get('repo', {}).get('files', []):
+        print(f"- repo config: {file_path}")
+    return 0
+
+
+def cmd_mcp_install(args: argparse.Namespace) -> int:
+    profile = normalize_mcp_profile(str(getattr(args, "profile", DEFAULT_MCP_PROFILE) or DEFAULT_MCP_PROFILE))
+    dry_run = bool(getattr(args, "dry_run", False))
+    repo = Path(getattr(args, "repo", ".") or ".").expanduser().resolve()
+    global_install = bool(getattr(args, "global_install", False))
+    payload = install_global_mcp_config(profile=profile, dry_run=dry_run) if global_install else install_repo_mcp_config(repo, profile=profile, dry_run=dry_run)
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+        return 0
+    print("AICTX MCP support")
+    print(f"- enabled: {payload['enabled']}")
+    print(f"- profile: {payload['profile']}")
+    print(f"- transport: {payload['transport']}")
+    print(f"- {'global managed entries' if global_install else 'repo managed entries'}: {'updated' if payload.get('changed') else 'unchanged' if not dry_run else 'planned'}")
+    print("- reversible with: aictx uninstall" if global_install else "- reversible with: aictx clean")
+    for warning in payload.get('warnings', []):
+        print(f"- warning: {warning}")
+    return 0
+
 def cmd_install(args: argparse.Namespace) -> int:
     workspace_id = args.workspace_id or "default"
     workspace_root = args.workspace_root
@@ -1022,6 +1065,8 @@ def cmd_install(args: argparse.Namespace) -> int:
     with_repomap = bool(getattr(args, "with_repomap", False))
     dry_run = bool(getattr(args, "dry_run", False))
     manual = bool(getattr(args, "manual", False))
+    mcp_enabled = not bool(getattr(args, "no_mcp", False))
+    mcp_profile = normalize_mcp_profile(str(getattr(args, "mcp_profile", DEFAULT_MCP_PROFILE) or DEFAULT_MCP_PROFILE))
 
     if not args.yes:
         print("aictx install")
@@ -1031,6 +1076,8 @@ def cmd_install(args: argparse.Namespace) -> int:
         print("- configure workspace discovery")
         print("- install engine runtime artifacts")
         print("- prepare repos to work after a single `aictx init`")
+        if mcp_enabled:
+            print(f"- prepare local MCP support (stdio, profile {mcp_profile})")
         if install_codex_global:
             print("- WARNING: update global Codex files under ~/.codex because --install-codex-global was passed")
         print()
@@ -1066,6 +1113,8 @@ def cmd_install(args: argparse.Namespace) -> int:
             print(f"- {str(Path(workspace_root).expanduser().resolve())}")
         if with_repomap:
             print("Would request RepoMap support and check/install the optional Tree-sitter dependency if needed.")
+        if mcp_enabled:
+            print(f"Would prepare AICTX MCP support: profile={mcp_profile}, transport=stdio.")
         return 0
 
     ensure_global_home()
@@ -1096,7 +1145,12 @@ def cmd_install(args: argparse.Namespace) -> int:
         config = update_global_repomap_config(config, requested=True, available=repomap_available)
     else:
         config = update_global_repomap_config(config, requested=False, available=False)
+    if mcp_enabled:
+        config["mcp"] = {"enabled": True, "profile": mcp_profile, "transport": "stdio", "server_command": ["aictx", "mcp-server", "--repo", ".", "--profile", mcp_profile]}
+    else:
+        config.pop("mcp", None)
     write_json(CONFIG_PATH, config)
+    mcp_global_payload = install_global_mcp_config(profile=mcp_profile, dry_run=False) if mcp_enabled else {"enabled": False, "profile": mcp_profile, "transport": "stdio", "changed": False, "warnings": []}
 
     ws = read_json(workspace_path(workspace_id), None)
     if ws is None:
@@ -1142,6 +1196,12 @@ def cmd_install(args: argparse.Namespace) -> int:
             print("RepoMap support: requested but unavailable.")
     else:
         print("RepoMap support: disabled.")
+    print("AICTX MCP support")
+    print(f"- enabled: {mcp_enabled}")
+    print(f"- profile: {mcp_profile}")
+    print("- transport: stdio")
+    print(f"- global managed entries: {'updated' if mcp_global_payload.get('changed') else 'unchanged'}")
+    print("- reversible with: aictx uninstall")
     print("Install complete. Next: run `aictx init` inside a repository.")
     return 0
 
@@ -1162,6 +1222,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     register_repo = not args.no_register
     selected_communication_mode = "disabled"
     portable_continuity = False
+    mcp_enabled = not bool(getattr(args, "no_mcp", False))
+    mcp_profile = normalize_mcp_profile(str(getattr(args, "mcp_profile", DEFAULT_MCP_PROFILE) or DEFAULT_MCP_PROFILE))
 
     manual = bool(getattr(args, "manual", False))
     if args.yes or not manual:
@@ -1178,6 +1240,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("- make the repo ready for automatic execution-memory usage")
         print("- register this repo in the active workspace")
         print("- add safe .gitignore entries")
+        if mcp_enabled:
+            print(f"- generate repo-local MCP config (stdio, profile {mcp_profile})")
         print()
         if manual:
             update_gitignore = ask_yes_no("Write .gitignore entries if missing?", update_gitignore)
@@ -1209,6 +1273,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     local_runtime_path = copy_local_agent_runtime(repo)
     prepared = prepare_repo_runtime(repo)
     runner_integrations = install_repo_runner_integrations(repo)
+    mcp_repo_payload = install_repo_mcp_config(repo, profile=mcp_profile) if mcp_enabled else {"enabled": False, "profile": mcp_profile, "transport": "stdio", "changed": False, "files": [], "warnings": []}
     if not update_gitignore:
         if original_gitignore_exists:
             gitignore_path.write_text(original_gitignore_text, encoding="utf-8")
@@ -1242,6 +1307,8 @@ def cmd_init(args: argparse.Namespace) -> int:
             print(f"- {item}")
     for item in runner_integrations:
         print(f"- {item}")
+    for item in mcp_repo_payload.get("files", []):
+        print(f"- {item}")
     print(f"- {repo / 'AGENTS.md'}")
     if workspace_agents_path and workspace_agents_path != repo / 'AGENTS.md':
         print(f"- {workspace_agents_path}")
@@ -1254,6 +1321,12 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("RepoMap init: full map built.")
     elif repomap_result == "unavailable":
         print("RepoMap init: provider unavailable; status recorded.")
+    print("AICTX MCP support")
+    print(f"- enabled: {mcp_enabled}")
+    print(f"- profile: {mcp_profile}")
+    print("- transport: stdio")
+    print(f"- repo-local managed entries: {'updated' if mcp_repo_payload.get('changed') else 'unchanged'}")
+    print("- fallback: AICTX CLI commands")
     print("Init complete. Use your coding agent normally in this repo.")
     return 0
 
@@ -1318,6 +1391,8 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--dry-run", action="store_true", help="Show planned install writes without mutating files")
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
     install.add_argument("--manual", action="store_true", help="Use the full advanced interactive setup prompts")
+    install.add_argument("--no-mcp", action="store_true", help="Do not prepare AICTX MCP support")
+    install.add_argument("--mcp-profile", choices=["readonly", "standard", "full"], default=DEFAULT_MCP_PROFILE, help="MCP profile to prepare")
     install.set_defaults(func=cmd_install)
 
     init = sub.add_parser("init", help="Initialize repo-local .aictx scaffold")
@@ -1329,7 +1404,28 @@ def build_parser() -> argparse.ArgumentParser:
     portable_group.add_argument("--portable-continuity", action="store_true", help="Enable git-portable AICTX continuity artifacts")
     portable_group.add_argument("--no-portable-continuity", action="store_true", help="Keep all AICTX runtime artifacts local/ignored")
     init.add_argument("--no-register", action="store_true", help="Do not register repo in active workspace")
+    init.add_argument("--no-mcp", action="store_true", help="Do not generate repo-local MCP config")
+    init.add_argument("--mcp-profile", choices=["readonly", "standard", "full"], default=DEFAULT_MCP_PROFILE, help="Repo-local MCP profile")
     init.set_defaults(func=cmd_init)
+
+    mcp_server = sub.add_parser("mcp-server", help=argparse.SUPPRESS)
+    mcp_server.add_argument("--repo", default=".", help="Repository root")
+    mcp_server.add_argument("--profile", choices=["readonly", "standard", "full"], default=DEFAULT_MCP_PROFILE, help="MCP profile")
+    mcp_server.set_defaults(func=cmd_mcp_server)
+
+    mcp = sub.add_parser("mcp", help="Manage AICTX MCP support")
+    mcp_sub = mcp.add_subparsers(dest="mcp_command", required=True)
+    mcp_status_cmd = mcp_sub.add_parser("status", help="Show MCP support status")
+    mcp_status_cmd.add_argument("--repo", default=".", help="Repository root")
+    mcp_status_cmd.add_argument("--json", action="store_true", help="Print structured MCP status JSON")
+    mcp_status_cmd.set_defaults(func=cmd_mcp_status)
+    mcp_install_cmd = mcp_sub.add_parser("install", help="Install MCP config")
+    mcp_install_cmd.add_argument("--repo", default=".", help="Repository root")
+    mcp_install_cmd.add_argument("--profile", choices=["readonly", "standard", "full"], default=DEFAULT_MCP_PROFILE, help="MCP profile")
+    mcp_install_cmd.add_argument("--global", dest="global_install", action="store_true", help="Prepare global MCP support")
+    mcp_install_cmd.add_argument("--dry-run", action="store_true", help="Show planned MCP writes")
+    mcp_install_cmd.add_argument("--json", action="store_true", help="Print structured install JSON")
+    mcp_install_cmd.set_defaults(func=cmd_mcp_install)
 
     portability = sub.add_parser("portability", help="Inspect or compact git-portable continuity")
     portability_sub = portability.add_subparsers(dest="portability_command", required=True)

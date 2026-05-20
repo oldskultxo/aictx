@@ -901,3 +901,7 @@ Operations and trust:
 - [Safety](SAFETY.md)
 - [Limitations](LIMITATIONS.md)
 - [Upgrade](UPGRADE.md)
+
+## MCP architecture
+
+The AICTX MCP server is a local stdio interface over the existing AICTX core. It does not duplicate business logic: MCP tools call the same Python runtime functions used by CLI commands. The server exposes AICTX continuity operations only, not generic machine-control tools.

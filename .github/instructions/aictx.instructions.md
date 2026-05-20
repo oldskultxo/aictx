@@ -5,7 +5,7 @@ applyTo: "**/*"
 <!-- AICTX:START -->
 # AICTX Copilot path-specific lifecycle
 
-Apply these instructions to repository work. They intentionally duplicate the minimal AICTX lifecycle because Copilot support varies by surface.
+Apply these instructions to repository work. Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise. They intentionally duplicate the minimal AICTX lifecycle because Copilot support varies by surface.
 
 - Start non-trivial repository tasks with: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the resume capsule before broad repo scanning.

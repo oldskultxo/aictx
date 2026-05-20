@@ -89,3 +89,7 @@ Contract compliance metrics show whether observed execution aligned with a gener
 AICTX makes continuity visible, inspectable, and reusable.
 
 It does not make agents correct, autonomous, or magically persistent.
+
+## MCP limitations
+
+MCP support depends on a compatible client that can launch a local stdio server. AICTX prepares managed config where supported, but CLI fallback remains required for clients without MCP support.

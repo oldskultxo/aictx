@@ -1,0 +1,16 @@
+{
+  "name": "aictx",
+  "metadata": {
+    "description": "AICTX repo-local operational continuity plugins for coding agents."
+  },
+  "owner": {
+    "name": "Santi Santamaria"
+  },
+  "plugins": [
+    {
+      "name": "aictx",
+      "source": "./integrations/claude/plugins/aictx",
+      "description": "Use AICTX repo-local operational continuity in Claude Code."
+    }
+  ]
+}

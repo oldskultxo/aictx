@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Added Claude Code and Codex plugin distribution artifacts for AICTX.
+- Added shared generated agent guidance for MCP-first, CLI-fallback AICTX usage.
+- Added plugin marketplace manifests for Claude Code and Codex.
+
+### Changed
+- Agent integration guidance now tells agents to prefer AICTX MCP tools when available and fall back to CLI commands otherwise.
+
+### Added
+- Added local AICTX MCP server exposing repo-local continuity as tools, resources and prompts.
+- Added default MCP preparation during `aictx install` and repo-local MCP configuration during `aictx init`.
+- Added MCP profiles: `readonly`, `standard`, and `full`.
+- Added safe cleanup/uninstall support for AICTX-managed MCP configuration.
+
+### Changed
+- Agent instructions now prefer AICTX MCP tools when available and fall back to CLI commands otherwise.
+
+### Security
+- MCP server is local-first and does not expose arbitrary shell, filesystem, git push, or cloud sync capabilities.
+
+
 ## 6.6.0 - 2026-05-20
 
 ### Added

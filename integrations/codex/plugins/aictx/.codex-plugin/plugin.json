@@ -1,0 +1,34 @@
+{
+  "name": "aictx",
+  "version": "6.6.0",
+  "description": "Use AICTX repo-local operational continuity in Codex.",
+  "author": {
+    "name": "Santi Santamaria",
+    "url": "https://github.com/oldskultxo"
+  },
+  "homepage": "https://aictx.org",
+  "repository": "https://github.com/oldskultxo/aictx",
+  "license": "MIT",
+  "keywords": [
+    "aictx",
+    "coding-agents",
+    "operational-continuity",
+    "repo-local-memory",
+    "mcp",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AICTX",
+    "shortDescription": "Resume and finalize repo-local continuity with AICTX.",
+    "longDescription": "Packages the AICTX workflow for Codex. Agents should prefer AICTX MCP tools when available and fall back to CLI commands otherwise.",
+    "developerName": "Santi Santamaria",
+    "category": "Productivity",
+    "websiteURL": "https://aictx.org",
+    "defaultPrompt": [
+      "Resume AICTX continuity before this task.",
+      "Finalize AICTX continuity after this task.",
+      "Inspect the AICTX Continuity View."
+    ]
+  }
+}

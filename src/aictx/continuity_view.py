@@ -792,10 +792,13 @@ def continuity_view_summary_links(repo_root: Path) -> dict[str, str]:
     else:
         mermaid = render_continuity_mermaid(build_continuity_view_model(repo_root))
     file_path = CONTINUITY_MAP_PATH.as_posix()
-    online_url = mermaid_live_url(mermaid, mode="view")
+    # Mermaid Live currently shares pako payloads through the edit route.
+    # The view route can reject otherwise valid pako JSON payloads when opened
+    # directly from generated Markdown links, so final summaries use edit links.
+    online_url = mermaid_live_url(mermaid, mode="edit")
     return {
         "file_path": file_path,
         "file_link": f"[continuity-map.mmd]({file_path})",
         "online_url": online_url,
-        "online_link": f"[mermaid.live view]({online_url})",
+        "online_link": f"[mermaid.live edit]({online_url})",
     }

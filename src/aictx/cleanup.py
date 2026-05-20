@@ -22,6 +22,7 @@ from .runner_integrations import (
     codex_instructions_path,
 )
 from .state import ENGINE_HOME, PROJECTS_REGISTRY_PATH, WORKSPACES_DIR, read_json, write_json
+from .integrations.mcp_config import remove_global_mcp_config, remove_repo_mcp_config
 
 REPO_HOOK_FILES = [
     Path('.claude/hooks/aictx_session_start.py'),
@@ -291,6 +292,10 @@ def clean_repo(repo: Path) -> dict[str, Any]:
         else:
             removed.append(str(gitignore_path))
 
+    mcp_cleanup = remove_repo_mcp_config(repo)
+    removed.extend(mcp_cleanup.get('removed', []))
+    updated.extend(mcp_cleanup.get('updated', []))
+
     gitattributes_path = repo / '.gitattributes'
     if remove_gitattributes_aictx_entries(gitattributes_path):
         if gitattributes_path.exists():
@@ -392,6 +397,10 @@ def uninstall_all() -> dict[str, Any]:
                 removed.append(str(file_path))
         elif file_path == instructions_path and file_path.exists():
             _safe_unlink(file_path, removed)
+
+    global_mcp_cleanup = remove_global_mcp_config()
+    removed.extend(global_mcp_cleanup.get('removed', []))
+    updated.extend(global_mcp_cleanup.get('updated', []))
 
     if remove_codex_config_aictx_entries(CODEX_CONFIG_PATH):
         if CODEX_CONFIG_PATH.exists():

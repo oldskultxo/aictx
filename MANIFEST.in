@@ -1,0 +1,5 @@
+include docs/PLUGINS.md
+include scripts/generate-agent-integrations.py
+include .agents/plugins/marketplace.json
+include .claude-plugin/marketplace.json
+recursive-include integrations *

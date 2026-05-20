@@ -33,6 +33,7 @@ def codex_instructions_path() -> Path:
 
 def render_aictx_lifecycle_rules(*, agent_id: str, adapter_id: str, include_source_repo_hint: bool = True) -> str:
     rules = [
+        "- Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.",
         "- The lifecycle remains `resume -> work -> finalize -> final AICTX summary/persistence`.",
         f'- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --agent-id {agent_id} --adapter-id {adapter_id} --json`.',
         "- Use the returned resume capsule as the operational brief before broad repo scanning.",
@@ -53,6 +54,7 @@ def render_codex_home_block() -> str:
 ## AICTX Codex integration
 
 When Codex is running inside a repository initialized with `aictx`:
+- Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
 - the lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`
 - at session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`
 - use the returned continuity capsule as the operational brief before broad repo scanning
@@ -75,6 +77,7 @@ def render_codex_global_instructions() -> str:
 Use AICTX in every Codex session for repositories initialized with `aictx`.
 
 Required behavior:
+- Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
 - Do not decide whether AICTX applies. If the repository contains `.aictx/`, use it.
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
@@ -98,6 +101,7 @@ def render_claude_md_block() -> str:
 
 This repository is initialized with `aictx`.
 
+- Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
 - Use the returned continuity capsule as the operational brief.
@@ -128,6 +132,7 @@ def render_copilot_instructions_block() -> str:
 These are repository custom instructions for GitHub Copilot. AICTX cannot force Copilot to run commands, but Copilot should follow this lifecycle whenever command execution is available.
 
 Critical lifecycle:
+- Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
 - For non-trivial repository tasks, first run exactly once: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the returned resume capsule as the operational brief before broad repo scanning.
 - Before the final response, run exactly once: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.
@@ -149,7 +154,7 @@ applyTo: "**/*"
 {AICTX_START}
 # AICTX Copilot path-specific lifecycle
 
-Apply these instructions to repository work. They intentionally duplicate the minimal AICTX lifecycle because Copilot support varies by surface.
+Apply these instructions to repository work. Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise. They intentionally duplicate the minimal AICTX lifecycle because Copilot support varies by surface.
 
 - Start non-trivial repository tasks with: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the resume capsule before broad repo scanning.

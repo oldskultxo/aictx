@@ -4,6 +4,7 @@
 These are repository custom instructions for GitHub Copilot. AICTX cannot force Copilot to run commands, but Copilot should follow this lifecycle whenever command execution is available.
 
 Critical lifecycle:
+- Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
 - For non-trivial repository tasks, first run exactly once: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the returned resume capsule as the operational brief before broad repo scanning.
 - Before the final response, run exactly once: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.

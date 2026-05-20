@@ -69,7 +69,7 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     assert "0 tests" not in text
     assert "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)" in text
     assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in text
-    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in text
+    assert "View continuity online: [mermaid.live edit](https://mermaid.live/edit#pako:" in text
     assert finalized["agent_summary"]["handoff_stored"] is True
     assert finalized["agent_summary"]["decision_stored"] is True
     policy = finalized["agent_summary_policy"]
@@ -116,7 +116,7 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
         "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)\n"
     )
     assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in text
-    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in text
+    assert "View continuity online: [mermaid.live edit](https://mermaid.live/edit#pako:" in text
     assert finalized["contract_compliance"]["status"] == "not_evaluated"
     assert not (repo / ".aictx" / "metrics" / "contract_compliance.jsonl").exists()
 
