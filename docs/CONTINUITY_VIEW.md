@@ -23,7 +23,7 @@ Continuity View shows the current operational continuity of the repository, not 
 
 ![AICTX Continuity View example](images/continuity-view.png)
 
-[Open the image asset](https://aictx.org/images/continuity-view.png) · [Open the raw GitHub image](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/continuity-view.png)
+[Open the image asset](https://aictx.org/images/continuity-view.png)  ·  [Real example](https://mermaid.live/view#pako:eNqtVutu2zYUfpUD_fYlkmwn0bZigmPHBebUsLyk2zIYjETLXCRSpSgnXldgT7MH25PsUHcO6_Zj7Y_Un3gu37mSH61QRNTyrEMiXsIjkQp2N48cYEsz8dOjpf_zgLBQvcJvkBLG4Vu4JDalV5NH62ct-RCg3IYUOY3gQchnD1iaJTSlXBEJT0V8YK8Q0QRyxKrI4IlwTiVImlHFIgFnyPA3kUT--fsftdG792j0jr4q8EPFBPdAFhzoa0ZDhX5OJGER0QcQijQlPPJg88Nu9e5u4-9W3-QyhNGJ8tP4ifFxZ_VhiVY1RwgUURSWLKF5e2bjIWqOy2jH6E-xlO5PVOboh_F4lJ1bWceQDRM23u8ZZ2q_70u5KKVorvKx_rvPaa5N7VmEuWHq3BedoGh2zqT4BSMcKZEm9dH9vCyDDpPyCGO_b2NvJTTzz4afndUR8zRMAX8hDRh-gD6pVDxTZALDZzgQ1iXrfu78H7NmrJ3ZhY5n8UrDoizfXHAlSag8iCl2ha4KwZqiDi8wRXBi9AUiRmJJUsDuW_A4YfmxNeajtSWTedcovbK0ZvbaTJfuxXyHao1r2CHhf-mf_4i0F1pQlQojhi7CoMAGlaxttEWgy-VHupbqSGE2mo5sKDKMMKLDuMCMAVqQZx1uJMJ8_P3mduvfLEYpKghImZRClqrhse9cl8vPsoShYf_tfPcecJ4x_di6gDNIczigXkJjEp6hbm_4UODg6TTRAeRaHpOfJH2zuonfNhONpkMipXYRNumLSQY5xTnR9cJRhEwkDF2kVBFsVDLQ851TeaKd2ZWexHcZ5bBCDXE45O2Bzg7Ki-REcaq_UJ4Ij2ki4gGy1kQxIw39oaavrREe9vk5Jo0vk1emZ2KYkwNFzYRyktIc0yOkIk8s0fmLWE76NFyDxheqQ4S7WBahKmRt56yzovPYLcdBx2K5Lvs6oSeMCJaEJagIa5oKeW5F-mUDqlNf0pVC4-3Cv1kvsCpZmSukXK_VkqfebUzpmK4P7hOd2I1io9eTD0V2_qq__zOSI9Ovn-T4DZGUeFDwZy5emuUYGNwDpTdMfDbJByX5AyU6IfsXTEF7UHXBAdMrdNe033VZTEe-duQjg9o2BCzmJMnbY_sfVIxrpP2qjVeRYyu3X_UN4d8u7nZB_-tUL7KVf3e7-O7dbXewXdeX9xqbYsW4ytsD-3Mamszf5qg9cz93PW1LXt3Obe7LbtluS46dBMFFr_b1nHRiG30vbMpJSGjvBvAgESFJhoInrUWMC4bDN_j0qB4gJbh73wMPy-parYFtIMdAroEmPSP38-oerIFtIKcnuJhXt0oNfAPt-iiodmoNbAM5BnKNSFfLah30wq7BqgquRY6BTCvLdTWrPdI1wPk1JIN11ec9fzUIKskWOQYy_fnrqklrYBvIMZBroImBpobR7brqqh61GmzrIBrkGMg10MRA056_2n7jboNpsgZWLFlkebg16cBKqcSXMELroxbFN94Rl_Kj5eHPiOjt8cg_oU5G-I9CpI2aFEV8bECR4f6iN9XDpvlICiWCMw8bTCOGe2ddvdDLhzpa0a9AORc4P5Z36ZZeLO-j9Wp5tuOMLi5dZzKb4j_XdaYD64xCk9HV1Ww2s6fOxRUe2J8G1q8lL3t0cXV9eeFOLq9nswv3YvbpL7Up69g)
 
 ---
 
@@ -45,6 +45,54 @@ What continuity exists now in this repo so the next coding agent does not start 
 ```
 
 It is not a generic graph viewer, dashboard, knowledge base, or replacement for `resume`. It is a deterministic continuity report generated from existing AICTX state.
+
+---
+
+## What the view contains
+
+The generated Markdown includes:
+
+- repository metadata;
+- overview with active task, next action, risk, changed files, last execution, handoffs, failures, execution contract, and portability status;
+- embedded Mermaid Continuity Map;
+- working-tree changes;
+- active, paused, or blocked Work State details;
+- open handoffs;
+- relevant failure memory;
+- strategy memory;
+- area memory;
+- latest compatible execution contract;
+- recent execution summaries;
+- RepoMap hints;
+- portable continuity status;
+- notes for the next agent.
+
+The Mermaid map uses bounded groups and stable node order. It is meant to show continuity that is active or relevant, not every historical memory row.
+
+---
+
+## Who generates the Mermaid diagram?
+
+AICTX generates the Mermaid diagram deterministically from repo-local continuity artifacts.
+
+The coding agent may trigger generation with:
+
+```bash
+aictx view
+aictx finalize --include-view
+```
+
+but it does not author the graph manually.
+
+Canonical rule:
+
+```text
+The agent triggers it. AICTX generates it. Mermaid is deterministic.
+```
+
+This preserves reproducibility, factuality, auditability, and Git-reviewable output.
+
+Agents should not invent nodes, omit relevant failures manually, draw Mermaid in final summaries, or use unpersisted chat context as the graph source.
 
 ---
 
@@ -170,54 +218,6 @@ Agents should preserve those links when appending the AICTX final summary to the
 ```
 
 If no view exists yet, `resume` reports the expected paths and does not regenerate the view automatically.
-
----
-
-## What the view contains
-
-The generated Markdown includes:
-
-- repository metadata;
-- overview with active task, next action, risk, changed files, last execution, handoffs, failures, execution contract, and portability status;
-- embedded Mermaid Continuity Map;
-- working-tree changes;
-- active, paused, or blocked Work State details;
-- open handoffs;
-- relevant failure memory;
-- strategy memory;
-- area memory;
-- latest compatible execution contract;
-- recent execution summaries;
-- RepoMap hints;
-- portable continuity status;
-- notes for the next agent.
-
-The Mermaid map uses bounded groups and stable node order. It is meant to show continuity that is active or relevant, not every historical memory row.
-
----
-
-## Who generates the Mermaid diagram?
-
-AICTX generates the Mermaid diagram deterministically from repo-local continuity artifacts.
-
-The coding agent may trigger generation with:
-
-```bash
-aictx view
-aictx finalize --include-view
-```
-
-but it does not author the graph manually.
-
-Canonical rule:
-
-```text
-The agent triggers it. AICTX generates it. Mermaid is deterministic.
-```
-
-This preserves reproducibility, factuality, auditability, and Git-reviewable output.
-
-Agents should not invent nodes, omit relevant failures manually, draw Mermaid in final summaries, or use unpersisted chat context as the graph source.
 
 ---
 

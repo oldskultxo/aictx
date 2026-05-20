@@ -21,6 +21,8 @@ aictx install
 aictx init
 ```
 
+The default interactive setup is compact: `install` asks only about recommended RepoMap/Tree-sitter support, and `init` asks only for repo communication mode. Use `aictx install --manual` or `aictx init --manual` for the full advanced prompt flow.
+
 Then keep using the coding agent.
 
 At normal task startup, supported agents should use one public continuity query:
@@ -77,7 +79,7 @@ Portable continuity remains opt-in:
 aictx init --repo . --portable-continuity
 ```
 
-In `6.5.1`, this enables the team-safe portability profile. Git stays the only transport. AICTX exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone latest-run snapshots local-only, and can manage `.gitattributes` merge hints for portable JSONL files.
+This enables the team-safe portability profile. Git stays the only transport. AICTX exposes append-only/sharded continuity artifacts to Git, keeps conflict-prone latest-run snapshots local-only, and can manage `.gitattributes` merge hints for portable JSONL files.
 
 Portable writes are also secret-safe by default. AICTX redacts detected passwords, tokens, API keys, private keys, credential-bearing URLs, and similar secret-shaped values before persisting the portable subset.
 
@@ -124,7 +126,9 @@ aictx report real-usage
 
 ```bash
 aictx install
+aictx install --manual
 aictx init
+aictx init --manual
 aictx init --portable-continuity
 aictx resume --repo . --task "continue current work" --json
 aictx finalize --repo . --status success --summary "targeted tests passed" --json

@@ -109,22 +109,23 @@ Prompt wording may change between releases. The decisions documented below are t
 
 It is about the AICTX installation and workspace-level setup. It should not be described as the place where repo communication mode is chosen.
 
-Current install decisions:
+Default interactive setup is intentionally simple for non-advanced users. It uses the current defaults for workspace id, workspace root, cross-project mode, and global Codex integration. It asks only whether to enable recommended RepoMap support using Tree-sitter.
 
-| Setup decision | Example answer | Effect |
-|---|---|---|
-| Workspace id | `default` | Stores active workspace identity |
-| Workspace root | `/Users/me/dev` or empty | Defines workspace root when provided |
-| Cross-project mode | `--cross-project-mode workspace` | Controls workspace-level cross-project behavior; accepted values are `workspace`, `explicit`, and `disabled` |
-| Global Codex install | `--install-codex-global` | Allows AICTX-managed global Codex files |
-| RepoMap request | `--with-repomap` | Marks RepoMap as requested in global config |
-| Dry run | `--dry-run` | Shows intended changes without applying them |
-| Non-interactive mode | `--yes` | Uses defaults and skips confirmation prompts |
-
-Representative interactive flow:
+Default interactive flow:
 
 ```text
 aictx install
+
+RepoMap uses Tree-sitter to build a compact structural map of files and symbols.
+Recommended: it helps agents choose better starting points without reading the whole repo.
+
+Enable recommended RepoMap support using Tree-sitter? [Y/n]: y
+```
+
+Advanced users can keep the full setup flow with `--manual`:
+
+```text
+aictx install --manual
 
 Default workspace name [default]: default
 Add a workspace root now? [Y/n]: y
@@ -132,10 +133,23 @@ Workspace root [/Users/me/projects]: /Users/me/dev
 Enable RepoMap support using Tree-sitter? [y/N]: n
 ```
 
-Recommended simple answer pattern:
+Install controls:
 
-```text
-Press Enter for defaults unless you specifically want global Codex integration, RepoMap, or custom workspace behavior.
+| Setup decision | Default/simple behavior | Advanced control |
+|---|---|---|
+| Workspace id | `default` | `--workspace-id <id>` or `--manual` |
+| Workspace root | empty | `--workspace-root <path>` or `--manual` |
+| Cross-project mode | `workspace` | `--cross-project-mode workspace|explicit|disabled` |
+| Global Codex install | off | `--install-codex-global` |
+| RepoMap request | prompted, default `Y` | `--with-repomap`, `--yes --with-repomap`, or `--manual` |
+| Dry run | off | `--dry-run` |
+| Non-interactive mode | no prompts, safe defaults | `--yes` |
+| Full interactive mode | off | `--manual` |
+
+`--yes` still skips prompts and keeps safe defaults. To request RepoMap non-interactively, use:
+
+```bash
+aictx install --yes --with-repomap
 ```
 
 ---
@@ -146,37 +160,59 @@ Press Enter for defaults unless you specifically want global Codex integration, 
 
 This is where repo-local runtime behavior is configured, including communication mode.
 
-Current init decisions:
+Default interactive setup assumes the current defaults for `.gitignore`, workspace registration, portable continuity, and scaffold creation. It asks only for communication mode.
 
-| Setup decision | Example answer | Effect |
-|---|---|---|
-| Repo path | current directory or `--repo <path>` | Selects target repository |
-| Write `.gitignore` entries | default yes unless `--no-gitignore` | Keeps local runtime artifacts ignored or applies the portable-continuity policy |
-| Register repo | default yes unless `--no-register` | Adds repo to AICTX registry for cleanup/uninstall |
-| Git-portable continuity | default `N` for new repos | Switches the AICTX-managed `.gitignore` policy, writes `.aictx/continuity/portability.json`, and in 6.5.1 can manage `.gitattributes` merge hints for the portable subset |
-| Communication mode | default `disabled`; optional `caveman_full` | Stores repo preference under `.aictx/memory/user_preferences.json` |
-| Initialize scaffold | `Y` | Creates/updates `.aictx/`, `AGENTS.md`, GitHub Copilot instruction/prompt files, `CLAUDE.md`, `.claude/*`, and runtime scaffolding |
-| RepoMap initialization | default when globally requested | Writes/refreshes `.aictx/repo_map/*` if available |
-
-Representative interactive flow:
+Default interactive flow:
 
 ```text
 aictx init
 
-This will initialize AICTX in the current repository.
-Write .gitignore entries if missing? [Y/n]: y
-Register this repo in the active workspace? [Y/n]: y
-Enable AICTX git-portable continuity? [y/N]: n
+Using defaults for .gitignore, workspace registration, portable continuity and scaffold creation.
 
-Select communication mode:
+Communication modes:
+- disabled: No special communication layer; agents answer normally.
+- caveman_lite: Light compact mode; keeps explanations but reduces chatter.
+- caveman_full: Strong compact mode; recommended if you want less runtime noise.
+- caveman_ultra: Aggressive compression; shortest responses, least prose.
+
+Select default communication mode for this repo:
 1. disabled (default)
 2. caveman_lite
 3. caveman_full
 4. caveman_ultra
 Select option number: 1
+```
 
+Advanced users can keep the full setup flow with `--manual`:
+
+```text
+aictx init --manual
+
+Write .gitignore entries if missing? [Y/n]: y
+Register this repo in the active workspace? [Y/n]: y
+Enable AICTX git-portable continuity? [y/N]: n
+Select default communication mode for this repo:
+1. disabled (default)
+2. caveman_lite
+3. caveman_full
+4. caveman_ultra
+Select option number: 1
 Initialize full starter scaffold now? [Y/n]: y
 ```
+
+Init controls:
+
+| Setup decision | Default/simple behavior | Advanced control |
+|---|---|---|
+| Repo path | current directory | `--repo <path>` |
+| Write `.gitignore` entries | yes unless `--no-gitignore` | `--manual` or `--no-gitignore` |
+| Register repo | yes unless `--no-register` | `--manual` or `--no-register` |
+| Git-portable continuity | disabled for new repos unless opted in | `--portable-continuity`, `--no-portable-continuity`, or `--manual` |
+| Communication mode | prompted, default `disabled` | interactive selection |
+| Initialize scaffold | yes | `--manual` can cancel |
+| RepoMap initialization | runs when globally requested | configure with `aictx install` |
+| Non-interactive mode | no prompts, safe defaults | `--yes` |
+| Full interactive mode | off | `--manual` |
 
 Simple one-shot setup:
 
@@ -192,7 +228,7 @@ aictx init --repo . --yes --portable-continuity
 aictx init --repo . --no-portable-continuity
 ```
 
-In `6.5.1`, `--portable-continuity` enables the team-safe profile for one engineer or small teams sharing the same Git repository. Git remains the transport; no external sync service is required.
+`--portable-continuity` enables the team-safe profile for one engineer or small teams sharing the same Git repository. Git remains the transport; no external sync service is required.
 
 Demo/test setup without registry updates:
 
@@ -213,9 +249,9 @@ Available modes:
 | Mode | Intended use |
 |---|---|
 | `disabled` | No special communication layer; default |
-| `caveman_lite` | Slightly compressed communication |
-| `caveman_full` | Strong compact communication mode |
-| `caveman_ultra` | Very aggressive compression |
+| `caveman_lite` | Light compact mode; keeps explanations but reduces chatter |
+| `caveman_full` | Strong compact mode; recommended if you want less runtime noise |
+| `caveman_ultra` | Aggressive compression; shortest responses, least prose |
 
 If unsure, use the default. Choose `caveman_full` only if you want AICTX to ask supported agents for compact runtime communication.
 
@@ -319,7 +355,7 @@ CLAUDE.md
 
 ```bash
 pip install "aictx[repomap]"
-aictx install --with-repomap
+aictx install --yes --with-repomap
 aictx init
 aictx map status
 ```

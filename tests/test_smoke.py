@@ -976,7 +976,7 @@ def test_persist_repo_communication_mode_enabled_mode(tmp_path: Path):
 def test_cmd_init_interactive_sets_disabled_mode(tmp_path: Path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
-    answers = iter(["", "", "1", ""])
+    answers = iter(["1"])
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
@@ -995,7 +995,7 @@ def test_cmd_init_interactive_sets_disabled_mode(tmp_path: Path, monkeypatch):
 def test_cmd_init_interactive_sets_selected_caveman_mode(tmp_path: Path, monkeypatch, choice: str, expected_mode: str):
     repo = tmp_path / "repo"
     repo.mkdir()
-    answers = iter(["", "", choice, ""])
+    answers = iter([choice])
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
@@ -1008,6 +1008,24 @@ def test_cmd_init_interactive_sets_selected_caveman_mode(tmp_path: Path, monkeyp
     prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
     assert prefs["communication"]["layer"] == "enabled"
     assert prefs["communication"]["mode"] == expected_mode
+
+
+def test_cmd_init_manual_preserves_advanced_prompts(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    answers = iter(["", "", "1", ""])
+    monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
+
+    args = argparse.Namespace(repo=str(repo), no_gitignore=False, no_register=True, yes=False, manual=True)
+    assert cli.cmd_init(args) == 0
+
+    prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
+    assert prefs["communication"]["layer"] == "disabled"
+    assert prefs["communication"]["mode"] == "caveman_full"
 
 
 def test_cmd_init_yes_keeps_disabled_default(tmp_path: Path, monkeypatch):
@@ -1426,7 +1444,7 @@ def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, 
         cross_project_mode="workspace",
         yes=False,
     )
-    answers = iter(["default", "n", "y"])
+    answers = iter(["n"])
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     assert cli.cmd_install(install_args) == 0
     install_out = capsys.readouterr().out
@@ -1441,7 +1459,7 @@ def test_install_and_init_copy_match_product_story(tmp_path: Path, monkeypatch, 
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
     monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
     monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
-    init_answers = iter(["", "", "1", ""])
+    init_answers = iter(["1"])
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(init_answers))
     args = argparse.Namespace(repo=str(repo), no_gitignore=False, no_register=True, yes=False)
     assert cli.cmd_init(args) == 0

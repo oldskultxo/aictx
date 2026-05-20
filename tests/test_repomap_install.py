@@ -20,6 +20,7 @@ def _install_args(tmp_path: Path, **overrides) -> argparse.Namespace:
         "with_repomap": False,
         "dry_run": False,
         "yes": True,
+        "manual": False,
     }
     payload.update(overrides)
     return argparse.Namespace(**payload)
@@ -32,7 +33,7 @@ def test_repomap_optional_dependency_matches_runtime_install_spec():
     assert REPO_MAP_PACKAGE_SPEC == "tree-sitter-language-pack>=0.13.0,<1.0.0"
 
 
-def test_interactive_install_asks_whether_to_enable_repomap(tmp_path: Path, monkeypatch, capsys):
+def test_interactive_install_asks_only_whether_to_enable_recommended_repomap(tmp_path: Path, monkeypatch, capsys):
     prompts: list[tuple[str, bool]] = []
 
     monkeypatch.setattr(cli, "ask_text", lambda _prompt, default="": default)
@@ -45,14 +46,14 @@ def test_interactive_install_asks_whether_to_enable_repomap(tmp_path: Path, monk
 
     def fake_ask_yes_no(prompt: str, default: bool = True) -> bool:
         prompts.append((prompt, default))
-        if prompt == "Enable RepoMap support using Tree-sitter?":
+        if prompt == "Enable recommended RepoMap support using Tree-sitter?":
             return False
-        return False
+        raise AssertionError(f"unexpected prompt: {prompt}")
 
     monkeypatch.setattr(cli, "ask_yes_no", fake_ask_yes_no)
 
     assert cli.cmd_install(_install_args(tmp_path, yes=False)) == 0
-    assert ("Enable RepoMap support using Tree-sitter?", False) in prompts
+    assert prompts == [("Enable recommended RepoMap support using Tree-sitter?", True)]
     assert "RepoMap support: disabled." in capsys.readouterr().out
 
 
@@ -97,11 +98,9 @@ def test_install_interactive_yes_requests_repomap_and_attempts_dependency_flow(t
 
     def fake_ask_yes_no(prompt: str, default: bool = True) -> bool:
         prompts.append(prompt)
-        if prompt == "Enable RepoMap support using Tree-sitter?":
+        if prompt == "Enable recommended RepoMap support using Tree-sitter?":
             return True
-        if prompt == "RepoMap needs the optional Tree-sitter dependency. Install it now?":
-            return True
-        return False
+        raise AssertionError(f"unexpected prompt: {prompt}")
 
     monkeypatch.setattr(cli, "ask_yes_no", fake_ask_yes_no)
     monkeypatch.setattr(cli, "repomap_dependency_available", lambda: next(availability))
@@ -120,8 +119,47 @@ def test_install_interactive_yes_requests_repomap_and_attempts_dependency_flow(t
     config_payload = next(payload for path, payload in writes if path.name == "config.json")
     assert config_payload["repomap"] == {"requested": True, "provider": "tree_sitter", "available": True}
     assert install_attempted["value"] is True
-    assert "RepoMap support: enabled" in capsys.readouterr().out
-    assert "RepoMap needs the optional Tree-sitter dependency. Install it now?" in prompts
+    out = capsys.readouterr().out
+    assert "RepoMap support: enabled" in out
+    assert "Recommended: it helps agents choose better starting points" in out
+    assert "RepoMap needs the optional Tree-sitter dependency. Install it now?" not in prompts
+
+
+def test_install_manual_preserves_advanced_dependency_confirmation(tmp_path: Path, monkeypatch):
+    writes: list[tuple[Path, dict]] = []
+    prompts: list[tuple[str, bool]] = []
+    availability = iter([False, True])
+
+    monkeypatch.setattr(cli, "ask_text", lambda _prompt, default="": default)
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
+    monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
+    monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+
+    def fake_ask_yes_no(prompt: str, default: bool = True) -> bool:
+        prompts.append((prompt, default))
+        if prompt == "Add a workspace root now?":
+            return False
+        if prompt == "Enable RepoMap support using Tree-sitter?":
+            return True
+        if prompt == "RepoMap needs the optional Tree-sitter dependency. Install it now?":
+            return True
+        raise AssertionError(f"unexpected prompt: {prompt}")
+
+    class Result:
+        returncode = 0
+
+    monkeypatch.setattr(cli, "ask_yes_no", fake_ask_yes_no)
+    monkeypatch.setattr(cli, "repomap_dependency_available", lambda: next(availability))
+    monkeypatch.setattr(cli, "install_repomap_dependency", lambda: Result())
+    monkeypatch.setattr(cli, "write_json", lambda path, payload: writes.append((path, payload)))
+
+    assert cli.cmd_install(_install_args(tmp_path, yes=False, manual=True)) == 0
+    config_payload = next(payload for path, payload in writes if path.name == "config.json")
+    assert config_payload["repomap"] == {"requested": True, "provider": "tree_sitter", "available": True}
+    assert ("Enable RepoMap support using Tree-sitter?", False) in prompts
+    assert ("RepoMap needs the optional Tree-sitter dependency. Install it now?", True) in prompts
 
 
 def test_install_yes_without_with_repomap_keeps_safe_default(tmp_path: Path, monkeypatch):

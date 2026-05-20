@@ -13,7 +13,7 @@ AICTX is built around one loop:
 resume before work -> work normally -> finalize evidence -> next session continues
 ```
 
-## 1. Install and initialize
+## 1. Install and Initialize
 
 ```bash
 pip install aictx
@@ -28,37 +28,57 @@ aictx --version
 aictx doctor --repo . --json
 ```
 
-## 2. See what the next agent receives
+A fresh repo may have little continuity. That is expected. AICTX becomes more useful after work has been finalized and Work State, failures, decisions, or handoffs exist.
+
+### Interactive install
+Installation will only ask you about enabling recommended RepoMap support using Tree-sitter.
+
+RepoMap uses Tree-sitter to build a compact structural map of files and symbols. It helps agents choose better starting points without reading the whole repo.
+
+### Interactive init
+During initialization, you can choose from different communication modes. `disabled` is the default.
 
 ```bash
-aictx resume --repo . --task "continue current work" --json
+Communication modes:
+- disabled: No special communication layer; agents answer normally.
+- caveman_lite: Light compact mode; keeps explanations but reduces chatter.
+- caveman_full: Strong compact mode; recommended if you want less runtime noise.
+- caveman_ultra: Aggressive compression; shortest responses, least prose.
 ```
 
-Inspect JSON:
+Need more setup detail? See [Installation](INSTALLATION.md).
 
+## 2. Normal flow example
+
+- Session starts
+- The user asks for a task
+- AICTX provides the agent with a continuity resume capsule
 ```bash
-aictx resume --repo . --task "continue current work" --json | python3 -m json.tool
+codex@my-repo · session #12 · awake
+
+Resuming: parser refactor was paused after updating token tests.
+Last progress: `tests/test_parser.py` passes; next step is to update error recovery cases.
+
+────────────────────────────────
 ```
-
-A fresh repo may have little continuity. That is expected. AICTX becomes more useful after work has been finalized and Work State, failures, decisions or handoffs exist.
-
-## 3. Create visible Work State
-
+- Agent performs the task
+- AICTX updates continuity artifacts
+- Agent provides the user with a continuity summary
 ```bash
-aictx task start "Fix login token refresh" --json
-aictx task update --json --json-patch '{"next_action":"inspect auth interceptor ordering","active_files":["src/api/client.ts"],"recommended_commands":["pytest -q tests/test_auth.py"]}'
-aictx resume --repo . --task "continue token refresh work" --json
+────────────────────────────────
+AICTX summary
+
+Context: resumed parser refactor from previous session state.
+Map: RepoMap quick ok.
+Saved: updated handoff and continuity state.
+Validation: `pytest -q tests/test_parser.py` passed.
+Next: update parser error recovery cases.
+Details: last_execution_summary.md
+Continuity view file: continuity-map.mmd
+View continuity online: mermaid.live view
 ```
 
-## 4. Finalize evidence
-
-```bash
-aictx finalize --repo . --status success --summary "targeted auth test passed" --json
-```
-
-Finalize is what turns one session's work into factual continuity for the next session.
-
-## 5. Inspect Continuity View
+## 3. Inspect Continuity View Manually
 
 ```bash
 aictx view --repo .
@@ -72,15 +92,3 @@ Default output:
 ```
 
 Not hidden memory. Reviewable operational continuity.
-
-## 6. Optional RepoMap
-
-```bash
-pip install "aictx[repomap]"
-aictx install --with-repomap
-aictx init
-aictx map status
-aictx map query "auth interceptor"
-```
-
-RepoMap is optional. Core continuity works without it.

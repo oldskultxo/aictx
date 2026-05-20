@@ -69,9 +69,11 @@ RepoMap remains optional. If it is disabled, unavailable, stale, or unindexed, A
 
 ```bash
 pip install "aictx[repomap]"
-aictx install --with-repomap
+aictx install
 aictx init
 ```
+
+Interactive `aictx install` recommends RepoMap/Tree-sitter by default. For non-interactive setup, use `aictx install --yes --with-repomap`.
 
 Check status:
 

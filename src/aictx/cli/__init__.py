@@ -82,6 +82,13 @@ COMMUNICATION_MODE_OPTIONS = [
     ("caveman_ultra", "caveman_ultra"),
 ]
 
+COMMUNICATION_MODE_DESCRIPTIONS = {
+    "disabled": "No special communication layer; agents answer normally.",
+    "caveman_lite": "Light compact mode; keeps explanations but reduces chatter.",
+    "caveman_full": "Strong compact mode; recommended if you want less runtime noise.",
+    "caveman_ultra": "Aggressive compression; shortest responses, least prose.",
+}
+
 ASCII_BANNER = "\n".join(
     [
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
@@ -138,7 +145,7 @@ def ask_choice(prompt: str, options: list[tuple[str, str]], default: str) -> str
         print("Invalid selection. Enter the option number.")
 
 
-def resolve_init_portable_continuity(args: argparse.Namespace, repo: Path) -> bool:
+def resolve_init_portable_continuity(args: argparse.Namespace, repo: Path, prompt: bool = True) -> bool:
     if getattr(args, "portable_continuity", False):
         return True
     if getattr(args, "no_portable_continuity", False):
@@ -150,7 +157,7 @@ def resolve_init_portable_continuity(args: argparse.Namespace, repo: Path) -> bo
         existing = detect_portable_continuity_from_gitignore(repo)
 
     default = bool(existing) if existing is not None else False
-    if getattr(args, "yes", False):
+    if getattr(args, "yes", False) or not prompt:
         return default
     if not sys.stdin.isatty():
         return default
@@ -1014,6 +1021,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     install_codex_global = bool(getattr(args, "install_codex_global", False))
     with_repomap = bool(getattr(args, "with_repomap", False))
     dry_run = bool(getattr(args, "dry_run", False))
+    manual = bool(getattr(args, "manual", False))
 
     if not args.yes:
         print("aictx install")
@@ -1026,17 +1034,23 @@ def cmd_install(args: argparse.Namespace) -> int:
         if install_codex_global:
             print("- WARNING: update global Codex files under ~/.codex because --install-codex-global was passed")
         print()
-        workspace_id = ask_text("Default workspace name", workspace_id)
-        if not workspace_root and ask_yes_no("Add a workspace root now?", True):
-            workspace_root = ask_text("Workspace root", str(Path("~/projects").expanduser()))
-        with_repomap = ask_yes_no("Enable RepoMap support using Tree-sitter?", False)
+        if manual:
+            workspace_id = ask_text("Default workspace name", workspace_id)
+            if not workspace_root and ask_yes_no("Add a workspace root now?", True):
+                workspace_root = ask_text("Workspace root", str(Path("~/projects").expanduser()))
+            with_repomap = ask_yes_no("Enable RepoMap support using Tree-sitter?", False)
+        else:
+            print("RepoMap uses Tree-sitter to build a compact structural map of files and symbols.")
+            print("Recommended: it helps agents choose better starting points without reading the whole repo.")
+            print()
+            with_repomap = ask_yes_no("Enable recommended RepoMap support using Tree-sitter?", True)
 
     if dry_run:
         planned = [
             ENGINE_HOME,
             CONFIG_PATH,
             PROJECTS_REGISTRY_PATH,
-                    workspace_path(workspace_id),
+            workspace_path(workspace_id),
         ]
         if install_codex_global:
             planned.extend([
@@ -1069,6 +1083,8 @@ def cmd_install(args: argparse.Namespace) -> int:
         if not repomap_available:
             should_install_repomap = False
             if args.yes and with_repomap:
+                should_install_repomap = True
+            elif not args.yes and not manual:
                 should_install_repomap = True
             elif not args.yes:
                 should_install_repomap = ask_yes_no("RepoMap needs the optional Tree-sitter dependency. Install it now?", True)
@@ -1147,8 +1163,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     selected_communication_mode = "disabled"
     portable_continuity = False
 
-    if args.yes:
-        portable_continuity = resolve_init_portable_continuity(args, repo)
+    manual = bool(getattr(args, "manual", False))
+    if args.yes or not manual:
+        portable_continuity = resolve_init_portable_continuity(args, repo, prompt=False)
 
     if not args.yes:
         print("aictx init")
@@ -1162,18 +1179,27 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("- register this repo in the active workspace")
         print("- add safe .gitignore entries")
         print()
-        update_gitignore = ask_yes_no("Write .gitignore entries if missing?", update_gitignore)
-        register_repo = ask_yes_no("Register this repo in the active workspace?", register_repo)
-        portable_continuity = resolve_init_portable_continuity(args, repo)
+        if manual:
+            update_gitignore = ask_yes_no("Write .gitignore entries if missing?", update_gitignore)
+            register_repo = ask_yes_no("Register this repo in the active workspace?", register_repo)
+            portable_continuity = resolve_init_portable_continuity(args, repo)
+        else:
+            print("Using defaults for .gitignore, workspace registration, portable continuity and scaffold creation.")
+            print()
+        print("Communication modes:")
+        for value, _label in COMMUNICATION_MODE_OPTIONS:
+            print(f"- {value}: {COMMUNICATION_MODE_DESCRIPTIONS[value]}")
+        print()
         selected_communication_mode = ask_choice(
             "Select default communication mode for this repo:",
             COMMUNICATION_MODE_OPTIONS,
             default="disabled",
         )
-        proceed = ask_yes_no("Initialize full starter scaffold now?", True)
-        if not proceed:
-            print("Cancelled.")
-            return 1
+        if manual:
+            proceed = ask_yes_no("Initialize full starter scaffold now?", True)
+            if not proceed:
+                print("Cancelled.")
+                return 1
 
     ensure_global_home()
     global_config = read_json(CONFIG_PATH, default_global_config())
@@ -1291,11 +1317,13 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--with-repomap", action="store_true", help="Request optional RepoMap support using Tree-sitter")
     install.add_argument("--dry-run", action="store_true", help="Show planned install writes without mutating files")
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
+    install.add_argument("--manual", action="store_true", help="Use the full advanced interactive setup prompts")
     install.set_defaults(func=cmd_install)
 
     init = sub.add_parser("init", help="Initialize repo-local .aictx scaffold")
     init.add_argument("--repo", default=".", help="Repository path")
     init.add_argument("--yes", action="store_true", help="Accept defaults without prompting")
+    init.add_argument("--manual", action="store_true", help="Use the full advanced interactive setup prompts")
     init.add_argument("--no-gitignore", action="store_true", help="Do not modify .gitignore")
     portable_group = init.add_mutually_exclusive_group()
     portable_group.add_argument("--portable-continuity", action="store_true", help="Enable git-portable AICTX continuity artifacts")

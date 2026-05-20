@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.6.0 - 2026-05-20
+
+### Added
+- Added `--manual` to `aictx install` and `aictx init` for the full advanced interactive setup flow.
+
+### Changed
+- Simplified default interactive `aictx install` to ask only about recommended RepoMap/Tree-sitter support.
+- Simplified default interactive `aictx init` to assume setup defaults and ask only for repo communication mode.
+- Updated installation, quickstart, usage, RepoMap, and homepage documentation for the simplified setup flow.
+
 ## 6.5.1 - 2026-05-18
 
 ### Changed
