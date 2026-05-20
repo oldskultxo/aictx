@@ -421,6 +421,6 @@ aictx uninstall
 
 ## MCP support
 
-`aictx install` prepares local stdio MCP support by default with profile `full`. Use `aictx install --no-mcp` to opt out, or `aictx install --mcp-profile readonly|standard|full` to choose a profile.
+`aictx install` prepares AICTX global MCP runtime metadata by default with profile `full`. Use `aictx install --no-mcp` to opt out, or `aictx install --mcp-profile readonly|standard|full` to choose a profile.
 
 `aictx init` writes repo-local AICTX-managed MCP config by default. Use `aictx init --no-mcp` to skip that config.

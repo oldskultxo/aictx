@@ -5,11 +5,15 @@ import json
 import sys
 from typing import Any, BinaryIO
 
+from .._version import __version__
 from ..integrations.mcp_config import DEFAULT_MCP_PROFILE, normalize_mcp_profile
 from .permissions import allowed_tools
 from .prompts import get_prompt, list_prompts
 from .resources import list_resources, resource_content
 from .tools import call_tool, error, tool_specs
+
+SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
+DEFAULT_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
 
 
 def _read_message(stream: BinaryIO) -> dict[str, Any] | None:
@@ -58,7 +62,9 @@ def handle_request(req: dict[str, Any], *, repo: str, profile: str) -> dict[str,
     if method == "notifications/initialized":
         return None
     if method == "initialize":
-        return _result(req, {"protocolVersion": "2024-11-05", "serverInfo": {"name": "aictx", "version": "1.0"}, "capabilities": {"tools": {}, "resources": {}, "prompts": {}}})
+        requested_protocol = str(params.get("protocolVersion") or "")
+        protocol_version = requested_protocol if requested_protocol in SUPPORTED_PROTOCOL_VERSIONS else DEFAULT_PROTOCOL_VERSION
+        return _result(req, {"protocolVersion": protocol_version, "serverInfo": {"name": "aictx", "version": __version__}, "capabilities": {"tools": {}, "resources": {}, "prompts": {}}})
     if method == "tools/list":
         return _result(req, {"tools": tool_specs(allowed_tools(profile))})
     if method == "tools/call":

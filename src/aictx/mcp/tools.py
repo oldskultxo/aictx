@@ -28,6 +28,37 @@ MAX_LIST_ITEMS = 200
 MAX_PATH_CHARS = 1000
 SECRET_RE = re.compile(r"(?i)(api[_-]?key|token|secret|password)\s*[:=]\s*[^\s,;]+")
 
+
+
+def _schema(properties: dict[str, Any], *, required: list[str] | None = None, additional: bool = False) -> dict[str, Any]:
+    payload: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": additional}
+    if required:
+        payload["required"] = required
+    return payload
+
+
+_TEXT_PROP = {"type": "string"}
+_STRING_LIST_PROP = {"type": "array", "items": {"type": "string"}, "maxItems": MAX_LIST_ITEMS}
+_REPO_PROP = {"repo": _TEXT_PROP}
+_OBSERVED_PROPS = {
+    "files_opened": _STRING_LIST_PROP,
+    "files_edited": _STRING_LIST_PROP,
+    "commands_executed": _STRING_LIST_PROP,
+    "tests_executed": _STRING_LIST_PROP,
+    "notable_errors": _STRING_LIST_PROP,
+}
+TOOL_INPUT_SCHEMAS: dict[str, dict[str, Any]] = {
+    "aictx_resume": _schema({**_REPO_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "mode": {"type": "string", "enum": ["brief", "standard", "full"]}, "agent_id": _TEXT_PROP, "session_id": _TEXT_PROP}),
+    "aictx_finalize": _schema({**_REPO_PROP, "status": {"type": "string", "enum": ["success", "failure"]}, "summary": _TEXT_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "agent_id": _TEXT_PROP, "session_id": _TEXT_PROP, "include_view": {"type": "boolean"}, **_OBSERVED_PROPS}, required=["status", "summary"]),
+    "aictx_task_start": _schema({**_REPO_PROP, "goal": _TEXT_PROP, "task_type": _TEXT_PROP, "hypothesis": _TEXT_PROP, "next_action": _TEXT_PROP, "files": _STRING_LIST_PROP, "risks": _STRING_LIST_PROP}, required=["goal"]),
+    "aictx_task_update": _schema({**_REPO_PROP, "task_id": _TEXT_PROP, "goal": _TEXT_PROP, "status": _TEXT_PROP, "hypothesis": _TEXT_PROP, "next_action": _TEXT_PROP, "files": _STRING_LIST_PROP, "risks": _STRING_LIST_PROP, "verification": _TEXT_PROP}),
+    "aictx_task_close": _schema({**_REPO_PROP, "task_id": _TEXT_PROP, "status": _TEXT_PROP, "summary": _TEXT_PROP, "next_action": _TEXT_PROP}),
+    "aictx_map_query": _schema({**_REPO_PROP, "query": _TEXT_PROP, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, required=["query"]),
+    "aictx_continuity_view_generate": _schema({**_REPO_PROP, "output": _TEXT_PROP}),
+    "aictx_doctor": _schema({**_REPO_PROP, "release_readiness": {"type": "boolean"}}),
+    "aictx_messages_set": _schema({**_REPO_PROP, "mode": {"type": "string", "enum": [MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED]}}, required=["mode"]),
+}
+
 TOOL_DESCRIPTIONS = {
     "aictx_resume": "Build a resume capsule.",
     "aictx_next": "Return next-step guidance.",
@@ -114,7 +145,7 @@ def tool_specs(names: set[str] | None = None) -> list[dict[str, Any]]:
         specs.append({
             "name": name,
             "description": TOOL_DESCRIPTIONS.get(name, name),
-            "inputSchema": {"type": "object", "additionalProperties": True},
+            "inputSchema": TOOL_INPUT_SCHEMAS.get(name, {"type": "object", "additionalProperties": True}),
         })
     return specs
 
@@ -161,7 +192,9 @@ def aictx_continuity_view_generate(args: dict[str, Any]) -> dict[str, Any]:
     out = _text(args.get("output"), "output", max_chars=MAX_PATH_CHARS)
     if out:
         target = (repo / out).resolve() if not Path(out).expanduser().is_absolute() else Path(out).expanduser().resolve()
-        if not str(target).startswith(str(repo)):
+        try:
+            target.relative_to(repo)
+        except ValueError:
             return error("invalid_output", "output must stay inside repo")
     payload = write_continuity_view(repo, output=out or None)
     return ok(changed=True, warnings=[], view=payload.get("view", {}))

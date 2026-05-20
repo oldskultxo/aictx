@@ -1051,7 +1051,7 @@ def cmd_mcp_install(args: argparse.Namespace) -> int:
     print(f"- enabled: {payload['enabled']}")
     print(f"- profile: {payload['profile']}")
     print(f"- transport: {payload['transport']}")
-    print(f"- {'global managed entries' if global_install else 'repo managed entries'}: {'updated' if payload.get('changed') else 'unchanged' if not dry_run else 'planned'}")
+    print(f"- {'global AICTX MCP metadata' if global_install else 'repo managed entries'}: {'updated' if payload.get('changed') else 'unchanged' if not dry_run else 'planned'}")
     print("- reversible with: aictx uninstall" if global_install else "- reversible with: aictx clean")
     for warning in payload.get('warnings', []):
         print(f"- warning: {warning}")
@@ -1077,7 +1077,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         print("- install engine runtime artifacts")
         print("- prepare repos to work after a single `aictx init`")
         if mcp_enabled:
-            print(f"- prepare local MCP support (stdio, profile {mcp_profile})")
+            print(f"- prepare AICTX global MCP runtime metadata (stdio, profile {mcp_profile})")
         if install_codex_global:
             print("- WARNING: update global Codex files under ~/.codex because --install-codex-global was passed")
         print()
@@ -1114,7 +1114,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         if with_repomap:
             print("Would request RepoMap support and check/install the optional Tree-sitter dependency if needed.")
         if mcp_enabled:
-            print(f"Would prepare AICTX MCP support: profile={mcp_profile}, transport=stdio.")
+            print(f"Would prepare AICTX global MCP runtime metadata: profile={mcp_profile}, transport=stdio.")
         return 0
 
     ensure_global_home()
@@ -1200,7 +1200,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     print(f"- enabled: {mcp_enabled}")
     print(f"- profile: {mcp_profile}")
     print("- transport: stdio")
-    print(f"- global managed entries: {'updated' if mcp_global_payload.get('changed') else 'unchanged'}")
+    print(f"- global AICTX MCP metadata: {'updated' if mcp_global_payload.get('changed') else 'unchanged'}")
     print("- reversible with: aictx uninstall")
     print("Install complete. Next: run `aictx init` inside a repository.")
     return 0
@@ -1422,7 +1422,7 @@ def build_parser() -> argparse.ArgumentParser:
     mcp_install_cmd = mcp_sub.add_parser("install", help="Install MCP config")
     mcp_install_cmd.add_argument("--repo", default=".", help="Repository root")
     mcp_install_cmd.add_argument("--profile", choices=["readonly", "standard", "full"], default=DEFAULT_MCP_PROFILE, help="MCP profile")
-    mcp_install_cmd.add_argument("--global", dest="global_install", action="store_true", help="Prepare global MCP support")
+    mcp_install_cmd.add_argument("--global", dest="global_install", action="store_true", help="Prepare AICTX global MCP runtime metadata")
     mcp_install_cmd.add_argument("--dry-run", action="store_true", help="Show planned MCP writes")
     mcp_install_cmd.add_argument("--json", action="store_true", help="Print structured install JSON")
     mcp_install_cmd.set_defaults(func=cmd_mcp_install)

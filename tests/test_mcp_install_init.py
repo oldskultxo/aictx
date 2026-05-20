@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from aictx.integrations.mcp_config import install_global_mcp_config, install_repo_mcp_config, mcp_status
+from aictx.integrations.mcp_config import install_global_mcp_config, install_repo_mcp_config, mcp_status, remove_repo_mcp_config
 from aictx.scaffold import init_repo_scaffold
 import aictx.state as state_module
 
@@ -16,7 +16,11 @@ def test_repo_mcp_config_default_and_idempotent(tmp_path: Path):
     assert first["changed"] is True
     assert second["changed"] is False
     payload = json.loads((repo / ".mcp.json").read_text(encoding="utf-8"))
+    vscode = json.loads((repo / ".vscode" / "mcp.json").read_text(encoding="utf-8"))
     assert payload["mcpServers"]["aictx"]["args"] == ["mcp-server", "--repo", ".", "--profile", "full"]
+    assert "servers" not in payload
+    assert vscode["servers"]["aictx"]["args"] == ["mcp-server", "--repo", ".", "--profile", "full"]
+    assert "mcpServers" not in vscode
 
 
 def test_global_mcp_config_uses_managed_status(tmp_path: Path, monkeypatch):
@@ -27,3 +31,20 @@ def test_global_mcp_config_uses_managed_status(tmp_path: Path, monkeypatch):
     assert payload["enabled"] is True
     assert (engine / "mcp" / "status.json").exists()
     assert mcp_status(tmp_path)["global"]["profile"] == "readonly"
+
+
+def test_repo_mcp_cleanup_handles_both_container_shapes_and_preserves_user_servers(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    (repo / ".mcp.json").write_text(json.dumps({"mcpServers": {"aictx": {"command": "aictx", "_aictx_managed": True}, "other": {"command": "other"}}}), encoding="utf-8")
+    (repo / ".vscode").mkdir()
+    (repo / ".vscode" / "mcp.json").write_text(json.dumps({"servers": {"aictx": {"command": "aictx", "_aictx_managed": True}, "copilot-user": {"command": "user"}}}), encoding="utf-8")
+
+    result = remove_repo_mcp_config(repo)
+
+    assert str(repo / ".mcp.json") in result["updated"]
+    assert str(repo / ".vscode" / "mcp.json") in result["updated"]
+    root_payload = json.loads((repo / ".mcp.json").read_text(encoding="utf-8"))
+    vscode_payload = json.loads((repo / ".vscode" / "mcp.json").read_text(encoding="utf-8"))
+    assert root_payload == {"mcpServers": {"other": {"command": "other"}}}
+    assert vscode_payload == {"servers": {"copilot-user": {"command": "user"}}}

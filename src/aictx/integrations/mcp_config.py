@@ -11,14 +11,26 @@ MCP_PROFILES = {"readonly", "standard", "full"}
 DEFAULT_MCP_PROFILE = "full"
 MCP_SERVER_NAME = "aictx"
 MCP_MANAGED = "aictx-managed"
+
+
 def global_mcp_status_path() -> Path:
     return state_module.ENGINE_HOME / "mcp" / "status.json"
 
 def global_config_path() -> Path:
     return state_module.CONFIG_PATH
 
+
 REPO_MCP_PATH = Path(".mcp.json")
 VSCODE_MCP_PATH = Path(".vscode") / "mcp.json"
+
+
+def server_container_key_for_path(path: Path) -> str:
+    candidate = Path(path)
+    return "servers" if candidate.name == VSCODE_MCP_PATH.name and candidate.parent.name == VSCODE_MCP_PATH.parent.name else "mcpServers"
+
+
+def _other_server_container_key(key: str) -> str:
+    return "servers" if key == "mcpServers" else "mcpServers"
 
 
 def normalize_mcp_profile(profile: str | None) -> str:
@@ -48,15 +60,28 @@ def _upsert_json_server(path: Path, profile: str, *, dry_run: bool = False) -> t
         except json.JSONDecodeError:
             return False, "invalid_json_skipped"
     updated = dict(existing)
-    servers = updated.get("mcpServers")
+    container_key = server_container_key_for_path(path)
+    alternate_key = _other_server_container_key(container_key)
+    servers = updated.get(container_key)
     if not isinstance(servers, dict):
         servers = {}
     before = json.dumps(updated, sort_keys=True, ensure_ascii=False)
     current = servers.get(MCP_SERVER_NAME)
     if isinstance(current, dict) and current and not bool(current.get("_aictx_managed", False)):
         return False, "user_server_preserved"
+    alternate_servers = updated.get(alternate_key)
+    if isinstance(alternate_servers, dict):
+        alternate_current = alternate_servers.get(MCP_SERVER_NAME)
+        if isinstance(alternate_current, dict) and bool(alternate_current.get("_aictx_managed", False)):
+            alternate_servers = dict(alternate_servers)
+            alternate_servers.pop(MCP_SERVER_NAME, None)
+            if alternate_servers:
+                updated[alternate_key] = alternate_servers
+            else:
+                updated.pop(alternate_key, None)
+    servers = dict(servers)
     servers[MCP_SERVER_NAME] = mcp_server_entry(profile)
-    updated["mcpServers"] = servers
+    updated[container_key] = servers
     updated["_aictx"] = {"managed": True, "kind": MCP_MANAGED}
     after = json.dumps(updated, sort_keys=True, ensure_ascii=False)
     changed = before != after
@@ -138,17 +163,20 @@ def _remove_json_server(path: Path) -> tuple[bool, bool]:
         return False, False
     if not isinstance(payload, dict):
         return False, False
-    servers = payload.get("mcpServers")
     changed = False
-    if isinstance(servers, dict):
+    for key in ("mcpServers", "servers"):
+        servers = payload.get(key)
+        if not isinstance(servers, dict):
+            continue
+        servers = dict(servers)
         current = servers.get(MCP_SERVER_NAME)
         if isinstance(current, dict) and bool(current.get("_aictx_managed", False)):
             servers.pop(MCP_SERVER_NAME, None)
             changed = True
         if servers:
-            payload["mcpServers"] = servers
+            payload[key] = servers
         else:
-            payload.pop("mcpServers", None)
+            payload.pop(key, None)
     if isinstance(payload.get("_aictx"), dict) and payload.get("_aictx", {}).get("kind") == MCP_MANAGED:
         payload.pop("_aictx", None)
         changed = True

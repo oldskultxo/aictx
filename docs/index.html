@@ -6,11 +6,11 @@
   <title>AICTX - Operational continuity for AI coding agents</title>
   <meta
     name="description"
-    content="AICTX is the official operational continuity layer for AI coding agents. It helps Codex, Claude, GitHub Copilot and other agents continue work across sessions from repo-local execution state, handoffs, failures, decisions and validation evidence."
+    content="AICTX is the official repo-local operational continuity layer for AI coding agents, with CLI support, a local MCP server, Claude/Codex plugin artifacts, Work State, handoffs, failures, decisions and validation evidence."
   >
   <meta
     name="keywords"
-    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View"
+    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, MCP, Model Context Protocol, local MCP server, Claude Code plugin, Codex plugin, agent plugins"
   >
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="author" content="Santi Santamaria">
@@ -22,7 +22,7 @@
   <meta property="og:title" content="AICTX - Operational continuity for AI coding agents">
   <meta
     property="og:description"
-    content="The next coding-agent session starts from what actually happened, not from zero. Repo-local operational continuity for Codex, Claude, GitHub Copilot and generic agents."
+    content="The next coding-agent session starts from what actually happened, not from zero. Repo-local operational continuity for agents, exposed through CLI, local MCP tools/resources/prompts, and Claude/Codex plugin artifacts."
   >
   <meta property="og:url" content="https://aictx.org/">
   <meta property="og:type" content="website">
@@ -34,7 +34,7 @@
   <meta name="twitter:title" content="AICTX - Operational continuity for AI coding agents">
   <meta
     name="twitter:description"
-    content="AICTX helps new coding-agent sessions continue from the last useful execution state: active work, failures, decisions, validation evidence and next actions."
+    content="AICTX helps coding-agent sessions continue from repo-local execution state, now exposed through CLI, local MCP tools, and Claude/Codex plugin artifacts."
   >
   <meta name="twitter:image" content="https://aictx.org/images/aictx-logo.png">
 
@@ -48,7 +48,7 @@
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
     "programmingLanguage": "Python",
-    "description": "AICTX is an operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions.",
+    "description": "AICTX is a CLI and local MCP operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions.",
     "creator": {
       "@type": "Person",
       "name": "Santi Santamaria",
@@ -77,7 +77,13 @@
       "execution contracts",
       "Codex",
       "Claude",
-      "GitHub Copilot"
+      "GitHub Copilot",
+      "MCP",
+      "Model Context Protocol",
+      "local MCP server",
+      "Claude Code plugin",
+      "Codex plugin",
+      "agent plugins"
     ],
     "sameAs": [
       "https://github.com/oldskultxo/aictx",
@@ -780,9 +786,6 @@ It finalizes factual evidence for the next session.</code></pre>
 
       <section class="section" id="docs">
         <h2>Browse the documentation</h2>
-        <p class="muted">
-          The home page is the social entry point, but every major GitHub Pages document should also be reachable from here.
-        </p>
 
         <div class="docs-grid">
           <div class="card docs-card">

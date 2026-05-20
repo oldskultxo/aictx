@@ -17,7 +17,7 @@ The next agent does not start from zero. It resumes from what actually happened.
 **PyPI package:** https://pypi.org/project/aictx/  
 **CLI:** `aictx`
 
-It is a repo-local CLI/runtime layer for agent continuity. It stores inspectable artifacts under `.aictx/` and exposes one agent-facing resume command plus one finalize command.
+It is a repo-local CLI/runtime layer for agent continuity. It stores inspectable artifacts under `.aictx/` and exposes continuity through CLI commands, local MCP tools/resources/prompts, and generated agent instructions.
 
 AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
@@ -79,7 +79,7 @@ Compatible agents can launch:
 aictx mcp-server --repo . --profile full
 ```
 
-The default `aictx install` / `aictx init` flow prepares MCP support through AICTX-managed, reversible configuration. Agents should prefer MCP tools when available and fall back to CLI commands otherwise.
+The default `aictx install` / `aictx init` flow prepares AICTX MCP runtime metadata and repo-local MCP config through AICTX-managed, reversible setup. Agents should prefer MCP tools when available and fall back to CLI commands otherwise.
 
 See [MCP](docs/MCP.md).
 
@@ -175,10 +175,10 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 
 AICTX is runner-aware, not runner-locked.
 
-- **Codex-first:** `AGENTS.md`, optional global Codex setup, CLI/runtime JSON contract.
-- **Claude-aware:** `CLAUDE.md`, `.claude/settings.json`, `.claude/hooks/aictx_*.py`.
-- **GitHub Copilot:** best-effort instruction hardening through `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, and optional prompt files created by `aictx init`.
-- **Generic fallback:** any agent that can read repo instructions, run CLI commands, and consume JSON/Markdown.
+- **Codex-first:** `AGENTS.md`, optional global Codex setup, CLI/runtime JSON contract, MCP support, and Codex plugin artifacts.
+- **Claude-aware:** `CLAUDE.md`, `.claude/settings.json`, hooks, MCP support, and Claude Code plugin artifacts.
+- **GitHub Copilot:** best-effort instruction hardening through `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, optional prompt files, and VS Code MCP config when supported.
+- **Generic fallback:** any agent that can read repo instructions, run CLI commands, consume JSON/Markdown, or connect to a local MCP server.
 
 ---
 

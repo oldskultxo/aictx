@@ -30,8 +30,33 @@ aictx doctor --repo . --json
 
 A fresh repo may have little continuity. That is expected. AICTX becomes more useful after work has been finalized and Work State, failures, decisions, or handoffs exist.
 
+### MCP support
+
+By default, `aictx install` prepares AICTX MCP runtime metadata and `aictx init` writes repo-local MCP config for compatible clients.
+
+Compatible agents can launch the local stdio server with:
+
+```bash
+aictx mcp-server --repo . --profile full
+```
+
+Inspect MCP setup with:
+
+```bash
+aictx mcp status --repo .
+```
+
+Opt out with:
+
+```bash
+aictx install --no-mcp
+aictx init --no-mcp
+```
+
+Agents should prefer MCP tools such as `aictx_resume`, `aictx_finalize`, and `aictx_view` when available, and fall back to CLI commands otherwise.
+
 ### Interactive install
-Installation will only ask you about enabling recommended RepoMap support using Tree-sitter.
+Installation prepares AICTX MCP support by default and will only ask you about enabling recommended RepoMap support using Tree-sitter.
 
 RepoMap uses Tree-sitter to build a compact structural map of files and symbols. It helps agents choose better starting points without reading the whole repo.
 
