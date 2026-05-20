@@ -16,11 +16,12 @@ SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 DEFAULT_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
 
 
-def _read_message(stream: BinaryIO) -> dict[str, Any] | None:
+def _read_message(stream: BinaryIO) -> tuple[dict[str, Any] | None, bool]:
     first = stream.readline()
     if not first:
-        return None
-    if first.lower().startswith(b"content-length:"):
+        return None, False
+    framed = first.lower().startswith(b"content-length:")
+    if framed:
         length = int(first.split(b":", 1)[1].strip())
         while True:
             line = stream.readline()
@@ -32,8 +33,8 @@ def _read_message(stream: BinaryIO) -> dict[str, Any] | None:
     else:
         raw = first
     if not raw.strip():
-        return None
-    return json.loads(raw.decode("utf-8"))
+        return None, framed
+    return json.loads(raw.decode("utf-8")), framed
 
 
 def _write_message(stream: BinaryIO, payload: dict[str, Any], *, headers: bool = False) -> None:
@@ -56,7 +57,7 @@ def _error_response(req: dict[str, Any], code: int, message: str, data: Any = No
     return {"jsonrpc": "2.0", "id": req.get("id"), "error": err}
 
 
-def handle_request(req: dict[str, Any], *, repo: str, profile: str) -> dict[str, Any] | None:
+def handle_request(req: dict[str, Any], *, repo: str, profile: str, agent_id: str = "", adapter_id: str = "") -> dict[str, Any] | None:
     method = str(req.get("method") or "")
     params = req.get("params") if isinstance(req.get("params"), dict) else {}
     if method == "notifications/initialized":
@@ -71,6 +72,10 @@ def handle_request(req: dict[str, Any], *, repo: str, profile: str) -> dict[str,
         name = str(params.get("name") or "")
         args = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
         args.setdefault("repo", repo)
+        if agent_id:
+            args.setdefault("agent_id", agent_id)
+        if adapter_id:
+            args.setdefault("adapter_id", adapter_id)
         known = {tool["name"] for tool in tool_specs()}
         if name not in known:
             payload = call_tool(name, args)
@@ -96,27 +101,30 @@ def handle_request(req: dict[str, Any], *, repo: str, profile: str) -> dict[str,
     return _error_response(req, -32601, f"Method not found: {method}")
 
 
-def serve_stdio(*, repo: str = ".", profile: str = DEFAULT_MCP_PROFILE) -> int:
+def serve_stdio(*, repo: str = ".", profile: str = DEFAULT_MCP_PROFILE, agent_id: str = "", adapter_id: str = "") -> int:
     profile = normalize_mcp_profile(profile)
     while True:
+        framed = True
         try:
-            req = _read_message(sys.stdin.buffer)
+            req, framed = _read_message(sys.stdin.buffer)
         except Exception as exc:
-            _write_message(sys.stdout.buffer, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": str(exc)}})
+            _write_message(sys.stdout.buffer, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": str(exc)}}, headers=True)
             continue
         if req is None:
             return 0
         if not isinstance(req, dict):
-            _write_message(sys.stdout.buffer, {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}})
+            _write_message(sys.stdout.buffer, {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}, headers=framed)
             continue
-        response = handle_request(req, repo=repo, profile=profile)
+        response = handle_request(req, repo=repo, profile=profile, agent_id=agent_id, adapter_id=adapter_id)
         if response is not None and "id" in req:
-            _write_message(sys.stdout.buffer, response)
+            _write_message(sys.stdout.buffer, response, headers=framed)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aictx mcp-server")
     parser.add_argument("--repo", default=".")
     parser.add_argument("--profile", choices=["readonly", "standard", "full"], default=DEFAULT_MCP_PROFILE)
+    parser.add_argument("--agent-id", default="")
+    parser.add_argument("--adapter-id", default="")
     args = parser.parse_args(argv)
-    return serve_stdio(repo=args.repo, profile=args.profile)
+    return serve_stdio(repo=args.repo, profile=args.profile, agent_id=args.agent_id, adapter_id=args.adapter_id)

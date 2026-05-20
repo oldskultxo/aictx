@@ -1019,7 +1019,12 @@ def _init_repomap_from_global(repo: Path, global_config: dict[str, Any]) -> tupl
 def cmd_mcp_server(args: argparse.Namespace) -> int:
     from ..mcp.server import serve_stdio
 
-    return serve_stdio(repo=str(getattr(args, "repo", ".") or "."), profile=str(getattr(args, "profile", DEFAULT_MCP_PROFILE) or DEFAULT_MCP_PROFILE))
+    return serve_stdio(
+        repo=str(getattr(args, "repo", ".") or "."),
+        profile=str(getattr(args, "profile", DEFAULT_MCP_PROFILE) or DEFAULT_MCP_PROFILE),
+        agent_id=str(getattr(args, "agent_id", "") or ""),
+        adapter_id=str(getattr(args, "adapter_id", "") or ""),
+    )
 
 
 def cmd_mcp_status(args: argparse.Namespace) -> int:
@@ -1411,6 +1416,8 @@ def build_parser() -> argparse.ArgumentParser:
     mcp_server = sub.add_parser("mcp-server", help=argparse.SUPPRESS)
     mcp_server.add_argument("--repo", default=".", help="Repository root")
     mcp_server.add_argument("--profile", choices=["readonly", "standard", "full"], default=DEFAULT_MCP_PROFILE, help="MCP profile")
+    mcp_server.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
+    mcp_server.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
     mcp_server.set_defaults(func=cmd_mcp_server)
 
     mcp = sub.add_parser("mcp", help="Manage AICTX MCP support")

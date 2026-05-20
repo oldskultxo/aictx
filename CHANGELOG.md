@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 6.7.0 - 2026-05-20
 
 ### Added
 - Added local AICTX MCP server exposing repo-local continuity as tools, resources and prompts.

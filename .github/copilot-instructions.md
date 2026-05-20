@@ -5,6 +5,7 @@ These are repository custom instructions for GitHub Copilot. AICTX cannot force 
 
 Critical lifecycle:
 - Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
+- MCP-first startup: if AICTX MCP tools are already visible, use those tools for resume/finalize. If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session. If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
 - For non-trivial repository tasks, first run exactly once: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the returned resume capsule as the operational brief before broad repo scanning.
 - Before the final response, run exactly once: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.

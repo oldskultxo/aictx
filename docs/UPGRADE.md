@@ -5,11 +5,41 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 # Upgrade guide
 
-## Current line: 6.6.x
+## Current line: 6.7.x
 
-Current documented runtime: `6.6.0`.
+Current documented runtime: `6.7.0`.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
+
+```bash
+aictx install
+aictx init
+```
+
+---
+## 6.7.0
+
+`6.7.0` adds local AICTX MCP support and plugin distribution artifacts so agents can use repo-local continuity through MCP-first workflows.
+
+Added:
+- Local AICTX MCP server exposing repo-local continuity as tools, resources, and prompts.
+- MCP profiles for `readonly`, `standard`, and `full` usage.
+- Default MCP preparation during `aictx install` and repo-local MCP configuration during `aictx init`.
+- Safe cleanup/uninstall support for AICTX-managed MCP configuration.
+- Claude Code and Codex plugin distribution artifacts for AICTX.
+- Shared generated agent guidance for MCP-first, CLI-fallback AICTX usage.
+- Plugin marketplace manifests for Claude Code and Codex.
+
+Changed:
+- Agent integration guidance now tells agents to prefer AICTX MCP tools when available and fall back to CLI commands otherwise.
+
+Security:
+- The MCP server is local-first and does not expose arbitrary shell, generic filesystem access, git push, or cloud sync capabilities.
+
+Upgrade notes:
+- No data migration is required.
+- Existing `.aictx/` continuity data remains compatible.
+- Re-run setup to generate or refresh AICTX-managed MCP configuration and plugin/agent guidance from the current package:
 
 ```bash
 aictx install

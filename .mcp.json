@@ -1,0 +1,22 @@
+{
+  "_aictx": {
+    "block": "<AICTX>",
+    "kind": "aictx-managed",
+    "managed": true
+  },
+  "mcpServers": {
+    "aictx": {
+      "_aictx_block": "<AICTX>",
+      "_aictx_managed": true,
+      "args": [
+        "mcp-server",
+        "--repo",
+        ".",
+        "--profile",
+        "full"
+      ],
+      "command": "aictx",
+      "transport": "stdio"
+    }
+  }
+}

@@ -79,7 +79,7 @@ Compatible agents can launch:
 aictx mcp-server --repo . --profile full
 ```
 
-The default `aictx install` / `aictx init` flow prepares AICTX MCP runtime metadata and repo-local MCP config through AICTX-managed, reversible setup. Agents should prefer MCP tools when available and fall back to CLI commands otherwise.
+The default `aictx install` / `aictx init` flow prepares AICTX MCP runtime metadata and repo-local MCP config through AICTX-managed, reversible setup. Sensitive client config is written as a managed `<AICTX>` block where the format supports comments, and as AICTX-managed JSON metadata in `.mcp.json` / `.vscode/mcp.json`. `aictx clean` / `aictx uninstall` remove only those managed entries and preserve user-authored MCP servers. Agents should prefer MCP tools when available and fall back to CLI commands otherwise.
 
 See [MCP](docs/MCP.md).
 
@@ -235,4 +235,3 @@ AICTX improves continuity only when agents or integrations cooperate with the ru
 AICTX does not claim measured productivity gains, guaranteed speedups, or automatic correctness.
 
 It makes operational continuity visible, inspectable, and reusable.
-

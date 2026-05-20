@@ -14,11 +14,15 @@ This repository is initialized for `aictx`.
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
 - The AICTX lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
+- MCP-first startup:
+  1. If AICTX MCP tools are already visible, use MCP tools for resume/finalize.
+  2. If AICTX MCP tools are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session.
+  3. If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
 - At session start:
   1. Extract the task goal from the user prompt.
-  2. Run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
+  2. Run exactly one AICTX continuity command: MCP resume when available, otherwise `aictx resume --repo . --task "<task goal>" --json`.
   3. Do not pass the full user prompt to resume; exclude reporting instructions, metrics schemas, output format rules, final answer format, benchmark/evaluation harness text, logging instructions, and meta-instructions about how to report the work.
-- After task work, run exactly one AICTX finalization command: `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
+- After task work, run exactly one AICTX finalization command: MCP finalize when available, otherwise `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
 - Use the returned continuity capsule as the operational brief during normal agent startup; follow `execution_contract.first_action` before repo-wide orientation, edit within `execution_contract.edit_scope`, run `execution_contract.test_command.command`, then finalize.
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `aictx finalize`, the startup banner, the final AICTX summary, or persistence.

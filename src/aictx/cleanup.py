@@ -9,6 +9,8 @@ from .agent_runtime import AGENTS_END, AGENTS_START
 from .portability import remove_unmanaged_aictx_gitignore_lines, strip_aictx_gitattributes_block, strip_aictx_gitignore_block
 from .runner_integrations import (
     AICTX_END,
+    AICTX_CONFIG_END,
+    AICTX_CONFIG_START,
     AICTX_START,
     CLAUDE_GITIGNORE_COMMENT,
     CLAUDE_DIR_GITIGNORE_LINE,
@@ -20,6 +22,7 @@ from .runner_integrations import (
     COPILOT_PATH_INSTRUCTIONS_PATH,
     COPILOT_RESUME_PROMPT_PATH,
     codex_instructions_path,
+    strip_legacy_codex_mcp_block,
 )
 from .state import ENGINE_HOME, PROJECTS_REGISTRY_PATH, WORKSPACES_DIR, read_json, write_json
 from .integrations.mcp_config import remove_global_mcp_config, remove_repo_mcp_config
@@ -218,7 +221,12 @@ def remove_codex_config_aictx_entries(path: Path = CODEX_CONFIG_PATH) -> bool:
     if not path.exists():
         return False
     instructions_path = codex_instructions_path()
-    lines = path.read_text(encoding='utf-8').splitlines()
+    original_text = path.read_text(encoding='utf-8')
+    text = original_text
+    if AICTX_CONFIG_START in text and AICTX_CONFIG_END in text:
+        text = remove_marked_block_text(text, AICTX_CONFIG_START, AICTX_CONFIG_END)
+    text = strip_legacy_codex_mcp_block(text)
+    lines = text.splitlines()
     managed_lines = {
         CODEX_MANAGED_COMMENT,
         CODEX_MANAGED_LINE,
@@ -226,7 +234,7 @@ def remove_codex_config_aictx_entries(path: Path = CODEX_CONFIG_PATH) -> bool:
         f'model_instructions_file = "{instructions_path.as_posix()}"',
     }
     filtered = [line for line in lines if line.strip() not in managed_lines]
-    if filtered == lines:
+    if filtered == original_text.splitlines():
         return False
     while filtered and not filtered[-1].strip():
         filtered.pop()
@@ -235,6 +243,17 @@ def remove_codex_config_aictx_entries(path: Path = CODEX_CONFIG_PATH) -> bool:
     else:
         path.unlink()
     return True
+
+
+def remove_marked_block_text(text: str, start_marker: str, end_marker: str) -> str:
+    if start_marker not in text or end_marker not in text:
+        return text
+    start = text.index(start_marker)
+    end = text.index(end_marker, start) + len(end_marker)
+    head = text[:start].rstrip()
+    tail = text[end:].lstrip()
+    pieces = [piece for piece in [head, tail] if piece]
+    return ("\n\n".join(pieces).rstrip() + "\n") if pieces else ""
 
 
 def clean_repo(repo: Path) -> dict[str, Any]:

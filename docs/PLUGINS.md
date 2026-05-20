@@ -1,6 +1,9 @@
-# AICTX Agent Plugins
+---
+title: "Plugin distribution artifacts"
+description: "AICTX ships plugin distribution artifacts for Claude Code and Codex. The plugins package the same repo-local operational continuity workflow used by AICTX instructions and MCP."
+---
 
-AICTX ships plugin distribution artifacts for Claude Code and Codex. The plugins package the same repo-local operational continuity workflow used by AICTX instructions and MCP.
+# AICTX Agent Plugins
 
 ## Locations
 

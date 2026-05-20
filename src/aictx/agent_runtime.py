@@ -30,19 +30,21 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Runtime loop
 1. The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
-2. At session start: extract the task goal from the user prompt, then run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`. Do not pass the full user prompt to resume.
-3. After task work, run exactly one AICTX finalization command: `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
-4. Use the returned continuity capsule as the operational brief during normal agent startup.
-5. Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
-6. `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `aictx finalize`, the startup banner, the final AICTX summary, or persistence.
-7. Do not inspect `.aictx/`, do not run exploratory AICTX commands, do not run `aictx internal`, do not run `aictx -h`, and do not run `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, or `aictx report` during normal task startup unless the user asks for AICTX diagnostics, the task is about AICTX itself, resume is missing/corrupt/contradictory, or finalization/update lifecycle requires it.
-8. Follow `execution_contract.first_action` before repo-wide orientation, edit within `execution_contract.edit_scope`, then run `execution_contract.test_command.command`.
-9. Use `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` for normal agent finalization. finalize_execution is the middleware API behind that command; do not call it directly from the shell. Do not run `aictx internal execution finalize` during normal task flow.
-10. Append the final AICTX summary to the final user response. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization and use `finalized.agent_summary_text` only as the compact fallback source. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not drop these links, do not replace link URLs with placeholders, do not manually reconstruct or retype pako URLs, and when Markdown is supported keep the short Markdown label while preserving the exact full href from finalize. Localize human-readable prose while preserving exact facts, technical tokens, and the details/continuity link targets.
-11. If no finalize output exists, say `AICTX summary unavailable`.
+2. MCP-first startup: if AICTX MCP tools are already visible, use those tools for resume/finalize. If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session. If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
+3. At session start: extract the task goal from the user prompt, then run exactly one AICTX continuity command: MCP resume when available, otherwise `aictx resume --repo . --task "<task goal>" --json`. Do not pass the full user prompt to resume.
+4. After task work, run exactly one AICTX finalization command: MCP finalize when available, otherwise `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
+5. Use the returned continuity capsule as the operational brief during normal agent startup.
+6. Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
+7. `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `aictx finalize`, the startup banner, the final AICTX summary, or persistence.
+8. Do not inspect `.aictx/`, do not run exploratory AICTX commands, do not run `aictx internal`, do not run `aictx -h`, and do not run `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, or `aictx report` during normal task startup unless the user asks for AICTX diagnostics, the task is about AICTX itself, resume is missing/corrupt/contradictory, or finalization/update lifecycle requires it.
+9. Follow `execution_contract.first_action` before repo-wide orientation, edit within `execution_contract.edit_scope`, then run `execution_contract.test_command.command`.
+10. Use `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` for normal CLI fallback finalization. finalize_execution is the middleware API behind that command; do not call it directly from the shell. Do not run `aictx internal execution finalize` during normal task flow.
+11. Append the final AICTX summary to the final user response. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization and use `finalized.agent_summary_text` only as the compact fallback source. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not drop these links, do not replace link URLs with placeholders, do not manually reconstruct or retype pako URLs, and when Markdown is supported keep the short Markdown label while preserving the exact full href from finalize. Localize human-readable prose while preserving exact facts, technical tokens, and the details/continuity link targets.
+12. If no finalize output exists, say `AICTX summary unavailable`.
 
 ## Execution middleware
 - Enter the runtime for every execution in initialized repos.
+- MCP-first means: use attached AICTX MCP tools when available; if `.mcp.json` or `.vscode/mcp.json` exists but the tool namespace is not attached, ask/expect the runner to attach/start that configured stdio server before the first AICTX command of the new session; if attachment is impossible, explain the fallback and use CLI.
 - Use `aictx resume --repo . --task "<task goal>" --json` for real execution history, feedback, Work State, handoff, RepoMap, failure memory, decision memory, and strategy memory. The task goal answers: "What work should be resumed or performed?" Exclude reporting instructions, metrics schemas, output format rules, final answer format, benchmark/evaluation harness text, logging instructions, and meta-instructions about how to report the work. Legacy `--request` startup input has been removed in v6.
 - Treat `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, `aictx report`, and `aictx internal` as advanced/diagnostic/building-block commands, not normal startup commands.
 - Report missing data as `unknown` instead of inventing values.
@@ -56,8 +58,8 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## aictx usage rules
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
-- At normal startup, run only `aictx resume --repo . --task "<task goal>" --json`. Do not pass the full user prompt to resume.
-- After task work, run only `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` for AICTX finalization.
+- At normal startup, run only one continuity action: attached AICTX MCP resume tool when available, otherwise `aictx resume --repo . --task "<task goal>" --json`. Do not pass the full user prompt to resume.
+- After task work, run only one finalization action: attached AICTX MCP finalize tool when available, otherwise `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
 - Render exactly one startup banner source. Normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`. Wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - Do not inspect `.aictx/` during normal startup; `aictx resume` already compiles the relevant continuity.
 
@@ -82,11 +84,15 @@ This repository is initialized for `aictx`.
 Agent rules:
 - Enter the runtime middleware for every execution in initialized repos.
 - The AICTX lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
+- MCP-first startup:
+  1. If AICTX MCP tools are already visible, use MCP tools for resume/finalize.
+  2. If AICTX MCP tools are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session.
+  3. If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
 - At session start:
   1. Extract the task goal from the user prompt.
-  2. Run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
+  2. Run exactly one AICTX continuity command: MCP resume when available, otherwise `aictx resume --repo . --task "<task goal>" --json`.
   3. Do not pass the full user prompt to resume; exclude reporting instructions, metrics schemas, output format rules, final answer format, benchmark/evaluation harness text, logging instructions, and meta-instructions about how to report the work.
-- After task work, run exactly one AICTX finalization command: `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
+- After task work, run exactly one AICTX finalization command: MCP finalize when available, otherwise `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
 - Use the returned continuity capsule as the operational brief during normal agent startup; follow `execution_contract.first_action` before repo-wide orientation, edit within `execution_contract.edit_scope`, run `execution_contract.test_command.command`, then finalize.
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `aictx finalize`, the startup banner, the final AICTX summary, or persistence.

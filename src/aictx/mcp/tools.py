@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,9 +48,10 @@ _OBSERVED_PROPS = {
     "tests_executed": _STRING_LIST_PROP,
     "notable_errors": _STRING_LIST_PROP,
 }
+_ADAPTER_PROP = {"adapter_id": _TEXT_PROP}
 TOOL_INPUT_SCHEMAS: dict[str, dict[str, Any]] = {
-    "aictx_resume": _schema({**_REPO_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "mode": {"type": "string", "enum": ["brief", "standard", "full"]}, "agent_id": _TEXT_PROP, "session_id": _TEXT_PROP}),
-    "aictx_finalize": _schema({**_REPO_PROP, "status": {"type": "string", "enum": ["success", "failure"]}, "summary": _TEXT_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "agent_id": _TEXT_PROP, "session_id": _TEXT_PROP, "include_view": {"type": "boolean"}, **_OBSERVED_PROPS}, required=["status", "summary"]),
+    "aictx_resume": _schema({**_REPO_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "mode": {"type": "string", "enum": ["brief", "standard", "full"]}, "agent_id": _TEXT_PROP, **_ADAPTER_PROP, "session_id": _TEXT_PROP}),
+    "aictx_finalize": _schema({**_REPO_PROP, "status": {"type": "string", "enum": ["success", "failure"]}, "summary": _TEXT_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "agent_id": _TEXT_PROP, **_ADAPTER_PROP, "session_id": _TEXT_PROP, "include_view": {"type": "boolean"}, **_OBSERVED_PROPS}, required=["status", "summary"]),
     "aictx_task_start": _schema({**_REPO_PROP, "goal": _TEXT_PROP, "task_type": _TEXT_PROP, "hypothesis": _TEXT_PROP, "next_action": _TEXT_PROP, "files": _STRING_LIST_PROP, "risks": _STRING_LIST_PROP}, required=["goal"]),
     "aictx_task_update": _schema({**_REPO_PROP, "task_id": _TEXT_PROP, "goal": _TEXT_PROP, "status": _TEXT_PROP, "hypothesis": _TEXT_PROP, "next_action": _TEXT_PROP, "files": _STRING_LIST_PROP, "risks": _STRING_LIST_PROP, "verification": _TEXT_PROP}),
     "aictx_task_close": _schema({**_REPO_PROP, "task_id": _TEXT_PROP, "status": _TEXT_PROP, "summary": _TEXT_PROP, "next_action": _TEXT_PROP}),
@@ -138,6 +140,24 @@ def _task_type(request: str, explicit: str = "", files: list[str] | None = None)
     return str(resolved.get("task_type") or explicit or "")
 
 
+def _infer_mcp_agent_id(explicit: str = "") -> str:
+    value = str(explicit or "").strip()
+    if value:
+        return value
+    env_value = str(os.environ.get("AICTX_AGENT_ID") or "").strip()
+    if env_value:
+        return env_value
+    if any(os.environ.get(key) for key in ("CODEX_THREAD_ID", "CODEX_SESSION_ID", "CODEX_CONVERSATION_ID", "CODEX_CI")):
+        return "codex"
+    if any(os.environ.get(key) for key in ("CLAUDE_SESSION_ID", "CLAUDE_CONVERSATION_ID", "CLAUDE_THREAD_ID", "CLAUDE_CODE_SESSION_ID")):
+        return "claude"
+    return "mcp"
+
+
+def _infer_mcp_adapter_id(args: dict[str, Any], agent_id: str) -> str:
+    return _text(args.get("adapter_id"), "adapter_id") or str(os.environ.get("AICTX_ADAPTER_ID") or "").strip() or agent_id
+
+
 def tool_specs(names: set[str] | None = None) -> list[dict[str, Any]]:
     selected = names or FULL_TOOLS
     specs = []
@@ -157,7 +177,9 @@ def aictx_resume(args: dict[str, Any]) -> dict[str, Any]:
     if mode not in {"brief", "standard", "full"}:
         return error("invalid_mode", "mode must be brief, standard or full")
     task_type = _task_type(task, _text(args.get("task_type"), "task_type"))
-    payload = build_resume_capsule(repo, request_text=task, full=(mode == "full"), task_type=task_type, agent_id=_text(args.get("agent_id"), "agent_id"), session_id=_text(args.get("session_id"), "session_id"))
+    agent_id = _infer_mcp_agent_id(_text(args.get("agent_id"), "agent_id"))
+    adapter_id = _infer_mcp_adapter_id(args, agent_id)
+    payload = build_resume_capsule(repo, request_text=task, full=(mode == "full"), task_type=task_type, agent_id=agent_id, adapter_id=adapter_id, session_id=_text(args.get("session_id"), "session_id"))
     contract = payload.get("execution_contract", {}) if isinstance(payload.get("execution_contract"), dict) else {}
     capsule = payload.get("capsule", {}) if isinstance(payload.get("capsule"), dict) else {}
     return ok(mode=mode, active_task=payload.get("active_task") or {}, next_action=str(capsule.get("next_action") or ""), known_failures=payload.get("failures", []), relevant_files=list(capsule.get("entry_points", []) or []), validation=contract.get("test_command", {}), continuity_brief=payload if mode != "brief" else capsule, suggested_followups=list(capsule.get("fallback_entry_points", []) or []))
@@ -246,7 +268,9 @@ def aictx_finalize(args: dict[str, Any]) -> dict[str, Any]:
         return error("invalid_status", "status must be success or failure")
     summary = _text(args.get("summary"), "summary", required=True)
     task = _text(args.get("task"), "task") or summary
-    prepared = prepare_execution({"repo_root": repo.as_posix(), "user_request": task, "agent_id": _text(args.get("agent_id"), "agent_id") or "mcp", "adapter_id": "mcp", "execution_id": _text(args.get("session_id"), "session_id") or f"mcp-finalize-{now_iso()}", "timestamp": now_iso(), "declared_task_type": _text(args.get("task_type"), "task_type") or None, "execution_mode": "mcp", "files_opened": _list(args.get("files_opened"), "files_opened"), "files_edited": _list(args.get("files_edited"), "files_edited"), "commands_executed": _list(args.get("commands_executed"), "commands_executed"), "tests_executed": _list(args.get("tests_executed"), "tests_executed"), "notable_errors": _list(args.get("notable_errors"), "notable_errors"), "error_events": [], "work_state": {}, "skill_metadata": {}})
+    agent_id = _infer_mcp_agent_id(_text(args.get("agent_id"), "agent_id"))
+    adapter_id = _infer_mcp_adapter_id(args, agent_id)
+    prepared = prepare_execution({"repo_root": repo.as_posix(), "user_request": task, "agent_id": agent_id, "adapter_id": adapter_id, "execution_id": _text(args.get("session_id"), "session_id") or f"mcp-finalize-{now_iso()}", "timestamp": now_iso(), "declared_task_type": _text(args.get("task_type"), "task_type") or None, "execution_mode": "mcp", "files_opened": _list(args.get("files_opened"), "files_opened"), "files_edited": _list(args.get("files_edited"), "files_edited"), "commands_executed": _list(args.get("commands_executed"), "commands_executed"), "tests_executed": _list(args.get("tests_executed"), "tests_executed"), "notable_errors": _list(args.get("notable_errors"), "notable_errors"), "error_events": [], "work_state": {}, "skill_metadata": {}})
     payload = finalize_execution(prepared, {"success": status == "success", "result_summary": summary, "validated_learning": False, "decisions": [], "semantic_repo": [], "work_state": {}})
     if bool(args.get("include_view")):
         payload["continuity_view"] = write_continuity_view(repo).get("view", {})

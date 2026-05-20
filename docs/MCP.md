@@ -1,6 +1,9 @@
-# AICTX MCP
+---
+title: "MCP"
+description: "AICTX includes a local Model Context Protocol (MCP) server that exposes repo-local continuity as MCP tools, resources, and prompts."
+---
 
-AICTX includes a local Model Context Protocol (MCP) server that exposes repo-local continuity as MCP tools, resources, and prompts.
+# AICTX MCP
 
 ## Model
 
@@ -16,7 +19,17 @@ The CLI remains the source of truth. MCP tools call the same AICTX runtime funct
 
 ## Default install/init behavior
 
-`aictx install` prepares AICTX global MCP runtime metadata by default. `aictx init` writes repo-local managed MCP config by default. Use `--no-mcp` to opt out:
+`aictx install` prepares AICTX global MCP runtime metadata by default. `aictx init` writes repo-local managed MCP config by default. Sensitive client config is fenced as an AICTX-owned block where the format supports comments:
+
+```toml
+# <AICTX:START mcp>
+[mcp_servers.aictx]
+command = "aictx"
+args = ["mcp-server", "--repo", ".", "--profile", "full"]
+# <AICTX:END mcp>
+```
+
+JSON MCP files cannot carry comment blocks, so AICTX writes explicit `_aictx` / `_aictx_managed` metadata in `.mcp.json` and `.vscode/mcp.json` instead. Use `--no-mcp` to opt out:
 
 ```bash
 aictx install --no-mcp
@@ -47,7 +60,7 @@ The MCP server does not expose arbitrary shell execution, generic file reads/wri
 
 ## Cleanup
 
-AICTX-managed MCP setup is reversible. Repo-local config is removed by `aictx clean`; AICTX global MCP runtime metadata is removed by `aictx uninstall`. User-authored MCP servers outside AICTX-managed entries are preserved.
+AICTX-managed MCP setup is reversible. Repo-local config is removed by `aictx clean`; AICTX global MCP runtime metadata and comment-delimited `<AICTX>` MCP blocks are removed by `aictx uninstall`. User-authored MCP servers outside AICTX-managed entries are preserved.
 
 ## CLI fallback
 

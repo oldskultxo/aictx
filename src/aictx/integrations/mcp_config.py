@@ -11,6 +11,7 @@ MCP_PROFILES = {"readonly", "standard", "full"}
 DEFAULT_MCP_PROFILE = "full"
 MCP_SERVER_NAME = "aictx"
 MCP_MANAGED = "aictx-managed"
+MCP_MANAGED_BLOCK = "<AICTX>"
 
 
 def global_mcp_status_path() -> Path:
@@ -40,13 +41,19 @@ def normalize_mcp_profile(profile: str | None) -> str:
     return value
 
 
-def mcp_server_entry(profile: str = DEFAULT_MCP_PROFILE) -> dict[str, Any]:
+def mcp_server_command(profile: str = DEFAULT_MCP_PROFILE) -> list[str]:
     profile = normalize_mcp_profile(profile)
+    return ["aictx", "mcp-server", "--repo", ".", "--profile", profile]
+
+
+def mcp_server_entry(profile: str = DEFAULT_MCP_PROFILE) -> dict[str, Any]:
+    command = mcp_server_command(profile)
     return {
-        "command": "aictx",
-        "args": ["mcp-server", "--repo", ".", "--profile", profile],
+        "command": command[0],
+        "args": command[1:],
         "transport": "stdio",
         "_aictx_managed": True,
+        "_aictx_block": MCP_MANAGED_BLOCK,
     }
 
 
@@ -82,7 +89,7 @@ def _upsert_json_server(path: Path, profile: str, *, dry_run: bool = False) -> t
     servers = dict(servers)
     servers[MCP_SERVER_NAME] = mcp_server_entry(profile)
     updated[container_key] = servers
-    updated["_aictx"] = {"managed": True, "kind": MCP_MANAGED}
+    updated["_aictx"] = {"managed": True, "kind": MCP_MANAGED, "block": MCP_MANAGED_BLOCK}
     after = json.dumps(updated, sort_keys=True, ensure_ascii=False)
     changed = before != after
     if changed and not dry_run:
@@ -129,12 +136,28 @@ def install_global_mcp_config(*, profile: str = DEFAULT_MCP_PROFILE, dry_run: bo
     if not isinstance(config, dict):
         config = {}
     before = json.dumps(config, sort_keys=True, ensure_ascii=False)
-    config["mcp"] = {"enabled": True, "profile": profile, "transport": "stdio", "server_command": ["aictx", "mcp-server", "--repo", ".", "--profile", profile]}
+    config["mcp"] = {"enabled": True, "profile": profile, "transport": "stdio", "server_command": mcp_server_command(profile)}
     write_json(config_path, config)
     status_path.parent.mkdir(parents=True, exist_ok=True)
     status = {"enabled": True, "profile": profile, "transport": "stdio", "managed": True}
     status_path.write_text(json.dumps(status, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
     return {"ok": True, "enabled": True, "profile": profile, "transport": "stdio", "changed": before != json.dumps(config, sort_keys=True, ensure_ascii=False), "dry_run": False, "files": planned, "warnings": []}
+
+
+def _path_has_aictx_server(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    for key in ("mcpServers", "servers"):
+        servers = payload.get(key)
+        if isinstance(servers, dict) and MCP_SERVER_NAME in servers:
+            return True
+    return False
 
 
 def mcp_status(repo: Path | None = None) -> dict[str, Any]:
@@ -148,7 +171,7 @@ def mcp_status(repo: Path | None = None) -> dict[str, Any]:
         files = []
         for rel in (REPO_MCP_PATH, VSCODE_MCP_PATH):
             path = root / rel
-            if path.exists():
+            if _path_has_aictx_server(path):
                 files.append(str(path))
         payload["repo"] = {"enabled": bool(files), "files": files}
     return payload

@@ -7,9 +7,12 @@ from typing import Any
 
 from .agent_runtime import upsert_marked_block
 from .generated_paths import GENERATED_RUNTIME_DIRS
+from .integrations.mcp_config import DEFAULT_MCP_PROFILE, mcp_server_command
 
 AICTX_START = "<!-- AICTX:START -->"
 AICTX_END = "<!-- AICTX:END -->"
+AICTX_CONFIG_START = "# <AICTX:START mcp>"
+AICTX_CONFIG_END = "# <AICTX:END mcp>"
 CODEX_HOME = Path.home() / ".codex"
 CODEX_CONFIG_PATH = CODEX_HOME / "config.toml"
 CLAUDE_GITIGNORE_COMMENT = "# AICTX managed Claude repo integration"
@@ -19,6 +22,29 @@ COPILOT_INSTRUCTIONS_PATH = Path(".github") / "copilot-instructions.md"
 COPILOT_PATH_INSTRUCTIONS_PATH = Path(".github") / "instructions" / "aictx.instructions.md"
 COPILOT_RESUME_PROMPT_PATH = Path(".github") / "prompts" / "aictx-resume.prompt.md"
 COPILOT_FINALIZE_PROMPT_PATH = Path(".github") / "prompts" / "aictx-finalize.prompt.md"
+
+
+def render_mcp_first_startup_rule() -> str:
+    return (
+        "MCP-first startup: if AICTX MCP tools are already visible, use those tools for resume/finalize. "
+        "If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session. "
+        "If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback."
+    )
+
+
+def render_codex_mcp_config_block(profile: str = DEFAULT_MCP_PROFILE) -> str:
+    command = mcp_server_command(profile) + ["--agent-id", "codex", "--adapter-id", "codex"]
+    args = ", ".join(json.dumps(arg) for arg in command[1:])
+    return "\n".join(
+        [
+            AICTX_CONFIG_START,
+            "# AICTX managed MCP server for repo-local continuity; safe to remove as one block.",
+            "[mcp_servers.aictx]",
+            f"command = {json.dumps(command[0])}",
+            f"args = [{args}]",
+            AICTX_CONFIG_END,
+        ]
+    )
 
 
 def write_executable(path: Path, content: str) -> None:
@@ -34,6 +60,7 @@ def codex_instructions_path() -> Path:
 def render_aictx_lifecycle_rules(*, agent_id: str, adapter_id: str, include_source_repo_hint: bool = True) -> str:
     rules = [
         "- Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.",
+        f"- {render_mcp_first_startup_rule()}",
         "- The lifecycle remains `resume -> work -> finalize -> final AICTX summary/persistence`.",
         f'- At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --agent-id {agent_id} --adapter-id {adapter_id} --json`.',
         "- Use the returned resume capsule as the operational brief before broad repo scanning.",
@@ -55,6 +82,7 @@ def render_codex_home_block() -> str:
 
 When Codex is running inside a repository initialized with `aictx`:
 - Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
+- {render_mcp_first_startup_rule()}
 - the lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`
 - at session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`
 - use the returned continuity capsule as the operational brief before broad repo scanning
@@ -72,12 +100,13 @@ When Codex is running inside a repository initialized with `aictx`:
 
 
 def render_codex_global_instructions() -> str:
-    return """# AICTX Codex global developer instructions
+    return f"""# AICTX Codex global developer instructions
 
 Use AICTX in every Codex session for repositories initialized with `aictx`.
 
 Required behavior:
 - Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
+- {render_mcp_first_startup_rule()}
 - Do not decide whether AICTX applies. If the repository contains `.aictx/`, use it.
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
@@ -102,6 +131,7 @@ def render_claude_md_block() -> str:
 This repository is initialized with `aictx`.
 
 - Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
+- {render_mcp_first_startup_rule()}
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
 - Use the returned continuity capsule as the operational brief.
@@ -133,6 +163,7 @@ These are repository custom instructions for GitHub Copilot. AICTX cannot force 
 
 Critical lifecycle:
 - Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
+- {render_mcp_first_startup_rule()}
 - For non-trivial repository tasks, first run exactly once: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the returned resume capsule as the operational brief before broad repo scanning.
 - Before the final response, run exactly once: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.
@@ -156,6 +187,7 @@ applyTo: "**/*"
 
 Apply these instructions to repository work. Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise. They intentionally duplicate the minimal AICTX lifecycle because Copilot support varies by surface.
 
+- {render_mcp_first_startup_rule()}
 - Start non-trivial repository tasks with: `aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json`.
 - Use the resume capsule before broad repo scanning.
 - Finalize non-trivial repository tasks with: `aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json`.
@@ -173,14 +205,15 @@ def render_copilot_resume_prompt() -> str:
 Use this prompt when starting a non-trivial GitHub Copilot repository task.
 
 1. Extract the task goal from the user request.
-2. Run:
+2. If AICTX MCP tools are already visible, use the MCP resume tool. If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before falling back.
+3. If MCP tools are unavailable, run:
 
 ```bash
 aictx resume --repo . --task "<task goal>" --agent-id copilot --adapter-id copilot-vscode --json
 ```
 
-3. Use the returned capsule as the operational brief before broad repo scanning.
-4. Do not inspect `.aictx/` directly during normal startup.
+4. Use the returned capsule as the operational brief before broad repo scanning.
+5. Do not inspect `.aictx/` directly during normal startup.
 {AICTX_END}
 """
 
@@ -192,14 +225,15 @@ def render_copilot_finalize_prompt() -> str:
 Use this prompt before the final response for a non-trivial GitHub Copilot repository task.
 
 1. Summarize what happened factually.
-2. Run:
+2. Prefer the AICTX MCP finalize tool if it is attached.
+3. If MCP tools are unavailable, run:
 
 ```bash
 aictx finalize --repo . --status success|failure --summary "<what happened>" --agent-id copilot --adapter-id copilot-vscode --json
 ```
 
-3. Append the AICTX final summary when available. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; preserve Continuity View file links and Mermaid online view links; do not replace URLs with placeholders and do not manually reconstruct or retype pako URLs.
-4. If finalize cannot run, say that the AICTX lifecycle could not be completed.
+4. Append the AICTX final summary when available. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; preserve Continuity View file links and Mermaid online view links; do not replace URLs with placeholders and do not manually reconstruct or retype pako URLs.
+5. If finalize cannot run, say that the AICTX lifecycle could not be completed.
 {AICTX_END}
 """
 
@@ -303,6 +337,7 @@ import json
 
 summary = [
     "AICTX runtime loaded for this Claude session.",
+    "MCP-first startup: if AICTX MCP tools are already visible, use those tools; if not visible but .mcp.json or .vscode/mcp.json exists, have Claude Code attach/start the configured stdio MCP server before the first AICTX command of the new session; otherwise use CLI fallback.",
     "Lifecycle remains prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence.",
     "At prompt start, use one continuity command: aictx resume --repo . --task \\\"<task goal>\\\" --json.",
     "Use the returned capsule as the operational brief.",
@@ -334,6 +369,7 @@ if not prompt:
 
 summary = [
     "AICTX runtime guidance loaded for this prompt.",
+    "MCP-first startup: if AICTX MCP tools are already visible, use those tools; if not visible but .mcp.json or .vscode/mcp.json exists, have Claude Code attach/start the configured stdio MCP server before the first AICTX command of the new session; otherwise use CLI fallback.",
     "Lifecycle remains prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence.",
     "Extract the task goal only from the user prompt.",
     "Run exactly one continuity command: aictx resume --repo . --task \\\"<task goal>\\\" --json --agent-id claude.",
@@ -439,7 +475,9 @@ def ensure_codex_config_hardening() -> list[Path]:
     desired = 'project_doc_fallback_filenames = ["CLAUDE.md"]'
     instructions_comment = "# AICTX managed mandatory Codex developer instructions"
     instructions_line = f'model_instructions_file = "{instructions_path.as_posix()}"'
-    changed = False
+    existing_without_legacy = strip_legacy_codex_mcp_block(existing)
+    changed = existing_without_legacy != existing
+    existing = existing_without_legacy
     updated = existing.rstrip()
     if "project_doc_fallback_filenames" not in existing:
         if updated:
@@ -451,9 +489,39 @@ def ensure_codex_config_hardening() -> list[Path]:
             updated += "\n\n"
         updated += instructions_comment + "\n" + instructions_line
         changed = True
+    if AICTX_CONFIG_START not in existing and "[mcp_servers.aictx]" not in existing and '[mcp_servers."aictx"]' not in existing:
+        if updated:
+            updated += "\n\n"
+        updated += render_codex_mcp_config_block()
+        changed = True
     if changed:
         CODEX_CONFIG_PATH.write_text(updated.rstrip() + "\n", encoding="utf-8")
     return [CODEX_CONFIG_PATH]
+
+
+def strip_legacy_codex_mcp_block(text: str) -> str:
+    lines = text.splitlines()
+    output: list[str] = []
+    changed = False
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if stripped in {"[mcp_servers.aictx]", '[mcp_servers."aictx"]'}:
+            end = index + 1
+            while end < len(lines) and not lines[end].lstrip().startswith("["):
+                end += 1
+            block_text = "\n".join(lines[index:end])
+            if 'command = "aictx"' in block_text and "mcp-server" in block_text:
+                changed = True
+                index = end
+                while output and not output[-1].strip():
+                    output.pop()
+                while index < len(lines) and not lines[index].strip():
+                    index += 1
+                continue
+        output.append(lines[index])
+        index += 1
+    return ("\n".join(output).rstrip() + "\n") if changed and output else "" if changed else text
 
 
 def install_codex_native_integration() -> list[Path]:

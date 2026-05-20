@@ -24,6 +24,8 @@ Main capabilities:
 - RepoMap: optional repository structure hints.
 - Continuity View: local Markdown and deterministic Mermaid map of current repo continuity.
 - Portability: optional Git-portable subset for small teams, with secret redaction on portable artifacts.
+- MCP: includes a local Model Context Protocol (MCP) server that exposes repo-local continuity as MCP tools, resources, and prompts.
+- Plugins: ships plugin distribution artifacts for Claude Code and Codex. The plugins package the same repo-local operational continuity workflow used by AICTX instructions and MCP.
 
 Important limits:
 - AICTX is not an autonomous coding agent.
@@ -44,6 +46,8 @@ Core documentation:
 - Safety: https://aictx.org/SAFETY.html
 - Portability: https://aictx.org/PORTABILITY.html
 - Limitations: https://aictx.org/LIMITATIONS.html
+- MCP: https://aictx.org/MCP.html
+- Plugins: https://aictx.org/PLUGINS.html
 
 Use cases:
 - Codex memory with AICTX: https://aictx.org/use-cases/codex-memory.html

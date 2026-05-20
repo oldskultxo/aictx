@@ -61,7 +61,7 @@
     },
     "codeRepository": "https://github.com/oldskultxo/aictx",
     "downloadUrl": "https://pypi.org/project/aictx/",
-    "softwareVersion": "6.6.0",
+    "softwareVersion": "6.7.0",
     "license": "https://github.com/oldskultxo/aictx/blob/main/LICENSE",
     "keywords": [
       "AICTX",
@@ -763,22 +763,62 @@ It finalizes factual evidence for the next session.</code></pre>
         </div>
       </section>
 
+            <section class="section">
+        <h2>Expose continuity as local MCP tools.</h2>
+        <p class="muted">
+          AICTX can expose repo-local continuity through a local MCP server, so compatible agents can call tools like
+          <code>aictx_resume</code>, <code>aictx_finalize</code>, and <code>aictx_view</code> instead of relying only on
+          repo instructions and CLI commands.
+        </p>
+
+        <div class="grid">
+          <div class="card">
+            <h3>Local MCP server</h3>
+            <p class="muted">
+              Runs locally over stdio. No cloud memory, no hidden sync, no account, and no daemon to manage manually.
+              AICTX writes sensitive client config in reversible <code>&lt;AICTX&gt;</code> managed blocks where comments are supported.
+            </p>
+            <pre><code>aictx mcp-server --repo . --profile full</code></pre>
+          </div>
+
+          <div class="card">
+            <h3>MCP-first, CLI fallback</h3>
+            <p class="muted">
+              Compatible agents should prefer MCP tools when available and fall back to the stable AICTX CLI when MCP is unavailable.
+              Cleanup removes only AICTX-managed MCP blocks or JSON entries and preserves user-authored servers.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Claude and Codex plugins</h3>
+            <p class="muted">
+              AICTX ships Claude Code and Codex plugin artifacts that package the same continuity workflow for agent sessions.
+            </p>
+          </div>
+        </div>
+
+        <div class="cta-row">
+          <a class="button primary" href="/MCP.html">MCP documentation</a>
+          <a class="button" href="/PLUGINS.html">Agent plugins</a>
+        </div>
+      </section>
+
       <section class="section">
         <h2>Works around the agents you already use.</h2>
         <div class="grid">
           <div class="card">
             <h3>Codex</h3>
-            <p class="muted">A repo-local continuity loop for sessions that can run CLI commands and consume structured output.</p>
+            <p class="muted">A repo-local continuity loop through CLI, MCP tools and Codex plugin artifacts for sessions that can consume structured output.</p>
             <a href="/use-cases/codex-memory.html">Codex continuity →</a>
           </div>
           <div class="card">
             <h3>Claude Code</h3>
-            <p class="muted">Project instructions and runtime artifacts for handoffs, failures, decisions and execution summaries.</p>
+            <p class="muted">Project instructions, hooks, MCP support and Claude Code plugin artifacts for handoffs, failures, decisions and execution summaries.</p>
             <a href="/use-cases/claude-code-memory.html">Claude Code continuity →</a>
           </div>
           <div class="card">
             <h3>GitHub Copilot</h3>
-            <p class="muted">Instruction and prompt surfaces for best-effort lifecycle adoption where command execution is available.</p>
+            <p class="muted">Instruction and prompt surfaces, plus VS Code MCP config where supported, for best-effort lifecycle adoption.</p>
             <a href="/use-cases/github-copilot-memory.html">Copilot continuity →</a>
           </div>
         </div>
@@ -796,6 +836,8 @@ It finalizes factual evidence for the next session.</code></pre>
               <li><a href="/USAGE.html">Usage</a></li>
               <li><a href="/DEMO.html">Demo</a></li>
               <li><a href="/TECHNICAL_OVERVIEW.html">Technical overview</a></li>
+              <li><a href="/MCP.html">MCP server</a></li>
+              <li><a href="/PLUGINS.html">Agent plugins</a></li>
             </ul>
           </div>
 

@@ -160,12 +160,18 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "caveman_ultra" in text
     assert "agent_summary_text" in text
     assert "startup_banner_text" in text
+    assert ".mcp.json" in text
+    assert ".vscode/mcp.json" in text
+    assert "MCP tools still are not attached" in text
     assert "current user language" in text
     assert "never invent data" in text
     assert "AICTX summary unavailable" in text
     repo_block = render_repo_agents_block()
     assert "agent_summary_text" in repo_block
     assert "startup_banner_text" in repo_block
+    assert ".mcp.json" in repo_block
+    assert ".vscode/mcp.json" in repo_block
+    assert "MCP config exists but tools are unavailable" in repo_block
     assert "current user language" in repo_block
     assert "startup_banner_render_payload" in repo_block
     assert "agent_summary_render_payload" in repo_block
@@ -174,6 +180,8 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     claude_block = render_claude_md_block()
     assert "agent_summary_text" in claude_block
     assert "startup_banner_text" in claude_block
+    assert ".mcp.json" in claude_block
+    assert ".vscode/mcp.json" in claude_block
     assert "current user language" in claude_block
     assert "startup_banner_render_payload" in claude_block
     assert "agent_summary_render_payload" in claude_block
@@ -182,6 +190,8 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     prompt_hook = render_user_prompt_submit_script()
     assert "localized to the current user language" in prompt_hook
     assert "startup_banner_text" in prompt_hook
+    assert ".mcp.json or .vscode/mcp.json" in prompt_hook
+    assert "CLI fallback" in prompt_hook
     assert "startup_banner_render_payload" in prompt_hook
     assert "agent_summary_render_payload" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
@@ -1740,8 +1750,10 @@ def test_install_repo_runner_integrations_creates_codex_and_claude_native_files(
     assert CLAUDE_MD_GITIGNORE_LINE in gitignore
     assert 'aictx resume --repo . --task "<task goal>"' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
     assert 'aictx resume --repo . --task "<task goal>" --json' in (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    assert ".mcp.json" in (repo / "CLAUDE.md").read_text(encoding="utf-8")
     user_prompt_hook = (repo / ".claude" / "hooks" / "aictx_user_prompt_submit.py").read_text(encoding="utf-8")
     assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in user_prompt_hook
+    assert ".mcp.json or .vscode/mcp.json" in user_prompt_hook
     assert "Do not pass the full user prompt to resume" in user_prompt_hook
     assert 'run_json(["aictx", "resume"' not in user_prompt_hook
     assert '"--task", prompt' not in user_prompt_hook
@@ -1902,6 +1914,11 @@ def test_install_codex_native_integration_writes_home_override(tmp_path: Path, m
     config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
     assert 'project_doc_fallback_filenames = ["CLAUDE.md"]' in config
     assert 'model_instructions_file = "' in config
+    assert "# <AICTX:START mcp>" in config
+    assert "# <AICTX:END mcp>" in config
+    assert "[mcp_servers.aictx]" in config
+    assert 'command = "aictx"' in config
+    assert 'args = ["mcp-server", "--repo", ".", "--profile", "full", "--agent-id", "codex", "--adapter-id", "codex"]' in config
 
 
 def test_claude_pre_tool_hook_blocks_generated_runtime_edits(tmp_path: Path):
