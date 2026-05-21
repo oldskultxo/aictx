@@ -244,44 +244,129 @@
         }
 
         @media(max-width:850px) {
+            html,
+            body {
+                overflow-x: hidden
+            }
+
             .shell {
-                padding: 1.25rem 1rem 3rem
+                width: 100%;
+                max-width: 100%;
+                padding: 1.25rem 1rem 3rem;
+                overflow-x: hidden
             }
 
             header {
                 display: block
             }
 
+            .brand img {
+                width: 7.25rem;
+                height: auto
+            }
+
             nav {
+                width: 100%;
+                display: grid;
+                grid-template-columns: 1fr 1fr .75fr .9fr .75fr;
+                gap: .35rem;
                 margin-top: 1rem;
-                justify-content: space-between;
-                gap: .5rem;
-                font-size: .82rem
+                font-size: clamp(.72rem, 3.2vw, .9rem);
+                line-height: 1.2
+            }
+
+            nav a {
+                min-width: 0;
+                text-align: center;
+                white-space: nowrap
+            }
+
+            .hero {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                padding: 2.35rem 0 1.75rem;
+                overflow: hidden
+            }
+
+            .eyebrow {
+                max-width: 100%;
+                font-size: .74rem;
+                line-height: 1.45;
+                letter-spacing: .18em
+            }
+
+            h1 {
+                max-width: 100%;
+                font-size: clamp(2.45rem, 12vw, 3.7rem);
+                line-height: 1;
+                letter-spacing: -.055em;
+                overflow-wrap: normal
+            }
+
+            .lead {
+                max-width: 100%;
+                font-size: 1.08rem;
+                line-height: 1.65
+            }
+
+            .hero-actions,
+            .cta-row {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: .75rem;
+                width: 100%
+            }
+
+            .button {
+                width: 100%;
+                min-width: 0;
+                min-height: 3.1rem;
+                padding: .75rem 1rem;
+                border-radius: 999px;
+                text-align: center
+            }
+
+            .card {
+                max-width: 100%;
+                min-width: 0;
+                padding: 1rem;
+                overflow: hidden
+            }
+
+            pre {
+                max-width: 100%;
+                overflow-x: auto;
+                font-size: .82rem;
+                -webkit-overflow-scrolling: touch
             }
 
             .hero,
             .grid,
             .grid.two,
             .grid.four {
-                grid-template-columns: 1fr
-            }
-
-            h1 {
-                font-size: clamp(2.45rem, 12vw, 3.7rem)
-            }
-
-            .hero-actions,
-            .cta-row {
-                display: grid;
-                grid-template-columns: 1fr
-            }
-
-            .button {
                 width: 100%;
-                min-height: 3rem
+                max-width: 100%;
+                grid-template-columns: 1fr
+            }
+
+            .section {
+                padding: 2.35rem 0;
+                overflow-x: hidden
             }
         }
-    </style>
+
+        @media(max-width:380px) {
+            nav {
+                font-size: .69rem;
+                gap: .28rem
+            }
+
+            .brand img {
+                width: 6.9rem
+            }
+        }
+        </style>
   <link rel="stylesheet" href="assets/github-stars.css">
 </head>
 
@@ -326,13 +411,54 @@
                     <p class="lead">Fast answers for common tasks: install, inspect continuity, enable portability, use
                         MCP, reduce output, query RepoMap, generate reports and clean up.</p>
                 </div>
-                <div class="card"><span class="pill">common check</span>
-                    <pre><code>aictx doctor --repo . --json
-aictx view --repo .</code></pre>
+                <div class="card"><span class="pill">basic loop</span>
+                    <pre><code>pip install aictx
+aictx install
+aictx init
+
+# then let your agent work normally</code></pre>
                     <ul class="checklist">
-                        <li><code>aictx doctor --repo . --json</code>: checks the local AICTX setup and returns machine-readable health details.</li>
-                        <li><code>aictx view --repo .</code>: generates the local continuity view for quick inspection.</li>
+                        <li><code>pip install aictx</code>: installs the AICTX Python package.</li>
+                        <li><code>aictx install</code>: installs global runner integration files.</li>
+                        <li><code>aictx init</code>: initializes AICTX in the current repository.</li>
+                        <li>Then let your agent run the resume/work/finalize lifecycle.</li>
                     </ul>
+                </div>
+            </section>
+            <section class="section">
+                <h2>Start here: install, initialize, let the agent work</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>1. Install and initialize</h3>
+                        <pre><code>pip install aictx
+aictx install
+aictx init</code></pre>
+                        <ul class="checklist">
+                            <li><code>pip install aictx</code>: installs the AICTX Python package.</li>
+                            <li><code>aictx install</code>: installs global runner integration files.</li>
+                            <li><code>aictx init</code>: creates the repo-local AICTX setup.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>2. Let your agent work</h3>
+                        <pre><code>aictx resume --repo . --task "continue current work" --json
+# work normally
+aictx finalize --repo . --status success --summary "what changed" --json</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx resume</code>: gives the agent the continuity capsule before it starts.</li>
+                            <li><code># work normally</code>: the agent edits, tests and reasons as usual.</li>
+                            <li><code>aictx finalize</code>: saves the outcome for the next session.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>3. Inspect continuity</h3>
+                        <pre><code>aictx view --repo .
+aictx doctor --repo . --json</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx view --repo .</code>: generates the local continuity report and map.</li>
+                            <li><code>aictx doctor --repo . --json</code>: checks setup health in machine-readable form.</li>
+                        </ul>
+                    </div>
                 </div>
             </section>
             <section class="section">
