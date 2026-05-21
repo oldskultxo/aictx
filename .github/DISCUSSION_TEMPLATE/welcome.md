@@ -16,7 +16,7 @@ This is the place to:
 ## Quick Links
 
 - 📖 [Documentation](../docs/)
-- 🚀 [Quickstart](../docs/QUICKSTART.md)
+- 🚀 [Quickstart](../docs/QUICK-START.md)
 - 🐛 [Report Issues](https://github.com/oldskultxo/aictx/issues)
 - 📝 [Contributing](../CONTRIBUTING.md)
 

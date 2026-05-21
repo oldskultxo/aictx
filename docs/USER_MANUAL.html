@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AICTX User Manual - Practical commands</title>
+    <meta name="description"
+        content="Practical AICTX commands for setup, continuity, MCP, portability, Work State, RepoMap, reports, messages and cleanup.">
+    <meta name="keywords"
+        content="AICTX, operational continuity, AI coding agents, repo-local continuity, MCP, Model Context Protocol, Codex, Claude Code, GitHub Copilot, Work State, Continuity View">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="author" content="Santi Santamaria">
+    <meta name="theme-color" content="#101820">
+    <link rel="canonical" href="https://aictx.org/USER_MANUAL.html">
+    <link rel="icon" href="/images/aictx-logo.png">
+    <meta property="og:site_name" content="AICTX">
+    <meta property="og:title" content="AICTX User Manual - Practical commands">
+    <meta property="og:description"
+        content="Practical AICTX commands for setup, continuity, MCP, portability, Work State, RepoMap, reports, messages and cleanup.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://aictx.org/USER_MANUAL.html">
+    <meta property="og:image" content="https://aictx.org/images/aictx-logo.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AICTX User Manual - Practical commands">
+    <meta name="twitter:description"
+        content="Practical AICTX commands for setup, continuity, MCP, portability, Work State, RepoMap, reports, messages and cleanup.">
+    <meta name="twitter:image" content="https://aictx.org/images/aictx-logo.png">
+    <script
+        type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AICTX","alternateName":"aictx","url":"https://aictx.org/","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","programmingLanguage":"Python","description":"AICTX is a repo-local operational continuity runtime for AI coding agents, with CLI support, local MCP server, Continuity View, Work State, handoffs, failures and validation evidence.","creator":{"@type":"Person","name":"Santi Santamaria","url":"https://github.com/oldskultxo"},"codeRepository":"https://github.com/oldskultxo/aictx","downloadUrl":"https://pypi.org/project/aictx/","license":"https://github.com/oldskultxo/aictx/blob/main/LICENSE","keywords":["AICTX","operational continuity","AI coding agents","repo-local continuity","MCP","Model Context Protocol","Codex","Claude Code","GitHub Copilot"]}</script>
+    <style>
+        :root {
+            --bg: #0b1117;
+            --panel: #111a24;
+            --text: #eef4f8;
+            --muted: #a9b7c6;
+            --accent: #94b41e;
+            --accent-soft: rgba(148, 180, 30, .16);
+            --border: rgba(255, 255, 255, .12);
+            --code-bg: #071018
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html {
+            scroll-behavior: smooth
+        }
+
+        body {
+            margin: 0;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top left, rgba(148, 180, 30, .14), transparent 32rem), var(--bg);
+            color: var(--text);
+            line-height: 1.6
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none
+        }
+
+        a:hover {
+            text-decoration: underline
+        }
+
+        .shell {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 2rem 1.25rem 4rem
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem
+        }
+
+        .brand img {
+            width: 8rem;
+            height: auto;
+            display: block
+        }
+
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 1rem;
+            font-size: .95rem
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
+            gap: 2rem;
+            align-items: center;
+            padding: 3rem 0 2rem
+        }
+
+        .eyebrow {
+            color: var(--accent);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .12em;
+            font-size: .78rem;
+            margin-bottom: .75rem
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(2.7rem, 7vw, 5.4rem);
+            line-height: .96;
+            letter-spacing: -.06em
+        }
+
+        h2 {
+            font-size: clamp(1.8rem, 4vw, 3rem);
+            line-height: 1.05;
+            margin: 0 0 1rem;
+            letter-spacing: -.04em
+        }
+
+        h3 {
+            margin-top: 0
+        }
+
+        .lead {
+            font-size: clamp(1.1rem, 2vw, 1.35rem);
+            color: var(--muted);
+            margin: 1.5rem 0 0;
+            max-width: 68ch
+        }
+
+        .section {
+            padding: 3rem 0;
+            scroll-margin-top: 2rem
+        }
+
+        .muted {
+            color: var(--muted)
+        }
+
+        .card {
+            background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .025));
+            border: 1px solid var(--border);
+            border-radius: 1.25rem;
+            padding: 1.25rem;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, .25)
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem
+        }
+
+        .grid.two {
+            grid-template-columns: repeat(2, minmax(0, 1fr))
+        }
+
+        .grid.four {
+            grid-template-columns: repeat(4, minmax(0, 1fr))
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1rem;
+            overflow: auto;
+            color: #dce9f2;
+            font-size: .9rem
+        }
+
+        code {
+            color: #dce9f2
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: .75rem 1rem;
+            color: var(--text);
+            background: rgba(255, 255, 255, .04);
+            font-weight: 700
+        }
+
+        .button.primary {
+            background: var(--accent);
+            color: #101820;
+            border-color: var(--accent)
+        }
+
+        .cta-row,
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .8rem;
+            margin-top: 1.6rem
+        }
+
+        .pill {
+            display: inline-block;
+            background: var(--accent-soft);
+            color: var(--accent);
+            border: 1px solid rgba(148, 180, 30, .32);
+            border-radius: 999px;
+            padding: .25rem .65rem;
+            font-size: .82rem;
+            font-weight: 700
+        }
+
+        .docs-list {
+            list-style: none;
+            padding: 0;
+            margin: 0
+        }
+
+        .docs-list li+li {
+            margin-top: .35rem
+        }
+
+        .checklist {
+            padding-left: 1.1rem;
+            color: var(--muted)
+        }
+
+        .checklist li+li {
+            margin-top: .35rem
+        }
+
+        footer {
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            padding: 2rem 0 0;
+            margin-top: 2rem
+        }
+
+        @media(max-width:850px) {
+            .shell {
+                padding: 1.25rem 1rem 3rem
+            }
+
+            header {
+                display: block
+            }
+
+            nav {
+                margin-top: 1rem;
+                justify-content: space-between;
+                gap: .5rem;
+                font-size: .82rem
+            }
+
+            .hero,
+            .grid,
+            .grid.two,
+            .grid.four {
+                grid-template-columns: 1fr
+            }
+
+            h1 {
+                font-size: clamp(2.45rem, 12vw, 3.7rem)
+            }
+
+            .hero-actions,
+            .cta-row {
+                display: grid;
+                grid-template-columns: 1fr
+            }
+
+            .button {
+                width: 100%;
+                min-height: 3rem
+            }
+        }
+    </style>
+  <link rel="stylesheet" href="assets/github-stars.css">
+</head>
+
+<body>
+    <div class="shell">
+        <header>
+            <a class="brand" href="/" aria-label="AICTX home">
+                <img src="/images/aictx-logo-nobackground.png" alt="AICTX">
+            </a>
+            <nav aria-label="Main navigation">
+                <a href="/QUICKSTART.html">
+                    <span class="nav-full">Quickstart</span>
+                    <span class="nav-short">Quick</span>
+                </a>
+                <a href="/USER_MANUAL.html">
+                    <span class="nav-full">User Manual</span>
+                    <span class="nav-short">View</span>
+                </a>
+                <a href="/TECHNICAL_DOCUMENTATION.html">
+                    <span class="nav-full">Technical docs</span>
+                    <span class="nav-short">Docs</span>
+                </a>
+                <a href="https://github.com/oldskultxo/aictx">
+                    GitHub
+                    <span class="github-stars js-github-stars" aria-label="GitHub stars">
+                        (<span class="js-github-stars-count"></span><svg viewBox="0 0 16 16" aria-hidden="true"
+                            focusable="false">
+                            <path
+                                d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.969.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.979a.75.75 0 0 1-1.088-.79l.72-4.193L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z">
+                            </path>
+                        </svg>)
+                    </span>
+                </a>
+                <a href="https://pypi.org/project/aictx/">PyPI</a>
+            </nav>
+        </header>
+        <main>
+            <section class="hero">
+                <div>
+                    <div class="eyebrow">Practical commands</div>
+                    <h1>AICTX User Manual.</h1>
+                    <p class="lead">Fast answers for common tasks: install, inspect continuity, enable portability, use
+                        MCP, reduce output, query RepoMap, generate reports and clean up.</p>
+                </div>
+                <div class="card"><span class="pill">common check</span>
+                    <pre><code>aictx doctor --repo . --json
+aictx view --repo .</code></pre>
+                    <ul class="checklist">
+                        <li><code>aictx doctor --repo . --json</code>: checks the local AICTX setup and returns machine-readable health details.</li>
+                        <li><code>aictx view --repo .</code>: generates the local continuity view for quick inspection.</li>
+                    </ul>
+                </div>
+            </section>
+            <section class="section">
+                <h2>Setup and health</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Install</h3>
+                        <pre><code>pip install aictx
+aictx install
+aictx init</code></pre>
+                        <ul class="checklist">
+                            <li><code>pip install aictx</code>: installs the AICTX Python package.</li>
+                            <li><code>aictx install</code>: installs global runner integration files.</li>
+                            <li><code>aictx init</code>: initializes AICTX artifacts in the current repository.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Check health</h3>
+                        <pre><code>aictx doctor --repo . --json
+aictx --version</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx doctor --repo . --json</code>: validates repo-local setup, config and generated artifacts.</li>
+                            <li><code>aictx --version</code>: prints the installed AICTX version.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Manual resume/finalize</h3>
+                        <pre><code>aictx resume --repo . --task "continue current work" --json
+aictx finalize --repo . --status success --summary "what changed" --json</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx resume</code>: returns the continuity capsule an agent should read before work.</li>
+                            <li><code>aictx finalize</code>: records what happened so the next session can continue.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            <section class="section">
+                <h2>Continuity and reports</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Continuity View</h3>
+                        <pre><code>aictx view --repo .</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx view --repo .</code>: writes <code>.aictx/reports/continuity-view.md</code> and <code>.aictx/reports/continuity-map.mmd</code>.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Real usage report</h3>
+                        <pre><code>aictx report real-usage</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx report real-usage</code>: summarizes actual AICTX usage observed in the repository.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Release-style diagnostics</h3>
+                        <pre><code>aictx doctor --repo . --release-readiness --json</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx doctor --release-readiness</code>: runs stricter checks useful before publishing or release work.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            <section class="section">
+                <h2>MCP and integrations</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Use MCP</h3>
+                        <pre><code>aictx mcp status --repo .
+aictx mcp-server --repo . --profile full</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx mcp status --repo .</code>: shows whether MCP integration is configured for the repo.</li>
+                            <li><code>aictx mcp-server --repo . --profile full</code>: starts the local MCP server over stdio.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Disable MCP setup</h3>
+                        <pre><code>aictx install --no-mcp
+aictx init --no-mcp</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx install --no-mcp</code>: installs global integration files without MCP configuration.</li>
+                            <li><code>aictx init --no-mcp</code>: initializes a repo while skipping MCP setup.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Profiles</h3>
+                        <pre><code>readonly  -> inspection only
+standard  -> lifecycle writes
+full      -> full AICTX continuity</code></pre>
+                        <ul class="checklist">
+                            <li><code>readonly</code>: exposes inspection without lifecycle writes.</li>
+                            <li><code>standard</code>: allows normal resume/finalize lifecycle writes.</li>
+                            <li><code>full</code>: exposes the complete AICTX continuity surface.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            <section class="section">
+                <h2>Portability</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Enable portable continuity</h3>
+                        <pre><code>aictx init --repo . --portable-continuity</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx init --repo . --portable-continuity</code>: enables portable continuity files that can travel through Git; no cloud sync is used.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Inspect portability</h3>
+                        <pre><code>aictx portability status --repo . --json</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx portability status --repo . --json</code>: reports whether portable continuity is enabled and what is exposed.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Disable portable continuity</h3>
+                        <pre><code>aictx init --no-portable-continuity</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx init --no-portable-continuity</code>: disables portable continuity for the repository.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            <section class="section">
+                <h2>Operational tools</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Work State</h3>
+                        <pre><code>aictx task start "Fix login token refresh"
+aictx task status --json
+aictx task update --json-patch '{"next_action":"run targeted auth tests"}' --json
+aictx task close --status resolved --json</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx task start</code>: creates an active Work State for an unfinished task.</li>
+                            <li><code>aictx task status --json</code>: prints the current Work State.</li>
+                            <li><code>aictx task update --json-patch</code>: updates specific Work State fields.</li>
+                            <li><code>aictx task close --status resolved --json</code>: closes the task when it is done.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>RepoMap</h3>
+                        <pre><code>aictx map status
+aictx map refresh
+aictx map query "startup banner"</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx map status</code>: shows RepoMap availability and index state.</li>
+                            <li><code>aictx map refresh</code>: refreshes the structural file/symbol map.</li>
+                            <li><code>aictx map query</code>: searches RepoMap for relevant entry points.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Messages</h3>
+                        <pre><code>aictx messages status
+aictx messages mute
+aictx messages unmute</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx messages status</code>: shows whether AICTX runtime messages are visible.</li>
+                            <li><code>aictx messages mute</code>: hides non-essential runtime messages.</li>
+                            <li><code>aictx messages unmute</code>: restores runtime messages.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            <section class="section">
+                <h2>Cleanup</h2>
+                <div class="grid two">
+                    <div class="card">
+                        <h3>Clean repo-local setup</h3>
+                        <pre><code>aictx clean --repo .</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx clean --repo .</code>: removes repo-local AICTX setup artifacts managed by AICTX.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Uninstall global setup</h3>
+                        <pre><code>aictx uninstall</code></pre>
+                        <ul class="checklist">
+                            <li><code>aictx uninstall</code>: removes global AICTX integration files from the machine.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            <section class="section">
+                <h2>What this manual covers</h2>
+                <p class="muted">This manual covers the practical user-facing surface: setup, health, continuity
+                    inspection, MCP, portability, Work State, RepoMap, reports, message controls and cleanup. For
+                    internals, use Technical Documentation.</p><a class="button primary"
+                    href="/TECHNICAL_DOCUMENTATION.html">Technical documentation</a>
+            </section>
+        </main>
+        <footer>
+            <p>AICTX — repo-local operational continuity for AI coding agents.</p>
+            <p><a href="https://github.com/oldskultxo/aictx">GitHub</a> · <a
+                    href="https://pypi.org/project/aictx/">PyPI</a> · <a href="/TECHNICAL_DOCUMENTATION.html">Technical
+                    documentation</a></p>
+        </footer>
+    </div>
+  <script defer src="assets/github-stars.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AICTX Quickstart for Operational Continuity</title>
+  <meta name="description" content="Start using AICTX to preserve operational continuity across AI coding-agent sessions with the official aictx CLI.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="author" content="Santi Santamaria">
+  <meta name="theme-color" content="#101820">
+  <link rel="canonical" href="https://aictx.org/QUICKSTART.html">
+  <link rel="icon" href="/images/aictx-logo.png">
+  <meta property="og:site_name" content="AICTX">
+  <meta property="og:title" content="AICTX Quickstart for Operational Continuity">
+  <meta property="og:description" content="Start using AICTX to preserve operational continuity across AI coding-agent sessions with the official aictx CLI.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://aictx.org/QUICKSTART.html">
+  <meta property="og:image" content="https://aictx.org/images/aictx-logo.png">
+  <style>
+:root {
+  --bg:#0b1117; --text:#eef4f8; --muted:#a9b7c6; --accent:#94b41e;
+  --accent-soft:rgba(148,180,30,.16); --border:rgba(255,255,255,.12); --code-bg:#071018;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at top left,rgba(148,180,30,.14),transparent 32rem),var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.shell{max-width:1120px;margin:0 auto;padding:2rem 1.25rem 4rem}
+header{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.brand img{width:8rem;height:auto;display:block}
+nav{display:flex;flex-wrap:wrap;gap:1rem;font-size:.95rem}
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);gap:2rem;align-items:center;padding:3rem 0 2rem}
+.eyebrow{color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.12em;font-size:.78rem;margin-bottom:.75rem}
+h1{margin:0;font-size:clamp(2.7rem,7vw,5.4rem);line-height:.96;letter-spacing:-.06em}
+h2{font-size:clamp(1.8rem,4vw,3rem);line-height:1.05;margin:0 0 1rem;letter-spacing:-.04em}
+h3{margin-top:0}.lead{font-size:clamp(1.1rem,2vw,1.35rem);color:var(--muted);margin:1.5rem 0 0;max-width:68ch}
+.section{padding:3rem 0}.muted{color:var(--muted)}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.025));border:1px solid var(--border);border-radius:1.25rem;padding:1.25rem;box-shadow:0 24px 70px rgba(0,0,0,.25)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:1rem;padding:1rem;overflow:auto;color:#dce9f2;font-size:.9rem}
+code{color:#dce9f2}.button{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:999px;padding:.75rem 1rem;color:var(--text);background:rgba(255,255,255,.04);font-weight:700}.button.primary{background:var(--accent);color:#101820;border-color:var(--accent)}
+.cta-row,.hero-actions{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:1.6rem}.pill{display:inline-block;background:var(--accent-soft);color:var(--accent);border:1px solid rgba(148,180,30,.32);border-radius:999px;padding:.25rem .65rem;font-size:.82rem;font-weight:700}
+footer{border-top:1px solid var(--border);color:var(--muted);padding:2rem 0 0;margin-top:2rem}
+ul.flow{color:var(--muted);padding-left:1.2rem}
+@media(max-width:850px){.shell{padding:1.25rem 1rem 3rem}header{display:block}nav{margin-top:1rem;justify-content:space-between;gap:.5rem;font-size:.82rem}.hero,.grid,.grid.two{grid-template-columns:1fr}h1{font-size:clamp(2.45rem,12vw,3.7rem)}.hero-actions,.cta-row{display:grid;grid-template-columns:1fr}.button{width:100%;min-height:3rem}}
+</style>
+  <link rel="stylesheet" href="assets/github-stars.css">
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a class="brand" href="/" aria-label="AICTX home">
+        <img src="/images/aictx-logo-nobackground.png" alt="AICTX">
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="/QUICKSTART.html">
+          <span class="nav-full">Quickstart</span>
+          <span class="nav-short">Quick</span>
+        </a>
+        <a href="/USER_MANUAL.html">
+          <span class="nav-full">User Manual</span>
+          <span class="nav-short">View</span>
+        </a>
+        <a href="/TECHNICAL_DOCUMENTATION.html">
+          <span class="nav-full">Technical docs</span>
+          <span class="nav-short">Docs</span>
+        </a>
+        <a href="https://github.com/oldskultxo/aictx">
+          GitHub
+          <span class="github-stars js-github-stars" aria-label="GitHub stars">
+            (<span class="js-github-stars-count"></span><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.969.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.979a.75.75 0 0 1-1.088-.79l.72-4.193L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path></svg>)
+          </span>
+        </a>
+        <a href="https://pypi.org/project/aictx/">PyPI</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Quickstart</div>
+          <h1>AICTX Quickstart.</h1>
+          <p class="lead">This walkthrough shows the shortest path from setup to visible operational continuity.</p>
+          <p class="lead">AICTX is built around one loop:</p>
+          <pre><code>resume before work -&gt; work normally -&gt; finalize evidence -&gt; next session continues</code></pre>
+        </div>
+        <div class="card">
+          <span class="pill">1. Install and Initialize</span>
+          <pre><code>pip install aictx
+aictx install
+aictx init
+
+# Then just keep using your coding agent.
+# Agents handle the lifecycle themselves:
+# resume context → work → finalize continuity</code></pre>
+          <p class="muted">Optional check:</p>
+          <pre><code>aictx --version
+aictx doctor --repo . --json</code></pre>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Fresh repos start with little continuity</h2>
+        <p class="muted">A fresh repo may have little continuity. That is expected. AICTX becomes more useful after work has been finalized and Work State, failures, decisions, or handoffs exist.</p>
+      </section>
+
+      <section class="section">
+        <h2>MCP support</h2>
+        <p class="muted">By default, <code>aictx install</code> prepares AICTX MCP runtime metadata and <code>aictx init</code> writes repo-local MCP config for compatible clients.</p>
+        <div class="grid">
+          <div class="card">
+            <h3>Launch local stdio server</h3>
+            <pre><code>aictx mcp-server --repo . --profile full</code></pre>
+          </div>
+          <div class="card">
+            <h3>Inspect MCP setup</h3>
+            <pre><code>aictx mcp status --repo .</code></pre>
+          </div>
+          <div class="card">
+            <h3>Opt out</h3>
+            <pre><code>aictx install --no-mcp
+aictx init --no-mcp</code></pre>
+          </div>
+        </div>
+        <p class="muted">Agents should prefer MCP tools such as <code>aictx_resume</code>, <code>aictx_finalize</code>, and <code>aictx_view</code> when available, and fall back to CLI commands otherwise.</p>
+      </section>
+
+      <section class="section">
+        <h2>Interactive install</h2>
+        <p class="muted">Installation prepares AICTX MCP support by default and will only ask you about enabling recommended RepoMap support using Tree-sitter.</p>
+        <p class="muted">RepoMap uses Tree-sitter to build a compact structural map of files and symbols. It helps agents choose better starting points without reading the whole repo.</p>
+      </section>
+
+      <section class="section">
+        <h2>Interactive init</h2>
+        <p class="muted">During initialization, you can choose from different communication modes. <code>disabled</code> is the default.</p>
+        <pre><code>Communication modes:
+- disabled: No special communication layer; agents answer normally.
+- caveman_lite: Light compact mode; keeps explanations but reduces chatter.
+- caveman_full: Strong compact mode; recommended if you want less runtime noise.
+- caveman_ultra: Aggressive compression; shortest responses, least prose.</code></pre>
+        <p class="muted">Need more setup detail? See <a href="/INSTALLATION.html">Installation</a>.</p>
+      </section>
+
+      <section class="section">
+        <h2>2. Normal flow example</h2>
+        <ul class="flow">
+          <li>Session starts</li>
+          <li>The user asks for a task</li>
+          <li>AICTX provides the agent with a continuity resume capsule</li>
+        </ul>
+        <pre><code>codex@my-repo · session #12 · awake
+
+Resuming: parser refactor was paused after updating token tests.
+Last progress: `tests/test_parser.py` passes; next step is to update error recovery cases.
+
+────────────────────────────────</code></pre>
+
+        <ul class="flow">
+          <li>Agent performs the task</li>
+          <li>AICTX updates continuity artifacts</li>
+          <li>Agent provides the user with a continuity summary</li>
+        </ul>
+        <pre><code>────────────────────────────────
+AICTX summary
+
+Context: resumed parser refactor from previous session state.
+Map: RepoMap quick ok.
+Saved: updated handoff and continuity state.
+Validation: `pytest -q tests/test_parser.py` passed.
+Next: update parser error recovery cases.
+Details: last_execution_summary.md
+Continuity view file: continuity-map.mmd
+View continuity online: mermaid.live view</code></pre>
+      </section>
+
+      <section class="section">
+        <h2>3. Inspect Continuity View Manually</h2>
+        <pre><code>aictx view --repo .</code></pre>
+        <p class="muted">Default output:</p>
+        <pre><code>.aictx/reports/continuity-view.md
+.aictx/reports/continuity-map.mmd</code></pre>
+        <p class="muted">Not hidden memory. Reviewable operational continuity.</p>
+      </section>
+
+      <section class="section">
+        <h2>Next steps</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>User Manual</h3>
+            <p class="muted">Practical commands for common tasks.</p>
+            <a href="/USER_MANUAL.html">Open User Manual →</a>
+          </div>
+          <div class="card">
+            <h3>Technical Documentation</h3>
+            <p class="muted">Full reference and internals.</p>
+            <a href="/TECHNICAL_DOCUMENTATION.html">Open Technical Documentation →</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>AICTX — repo-local operational continuity for AI coding agents.</p>
+      <p><a href="https://github.com/oldskultxo/aictx">GitHub</a> · <a href="https://pypi.org/project/aictx/">PyPI</a> · <a href="/TECHNICAL_DOCUMENTATION.html">Technical documentation</a></p>
+    </footer>
+  </div>
+  <script defer src="assets/github-stars.js"></script>
+</body>
+</html>

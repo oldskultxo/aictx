@@ -1,0 +1,39 @@
+.nav-short {
+  display: none;
+}
+
+.github-stars {
+  display: none;
+  align-items: center;
+  gap: 0.18rem;
+  white-space: nowrap;
+  color: var(--accent, #94b41e);
+}
+
+.github-stars.is-visible {
+  display: inline-flex;
+}
+
+.github-stars svg {
+  flex: 0 0 auto;
+  width: 0.82em;
+  height: 0.82em;
+  margin: 0 0.04em;
+  vertical-align: -0.08em;
+  fill: currentColor;
+  color: inherit;
+}
+
+@media (max-width: 850px) {
+  .nav-full {
+    display: none;
+  }
+
+  .nav-short {
+    display: inline;
+  }
+
+  header .github-stars {
+    display: none !important;
+  }
+}

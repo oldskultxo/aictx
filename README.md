@@ -23,7 +23,7 @@ AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **gene
 
 ![AICTX + Coding Agent Runtime Flow](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/aictx-runtime-flow.png)
 
-[Quickstart](docs/QUICKSTART.md) · [Installation](docs/INSTALLATION.md) · [Continuity View](docs/CONTINUITY_VIEW.md) · [Demo](docs/DEMO.md) · [Technical overview](docs/TECHNICAL_OVERVIEW.md) · [Official project](docs/OFFICIAL_PROJECT.md)
+[Quickstart](docs/QUICK-START.md) · [Installation](docs/INSTALLATION.md) · [Continuity View](docs/CONTINUITY_VIEW.md) · [Demo](docs/DEMO.md) · [Technical overview](docs/TECHNICAL_OVERVIEW.md) · [Official project](docs/OFFICIAL_PROJECT.md)
 
 ---
 
@@ -57,7 +57,7 @@ The generated repo instructions and hooks guide supported agents to call AICTX a
 install -> init -> use your coding agent
 ```
 
-See [Installation](docs/INSTALLATION.md) and [Quickstart](docs/QUICKSTART.md).
+See [Installation](docs/INSTALLATION.md) and [Quickstart](docs/QUICK-START.md).
 
 ---
 
@@ -187,7 +187,7 @@ AICTX is runner-aware, not runner-locked.
 Start here:
 
 - [Installation](docs/INSTALLATION.md)
-- [Quickstart](docs/QUICKSTART.md)
+- [Quickstart](docs/QUICK-START.md)
 - [Demo](docs/DEMO.md)
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
 
