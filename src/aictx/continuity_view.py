@@ -768,13 +768,20 @@ def write_continuity_view(repo_root: Path, output: Path | str | None = None, map
     }
 
 
-def mermaid_live_url(mermaid: str, *, mode: str = "edit") -> str:
+def mermaid_live_url(mermaid: str, *, mode: str = "view") -> str:
     target_mode = "view" if str(mode or "").strip() == "view" else "edit"
-    payload = json.dumps(
-        {"code": str(mermaid or ""), "mermaid": {"theme": "default"}},
-        ensure_ascii=True,
-        separators=(",", ":"),
-    ).encode("ascii")
+    state = {
+        "code": str(mermaid or ""),
+        # Match Mermaid Live's State shape: `mermaid` is the config editor
+        # contents as a JSON string, and `rough`/`updateDiagram` are required
+        # state fields in current Mermaid Live. Missing or object-shaped fields
+        # decode as JSON but can fail while the editor restores the URL.
+        "mermaid": json.dumps({"theme": "default"}, ensure_ascii=True, indent=2),
+        "rough": False,
+        "updateDiagram": True,
+        "editorMode": "code",
+    }
+    payload = json.dumps(state, ensure_ascii=True, separators=(",", ":")).encode("ascii")
     compressor = zlib.compressobj(9, zlib.DEFLATED, 15, 8, zlib.Z_DEFAULT_STRATEGY)
     compressed = compressor.compress(payload) + compressor.flush()
     encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
@@ -792,13 +799,11 @@ def continuity_view_summary_links(repo_root: Path) -> dict[str, str]:
     else:
         mermaid = render_continuity_mermaid(build_continuity_view_model(repo_root))
     file_path = CONTINUITY_MAP_PATH.as_posix()
-    # Mermaid Live currently shares pako payloads through the edit route.
-    # The view route can reject otherwise valid pako JSON payloads when opened
-    # directly from generated Markdown links, so final summaries use edit links.
-    online_url = mermaid_live_url(mermaid, mode="edit")
+    # Mermaid Live exposes shareable read-only diagrams through /view#pako.
+    online_url = mermaid_live_url(mermaid)
     return {
         "file_path": file_path,
         "file_link": f"[continuity-map.mmd]({file_path})",
         "online_url": online_url,
-        "online_link": f"[mermaid.live edit]({online_url})",
+        "online_link": f"[mermaid.live view]({online_url})",
     }
