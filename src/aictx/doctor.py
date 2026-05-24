@@ -5,6 +5,7 @@ from typing import Any
 
 from ._version import __version__
 from .contract_compliance import load_contract_compliance_history, summarize_contract_compliance_history
+from .continuity.quality import build_continuity_quality_report
 from .failures import load_failures
 from .report import build_repo_map_report, read_jsonl
 from .runner_integrations import (
@@ -246,6 +247,15 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
         "contract compliance history is healthy" if contract_status == "ok" else "contract compliance has gaps or insufficient evaluated history",
         details=contract,
         recommended_action="inspect recent contract gaps and ensure finalize observes first action, scope, and canonical test" if contract_status == "warning" else "",
+    ))
+
+    continuity_quality = build_continuity_quality_report(repo)
+    checks.append(_check(
+        "continuity_quality",
+        str(continuity_quality.get("status") or "warning"),
+        f"Continuity quality: {continuity_quality.get('score')}/100",
+        details=continuity_quality,
+        recommended_action="Inspect continuity quality warnings before relying on repo-local memory" if str(continuity_quality.get("status") or "") != "ok" else "",
     ))
 
     hygiene = _memory_hygiene_snapshot(repo)

@@ -202,6 +202,25 @@ Agents should preserve those links when appending the AICTX final summary to the
 
 ---
 
+## Continuity Quality
+
+Continuity Quality is a deterministic, advisory report about whether repo-local continuity should be treated as fresh primary guidance or background evidence. AICTX memory is operational evidence, not permanent truth. Agents should inspect warnings and verify stale claims against the current repository.
+
+The generated Continuity View Markdown includes a compact `## Continuity Quality` section with the score, status, advisory flag, status counts, and up to three warning/error issues. It does not embed the full JSON report. The full report is available through `aictx resume --json`, `aictx doctor --json`, the MCP `aictx_continuity_quality` tool, and the `aictx://repo/current/continuity-quality` resource.
+
+Default age thresholds are advisory:
+
+- `fresh`: updated within 7 days
+- `possibly_stale`: updated within 30 days
+- `demoted`: older than 30 days but not older than 90 days
+- `obsolete`: older than 90 days
+
+These statuses do not delete artifacts. They guide agents on whether continuity should be treated as primary guidance or background evidence.
+
+A newly generated execution contract can be `pending_validation_for_new_contract`. That is informational. It means validation has not happened yet.
+
+`missing_validation_evidence` is different: it means older carried continuity expected validation evidence but none was recorded. Agents should treat that as a real risk before relying on the carried context.
+
 ## Resume integration
 
 `aictx resume --json` reports whether the latest Continuity View exists:

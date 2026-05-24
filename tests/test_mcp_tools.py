@@ -48,6 +48,18 @@ def test_mcp_map_portability_and_view_tools(tmp_path: Path):
     assert sibling_escape["error"]["code"] == "invalid_output"
 
 
+
+def test_mcp_continuity_quality_tool_exposes_report(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    report = call_tool("aictx_continuity_quality", {"repo": str(repo), "task": "inspect quality"})
+
+    assert report["ok"] is True
+    assert "score" in report["continuity_quality"]
+    assert "issues" in report["continuity_quality"]
+    assert "loaded_items" in report["continuity_quality"]
+
 def test_mcp_security_invalid_repo_and_payload_limit(tmp_path: Path):
     bad = call_tool("aictx_resume", {"repo": str(tmp_path / "missing"), "task": "x"})
     assert bad["error"]["code"] == "invalid_request"
@@ -70,6 +82,9 @@ def test_mcp_tool_specs_expose_main_input_schemas():
     map_schema = specs["aictx_map_query"]["inputSchema"]
     assert map_schema["required"] == ["query"]
     assert map_schema["properties"]["limit"]["maximum"] == 50
+
+    quality_schema = specs["aictx_continuity_quality"]["inputSchema"]
+    assert "task" in quality_schema["properties"]
 
     messages_schema = specs["aictx_messages_set"]["inputSchema"]
     assert messages_schema["required"] == ["mode"]

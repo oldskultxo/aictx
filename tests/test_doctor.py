@@ -34,6 +34,7 @@ def test_doctor_parser_and_json_output(tmp_path: Path, capsys) -> None:
         "repomap_status",
         "capture_quality",
         "contract_compliance_health",
+        "continuity_quality",
         "stale_duplicate_memory",
     }
     assert "makefile_ci_compatibility" not in {check["name"] for check in payload["checks"]}
