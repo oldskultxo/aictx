@@ -349,9 +349,20 @@ def build_continuity_view_model(repo_root: Path) -> dict[str, Any]:
     for strategy in strategies:
         seed_paths.extend(list(strategy.get("entry_points") or []))
     repomap_hints, repomap_status, hidden_repomap = _repomap_model(repo_root, seed_paths=seed_paths)
+    generated_at = _now_iso()
+    from .continuity.quality import build_continuity_quality_report
+
+    continuity_quality = build_continuity_quality_report(
+        repo_root,
+        context={
+            "continuity_view": {"exists": True, "generated_at": generated_at},
+            "active_work_state": work_state if work_state.get("source") == "active" else {},
+            "recent_work_state": work_state if work_state.get("source") == "recent" else {},
+        },
+    )
     model: dict[str, Any] = {
         "schema_version": "1.0",
-        "generated_at": _now_iso(),
+        "generated_at": generated_at,
         "repository": repository,
         "work_state": work_state,
         "open_handoffs": handoffs,
@@ -363,6 +374,7 @@ def build_continuity_view_model(repo_root: Path) -> dict[str, Any]:
         "repomap_hints": repomap_hints,
         "repomap_status": repomap_status,
         "portable_continuity": _portable_model(repo_root),
+        "continuity_quality": continuity_quality,
         "hidden_counts": {
             "handoffs": hidden_handoffs,
             "failures": hidden_failures,
@@ -569,6 +581,40 @@ def _markdown_list(values: list[str]) -> list[str]:
     return [f"- {value}" for value in values] if values else ["- None"]
 
 
+def _continuity_quality_markdown(quality: dict[str, Any]) -> list[str]:
+    if not quality:
+        return ["- Score: unknown", "- Status: unknown", "- Advisory only: yes", "", "Top issues:", "- None"]
+    summary = quality.get("summary") if isinstance(quality.get("summary"), dict) else {}
+    lines = [
+        f"- Score: {quality.get('score', 'unknown')}/100",
+        f"- Status: {quality.get('status') or 'unknown'}",
+        f"- Advisory only: {'yes' if quality.get('advisory_only', True) else 'no'}",
+    ]
+    for key, label in (
+        ("fresh", "Fresh"),
+        ("possibly_stale", "Possibly stale"),
+        ("stale", "Stale"),
+        ("obsolete", "Obsolete"),
+        ("unverified", "Unverified"),
+        ("demoted", "Demoted"),
+        ("missing", "Missing"),
+    ):
+        lines.append(f"- {label}: {int(summary.get(key) or 0)}")
+    lines.extend(["", "Top issues:"])
+    issues = [
+        issue for issue in quality.get("issues", [])
+        if isinstance(issue, dict) and str(issue.get("severity") or "") in {"warning", "error"}
+    ] if isinstance(quality.get("issues"), list) else []
+    if not issues:
+        lines.append("- None")
+        return lines
+    for issue in issues[:3]:
+        text = str(issue.get("summary") or issue.get("code") or "Continuity quality issue").strip()
+        recommendation = str(issue.get("recommendation") or "").strip()
+        lines.append(f"- {text}{(' ' + recommendation) if recommendation else ''}")
+    return lines
+
+
 def _section_items(items: list[dict[str, Any]], *, title_key: str = "title") -> list[str]:
     if not items:
         return ["- None"]
@@ -619,6 +665,10 @@ def render_continuity_markdown(model: dict[str, Any]) -> str:
             f"- Relevant failures: {summary.get('relevant_failures', 0)}",
             f"- Latest compatible execution contract: {contract.get('title') if contract.get('exists') else 'None'}",
             f"- Portable continuity: {portable.get('status') or 'not configured'}",
+            "",
+            "## Continuity Quality",
+            "",
+            *_continuity_quality_markdown(model.get("continuity_quality") if isinstance(model.get("continuity_quality"), dict) else {}),
             "",
             "## Continuity Map",
             "",

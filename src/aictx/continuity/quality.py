@@ -14,6 +14,10 @@ DECISIONS_PATH = REPO_CONTINUITY_DIR / "decisions.jsonl"
 RESUME_CAPSULE_JSON_PATH = REPO_CONTINUITY_DIR / "resume_capsule.json"
 CONTINUITY_VIEW_MARKDOWN_PATH = Path(".aictx") / "reports" / "continuity-view.md"
 
+FRESH_MAX_DAYS = 7
+POSSIBLY_STALE_MAX_DAYS = 30
+DEMOTED_MAX_DAYS = 90
+
 
 def _now(now: datetime | None) -> datetime:
     current = now or datetime.now(timezone.utc)
@@ -101,11 +105,11 @@ def _item_status(age_days: int | None, *, missing: bool = False, confidence: str
         if confidence == "low" or role == "background":
             return "demoted"
         return "unverified"
-    if age_days <= 7:
+    if age_days <= FRESH_MAX_DAYS:
         return "fresh"
-    if age_days <= 30:
+    if age_days <= POSSIBLY_STALE_MAX_DAYS:
         return "possibly_stale"
-    if age_days <= 90:
+    if age_days <= DEMOTED_MAX_DAYS:
         return "demoted"
     return "obsolete"
 
@@ -464,26 +468,28 @@ def build_continuity_quality_report(
     capsule = ctx.get("capsule") if isinstance(ctx.get("capsule"), dict) else {}
     if isinstance(capsule.get("validated"), list):
         validated.extend(str(item) for item in capsule.get("validated", []) if str(item or "").strip())
-    if carryover:
-        for gap in carryover:
-            if isinstance(gap, dict) and str(gap.get("kind") or "") == "missing_validation":
-                _add_issue(issues, _issue(
-                    "missing_validation_evidence",
-                    "warning",
-                    ".aictx/continuity/contracts",
-                    "Validation evidence is missing for carried continuity.",
-                    source_id=str(gap.get("source_execution_id") or ""),
-                    reason=str(gap.get("summary") or gap.get("expected") or ""),
-                    recommendation=str(gap.get("next_action") or "Run the expected validation before relying on continuity."),
-                ))
-    elif contract and not validated:
+    missing_validation_carryover = [
+        gap for gap in carryover
+        if isinstance(gap, dict) and str(gap.get("kind") or "") == "missing_validation"
+    ]
+    for gap in missing_validation_carryover:
         _add_issue(issues, _issue(
             "missing_validation_evidence",
             "warning",
             ".aictx/continuity/contracts",
-            "Execution contract exists but no validation evidence was loaded.",
+            "Validation evidence is missing for carried continuity.",
+            source_id=str(gap.get("source_execution_id") or ""),
+            reason=str(gap.get("summary") or gap.get("expected") or ""),
+            recommendation=str(gap.get("next_action") or "Run the expected validation before relying on continuity."),
+        ))
+    if contract and not validated and not missing_validation_carryover:
+        _add_issue(issues, _issue(
+            "pending_validation_for_new_contract",
+            "info",
+            ".aictx/continuity/contracts",
+            "Execution contract is pending validation.",
             reason=str(contract.get("test_command", {}).get("command") or "") if isinstance(contract.get("test_command"), dict) else "",
-            recommendation="Run or record the canonical validation command.",
+            recommendation="Run or record the expected validation during finalize.",
         ))
 
     scoring_breakdown = _score_breakdown(issues)
@@ -517,5 +523,10 @@ def build_continuity_quality_report(
             "unverified": len(buckets["unverified"]),
             "demoted": len(buckets["demoted"]),
             "missing": len(buckets["missing"]),
+        },
+        "thresholds": {
+            "fresh_max_days": FRESH_MAX_DAYS,
+            "possibly_stale_max_days": POSSIBLY_STALE_MAX_DAYS,
+            "demoted_max_days": DEMOTED_MAX_DAYS,
         },
     }

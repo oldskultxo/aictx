@@ -6,7 +6,7 @@ from pathlib import Path
 
 from aictx import cli
 from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH
-from aictx.continuity.quality import build_continuity_quality_report
+from aictx.continuity.quality import DEMOTED_MAX_DAYS, FRESH_MAX_DAYS, POSSIBLY_STALE_MAX_DAYS, build_continuity_quality_report
 from aictx.failures import FAILURE_PATTERNS_PATH
 from aictx.mcp.resources import resource_content
 from aictx.mcp.tools import call_tool
@@ -210,6 +210,69 @@ def test_resume_json_includes_quality_and_healthy_markdown_is_not_noisy(tmp_path
     output = capsys.readouterr().out
     assert "Continuity quality" not in output
 
+
+
+def test_resume_new_contract_reports_pending_validation_not_missing_validation(tmp_path: Path, capsys) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_repomap(repo)
+    _seed_view(repo)
+    (repo / HANDOFF_PATH).write_text(
+        json.dumps({
+            "summary": "fresh handoff",
+            "completed": ["fresh setup done"],
+            "updated_at": "2026-05-24T00:00:00Z",
+            "recommended_starting_points": ["src/live.py"],
+        }),
+        encoding="utf-8",
+    )
+    parser = cli.build_parser()
+
+    args = parser.parse_args(["resume", "--repo", str(repo), "--task", "live", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    issues = payload["continuity_quality"]["issues"]
+
+    assert not any(issue["code"] == "missing_validation_evidence" and issue["severity"] == "warning" for issue in issues)
+    pending = [issue for issue in issues if issue["code"] == "pending_validation_for_new_contract"]
+    if pending:
+        assert pending[0]["severity"] == "info"
+    assert payload["continuity_quality"]["status"] == "ok"
+
+    args = parser.parse_args(["resume", "--repo", str(repo), "--task", "live"])
+    assert args.func(args) == 0
+    output = capsys.readouterr().out
+    assert "Continuity quality" not in output
+
+
+def test_continuity_quality_warns_for_carried_missing_validation_gap(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    report = build_continuity_quality_report(
+        repo,
+        context={
+            "carryover_gaps": [
+                {
+                    "kind": "missing_validation",
+                    "source_execution_id": "prev-exec",
+                    "summary": "Expected pytest was not recorded",
+                    "next_action": "Run pytest",
+                }
+            ]
+        },
+    )
+
+    matches = [issue for issue in report["issues"] if issue["code"] == "missing_validation_evidence"]
+    assert matches
+    assert matches[0]["severity"] == "warning"
+    assert report["status"] == "warning"
+
+
+def test_continuity_quality_age_threshold_constants_are_public() -> None:
+    assert FRESH_MAX_DAYS == 7
+    assert POSSIBLY_STALE_MAX_DAYS == 30
+    assert DEMOTED_MAX_DAYS == 90
 
 def test_doctor_and_mcp_expose_continuity_quality(tmp_path: Path, capsys) -> None:
     repo = tmp_path / "repo"

@@ -14,6 +14,7 @@ from aictx.continuity_view import (
     mermaid_live_url,
     render_continuity_markdown,
     render_continuity_mermaid,
+    write_continuity_view,
 )
 from aictx.failures import FAILURE_PATTERNS_PATH
 from aictx.repo_map.config import write_repomap_config, write_repomap_index
@@ -46,6 +47,7 @@ def test_empty_continuity_view_is_deterministic_and_has_required_sections(tmp_pa
     assert 'Empty["No active continuity signals found"]' in first
     for heading in (
         "## Overview",
+        "## Continuity Quality",
         "## Continuity Map",
         "## Working Tree Changes",
         "## Active Work State",
@@ -264,6 +266,23 @@ def test_view_cli_creates_files_mermaid_stdout_json_and_custom_output(tmp_path: 
     assert payload["view"]["markdown_path"] == "custom-view.md"
     assert (repo / "custom-view.md").exists()
 
+
+
+def test_continuity_view_renders_quality_summary(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    payload = write_continuity_view(repo)
+    markdown = (repo / CONTINUITY_VIEW_PATH).read_text(encoding="utf-8")
+
+    assert payload["ok"] is True
+    assert "## Continuity Quality" in markdown
+    assert "- Score:" in markdown
+    assert "- Status:" in markdown
+    assert "- Advisory only:" in markdown
+    assert "Top issues:" in markdown
+    assert '"loaded_items"' not in markdown
+    assert '"scoring_breakdown"' not in markdown
 
 def test_finalize_include_view_and_resume_json_integration(tmp_path: Path, capsys):
     repo = tmp_path / "repo"

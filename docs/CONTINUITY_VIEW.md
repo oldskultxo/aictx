@@ -48,13 +48,26 @@ It is not a generic graph viewer, dashboard, knowledge base, or replacement for 
 
 ---
 
-## Continuity quality
+## Continuity Quality
 
 AICTX treats repo-local memory as operational evidence, not permanent truth. `aictx resume`, `aictx doctor`, and MCP expose a Continuity Quality report that scores whether current continuity is fresh, inspectable, and verifiable.
 
-The report can mark items as `fresh`, `possibly_stale`, `stale`, `obsolete`, `unverified`, or `demoted`. Demoted memory is not deleted; agents should treat it as background and verify it against current files before acting.
+The generated Continuity View Markdown includes a compact `## Continuity Quality` section with the score, status, advisory flag, status counts, and up to three warning/error issues. It does not embed the full JSON report. The full report is available through `aictx resume --json`, `aictx doctor --json`, the MCP `aictx_continuity_quality` tool, and the `aictx://repo/current/continuity-quality` resource.
 
-Quality warnings include missing RepoMap or Continuity View data, stale handoffs, decisions or failures that reference deleted files, and missing validation evidence for active work.
+Default age thresholds are advisory:
+
+- `fresh`: updated within 7 days
+- `possibly_stale`: updated within 30 days
+- `demoted`: older than 30 days but not older than 90 days
+- `obsolete`: older than 90 days
+
+These statuses do not delete artifacts. They guide agents on whether continuity should be treated as primary guidance or background evidence.
+
+A newly generated execution contract can be `pending_validation_for_new_contract`. That is informational. It means validation has not happened yet.
+
+`missing_validation_evidence` is different: it means older carried continuity expected validation evidence but none was recorded. Agents should treat that as a real risk before relying on the carried context.
+
+Quality warnings include missing RepoMap or Continuity View data, stale handoffs, decisions or failures that reference deleted files, and missing validation evidence for carried continuity.
 
 ---
 
