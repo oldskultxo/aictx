@@ -1,5 +1,14 @@
 # Changelog
 
+## 6.8.0 - 2026-05-24
+
+### Added
+- Added Continuity Quality scoring.
+- Added stale-context warnings.
+- Added pending vs missing validation distinction.
+- Added Continuity Quality section to Continuity View.
+- Exposed quality through resume, doctor and MCP.
+
 ## 6.7.0 - 2026-05-20
 
 ### Added

@@ -5,9 +5,9 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 # Upgrade guide
 
-## Current line: 6.7.x
+## Current line: 6.8.x
 
-Current documented runtime: `6.7.0`.
+Current documented runtime: `6.8.0`.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -17,6 +17,50 @@ aictx init
 ```
 
 ---
+## 6.8.0
+
+`6.8.0` adds Continuity Quality scoring so AICTX can evaluate whether repo-local continuity is fresh, stale, missing, demoted, unverified, or safe to rely on.
+
+This release does not require a data migration.
+
+Added:
+- Continuity Quality scoring for repo-local continuity artifacts.
+- Stale-context warnings for handoffs, decisions, failures, Work State, RepoMap, Continuity View, and validation evidence.
+- Detection of continuity items that reference deleted or missing files.
+- Demotion semantics for old or weak memory without deleting existing artifacts.
+- Distinction between:
+  - `pending_validation_for_new_contract`: informational, for newly generated execution contracts that have not been validated yet.
+  - `missing_validation_evidence`: warning, for older carried continuity that expected validation evidence but did not record it.
+- Continuity Quality output in `aictx resume --json`.
+- Continuity Quality diagnostic check in `aictx doctor --json`.
+- Continuity Quality MCP tool/resource:
+  - `aictx_continuity_quality`
+  - `aictx://repo/current/continuity-quality`
+- Compact `## Continuity Quality` section in generated Continuity View Markdown.
+
+Changed:
+- `aictx view` now includes a compact quality summary in `.aictx/reports/continuity-view.md`.
+- Freshness thresholds are now explicit and advisory:
+  - `fresh`: updated within 7 days
+  - `possibly_stale`: updated within 30 days
+  - `demoted`: older than 30 days but not older than 90 days
+  - `obsolete`: older than 90 days
+- `resume` avoids noisy warning-level validation messages for newly generated contracts.
+
+Upgrade notes:
+- No data migration is required.
+- Existing `.aictx/` continuity data remains compatible.
+- Continuity Quality is advisory. It does not delete or rewrite existing memory.
+- Old continuity may now appear as `demoted`, `possibly_stale`, or `obsolete`. This means agents should treat it as background evidence and verify it against current files before acting.
+- After upgrading, refresh repo-local integration files and regenerate the Continuity View:
+
+```bash
+aictx install
+aictx init
+aictx doctor --repo . --json
+aictx view --repo .
+```
+
 ## 6.7.0
 
 `6.7.0` adds local AICTX MCP support and plugin distribution artifacts so agents can use repo-local continuity through MCP-first workflows.

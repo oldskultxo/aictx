@@ -127,7 +127,7 @@ AICTX can render the current operational state of a repository as local Markdown
 .aictx/reports/continuity-map.mmd
 ```
 
-Not hidden memory. Reviewable operational continuity.
+Not hidden memory. Reviewable operational continuity, with quality signals for stale, missing, demoted, or unverified context.
 
 ![AICTX Continuity View example](https://aictx.org/images/continuity-view.png)
 
@@ -145,6 +145,7 @@ AICTX focuses on operational facts that help the next agent continue useful work
 - execution contracts and contract-compliance signals;
 - optional RepoMap structural entry points;
 - optional Git-portable continuity for small teams.
+- continuity quality signals for stale, missing, demoted, obsolete, or unverified context;
 
 ## What AICTX is not
 
@@ -165,6 +166,7 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 | **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
 | **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
 | **Continuity View** | Generates `.aictx/reports/continuity-view.md` and `.aictx/reports/continuity-map.mmd` from repo-local continuity | Users and agents can inspect active Work State, handoffs, failures, contracts, summaries, RepoMap hints, and portability in one deterministic Markdown/Mermaid view |
+| **Continuity Quality** | Scores repo-local continuity freshness and flags stale, missing, demoted, obsolete, or unverified context | Agents can avoid trusting old memory blindly and treat weak continuity as background evidence |
 | **Contract Compliance** | Audits first action, edit scope, validation, and structural alignment | Gaps can carry over into Work State instead of disappearing |
 | **Doctor** | Read-only repo/runtime diagnostic with `aictx doctor --repo . --json`; add `--release-readiness` for strict aictx release-gate checks | Support uses a general repo diagnostic while releases keep stricter checks |
 | **Resume capsule** | Compiles continuity into one agent brief | Agents do not need to discover AICTX internals at startup |
