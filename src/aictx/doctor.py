@@ -5,6 +5,7 @@ from typing import Any
 
 from ._version import __version__
 from .contract_compliance import load_contract_compliance_history, summarize_contract_compliance_history
+from .continuity.quality import build_continuity_quality_report
 from .failures import load_failures
 from .report import build_repo_map_report, read_jsonl
 from .runner_integrations import (
@@ -258,6 +259,17 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
         "no stale or duplicate memory reported" if hygiene_status == "ok" else "stale or duplicate memory needs cleanup",
         details=hygiene,
         recommended_action="run maintenance/compaction diagnostics before release" if hygiene_status == "warning" else "",
+    ))
+
+    continuity_quality = build_continuity_quality_report(repo)
+    quality_score = int(continuity_quality.get("score") or 0)
+    quality_status = str(continuity_quality.get("status") or "warning")
+    checks.append(_check(
+        "continuity_quality",
+        quality_status if quality_status in {"ok", "warning", "error"} else "warning",
+        f"continuity quality: {quality_score}/100",
+        details=continuity_quality,
+        recommended_action="inspect continuity quality warnings before relying on repo-local memory" if quality_status != "ok" else "",
     ))
 
     for item in checks:

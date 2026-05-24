@@ -3302,6 +3302,22 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
         f"status: {task_state.get('status', 'unknown')}",
         f"confidence: {task_state.get('confidence', 'low')}",
         f"reason: {task_state.get('reason', 'unknown')}",
+    ])
+    quality = payload.get("continuity_quality") if isinstance(payload.get("continuity_quality"), dict) else {}
+    if quality and (full or str(quality.get("status") or "ok") != "ok"):
+        lines.extend([
+            "",
+            "Continuity quality",
+            f"score: {quality.get('score', 0)}/100",
+            f"status: {quality.get('status', 'unknown')}",
+        ])
+        visible_issues = [
+            item for item in quality.get("issues", [])
+            if isinstance(item, dict) and str(item.get("severity") or "info") in {"warning", "error"}
+        ]
+        for item in visible_issues[:3]:
+            lines.append(f"- {item.get('summary')}: {item.get('reason') or item.get('recommendation') or item.get('code')}")
+    lines.extend([
         "",
         "Resuming",
         str(capsule.get("resuming") or "No active continuation selected."),
@@ -3539,6 +3555,25 @@ def build_resume_capsule(
         first_action_path=str(first_action.get("path") or ""),
         full=full,
     )
+    continuity_view_status = _resume_continuity_view_status(repo_root)
+    quality_context = {
+        **context,
+        "loaded_context": loaded_context,
+        "execution_contract": execution_contract,
+        "task_state": task_state,
+        "carryover_gaps": carryover_gaps,
+        "structural_context": structural_context,
+        "continuity_view": continuity_view_status,
+        "capsule": {"validated": validated},
+    }
+    from .quality import build_continuity_quality_report
+
+    continuity_quality = build_continuity_quality_report(
+        repo_root,
+        request_text=request,
+        task_type=task_type,
+        context=quality_context,
+    )
     payload: dict[str, Any] = {
         "schema_version": "1.0",
         "generated_at": _now_iso(),
@@ -3583,7 +3618,8 @@ def build_resume_capsule(
             "avoid": avoid,
         },
         "sources": sources,
-        "continuity_view": _resume_continuity_view_status(repo_root),
+        "continuity_view": continuity_view_status,
+        "continuity_quality": continuity_quality,
         "written_files": {
             "markdown": RESUME_CAPSULE_MARKDOWN_PATH.as_posix(),
             "json": RESUME_CAPSULE_JSON_PATH.as_posix(),

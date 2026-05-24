@@ -48,6 +48,16 @@ It is not a generic graph viewer, dashboard, knowledge base, or replacement for 
 
 ---
 
+## Continuity quality
+
+AICTX treats repo-local memory as operational evidence, not permanent truth. `aictx resume`, `aictx doctor`, and MCP expose a Continuity Quality report that scores whether current continuity is fresh, inspectable, and verifiable.
+
+The report can mark items as `fresh`, `possibly_stale`, `stale`, `obsolete`, `unverified`, or `demoted`. Demoted memory is not deleted; agents should treat it as background and verify it against current files before acting.
+
+Quality warnings include missing RepoMap or Continuity View data, stale handoffs, decisions or failures that reference deleted files, and missing validation evidence for active work.
+
+---
+
 ## What the view contains
 
 The generated Markdown includes:

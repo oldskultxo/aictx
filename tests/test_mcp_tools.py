@@ -63,6 +63,10 @@ def test_mcp_tool_specs_expose_main_input_schemas():
     assert resume_schema["properties"]["mode"]["enum"] == ["brief", "standard", "full"]
     assert resume_schema["additionalProperties"] is False
 
+    quality_schema = specs["aictx_continuity_quality"]["inputSchema"]
+    assert "task" in quality_schema["properties"]
+    assert quality_schema["additionalProperties"] is False
+
     finalize_schema = specs["aictx_finalize"]["inputSchema"]
     assert finalize_schema["required"] == ["status", "summary"]
     assert finalize_schema["properties"]["status"]["enum"] == ["success", "failure"]

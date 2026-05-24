@@ -41,6 +41,7 @@ def test_mcp_server_lists_resources_prompts_and_readonly_tools(tmp_path: Path):
 
     resources = handle_request({"jsonrpc": "2.0", "id": 3, "method": "resources/list", "params": {}}, repo=str(repo), profile="full")
     assert "aictx://repo/current/doctor" in {item["uri"] for item in resources["result"]["resources"]}
+    assert "aictx://repo/current/continuity-quality" in {item["uri"] for item in resources["result"]["resources"]}
 
     prompts = handle_request({"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}}, repo=str(repo), profile="full")
     assert "aictx_continue_task" in {item["name"] for item in prompts["result"]["prompts"]}
