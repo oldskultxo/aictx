@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AICTX - Operational continuity for AI coding agents</title>
   <meta name="description"
-    content="AICTX is the official repo-local operational continuity layer for AI coding agents, with CLI support, a local MCP server, Claude/Codex plugin artifacts, Work State, handoffs, failures, decisions and validation evidence.">
+    content="AICTX is the official repo-local operational continuity layer for AI coding agents, with CLI support, a local MCP server, Claude/Codex plugin artifacts, Continuity Quality, Work State, handoffs, failures, decisions and validation evidence.">
   <meta name="keywords"
     content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, MCP, Model Context Protocol, local MCP server, Claude Code plugin, Codex plugin, agent plugins">
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -642,7 +642,7 @@
           <p class="lead">
             AICTX helps Codex, Claude, GitHub Copilot and other coding agents continue work across sessions by
             preserving the last useful execution state: active work, next actions, decisions, failures, validation
-            evidence and repo context.
+            evidence, repo context and quality signals for stale or unverified continuity.
           </p>
           <div class="hero-actions">
             <a class="button primary" href="/QUICKSTART.html">Start in 2 minutes</a>
@@ -665,9 +665,6 @@ aictx init
 
       <section class="section">
         <h2>Start from what actually happened.</h2>
-        <p class="muted">New agent sessions often rediscover the same files, decisions, failed commands and
-          validation steps. AICTX keeps that operational state inside the repository so the next session can
-          continue from evidence instead of guessing from README plus chat history.</p>
         <div class="grid">
           <div class="card">
             <h3>Work State</h3>
@@ -679,8 +676,8 @@ aictx init
             <p class="muted">Project decisions and what the previous session left for the next one.</p>
           </div>
           <div class="card">
-            <h3>Failures and validation</h3>
-            <p class="muted">Known failed commands, resolved patterns, canonical checks and evidence.</p>
+            <h3>Failures, validation and quality</h3>
+            <p class="muted">Known failed commands, resolved patterns, canonical checks, validation evidence and stale-context quality signals.</p>
           </div>
         </div>
       </section>
@@ -716,7 +713,7 @@ It finalizes factual evidence for the next session.</code></pre>
         <p class="muted">AICTX stores continuity under <code>.aictx/</code>. It is not cloud memory, not a
           vector database and not locked inside one chat. You can inspect it, clean it up, and optionally make
           a safe subset portable through Git.</p>
-        <div class="grid two">
+        <div class="grid">
           <div class="card">
             <h3>Continuity View</h3>
             <p class="muted">Generate a local Markdown and Mermaid view of current operational continuity.
@@ -732,6 +729,15 @@ It finalizes factual evidence for the next session.</code></pre>
             <p class="muted">Expose continuity as local MCP tools/resources/prompts. Compatible clients can
               launch it over stdio; CLI fallback remains available.</p>
             <pre><code>aictx mcp-server --repo . --profile full</code></pre>
+          </div>
+          <div class="card">
+            <h3>Continuity Quality</h3>
+            <p class="muted">Score whether repo-local continuity is fresh, stale, missing, demoted, obsolete or unverified before agents rely on it.</p>
+            <pre><code>aictx doctor --repo . --json
+
+# also exposed through:
+# aictx resume --json
+# MCP continuity quality</code></pre>
           </div>
         </div>
       </section>
