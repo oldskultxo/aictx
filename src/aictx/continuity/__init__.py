@@ -3354,19 +3354,6 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     else:
         lines.append(f"- Not generated yet. Run `aictx view` to create: {view_path}")
 
-    quality = payload.get("continuity_quality") if isinstance(payload.get("continuity_quality"), dict) else {}
-    quality_issues = [
-        issue for issue in quality.get("issues", []) if isinstance(issue, dict) and str(issue.get("severity") or "") in {"warning", "error"}
-    ] if isinstance(quality.get("issues"), list) else []
-    if quality and (full or str(quality.get("status") or "ok") != "ok" or quality_issues):
-        lines.extend(["", "Continuity Quality"])
-        lines.append(f"- Score: {quality.get('score')}/100")
-        lines.append(f"- Status: {quality.get('status') or 'unknown'}")
-        for issue in quality_issues[:3]:
-            summary = str(issue.get("summary") or issue.get("code") or "Continuity quality issue").strip()
-            recommendation = str(issue.get("recommendation") or "").strip()
-            lines.append(f"- {summary}{(' ' + recommendation) if recommendation else ''}")
-
     lines.extend(["", "Source index"])
     source_lines = [
         ("Full capsule", written.get("markdown")),
@@ -3604,14 +3591,6 @@ def build_resume_capsule(
         "loaded_context": loaded_context,
         "warnings": _clean_string_list(list(context.get("warnings", []) or []) + entry_warnings, limit=12),
     }
-    from .quality import build_continuity_quality_report
-
-    payload["continuity_quality"] = build_continuity_quality_report(
-        repo_root,
-        request_text=request,
-        task_type=task_type,
-        context=payload,
-    )
     max_chars = 12000 if full else 6000
     contract_ref = persist_resume_contract(repo_root, payload, session_id=session_key, agent_id=str(session.get("agent_id") or ""))
     if contract_ref:

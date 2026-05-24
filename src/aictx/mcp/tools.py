@@ -9,7 +9,6 @@ from typing import Any
 
 from ..area_memory import derive_area_id
 from ..continuity import DECISIONS_PATH, HANDOFF_PATH, HANDOFFS_HISTORY_PATH, append_handoff_history, build_resume_capsule, load_continuity_context
-from ..continuity.quality import build_continuity_quality_report
 from ..continuity_view import write_continuity_view
 from ..doctor import build_doctor_report
 from ..failures import FAILURE_PATTERNS_PATH, failure_signature, load_failures, write_failure_index
@@ -59,7 +58,6 @@ TOOL_INPUT_SCHEMAS: dict[str, dict[str, Any]] = {
     "aictx_map_query": _schema({**_REPO_PROP, "query": _TEXT_PROP, "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, required=["query"]),
     "aictx_continuity_view_generate": _schema({**_REPO_PROP, "output": _TEXT_PROP}),
     "aictx_doctor": _schema({**_REPO_PROP, "release_readiness": {"type": "boolean"}}),
-    "aictx_continuity_quality": _schema({**_REPO_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP}),
     "aictx_messages_set": _schema({**_REPO_PROP, "mode": {"type": "string", "enum": [MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED]}}, required=["mode"]),
 }
 
@@ -69,7 +67,6 @@ TOOL_DESCRIPTIONS = {
     "aictx_view": "Inspect Continuity View metadata.",
     "aictx_continuity_view_generate": "Generate Continuity View files.",
     "aictx_doctor": "Run AICTX diagnostics.",
-    "aictx_continuity_quality": "Build a read-only Continuity Quality report.",
     "aictx_task_list": "List Work State tasks.",
     "aictx_task_show": "Show a Work State task.",
     "aictx_task_start": "Start Work State.",
@@ -227,13 +224,6 @@ def aictx_continuity_view_generate(args: dict[str, Any]) -> dict[str, Any]:
 
 def aictx_doctor(args: dict[str, Any]) -> dict[str, Any]:
     return ok(report=build_doctor_report(resolve_repo(args.get("repo")), release_readiness=bool(args.get("release_readiness"))))
-
-
-def aictx_continuity_quality(args: dict[str, Any]) -> dict[str, Any]:
-    repo = resolve_repo(args.get("repo"))
-    task = _text(args.get("task"), "task")
-    task_type = _task_type(task, _text(args.get("task_type"), "task_type"))
-    return ok(continuity_quality=build_continuity_quality_report(repo, request_text=task, task_type=task_type))
 
 
 def aictx_task_list(args: dict[str, Any]) -> dict[str, Any]:

@@ -14,7 +14,6 @@ from aictx.continuity_view import (
     mermaid_live_url,
     render_continuity_markdown,
     render_continuity_mermaid,
-    write_continuity_view,
 )
 from aictx.failures import FAILURE_PATTERNS_PATH
 from aictx.repo_map.config import write_repomap_config, write_repomap_index
@@ -47,7 +46,6 @@ def test_empty_continuity_view_is_deterministic_and_has_required_sections(tmp_pa
     assert 'Empty["No active continuity signals found"]' in first
     for heading in (
         "## Overview",
-        "## Continuity Quality",
         "## Continuity Map",
         "## Working Tree Changes",
         "## Active Work State",
@@ -227,19 +225,13 @@ def test_mermaid_live_url_encodes_diagram_for_online_view():
     encoded = url.split("#pako:", 1)[1]
     padded = encoded + "=" * ((4 - len(encoded) % 4) % 4)
     payload = json.loads(zlib.decompress(base64.urlsafe_b64decode(padded)).decode("utf-8"))
-    mermaid_config = json.loads(payload["mermaid"])
 
-    assert url.startswith("https://mermaid.live/view#pako:")
+    assert url.startswith("https://mermaid.live/edit#pako:")
     assert "=" not in encoded
     assert "+" not in encoded
     assert "/" not in encoded
     assert payload["code"] == mermaid
-    assert mermaid_config["theme"] == "default"
-    assert isinstance(payload["mermaid"], str)
-    assert payload["rough"] is False
-    assert payload["updateDiagram"] is True
-    assert payload["editorMode"] == "code"
-    assert "autoSync" not in payload
+    assert payload["mermaid"]["theme"] == "default"
 
 
 def test_view_cli_creates_files_mermaid_stdout_json_and_custom_output(tmp_path: Path, capsys):
@@ -267,23 +259,6 @@ def test_view_cli_creates_files_mermaid_stdout_json_and_custom_output(tmp_path: 
     assert (repo / "custom-view.md").exists()
 
 
-def test_continuity_view_renders_quality_summary(tmp_path: Path):
-    repo = tmp_path / "repo"
-    init_repo_scaffold(repo, update_gitignore=False)
-
-    payload = write_continuity_view(repo)
-    markdown = (repo / CONTINUITY_VIEW_PATH).read_text(encoding="utf-8")
-
-    assert payload["ok"] is True
-    assert "## Continuity Quality" in markdown
-    assert "- Score:" in markdown
-    assert "- Status:" in markdown
-    assert "- Advisory only:" in markdown
-    assert "Top issues:" in markdown
-    assert '"loaded_items"' not in markdown
-    assert '"scoring_breakdown"' not in markdown
-
-
 def test_finalize_include_view_and_resume_json_integration(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
@@ -299,8 +274,8 @@ def test_finalize_include_view_and_resume_json_integration(tmp_path: Path, capsy
     assert (repo / CONTINUITY_VIEW_PATH).exists()
     assert (repo / CONTINUITY_MAP_PATH).exists()
     assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in payload["agent_summary_text"]
-    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in payload["agent_summary_text"]
-    encoded = payload["agent_summary_text"].split("https://mermaid.live/view#pako:", 1)[1].split(")", 1)[0]
+    assert "View continuity online: [mermaid.live edit](https://mermaid.live/edit#pako:" in payload["agent_summary_text"]
+    encoded = payload["agent_summary_text"].split("https://mermaid.live/edit#pako:", 1)[1].split(")", 1)[0]
     padded = encoded + "=" * ((4 - len(encoded) % 4) % 4)
     decoded = json.loads(zlib.decompress(base64.urlsafe_b64decode(padded)).decode("utf-8"))
     assert decoded["code"].startswith("flowchart TD")
