@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from ..continuity import DECISIONS_PATH, HANDOFF_PATH, HANDOFFS_HISTORY_PATH, RESUME_CAPSULE_JSON_PATH
+from ..continuity.quality import build_continuity_quality_report
 from ..continuity_view import CONTINUITY_MAP_PATH
 from ..doctor import build_doctor_report
 from ..failures import FAILURE_PATTERNS_PATH
@@ -21,6 +22,7 @@ RESOURCE_URIS = [
     "aictx://repo/current/decisions",
     "aictx://repo/current/handoffs",
     "aictx://repo/current/repomap-status",
+    "aictx://repo/current/continuity-quality",
     "aictx://repo/current/doctor",
 ]
 
@@ -55,6 +57,8 @@ def read_resource(uri: str, repo_arg: str = ".") -> dict[str, Any]:
     if uri == "aictx://repo/current/repomap-status":
         from ..cli import _repomap_status_payload
         return {"uri": uri, "data": _repomap_status_payload(repo)}
+    if uri == "aictx://repo/current/continuity-quality":
+        return {"uri": uri, "data": build_continuity_quality_report(repo)}
     if uri == "aictx://repo/current/doctor":
         return {"uri": uri, "data": build_doctor_report(repo)}
     raise KeyError(uri)
