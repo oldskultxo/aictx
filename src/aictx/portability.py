@@ -65,6 +65,7 @@ LOCAL_ONLY_PATTERNS = [
     ".aictx/continuity/staleness.json",
     ".aictx/continuity/resume_capsule.md",
     ".aictx/continuity/resume_capsule.json",
+    ".aictx/continuity/lifecycle_events.jsonl",
     ".aictx/repo_map/index.json",
     ".aictx/repo_map/manifest.json",
     ".aictx/repo_map/status.json",

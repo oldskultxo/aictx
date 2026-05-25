@@ -47,6 +47,7 @@ LOCAL_ONLY_FILES = {
     ".aictx/continuity/continuity_metrics.json": '{"metrics": true}\n',
     ".aictx/continuity/resume_capsule.md": '# generated\n',
     ".aictx/continuity/resume_capsule.json": '{"generated": true}\n',
+    ".aictx/continuity/lifecycle_events.jsonl": '{"event_type": "resume_called", "task": "local"}\n',
     ".aictx/area_memory/areas.json": '{"areas": []}\n',
     ".aictx/repo_map/index.json": '{"index": true}\n',
     ".aictx/repo_map/manifest.json": '{"manifest": true}\n',
@@ -181,10 +182,13 @@ def test_explicit_flag_enables_portability(tmp_path: Path):
     assert state["merge_policy"]["jsonl_merge_driver"] == "union"
     assert ".aictx/failure_memory/failure_index.json" not in state["portable_patterns"]
     assert ".aictx/failure_memory/failure_index.json" in state["local_only_patterns"]
+    assert ".aictx/continuity/lifecycle_events.jsonl" not in state["portable_patterns"]
+    assert ".aictx/continuity/lifecycle_events.jsonl" in state["local_only_patterns"]
     assert (repo / ".gitattributes").exists()
     write_files(repo, {k: v for k, v in (PORTABLE_FILES | LOCAL_ONLY_FILES).items() if k != ".aictx/continuity/portability.json"})
     assert is_ignored(repo, ".aictx/tasks/active.json") is True
     assert is_ignored(repo, ".aictx/metrics/execution_logs.jsonl") is True
+    assert is_ignored(repo, ".aictx/continuity/lifecycle_events.jsonl") is True
 
 
 def test_init_portable_continuity_requires_gitignore_updates(tmp_path: Path):

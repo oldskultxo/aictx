@@ -35,15 +35,15 @@ aictx resume --repo . --task "<task goal>" --json
 
 `resume` compiles Work State, handoffs, last summary, Strategy Memory, Failure Memory, Decisions, RepoMap, previous contract signals, and an execution contract into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
 
-`resume --json` also includes advisory lifecycle status when available. Lifecycle diagnostics can warn about previous sessions that called resume but did not finalize, stale active Work State, missing validation evidence, or readonly MCP usage that never closed the loop.
+`resume --json` also includes advisory lifecycle status when available. Lifecycle diagnostics can warn about previous sessions that called resume but did not finalize, stale active Work State, missing validation evidence, or MCP resume calls that never closed the loop.
 
-For task-specific context outside the lifecycle startup step, use `prepare`:
+Use `resume` to start lifecycle work. For task-specific read-only context outside the lifecycle startup step, use `prepare`:
 
 ```bash
 aictx prepare "fix the MCP permissions bug" --repo . --json
 ```
 
-`prepare` compiles a focused, read-only Task Context Pack for the supplied goal. It uses the same repo-local sources of truth where available, including Work State, handoffs, decisions, failure memory, RepoMap, validation hints, and continuity quality. Unlike `resume`, it does not render startup banner policy, persist a resume contract, write generated trace artifacts, or replace the required `resume -> work -> finalize` lifecycle.
+`prepare` compiles a focused, read-only Task Context Pack for the supplied goal. It uses the same repo-local sources of truth where available, including Work State, handoffs, decisions, failure memory, RepoMap, validation hints, and continuity quality. Unlike `resume`, it does not render startup banner policy, persist a resume contract, write generated trace artifacts, or replace the required `resume -> work -> finalize` lifecycle. If an agent is beginning work, prefer `resume`; if it only needs bounded context, use `prepare`.
 
 In JSON mode, `resume` also includes top-level `loaded_context` metadata. This bounded, additive-only array explains why context was selected, for agent/user inspection and debugging. It can mention active Work State, unresolved carryover, failures, handoffs, decisions, strategies, and RepoMap hints. Items include `role`, `selection_reason`, `confidence`, `staleness`, and `related_paths`. It is not proof of correctness, does not expose hidden reasoning, and does not replace the execution contract.
 

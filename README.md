@@ -69,13 +69,13 @@ resume useful context -> do the work -> finalize evidence -> next session contin
 
 AICTX stores continuity locally under `.aictx/`, so it is inspectable, reviewable and not dependent on hidden chat history.
 
-For on-demand task planning outside the startup lifecycle, AICTX can also compile a bounded read-only Task Context Pack:
+Start lifecycle work with `aictx resume --task "..."` and close it with `aictx finalize`. For on-demand task planning outside the startup lifecycle, AICTX can also compile a bounded read-only Task Context Pack:
 
 ```bash
 aictx prepare "fix the parser bug" --repo . --json
 ```
 
-`prepare` is not a replacement for `resume` / `finalize`; it gives agents a focused context pack for a specific goal without writing continuity artifacts.
+`prepare` is not a replacement for `resume` / `finalize`; use `resume` to start lifecycle work, and use `prepare` only for focused read-only context outside that startup path.
 
 ## MCP server
 

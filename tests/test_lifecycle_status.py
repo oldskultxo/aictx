@@ -86,14 +86,14 @@ def test_stale_active_work_state_warns(tmp_path: Path) -> None:
     assert "active_work_state_no_recent_finalization" in {item["code"] for item in payload["warnings"]}
 
 
-def test_readonly_mcp_session_warns_when_not_finalized(tmp_path: Path) -> None:
+def test_mcp_resume_warns_when_not_finalized(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
     _event(repo, "resume_called", source="mcp", session_id="s1", task="fix parser")
 
     payload = build_lifecycle_status(repo, request_text="fix parser", now=NOW)
 
-    assert "readonly_mcp_only" in {item["code"] for item in payload["warnings"]}
+    assert "mcp_resume_without_finalize" in {item["code"] for item in payload["warnings"]}
 
 
 def test_cli_resume_and_finalize_write_lifecycle_events(tmp_path: Path, capsys) -> None:

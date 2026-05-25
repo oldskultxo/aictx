@@ -163,8 +163,8 @@ def build_lifecycle_status(repo_root: Path, *, request_text: str = "", session_i
         }
         open_sessions.append(row)
         if _related(request_text, session_id, resume):
-            code = "readonly_mcp_only" if str(resume.get("source") or "") == "mcp" else "session_started_but_not_finalized"
-            summary = "MCP readonly lifecycle started but finalize was not observed." if code == "readonly_mcp_only" else "Session started with resume but finalize was not observed."
+            code = "mcp_resume_without_finalize" if str(resume.get("source") or "") == "mcp" else "session_started_but_not_finalized"
+            summary = "MCP lifecycle resume was observed but finalize was not." if code == "mcp_resume_without_finalize" else "Session started with resume but finalize was not observed."
             warnings.append(_warning(code, summary, resume, "Run `aictx finalize` or resume the open Work State before starting unrelated work."))
             if not _contract_evaluated(repo, str(resume.get("contract_id") or "")):
                 warnings.append(_warning("contract_generated_not_evaluated", "Execution contract was generated but not evaluated.", resume, "Finalize the session with observed files, commands and tests."))

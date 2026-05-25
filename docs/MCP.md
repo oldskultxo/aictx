@@ -63,7 +63,7 @@ The read-only profile also exposes focused task context preparation through:
 aictx_prepare_task_context
 ```
 
-This tool returns a bounded, non-persistent Task Context Pack for a supplied goal. It is distinct from `aictx_resume`: `resume` is the lifecycle startup capsule, while task context preparation is an on-demand context compiler and does not write continuity artifacts.
+This tool returns a bounded, non-persistent Task Context Pack for a supplied goal. It is distinct from `aictx_resume`: use `resume` to start lifecycle work; use task context preparation only as an on-demand read-only context compiler that does not write continuity artifacts.
 
 The read-only profile exposes lifecycle diagnostics through:
 
