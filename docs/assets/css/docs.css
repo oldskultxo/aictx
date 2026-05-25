@@ -240,6 +240,39 @@ a:hover {
   background: #f8fafc;
 }
 
+.continuity-matrix {
+  width: 100%;
+  max-width: 100%;
+  margin: 1.25rem 0;
+}
+
+.docs-content .continuity-matrix-table {
+  display: table;
+  table-layout: fixed;
+  overflow-x: visible;
+  margin: 0;
+  font-size: clamp(0.68rem, 0.82vw, 0.82rem);
+  line-height: 1.25;
+}
+
+.docs-content .continuity-matrix-table th,
+.docs-content .continuity-matrix-table td {
+  padding: 0.42rem 0.36rem;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: auto;
+  vertical-align: top;
+}
+
+.docs-content .continuity-matrix-table th:first-child {
+  width: 18%;
+}
+
+.docs-content .continuity-matrix-table th:not(:first-child),
+.docs-content .continuity-matrix-table td {
+  text-align: center;
+}
+
 .docs-content blockquote {
   margin: 1.25rem 0;
   padding: 0.75rem 1rem;
@@ -430,6 +463,70 @@ a:hover {
   .docs-content ul,
   .docs-content ol {
     padding-left: 1.2rem;
+  }
+
+  .continuity-matrix {
+    margin: 1rem 0;
+  }
+
+  .docs-content .continuity-matrix-table,
+  .docs-content .continuity-matrix-table thead,
+  .docs-content .continuity-matrix-table tbody,
+  .docs-content .continuity-matrix-table tr,
+  .docs-content .continuity-matrix-table th,
+  .docs-content .continuity-matrix-table td {
+    display: block;
+  }
+
+  .docs-content .continuity-matrix-table {
+    font-size: 0.94rem;
+  }
+
+  .docs-content .continuity-matrix-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .docs-content .continuity-matrix-table tr {
+    margin: 0 0 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--paper);
+  }
+
+  .docs-content .continuity-matrix-table th:first-child {
+    width: auto;
+    padding: 0.75rem 0.85rem;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: #f8fafc;
+  }
+
+  .docs-content .continuity-matrix-table td {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.58rem 0.85rem;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+  }
+
+  .docs-content .continuity-matrix-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .docs-content .continuity-matrix-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-weight: 700;
+    text-align: left;
   }
 }
 
