@@ -225,6 +225,7 @@ Use cases and comparisons:
 - [Codex operational continuity](docs/use-cases/codex-memory.md)
 - [Claude Code operational continuity](docs/use-cases/claude-code-memory.md)
 - [GitHub Copilot operational continuity](docs/use-cases/github-copilot-memory.md)
+- [Comparing coding-agent continuity approaches](docs/compare/coding-agent-continuity-approaches.md)
 - [AICTX vs AGENTS.md](docs/compare/aictx-vs-agents-md.md)
 - [AICTX vs long context](docs/compare/aictx-vs-long-context.md)
 - [AICTX vs vector databases](docs/compare/aictx-vs-vector-database.md)
