@@ -1,10 +1,62 @@
 from __future__ import annotations
 
+import os
 import stat
 from pathlib import Path
 from typing import Any
 
 from .state import ENGINE_HOME, REPO_ADAPTERS_DIR, write_json, read_json
+
+
+
+CODEX_ENV_VARS = ("CODEX_THREAD_ID", "CODEX_SESSION_ID", "CODEX_CONVERSATION_ID", "CODEX_CI")
+CLAUDE_ENV_VARS = (
+    "CLAUDE_PROJECT_DIR",
+    "CLAUDE_SESSION_ID",
+    "CLAUDE_CONVERSATION_ID",
+    "CLAUDE_THREAD_ID",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_REMOTE",
+    "CLAUDE_ENV_FILE",
+    "CLAUDE_PLUGIN_ROOT",
+    "CLAUDE_PLUGIN_DATA",
+)
+COPILOT_ENV_VARS = (
+    "GITHUB_COPILOT_AGENT",
+    "GITHUB_COPILOT_CODING_AGENT",
+    "COPILOT_AGENT",
+    "COPILOT_WORKSPACE_ID",
+    "COPILOT_AGENT_TASK_ID",
+)
+
+
+def infer_agent_id(explicit: str = "", *, mcp_default: bool = False) -> str:
+    value = str(explicit or "").strip()
+    if value:
+        return value
+    env_value = str(os.environ.get("AICTX_AGENT_ID") or "").strip()
+    if env_value:
+        return env_value
+    if any(os.environ.get(key) for key in CLAUDE_ENV_VARS):
+        return "claude"
+    if any(os.environ.get(key) for key in COPILOT_ENV_VARS):
+        return "copilot"
+    if any(os.environ.get(key) for key in CODEX_ENV_VARS):
+        return "codex"
+    return "mcp" if mcp_default else "generic"
+
+
+def infer_adapter_id(explicit: str = "", *, agent_id: str = "") -> str:
+    value = str(explicit or "").strip()
+    if value:
+        return value
+    env_value = str(os.environ.get("AICTX_ADAPTER_ID") or "").strip()
+    if env_value:
+        return env_value
+    agent = str(agent_id or "").strip()
+    if agent == "copilot":
+        return "copilot"
+    return agent or "generic"
 
 GLOBAL_ADAPTERS_DIR = ENGINE_HOME / "adapters"
 GLOBAL_ADAPTERS_REGISTRY_PATH = GLOBAL_ADAPTERS_DIR / "registry.json"
@@ -88,6 +140,19 @@ def adapter_profiles() -> dict[str, dict[str, Any]]:
             "auto_installed": True,
             "runtime_contract": adapter_runtime_contract("claude"),
             "entrypoint_arbiter": entrypoint_arbiter_contract("claude"),
+        },
+        "copilot": {
+            "adapter_id": "copilot",
+            "display_name": "GitHub Copilot",
+            "family": "github_copilot",
+            "middleware_always_on": True,
+            "explicit_skill_metadata": True,
+            "structured_skill_metadata": True,
+            "heuristic_skill_fallback": True,
+            "expected_skill_metadata_fields": ["skill_id", "skill_name", "skill_path", "source"],
+            "auto_installed": True,
+            "runtime_contract": adapter_runtime_contract("copilot"),
+            "entrypoint_arbiter": entrypoint_arbiter_contract("copilot"),
         },
     }
 
@@ -240,6 +305,8 @@ def resolve_adapter_profile(adapter_id: str | None, agent_id: str | None = None,
             resolved_id = "codex"
         elif "claude" in requested or "claude" in agent:
             resolved_id = "claude"
+        elif "copilot" in requested or "copilot" in agent:
+            resolved_id = "copilot"
     if repo_root:
         repo_path = repo_root / REPO_ADAPTERS_DIR / f"{resolved_id}.json"
         if repo_path.exists():

@@ -3587,6 +3587,14 @@ def build_resume_capsule(
         "mode": "agent_brief",
         "repo": repo_root.as_posix(),
         "request": request,
+        "agent_id": str(agent_id or ""),
+        "adapter_id": str(adapter_id or agent_id or ""),
+        "agent_identity": {
+            "agent_id": str(agent_id or ""),
+            "adapter_id": str(adapter_id or agent_id or ""),
+            "agent_label": str(session.get("agent_label") or ""),
+            "session_id": str(session.get("session_id") or ""),
+        },
         "startup_banner_text": startup_banner_text,
         "startup_banner_render_payload": startup_banner_render_payload,
         "startup_banner_policy": {

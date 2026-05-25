@@ -158,6 +158,34 @@ def _write_python_script(path: Path, source: str) -> None:
     path.write_text(source.strip() + "\n", encoding="utf-8")
 
 
+def test_resume_infers_claude_code_identity_from_environment(tmp_path: Path, capsys, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "inspect claude identity", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["agent_id"] == "claude"
+    assert payload["adapter_id"] == "claude"
+    assert payload["startup_banner_render_payload"]["header"]["agent_label"] == f"claude@{repo.name}"
+
+
+def test_resume_infers_copilot_identity_from_environment(tmp_path: Path, capsys, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    monkeypatch.setenv("GITHUB_COPILOT_AGENT", "1")
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "inspect copilot identity", "--json"])
+    assert args.func(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["agent_id"] == "copilot"
+    assert payload["adapter_id"] == "copilot"
+    assert payload["startup_banner_render_payload"]["header"]["agent_label"] == f"copilot@{repo.name}"
+
+
 def test_resume_default_markdown_and_budget(tmp_path: Path, capsys):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)

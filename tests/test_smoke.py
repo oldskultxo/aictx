@@ -163,6 +163,8 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert ".mcp.json" in text
     assert ".vscode/mcp.json" in text
     assert "MCP tools still are not attached" in text
+    assert "runner tool discovery" in text
+    assert "aictx resume finalize lifecycle" in text
     assert "current user language" in text
     assert "never invent data" in text
     assert "AICTX summary unavailable" in text
@@ -172,6 +174,7 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert ".mcp.json" in repo_block
     assert ".vscode/mcp.json" in repo_block
     assert "MCP config exists but tools are unavailable" in repo_block
+    assert "runner tool discovery" in repo_block
     assert "current user language" in repo_block
     assert "startup_banner_render_payload" in repo_block
     assert "agent_summary_render_payload" in repo_block
@@ -191,6 +194,7 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "localized to the current user language" in prompt_hook
     assert "startup_banner_text" in prompt_hook
     assert ".mcp.json or .vscode/mcp.json" in prompt_hook
+    assert "runner tool discovery" in prompt_hook
     assert "CLI fallback" in prompt_hook
     assert "startup_banner_render_payload" in prompt_hook
     assert "agent_summary_render_payload" in prompt_hook

@@ -27,8 +27,8 @@ COPILOT_FINALIZE_PROMPT_PATH = Path(".github") / "prompts" / "aictx-finalize.pro
 def render_mcp_first_startup_rule() -> str:
     return (
         "MCP-first startup: if AICTX MCP tools are already visible, use those tools for resume/finalize. "
-        "If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session. "
-        "If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback."
+        "If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, first use the runner tool-discovery mechanism when available (for example search for `aictx resume finalize lifecycle`) so lazy-loaded MCP namespaces can attach, then have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session. "
+        "If MCP tools still are not attached after discovery/attachment, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback."
     )
 
 
@@ -337,7 +337,7 @@ import json
 
 summary = [
     "AICTX runtime loaded for this Claude session.",
-    "MCP-first startup: if AICTX MCP tools are already visible, use those tools; if not visible but .mcp.json or .vscode/mcp.json exists, have Claude Code attach/start the configured stdio MCP server before the first AICTX command of the new session; otherwise use CLI fallback.",
+    "MCP-first startup: if AICTX MCP tools are already visible, use those tools; if not visible but .mcp.json or .vscode/mcp.json exists, first use runner tool discovery when available (search for aictx resume finalize lifecycle), then have Claude Code attach/start the configured stdio MCP server before the first AICTX command of the new session; use CLI fallback only if MCP tools still are not attached after discovery/attachment.",
     "Lifecycle remains prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence.",
     "At prompt start, use one continuity command: aictx resume --repo . --task \\\"<task goal>\\\" --json.",
     "Use the returned capsule as the operational brief.",
@@ -369,7 +369,7 @@ if not prompt:
 
 summary = [
     "AICTX runtime guidance loaded for this prompt.",
-    "MCP-first startup: if AICTX MCP tools are already visible, use those tools; if not visible but .mcp.json or .vscode/mcp.json exists, have Claude Code attach/start the configured stdio MCP server before the first AICTX command of the new session; otherwise use CLI fallback.",
+    "MCP-first startup: if AICTX MCP tools are already visible, use those tools; if not visible but .mcp.json or .vscode/mcp.json exists, first use runner tool discovery when available (search for aictx resume finalize lifecycle), then have Claude Code attach/start the configured stdio MCP server before the first AICTX command of the new session; use CLI fallback only if MCP tools still are not attached after discovery/attachment.",
     "Lifecycle remains prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence.",
     "Extract the task goal only from the user prompt.",
     "Run exactly one continuity command: aictx resume --repo . --task \\\"<task goal>\\\" --json --agent-id claude.",

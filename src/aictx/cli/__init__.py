@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
 
 from .. import core_runtime
 from .._version import __version__
-from ..adapters import install_global_adapters
+from ..adapters import infer_adapter_id, infer_agent_id, install_global_adapters
 from ..area_memory import derive_area_id
 from ..agent_runtime import (
     copy_local_agent_runtime,
@@ -65,17 +64,6 @@ from ..state import (
     write_json,
     workspace_path,
 )
-
-
-def _infer_agent_id(explicit: str = "") -> str:
-    value = str(explicit or "").strip()
-    if value:
-        return value
-    if any(os.environ.get(key) for key in ("CODEX_THREAD_ID", "CODEX_SESSION_ID", "CODEX_CONVERSATION_ID", "CODEX_CI")):
-        return "codex"
-    if any(os.environ.get(key) for key in ("CLAUDE_SESSION_ID", "CLAUDE_CONVERSATION_ID", "CLAUDE_THREAD_ID", "CLAUDE_CODE_SESSION_ID")):
-        return "claude"
-    return "generic"
 
 
 COMMUNICATION_MODE_OPTIONS = [
@@ -557,8 +545,8 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     active = load_active_work_state(repo)
     active_task = str(active.get("goal") or active.get("title") or active.get("task_id") or "").strip() if isinstance(active, dict) else ""
     request = str(getattr(args, "task", "") or getattr(args, "request", "") or active_task or summary).strip()
-    agent_id = _infer_agent_id(str(getattr(args, "agent_id", "") or ""))
-    adapter_id = str(getattr(args, "adapter_id", "") or getattr(args, "agent_id", "") or agent_id or "generic")
+    agent_id = infer_agent_id(str(getattr(args, "agent_id", "") or ""))
+    adapter_id = infer_adapter_id(str(getattr(args, "adapter_id", "") or getattr(args, "agent_id", "") or ""), agent_id=agent_id)
     execution_id = str(getattr(args, "session_id", "") or f"cli-finalize-{now_iso()}")
     files_opened = _list_arg(args, "files_opened")
     files_edited = _list_arg(args, "files_edited")
@@ -651,17 +639,19 @@ def cmd_resume(args: argparse.Namespace) -> int:
     explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
     resolved = resolve_task_type(request, explicit_task_type=explicit_task_type or None, touched_files=[])
     task_type = str(resolved.get("task_type") or explicit_task_type or "")
+    agent_id = infer_agent_id(str(getattr(args, "agent_id", "") or ""))
+    adapter_id = infer_adapter_id(str(getattr(args, "adapter_id", "") or ""), agent_id=agent_id)
     payload = build_resume_capsule(
         repo,
         request_text=request,
         full=bool(getattr(args, "full", False)),
         task_type=task_type,
-        agent_id=_infer_agent_id(str(getattr(args, "agent_id", "") or "")),
-        adapter_id=str(getattr(args, "adapter_id", "") or ""),
+        agent_id=agent_id,
+        adapter_id=adapter_id,
         session_id=str(getattr(args, "session_id", "") or ""),
     )
     contract_ref = payload.get("contract_ref") if isinstance(payload.get("contract_ref"), dict) else {}
-    append_lifecycle_event(repo, {"event_type": "resume_called", "source": "cli", "agent_id": _infer_agent_id(str(getattr(args, "agent_id", "") or "")), "adapter_id": str(getattr(args, "adapter_id", "") or ""), "session_id": str(getattr(args, "session_id", "") or ""), "task": request, "task_type": task_type, "contract_id": str(contract_ref.get("contract_id") or "")})
+    append_lifecycle_event(repo, {"event_type": "resume_called", "source": "cli", "agent_id": agent_id, "adapter_id": adapter_id, "session_id": str(getattr(args, "session_id", "") or ""), "task": request, "task_type": task_type, "contract_id": str(contract_ref.get("contract_id") or "")})
     if bool(getattr(args, "json", False)):
         _print_json(payload)
     else:

@@ -153,6 +153,8 @@ AICTX focuses on operational facts that help the next agent continue useful work
 - execution contracts and contract-compliance signals;
 - optional RepoMap structural entry points;
 - continuity quality signals for stale, missing, demoted, obsolete, or unverified context;
+- read-only Task Context Packs for focused task-specific context;
+- lifecycle diagnostics for incomplete or unfinalized sessions;
 - optional Git-portable continuity for small teams.
 
 ## What AICTX is not

@@ -34,6 +34,13 @@ Changed:
 - Task context preparation is separate from `aictx resume`; it does not render startup banner policy, persist resume contracts, write generated trace artifacts, or replace the required `resume -> work -> finalize` lifecycle.
 - Task Context Packs filter unrelated CI/config background decisions when they do not match the supplied goal.
 - Lifecycle diagnostics are advisory warnings only. They detect incomplete control-loop usage without blocking users or requiring a daemon.
+- Lifecycle diagnostics now report MCP resume sessions without finalize as `mcp_resume_without_finalize` instead of implying a readonly-only MCP profile.
+- MCP-first runner instructions now ask agents to use runner tool discovery for lazy-loaded MCP namespaces, searching for `aictx resume finalize lifecycle`, before falling back to CLI when `.mcp.json` or `.vscode/mcp.json` exists.
+
+Fixed:
+- `.aictx/continuity/lifecycle_events.jsonl` is local-only by default so runtime/session telemetry does not enter the portable Git continuity subset.
+- Claude Code and GitHub Copilot identity inference now resolves to `claude` and `copilot` instead of falling back to generic agent identity.
+- MCP/CLI resume and finalize flows now share centralized `agent_id` / `adapter_id` inference and expose consistent `agent_identity` metadata.
 
 Upgrade notes:
 - No data migration is required.

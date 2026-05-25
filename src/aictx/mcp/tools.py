@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..adapters import infer_adapter_id, infer_agent_id
 from ..area_memory import derive_area_id
 from ..continuity import DECISIONS_PATH, HANDOFF_PATH, HANDOFFS_HISTORY_PATH, append_handoff_history, build_resume_capsule, load_continuity_context
 from ..continuity.quality import build_continuity_quality_report
@@ -149,24 +149,6 @@ def _task_type(request: str, explicit: str = "", files: list[str] | None = None)
     return str(resolved.get("task_type") or explicit or "")
 
 
-def _infer_mcp_agent_id(explicit: str = "") -> str:
-    value = str(explicit or "").strip()
-    if value:
-        return value
-    env_value = str(os.environ.get("AICTX_AGENT_ID") or "").strip()
-    if env_value:
-        return env_value
-    if any(os.environ.get(key) for key in ("CODEX_THREAD_ID", "CODEX_SESSION_ID", "CODEX_CONVERSATION_ID", "CODEX_CI")):
-        return "codex"
-    if any(os.environ.get(key) for key in ("CLAUDE_SESSION_ID", "CLAUDE_CONVERSATION_ID", "CLAUDE_THREAD_ID", "CLAUDE_CODE_SESSION_ID")):
-        return "claude"
-    return "mcp"
-
-
-def _infer_mcp_adapter_id(args: dict[str, Any], agent_id: str) -> str:
-    return _text(args.get("adapter_id"), "adapter_id") or str(os.environ.get("AICTX_ADAPTER_ID") or "").strip() or agent_id
-
-
 def tool_specs(names: set[str] | None = None) -> list[dict[str, Any]]:
     selected = names or FULL_TOOLS
     specs = []
@@ -186,8 +168,8 @@ def aictx_resume(args: dict[str, Any]) -> dict[str, Any]:
     if mode not in {"brief", "standard", "full"}:
         return error("invalid_mode", "mode must be brief, standard or full")
     task_type = _task_type(task, _text(args.get("task_type"), "task_type"))
-    agent_id = _infer_mcp_agent_id(_text(args.get("agent_id"), "agent_id"))
-    adapter_id = _infer_mcp_adapter_id(args, agent_id)
+    agent_id = infer_agent_id(_text(args.get("agent_id"), "agent_id"), mcp_default=True)
+    adapter_id = infer_adapter_id(_text(args.get("adapter_id"), "adapter_id"), agent_id=agent_id)
     session_id = _text(args.get("session_id"), "session_id")
     payload = build_resume_capsule(repo, request_text=task, full=(mode == "full"), task_type=task_type, agent_id=agent_id, adapter_id=adapter_id, session_id=session_id)
     contract_ref = payload.get("contract_ref") if isinstance(payload.get("contract_ref"), dict) else {}
@@ -302,8 +284,8 @@ def aictx_finalize(args: dict[str, Any]) -> dict[str, Any]:
         return error("invalid_status", "status must be success or failure")
     summary = _text(args.get("summary"), "summary", required=True)
     task = _text(args.get("task"), "task") or summary
-    agent_id = _infer_mcp_agent_id(_text(args.get("agent_id"), "agent_id"))
-    adapter_id = _infer_mcp_adapter_id(args, agent_id)
+    agent_id = infer_agent_id(_text(args.get("agent_id"), "agent_id"), mcp_default=True)
+    adapter_id = infer_adapter_id(_text(args.get("adapter_id"), "adapter_id"), agent_id=agent_id)
     session_id = _text(args.get("session_id"), "session_id")
     execution_id = session_id or f"mcp-finalize-{now_iso()}"
     files_opened = _list(args.get("files_opened"), "files_opened")

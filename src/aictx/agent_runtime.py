@@ -30,7 +30,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Runtime loop
 1. The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
-2. MCP-first startup: if AICTX MCP tools are already visible, use those tools for resume/finalize. If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session. If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
+2. MCP-first startup: if AICTX MCP tools are already visible, use those tools for resume/finalize. If they are not visible but `.mcp.json` or `.vscode/mcp.json` exists, first use runner tool discovery when available (for example search for `aictx resume finalize lifecycle`) so lazy-loaded MCP namespaces can attach, then have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session. If MCP tools still are not attached after discovery/attachment, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
 3. At session start: extract the task goal from the user prompt, then run exactly one AICTX continuity command: MCP resume when available, otherwise `aictx resume --repo . --task "<task goal>" --json`. Do not pass the full user prompt to resume.
 4. After task work, run exactly one AICTX finalization command: MCP finalize when available, otherwise `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
 5. Use the returned continuity capsule as the operational brief during normal agent startup.
@@ -44,7 +44,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 
 ## Execution middleware
 - Enter the runtime for every execution in initialized repos.
-- MCP-first means: use attached AICTX MCP tools when available; if `.mcp.json` or `.vscode/mcp.json` exists but the tool namespace is not attached, ask/expect the runner to attach/start that configured stdio server before the first AICTX command of the new session; if attachment is impossible, explain the fallback and use CLI.
+- MCP-first means: use attached AICTX MCP tools when available; if `.mcp.json` or `.vscode/mcp.json` exists but the tool namespace is not attached, first use runner tool discovery when available (for example search for `aictx resume finalize lifecycle`) so lazy-loaded namespaces can attach, then ask/expect the runner to attach/start that configured stdio server before the first AICTX command of the new session; if discovery/attachment is impossible, explain the fallback and use CLI.
 - Use `aictx resume --repo . --task "<task goal>" --json` for real execution history, feedback, Work State, handoff, RepoMap, failure memory, decision memory, and strategy memory. The task goal answers: "What work should be resumed or performed?" Exclude reporting instructions, metrics schemas, output format rules, final answer format, benchmark/evaluation harness text, logging instructions, and meta-instructions about how to report the work. Legacy `--request` startup input has been removed in v6.
 - Treat `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, `aictx report`, and `aictx internal` as advanced/diagnostic/building-block commands, not normal startup commands.
 - Report missing data as `unknown` instead of inventing values.
@@ -86,8 +86,8 @@ Agent rules:
 - The AICTX lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - MCP-first startup:
   1. If AICTX MCP tools are already visible, use MCP tools for resume/finalize.
-  2. If AICTX MCP tools are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session.
-  3. If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
+  2. If AICTX MCP tools are not visible but `.mcp.json` or `.vscode/mcp.json` exists, first use runner tool discovery when available (for example search for `aictx resume finalize lifecycle`) so lazy-loaded MCP namespaces can attach, then have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session.
+  3. If MCP tools still are not attached after discovery/attachment, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
 - At session start:
   1. Extract the task goal from the user prompt.
   2. Run exactly one AICTX continuity command: MCP resume when available, otherwise `aictx resume --repo . --task "<task goal>" --json`.

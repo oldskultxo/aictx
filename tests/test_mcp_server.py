@@ -58,6 +58,40 @@ def test_mcp_tool_permission_and_unknown_tool(tmp_path: Path):
     assert unknown["result"]["structuredContent"]["error"]["code"] == "unknown_tool"
 
 
+def test_mcp_resume_infers_claude_code_identity(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+
+    response = handle_request(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "aictx_resume", "arguments": {"task": "inspect claude mcp"}}},
+        repo=str(repo),
+        profile="full",
+    )
+
+    payload = response["result"]["structuredContent"]["continuity_brief"]
+    assert payload["agent_id"] == "claude"
+    assert payload["adapter_id"] == "claude"
+    assert payload["startup_banner_render_payload"]["header"]["agent_label"] == f"claude@{repo.name}"
+
+
+def test_mcp_resume_infers_copilot_identity(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    monkeypatch.setenv("GITHUB_COPILOT_AGENT", "1")
+
+    response = handle_request(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "aictx_resume", "arguments": {"task": "inspect copilot mcp"}}},
+        repo=str(repo),
+        profile="full",
+    )
+
+    payload = response["result"]["structuredContent"]["continuity_brief"]
+    assert payload["agent_id"] == "copilot"
+    assert payload["adapter_id"] == "copilot"
+    assert payload["startup_banner_render_payload"]["header"]["agent_label"] == f"copilot@{repo.name}"
+
+
 def test_mcp_resume_and_finalize_preserve_codex_identity(tmp_path: Path, monkeypatch):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)
