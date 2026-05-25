@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.9.0 - 2026-05-25
+
+### Added
+- Added read-only Task Context Packs through `aictx prepare "<goal>" --repo . --json`.
+- Added the `aictx_prepare_task_context` MCP tool to the readonly profile.
+- Added best-effort lifecycle event tracking for resume, Work State writes, and finalize.
+- Added lifecycle diagnostics in `resume --json`, `doctor --json`, MCP tool `aictx_lifecycle_status`, and resource `aictx://repo/current/lifecycle-status`.
+- Added focused task context rendering for relevant files, areas, decisions, handoffs, failures, validation expectations, continuity quality and stale-context warnings.
+
+### Changed
+- Task context preparation is explicitly separate from the lifecycle `resume -> work -> finalize` contract and does not write resume contracts or continuity artifacts.
+- Task Context Packs now filter unrelated CI/config background decisions when they do not match the supplied task goal.
+- Lifecycle diagnostics report incomplete or stale control-loop usage as warnings only; they do not block work.
+- Updated README, usage, MCP, upgrade and site documentation for task context preparation.
+
 ## 6.8.0 - 2026-05-24
 
 ### Added

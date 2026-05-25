@@ -7,6 +7,7 @@ from ._version import __version__
 from .contract_compliance import load_contract_compliance_history, summarize_contract_compliance_history
 from .continuity.quality import build_continuity_quality_report
 from .failures import load_failures
+from .lifecycle import build_lifecycle_status
 from .report import build_repo_map_report, read_jsonl
 from .runner_integrations import (
     AICTX_END,
@@ -259,6 +260,16 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
         "no stale or duplicate memory reported" if hygiene_status == "ok" else "stale or duplicate memory needs cleanup",
         details=hygiene,
         recommended_action="run maintenance/compaction diagnostics before release" if hygiene_status == "warning" else "",
+    ))
+
+    lifecycle_status = build_lifecycle_status(repo)
+    lifecycle_warnings = lifecycle_status.get("warnings") if isinstance(lifecycle_status.get("warnings"), list) else []
+    checks.append(_check(
+        "lifecycle_status",
+        "warning" if lifecycle_warnings else "ok",
+        "lifecycle warnings found" if lifecycle_warnings else "lifecycle control loop has no open warnings",
+        details=lifecycle_status,
+        recommended_action="resume or finalize open AICTX lifecycle sessions before starting unrelated work" if lifecycle_warnings else "",
     ))
 
     continuity_quality = build_continuity_quality_report(repo)

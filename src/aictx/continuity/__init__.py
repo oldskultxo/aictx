@@ -15,6 +15,7 @@ from ..adapters import resolve_entrypoint_arbiter_wrapper
 from ..contract_compliance import compact_previous_contract_result, persist_resume_contract
 from ..context_planner import build_structural_entry_points
 from ..failures import FAILURE_PATTERNS_PATH, lookup_failures
+from ..lifecycle import build_lifecycle_status
 from ..portability import append_portable_jsonl, write_portable_json, write_portable_jsonl
 from ..repo_map.config import is_repomap_enabled
 from ..report import build_repo_map_report
@@ -3574,6 +3575,12 @@ def build_resume_capsule(
         task_type=task_type,
         context=quality_context,
     )
+    lifecycle_status = build_lifecycle_status(repo_root, request_text=request, session_id=session_key)
+    lifecycle_warnings = [
+        str(item.get("summary") or item.get("code") or "").strip()
+        for item in lifecycle_status.get("warnings", [])
+        if isinstance(item, dict) and str(item.get("summary") or item.get("code") or "").strip()
+    ]
     payload: dict[str, Any] = {
         "schema_version": "1.0",
         "generated_at": _now_iso(),
@@ -3620,12 +3627,13 @@ def build_resume_capsule(
         "sources": sources,
         "continuity_view": continuity_view_status,
         "continuity_quality": continuity_quality,
+        "lifecycle_status": lifecycle_status,
         "written_files": {
             "markdown": RESUME_CAPSULE_MARKDOWN_PATH.as_posix(),
             "json": RESUME_CAPSULE_JSON_PATH.as_posix(),
         },
         "loaded_context": loaded_context,
-        "warnings": _clean_string_list(list(context.get("warnings", []) or []) + entry_warnings, limit=12),
+        "warnings": _clean_string_list(list(context.get("warnings", []) or []) + entry_warnings + lifecycle_warnings, limit=12),
     }
     max_chars = 12000 if full else 6000
     contract_ref = persist_resume_contract(repo_root, payload, session_id=session_key, agent_id=str(session.get("agent_id") or ""))

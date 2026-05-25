@@ -35,6 +35,16 @@ aictx resume --repo . --task "<task goal>" --json
 
 `resume` compiles Work State, handoffs, last summary, Strategy Memory, Failure Memory, Decisions, RepoMap, previous contract signals, and an execution contract into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
 
+`resume --json` also includes advisory lifecycle status when available. Lifecycle diagnostics can warn about previous sessions that called resume but did not finalize, stale active Work State, missing validation evidence, or readonly MCP usage that never closed the loop.
+
+For task-specific context outside the lifecycle startup step, use `prepare`:
+
+```bash
+aictx prepare "fix the MCP permissions bug" --repo . --json
+```
+
+`prepare` compiles a focused, read-only Task Context Pack for the supplied goal. It uses the same repo-local sources of truth where available, including Work State, handoffs, decisions, failure memory, RepoMap, validation hints, and continuity quality. Unlike `resume`, it does not render startup banner policy, persist a resume contract, write generated trace artifacts, or replace the required `resume -> work -> finalize` lifecycle.
+
 In JSON mode, `resume` also includes top-level `loaded_context` metadata. This bounded, additive-only array explains why context was selected, for agent/user inspection and debugging. It can mention active Work State, unresolved carryover, failures, handoffs, decisions, strategies, and RepoMap hints. Items include `role`, `selection_reason`, `confidence`, `staleness`, and `related_paths`. It is not proof of correctness, does not expose hidden reasoning, and does not replace the execution contract.
 
 When RepoMap is enabled and indexed, `resume` can also include `structural_entry_points` and `structural_context`. These are bounded structural hints for where to look first. RepoMap status separates `provider_available`, `index_available`, `query_available`, and `refresh_available`. Execution contracts may include `expected_first_files`, and finalize/contract compliance can record `structural_alignment`. RepoMap remains optional; missing refresh/provider support does not block resume when a queryable index exists.
@@ -184,7 +194,7 @@ checks: [...]
 recommended_actions: [...]
 ```
 
-Default checks include CLI version, repo initialization, runner files, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, and stale/duplicate memory. `--release-readiness` adds lifecycle smoke compatibility and Makefile/CI compatibility for the aictx release gate.
+Default checks include CLI version, repo initialization, runner files, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, lifecycle status, and stale/duplicate memory. `--release-readiness` adds lifecycle smoke compatibility and Makefile/CI compatibility for the aictx release gate.
 
 `doctor` is for humans, support, and CI diagnostics. Normal agents should not call it during startup.
 
@@ -291,7 +301,7 @@ See [Cleanup](CLEANUP.md).
 
 ## Using AICTX through MCP
 
-Compatible agents should prefer MCP tools when available: call `aictx_resume` before work and `aictx_finalize` at the end. If MCP is unavailable, use the equivalent CLI lifecycle: `aictx resume --repo . --task "<task goal>" --json` and `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
+Compatible agents should prefer MCP tools when available: call `aictx_resume` before work, inspect `aictx_lifecycle_status` when warnings are present, and call `aictx_finalize` at the end. If MCP is unavailable, use the equivalent CLI lifecycle: `aictx resume --repo . --task "<task goal>" --json` and `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
 
 Public MCP commands:
 

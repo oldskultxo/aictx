@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 READONLY_TOOLS = {
-    "aictx_resume", "aictx_next", "aictx_view", "aictx_doctor", "aictx_task_list", "aictx_task_show",
+    "aictx_resume", "aictx_prepare_task_context", "aictx_lifecycle_status", "aictx_next", "aictx_view", "aictx_doctor", "aictx_task_list", "aictx_task_show",
     "aictx_map_status", "aictx_map_query", "aictx_portability_status", "aictx_messages_status", "aictx_report_real_usage",
     "aictx_continuity_quality",
 }

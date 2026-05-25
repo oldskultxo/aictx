@@ -1310,7 +1310,7 @@ def test_top_level_help_hides_advanced_commands(capsys):
     assert "resume" in output
     assert "finalize" in output
     assert "advanced" in output
-    assert "{install,init,portability,resume,finalize,view,doctor,advanced,clean,uninstall}" in output
+    assert "{install,init,portability,resume,prepare,finalize,view,doctor,advanced,clean,uninstall}" in output
     for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
         assert f"    {command}" not in output
 

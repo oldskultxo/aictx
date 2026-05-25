@@ -5,15 +5,50 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 # Upgrade guide
 
-## Current line: 6.8.x
+## Current line: 6.9.x
 
-Current documented runtime: `6.8.0`.
+Current documented runtime: `6.9.0`.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
 ```bash
 aictx install
 aictx init
+```
+
+---
+## 6.9.0
+
+`6.9.0` adds read-only Task Context Packs for on-demand task-specific context outside the normal lifecycle startup step.
+
+This release does not require a data migration.
+
+Added:
+- `aictx prepare "<task goal>" --repo . --json` for a bounded Task Context Pack.
+- `aictx_prepare_task_context` MCP tool in the readonly profile.
+- Best-effort lifecycle event tracking for resume, Work State writes, and finalize.
+- Lifecycle diagnostics in `aictx resume --json`, `aictx doctor --json`, MCP tool `aictx_lifecycle_status`, and resource `aictx://repo/current/lifecycle-status`.
+- Task context output covering relevant files, areas, decisions, handoffs, failures, validation expectations, continuity quality and stale-context warnings.
+
+Changed:
+- Task context preparation is separate from `aictx resume`; it does not render startup banner policy, persist resume contracts, write generated trace artifacts, or replace the required `resume -> work -> finalize` lifecycle.
+- Task Context Packs filter unrelated CI/config background decisions when they do not match the supplied goal.
+- Lifecycle diagnostics are advisory warnings only. They detect incomplete control-loop usage without blocking users or requiring a daemon.
+
+Upgrade notes:
+- No data migration is required.
+- Existing `.aictx/` continuity data remains compatible.
+- Re-run setup if you want regenerated local runner instructions and MCP metadata from the current package:
+
+```bash
+aictx install
+aictx init
+```
+
+Example:
+
+```bash
+aictx prepare "fix the MCP permissions bug" --repo . --json
 ```
 
 ---

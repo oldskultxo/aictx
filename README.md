@@ -69,6 +69,14 @@ resume useful context -> do the work -> finalize evidence -> next session contin
 
 AICTX stores continuity locally under `.aictx/`, so it is inspectable, reviewable and not dependent on hidden chat history.
 
+For on-demand task planning outside the startup lifecycle, AICTX can also compile a bounded read-only Task Context Pack:
+
+```bash
+aictx prepare "fix the parser bug" --repo . --json
+```
+
+`prepare` is not a replacement for `resume` / `finalize`; it gives agents a focused context pack for a specific goal without writing continuity artifacts.
+
 ## MCP server
 
 AICTX can expose repo-local continuity as local MCP tools, resources and prompts.
@@ -167,6 +175,8 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 | **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
 | **Continuity View** | Generates `.aictx/reports/continuity-view.md` and `.aictx/reports/continuity-map.mmd` from repo-local continuity | Users and agents can inspect active Work State, handoffs, failures, contracts, summaries, RepoMap hints, and portability in one deterministic Markdown/Mermaid view |
 | **Continuity Quality** | Scores repo-local continuity freshness and flags stale, missing, demoted, obsolete, or unverified context | Agents can avoid trusting old memory blindly and treat weak continuity as background evidence |
+| **Task Context Pack** | Compiles focused read-only context for a supplied goal through `aictx prepare` or `aictx_prepare_task_context` | Agents can ask for bounded task-specific context without mutating lifecycle state |
+| **Lifecycle Diagnostics** | Tracks resume, Work State writes, and finalize events as best-effort local diagnostics | Users can see incomplete or unfinalized sessions without AICTX blocking work |
 | **Contract Compliance** | Audits first action, edit scope, validation, and structural alignment | Gaps can carry over into Work State instead of disappearing |
 | **Doctor** | Read-only repo/runtime diagnostic with `aictx doctor --repo . --json`; add `--release-readiness` for strict aictx release-gate checks | Support uses a general repo diagnostic while releases keep stricter checks |
 | **Resume capsule** | Compiles continuity into one agent brief | Agents do not need to discover AICTX internals at startup |

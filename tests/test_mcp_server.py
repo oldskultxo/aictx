@@ -35,6 +35,7 @@ def test_mcp_server_lists_resources_prompts_and_readonly_tools(tmp_path: Path):
     tools = handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}, repo=str(repo), profile="readonly")
     names = {tool["name"] for tool in tools["result"]["tools"]}
     assert "aictx_resume" in names
+    assert "aictx_lifecycle_status" in names
     assert "aictx_finalize" not in names
     resume = next(tool for tool in tools["result"]["tools"] if tool["name"] == "aictx_resume")
     assert "task" in resume["inputSchema"]["properties"]
@@ -42,6 +43,7 @@ def test_mcp_server_lists_resources_prompts_and_readonly_tools(tmp_path: Path):
     resources = handle_request({"jsonrpc": "2.0", "id": 3, "method": "resources/list", "params": {}}, repo=str(repo), profile="full")
     assert "aictx://repo/current/doctor" in {item["uri"] for item in resources["result"]["resources"]}
     assert "aictx://repo/current/continuity-quality" in {item["uri"] for item in resources["result"]["resources"]}
+    assert "aictx://repo/current/lifecycle-status" in {item["uri"] for item in resources["result"]["resources"]}
 
     prompts = handle_request({"jsonrpc": "2.0", "id": 4, "method": "prompts/list", "params": {}}, repo=str(repo), profile="full")
     assert "aictx_continue_task" in {item["name"] for item in prompts["result"]["prompts"]}
@@ -118,6 +120,18 @@ def test_mcp_stdio_subprocess_json_rpc_is_stdout_clean(tmp_path: Path):
     names = {tool["name"] for tool in responses[1]["result"]["tools"]}
     assert "aictx_resume" in names
     assert "aictx_finalize" not in names
+
+
+def test_mcp_lifecycle_status_tool_and_resource(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    tool = handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "aictx_lifecycle_status", "arguments": {"task": "fix parser"}}}, repo=str(repo), profile="readonly")
+    assert tool["result"]["structuredContent"]["ok"] is True
+    assert tool["result"]["structuredContent"]["lifecycle_status"]["status"] == "ok"
+
+    resource = handle_request({"jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": {"uri": "aictx://repo/current/lifecycle-status"}}, repo=str(repo), profile="readonly")
+    assert '"status": "ok"' in resource["result"]["contents"][0]["text"]
 
 
 def test_mcp_stdio_subprocess_preserves_content_length_framing(tmp_path: Path):

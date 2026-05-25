@@ -25,6 +25,7 @@ from ..portability import compact_portable_jsonl, detect_portable_continuity_fro
 from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
 from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, render_continuity_mermaid, write_continuity_view
 from ..doctor import build_doctor_report
+from ..lifecycle import append_lifecycle_event
 from ..runner_integrations import install_codex_native_integration, install_repo_runner_integrations
 from ..integrations.mcp_config import DEFAULT_MCP_PROFILE, install_global_mcp_config, install_repo_mcp_config, mcp_status, normalize_mcp_profile
 from ..runtime_launcher import cli_run_execution
@@ -45,6 +46,7 @@ from ..repo_map.setup import (
 from ..cleanup import clean_repo_and_unregister, remove_marked_block, uninstall_all
 from ..strategy_memory import select_strategy
 from ..runtime_tasks import resolve_task_type
+from ..task_context import build_task_context_pack, render_task_context_pack
 from ..work_state import changed_work_state_fields, close_work_state, list_work_states, load_active_work_state, load_work_state, render_work_state_summary, resume_work_state, start_work_state, update_work_state
 
 from ..state import (
@@ -354,6 +356,7 @@ def cmd_task_start(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     initial = _parse_json_dict(args.initial_json, field_name="initial") if str(getattr(args, "initial_json", "") or "").strip() else {}
     state = start_work_state(repo, args.goal, task_id=getattr(args, "task_id", None), initial=initial)
+    append_lifecycle_event(repo, {"event_type": "work_state_started", "source": "cli", "task": args.goal, "task_type": initial.get("task_type", ""), "work_state_task_id": state.get("task_id"), "status": state.get("status")})
     if bool(getattr(args, "json", False)):
         _print_json(state)
     else:
@@ -461,6 +464,7 @@ def cmd_task_update(args: argparse.Namespace) -> int:
     before = load_work_state(repo, str(getattr(args, "task_id", "") or "")) if getattr(args, "task_id", None) else load_active_work_state(repo)
     state = update_work_state(repo, patch, task_id=getattr(args, "task_id", None))
     changed_fields = changed_work_state_fields(before, state, patch)
+    append_lifecycle_event(repo, {"event_type": "work_state_updated", "source": "cli", "task": state.get("goal"), "work_state_task_id": state.get("task_id"), "status": state.get("status")})
     if bool(getattr(args, "json", False)):
         _print_json(_state_with_update_meta(state, changed_fields))
     else:
@@ -489,6 +493,7 @@ def cmd_task_close(args: argparse.Namespace) -> int:
         status=str(getattr(args, "status", "resolved") or "resolved"),
         patch=patch,
     )
+    append_lifecycle_event(repo, {"event_type": "work_state_closed", "source": "cli", "task": state.get("goal"), "work_state_task_id": state.get("task_id"), "status": state.get("status")})
     if bool(getattr(args, "json", False)):
         changed_fields = changed_work_state_fields({}, state, patch)
         _print_json(_state_with_update_meta(state, changed_fields, action="closed"))
@@ -526,6 +531,21 @@ def cmd_next(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_prepare(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    goal = str(getattr(args, "goal", "") or "").strip()
+    payload = build_task_context_pack(
+        repo,
+        goal,
+        task_type=str(getattr(args, "task_type", "") or "").strip(),
+    )
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print(render_task_context_pack(payload), end="")
+    return 0
+
+
 def cmd_finalize(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     status = str(getattr(args, "status", "") or "")
@@ -539,21 +559,26 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     request = str(getattr(args, "task", "") or getattr(args, "request", "") or active_task or summary).strip()
     agent_id = _infer_agent_id(str(getattr(args, "agent_id", "") or ""))
     adapter_id = str(getattr(args, "adapter_id", "") or getattr(args, "agent_id", "") or agent_id or "generic")
+    execution_id = str(getattr(args, "session_id", "") or f"cli-finalize-{now_iso()}")
+    files_opened = _list_arg(args, "files_opened")
+    files_edited = _list_arg(args, "files_edited")
+    commands_executed = _list_arg(args, "commands_executed")
+    tests_executed = _list_arg(args, "tests_executed")
     prepared = prepare_execution(
         {
             "repo_root": repo.as_posix(),
             "user_request": request,
             "agent_id": agent_id,
             "adapter_id": adapter_id,
-            "execution_id": str(getattr(args, "session_id", "") or f"cli-finalize-{now_iso()}"),
+            "execution_id": execution_id,
             "timestamp": now_iso(),
             "declared_task_type": str(getattr(args, "task_type", "") or "") or None,
             "execution_mode": "plain",
-            "files_opened": _list_arg(args, "files_opened"),
-            "files_edited": _list_arg(args, "files_edited"),
+            "files_opened": files_opened,
+            "files_edited": files_edited,
             "files_reopened": [],
-            "commands_executed": _list_arg(args, "commands_executed"),
-            "tests_executed": _list_arg(args, "tests_executed"),
+            "commands_executed": commands_executed,
+            "tests_executed": tests_executed,
             "notable_errors": notable_errors,
             "error_events": [],
             "work_state": {},
@@ -569,6 +594,7 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         "work_state": {},
     }
     payload = finalize_execution(prepared, result)
+    append_lifecycle_event(repo, {"event_type": "finalize_called", "source": "cli", "agent_id": agent_id, "adapter_id": adapter_id, "session_id": str(getattr(args, "session_id", "") or ""), "execution_id": execution_id, "task": request, "task_type": str(getattr(args, "task_type", "") or ""), "status": status, "files_opened_count": len(files_opened), "files_edited_count": len(files_edited), "commands_count": len(commands_executed), "tests_count": len(tests_executed)})
     if bool(getattr(args, "include_view", False) or getattr(args, "view", False)):
         view_payload = write_continuity_view(repo)
         payload["continuity_view"] = view_payload.get("view", {})
@@ -634,6 +660,8 @@ def cmd_resume(args: argparse.Namespace) -> int:
         adapter_id=str(getattr(args, "adapter_id", "") or ""),
         session_id=str(getattr(args, "session_id", "") or ""),
     )
+    contract_ref = payload.get("contract_ref") if isinstance(payload.get("contract_ref"), dict) else {}
+    append_lifecycle_event(repo, {"event_type": "resume_called", "source": "cli", "agent_id": _infer_agent_id(str(getattr(args, "agent_id", "") or "")), "adapter_id": str(getattr(args, "adapter_id", "") or ""), "session_id": str(getattr(args, "session_id", "") or ""), "task": request, "task_type": task_type, "contract_id": str(contract_ref.get("contract_id") or "")})
     if bool(getattr(args, "json", False)):
         _print_json(payload)
     else:
@@ -1385,7 +1413,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,portability,resume,finalize,view,doctor,advanced,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,portability,resume,prepare,finalize,view,doctor,advanced,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1456,6 +1484,13 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
     resume.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     resume.set_defaults(func=cmd_resume)
+
+    prepare_task = sub.add_parser("prepare", help="Compile a read-only task-specific context pack")
+    prepare_task.add_argument("goal", help="Task goal to compile context for")
+    prepare_task.add_argument("--repo", default=".", help="Repository root")
+    prepare_task.add_argument("--task-type", default="", help="Optional task type override")
+    prepare_task.add_argument("--json", action="store_true", help="Print structured task context pack JSON")
+    prepare_task.set_defaults(func=cmd_prepare)
 
     view = sub.add_parser("view", help="Generate a local deterministic Continuity View")
     view.add_argument("--repo", default=".", help="Repository root")

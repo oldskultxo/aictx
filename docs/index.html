@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AICTX - Operational continuity for AI coding agents</title>
   <meta name="description"
-    content="AICTX is the official repo-local operational continuity layer for AI coding agents, with CLI support, a local MCP server, Claude/Codex plugin artifacts, Continuity Quality, Work State, handoffs, failures, decisions and validation evidence.">
+    content="AICTX is the official repo-local operational continuity layer for AI coding agents, with CLI support, a local MCP server, read-only Task Context Packs, Continuity Quality, Work State, handoffs, failures, decisions and validation evidence.">
   <meta name="keywords"
-    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, MCP, Model Context Protocol, local MCP server, Claude Code plugin, Codex plugin, agent plugins">
+    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, task context pack, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, MCP, Model Context Protocol, local MCP server, Claude Code plugin, Codex plugin, agent plugins">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="author" content="Santi Santamaria">
   <meta name="application-name" content="AICTX">
@@ -41,7 +41,7 @@
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
     "programmingLanguage": "Python",
-    "description": "AICTX is a CLI and local MCP operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions.",
+    "description": "AICTX is a CLI and local MCP operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions, and can compile read-only Task Context Packs for specific goals.",
     "creator": {
       "@type": "Person",
       "name": "Santi Santamaria",
@@ -54,7 +54,7 @@
     },
     "codeRepository": "https://github.com/oldskultxo/aictx",
     "downloadUrl": "https://pypi.org/project/aictx/",
-    "softwareVersion": "6.8.0",
+    "softwareVersion": "6.9.0",
     "license": "https://github.com/oldskultxo/aictx/blob/main/LICENSE",
     "keywords": [
       "AICTX",
@@ -63,6 +63,7 @@
       "coding agents",
       "AI coding agents",
       "repo-local continuity",
+      "Task Context Pack",
       "execution state",
       "Work State",
       "failure memory",
@@ -677,7 +678,7 @@ aictx init
           </div>
           <div class="card">
             <h3>Failures, validation and quality</h3>
-            <p class="muted">Known failed commands, resolved patterns, canonical checks, validation evidence and stale-context quality signals.</p>
+            <p class="muted">Known failed commands, resolved patterns, canonical checks, validation evidence, lifecycle diagnostics and stale-context quality signals.</p>
           </div>
         </div>
       </section>
@@ -729,6 +730,15 @@ It finalizes factual evidence for the next session.</code></pre>
             <p class="muted">Expose continuity as local MCP tools/resources/prompts. Compatible clients can
               launch it over stdio; CLI fallback remains available.</p>
             <pre><code>aictx mcp-server --repo . --profile full</code></pre>
+          </div>
+          <div class="card">
+            <h3>Task Context Pack</h3>
+            <p class="muted">Compile bounded read-only context for a specific goal without replacing the
+              resume → work → finalize lifecycle.</p>
+            <pre><code>aictx prepare "fix the parser bug" --repo . --json
+
+# MCP readonly tool:
+# aictx_prepare_task_context</code></pre>
           </div>
           <div class="card">
             <h3>Continuity Quality</h3>
