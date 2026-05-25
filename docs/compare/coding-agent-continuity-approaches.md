@@ -29,22 +29,164 @@ Plain instructions, long context, memory files, vector retrieval, harness memory
 
 ## Comparison matrix
 
-| Capability / outcome | Plain instructions | Long context / chat history | Generic memory files | Vector memory | Agent-specific harness memory | Skills / custom layers | AICTX repo-local continuity |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Repo-local by default | Yes | No | Depends | Usually no | Usually no | Depends | Yes |
-| Inspectable by developer | Yes | Partial | Yes | Often no | Depends | Depends | Yes |
-| Directly correctable | Yes | Partial | Yes | Often no | Depends | Depends | Yes |
-| Portable across agents | Yes | No | Partial | Depends | Usually no | Usually no | Yes |
-| Tracks active Work State | No | Partial | Manual | Partial | Depends | Depends | Yes |
-| Tracks failed commands | No | Partial | Manual | Partial | Depends | Depends | Yes |
-| Tracks validation evidence | No | Partial | Manual | Partial | Depends | Depends | Yes |
-| Tracks decisions / handoffs | Manual | Partial | Manual | Partial | Depends | Depends | Yes |
-| Tracks structural repo entry points | No | Partial | No | Partial | Depends | Depends | Yes, via RepoMap |
-| Surfaces relationships visually | No | No | No | No | Depends | Depends | Yes, via Continuity View |
-| Handles stale/superseded context | No | No | Manual | Hard to inspect | Depends | Depends | Yes, via Continuity Quality |
-| Exposes continuity as tools | No | No | No | Depends | Yes | Depends | Yes, via MCP |
-| Requires cloud/backend | No | Depends | No | Often yes | Depends | Depends | No |
-| Survives switching vendor/harness | Yes | No | Partial | Depends | No/Depends | Usually no | Yes |
+<div class="continuity-matrix" role="region" aria-label="Coding-agent continuity approach comparison">
+<table class="continuity-matrix-table">
+  <thead>
+    <tr>
+      <th scope="col">Capability / outcome</th>
+      <th scope="col">Plain instructions</th>
+      <th scope="col">Long context / chat history</th>
+      <th scope="col">Generic memory files</th>
+      <th scope="col">Vector memory</th>
+      <th scope="col">Agent-specific harness memory</th>
+      <th scope="col">Skills / custom layers</th>
+      <th scope="col">AICTX repo-local continuity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th scope="row">Repo-local by default</th>
+      <td data-label="Plain instructions">Yes</td>
+      <td data-label="Long context / chat history">No</td>
+      <td data-label="Generic memory files">Depends</td>
+      <td data-label="Vector memory">Usually no</td>
+      <td data-label="Agent-specific harness memory">Usually no</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Inspectable by developer</th>
+      <td data-label="Plain instructions">Yes</td>
+      <td data-label="Long context / chat history">Partial</td>
+      <td data-label="Generic memory files">Yes</td>
+      <td data-label="Vector memory">Often no</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Directly correctable</th>
+      <td data-label="Plain instructions">Yes</td>
+      <td data-label="Long context / chat history">Partial</td>
+      <td data-label="Generic memory files">Yes</td>
+      <td data-label="Vector memory">Often no</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Portable across agents</th>
+      <td data-label="Plain instructions">Yes</td>
+      <td data-label="Long context / chat history">No</td>
+      <td data-label="Generic memory files">Partial</td>
+      <td data-label="Vector memory">Depends</td>
+      <td data-label="Agent-specific harness memory">Usually no</td>
+      <td data-label="Skills / custom layers">Usually no</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Tracks active Work State</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">Partial</td>
+      <td data-label="Generic memory files">Manual</td>
+      <td data-label="Vector memory">Partial</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Tracks failed commands</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">Partial</td>
+      <td data-label="Generic memory files">Manual</td>
+      <td data-label="Vector memory">Partial</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Tracks validation evidence</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">Partial</td>
+      <td data-label="Generic memory files">Manual</td>
+      <td data-label="Vector memory">Partial</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Tracks decisions / handoffs</th>
+      <td data-label="Plain instructions">Manual</td>
+      <td data-label="Long context / chat history">Partial</td>
+      <td data-label="Generic memory files">Manual</td>
+      <td data-label="Vector memory">Partial</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+    <tr>
+      <th scope="row">Tracks structural repo entry points</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">Partial</td>
+      <td data-label="Generic memory files">No</td>
+      <td data-label="Vector memory">Partial</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes, via RepoMap</td>
+    </tr>
+    <tr>
+      <th scope="row">Surfaces relationships visually</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">No</td>
+      <td data-label="Generic memory files">No</td>
+      <td data-label="Vector memory">No</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes, via Continuity View</td>
+    </tr>
+    <tr>
+      <th scope="row">Handles stale/superseded context</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">No</td>
+      <td data-label="Generic memory files">Manual</td>
+      <td data-label="Vector memory">Hard to inspect</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes, via Continuity Quality</td>
+    </tr>
+    <tr>
+      <th scope="row">Exposes continuity as tools</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">No</td>
+      <td data-label="Generic memory files">No</td>
+      <td data-label="Vector memory">Depends</td>
+      <td data-label="Agent-specific harness memory">Yes</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">Yes, via MCP</td>
+    </tr>
+    <tr>
+      <th scope="row">Requires cloud/backend</th>
+      <td data-label="Plain instructions">No</td>
+      <td data-label="Long context / chat history">Depends</td>
+      <td data-label="Generic memory files">No</td>
+      <td data-label="Vector memory">Often yes</td>
+      <td data-label="Agent-specific harness memory">Depends</td>
+      <td data-label="Skills / custom layers">Depends</td>
+      <td data-label="AICTX repo-local continuity">No</td>
+    </tr>
+    <tr>
+      <th scope="row">Survives switching vendor/harness</th>
+      <td data-label="Plain instructions">Yes</td>
+      <td data-label="Long context / chat history">No</td>
+      <td data-label="Generic memory files">Partial</td>
+      <td data-label="Vector memory">Depends</td>
+      <td data-label="Agent-specific harness memory">No/Depends</td>
+      <td data-label="Skills / custom layers">Usually no</td>
+      <td data-label="AICTX repo-local continuity">Yes</td>
+    </tr>
+  </tbody>
+</table>
+</div>
 
 ## What each approach is good at
 
