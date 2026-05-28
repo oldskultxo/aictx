@@ -52,7 +52,7 @@ Use this runtime guide after repository initialization with `aictx init`.
 - After task work, use `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` for persistence and final AICTX summary. finalize_execution is the middleware API behind that command; do not call it directly from the shell. Do not run `aictx internal execution finalize` during normal task flow.
 - Final responses for non-trivial tasks must include the AICTX summary from `aictx finalize`; treat `agent_summary_text` as the canonical compact user-facing source.
 - Preserve Continuity View summary links exactly when present: `last_execution_summary.md`, `continuity-map.mmd`, and the `mermaid.live` online view link. Do not shorten by replacing the URL with a placeholder and do not manually reconstruct or retype pako URLs; use the exact finalized Markdown link text to keep it visually compact.
-- For AICTX-originated user-visible texts, prefer `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
+- For AICTX-originated user-visible texts and normal agent communication, prefer `resume.runtime_text_policy` / `resume.communication_policy`, `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
 - Localize AICTX-originated user-visible texts to the current user language without hardcoding a fixed language list.
 - Do not enrich the final AICTX summary with invented facts; never invent data; prefer structured render payload fields when provided, use compact text fields only as fallback, and preserve file paths, commands, flags, test names, package names, code identifiers, Markdown details links, Continuity View file links, and Mermaid online view links.
 
@@ -106,7 +106,7 @@ Agent rules:
 - In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 - Use the `aictx resume` capsule before deeper repo analysis.
 - `.aictx/memory/source/` is editable source knowledge; do not hand-edit generated derived artifacts under `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders.
-- Use `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
+- Use `resume.runtime_text_policy` / `resume.communication_policy`, `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
 - You may enrich AICTX-originated user-visible texts if helpful, but you must preserve real facts and never invent missing data.
 - Advanced/diagnostic/building-block commands remain available for humans and diagnostics, but normal agents should not use them during startup.
 

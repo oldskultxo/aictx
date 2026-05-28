@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.9.1 - 2026-05-28
+
+### Changed
+- `aictx install` now detects an existing `~/.codex/` directory and installs or updates AICTX-managed global Codex integration by default; interactive installs ask for confirmation, while `--yes` applies the detected Codex setup automatically.
+- `--install-codex-global` now explicitly forces global Codex setup even when `~/.codex/` is not detected.
+- `aictx resume --json` now exposes `communication_policy` and `runtime_text_policy` from effective user preferences so agents can apply `caveman_lite`, `caveman_full`, or `caveman_ultra` without changing startup banner or final summary rendering.
+
+### Fixed
+- Hardened Mermaid Live URL generation for Continuity View links by centralizing `generate_mermaid_live_url`, using zlib/pako-compatible compression, URL-safe base64 without padding, and Mermaid Live's full state shape with `autoSync`, `grid`, `rough`, `panZoom`, `pan`, `zoom`, `renderCount`, and `mermaid` as a JSON string.
+- Fixed Mermaid Live links emitted by finalize/agent summaries so generated continuity maps open reliably in `https://mermaid.live/view#pako:` without manual URL reconstruction.
+- Updated installation, safety, usage, quickstart, README, and technical overview documentation for the Codex auto-detection install behavior.
+
 ## 6.9.0 - 2026-05-25
 
 ### Added

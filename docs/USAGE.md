@@ -23,6 +23,8 @@ aictx init
 
 The default interactive setup is compact: `install` asks only about recommended RepoMap/Tree-sitter support, and `init` asks only for repo communication mode. Use `aictx install --manual` or `aictx init --manual` for the full advanced prompt flow.
 
+When `~/.codex/` exists, `aictx install` also treats Codex as present and installs/updates AICTX-managed global Codex integration by default. Interactive installs ask for confirmation; `aictx install --yes` applies the detected Codex setup automatically.
+
 Then keep using the coding agent.
 
 At normal task startup, supported agents should use one public continuity query:

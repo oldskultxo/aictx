@@ -26,6 +26,10 @@ def _install_args(tmp_path: Path, **overrides) -> argparse.Namespace:
     return argparse.Namespace(**payload)
 
 
+def _disable_codex_home_detection(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(cli, "CODEX_HOME", tmp_path / ".codex")
+
+
 def test_repomap_optional_dependency_matches_runtime_install_spec():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
@@ -43,6 +47,8 @@ def test_interactive_install_asks_only_whether_to_enable_recommended_repomap(tmp
     monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    _disable_codex_home_detection(monkeypatch, tmp_path)
+    _disable_codex_home_detection(monkeypatch, tmp_path)
 
     def fake_ask_yes_no(prompt: str, default: bool = True) -> bool:
         prompts.append((prompt, default))
@@ -67,6 +73,7 @@ def test_install_interactive_no_does_not_request_or_install_repomap(tmp_path: Pa
     monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    _disable_codex_home_detection(monkeypatch, tmp_path)
     monkeypatch.setattr(cli, "ask_yes_no", lambda prompt, default=True: False)
     monkeypatch.setattr(cli, "repomap_dependency_available", lambda: False)
 
@@ -95,6 +102,7 @@ def test_install_interactive_yes_requests_repomap_and_attempts_dependency_flow(t
     monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    _disable_codex_home_detection(monkeypatch, tmp_path)
 
     def fake_ask_yes_no(prompt: str, default: bool = True) -> bool:
         prompts.append(prompt)
@@ -136,6 +144,7 @@ def test_install_manual_preserves_advanced_dependency_confirmation(tmp_path: Pat
     monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    _disable_codex_home_detection(monkeypatch, tmp_path)
 
     def fake_ask_yes_no(prompt: str, default: bool = True) -> bool:
         prompts.append((prompt, default))
@@ -171,6 +180,7 @@ def test_install_yes_without_with_repomap_keeps_safe_default(tmp_path: Path, mon
     monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    _disable_codex_home_detection(monkeypatch, tmp_path)
     monkeypatch.setattr(cli, "write_json", lambda path, payload: writes.append((path, payload)))
     monkeypatch.setattr(cli, "repomap_dependency_available", lambda: False)
 
@@ -223,6 +233,7 @@ def test_existing_install_behavior_still_passes_with_repomap_disabled(tmp_path: 
     monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    _disable_codex_home_detection(monkeypatch, tmp_path)
 
     assert cli.cmd_install(_install_args(tmp_path, yes=True, with_repomap=False)) == 0
     out = capsys.readouterr().out

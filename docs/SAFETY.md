@@ -21,7 +21,7 @@ Review `.aictx/` changes before committing because portable artifacts may still 
 
 `aictx init` creates or updates repo-local artifacts and managed instruction blocks.
 
-`aictx install` prepares AICTX global/runtime state. It does not modify global Codex files unless requested with:
+`aictx install` prepares AICTX global/runtime state. If `~/.codex/` already exists, AICTX treats Codex as installed and installs/updates only AICTX-managed global Codex entries by default (`--yes`) or after confirmation in interactive mode. If `~/.codex/` does not exist, global Codex setup is only forced with:
 
 ```bash
 aictx install --install-codex-global

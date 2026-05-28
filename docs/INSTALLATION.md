@@ -109,12 +109,14 @@ Prompt wording may change between releases. The decisions documented below are t
 
 It is about the AICTX installation and workspace-level setup. It should not be described as the place where repo communication mode is chosen.
 
-Default interactive setup is intentionally simple for non-advanced users. It uses the current defaults for workspace id, workspace root, cross-project mode, and global Codex integration. It asks only whether to enable recommended RepoMap support using Tree-sitter.
+Default interactive setup is intentionally simple for non-advanced users. It uses the current defaults for workspace id, workspace root, and cross-project mode. If `~/.codex/` already exists, AICTX assumes Codex is installed and offers to update AICTX-managed global Codex integration files by default. It also asks whether to enable recommended RepoMap support using Tree-sitter.
 
 Default interactive flow:
 
 ```text
 aictx install
+
+Detected ~/.codex. Install/update global Codex integration? [Y/n]: y
 
 RepoMap uses Tree-sitter to build a compact structural map of files and symbols.
 Recommended: it helps agents choose better starting points without reading the whole repo.
@@ -140,13 +142,13 @@ Install controls:
 | Workspace id | `default` | `--workspace-id <id>` or `--manual` |
 | Workspace root | empty | `--workspace-root <path>` or `--manual` |
 | Cross-project mode | `workspace` | `--cross-project-mode workspace|explicit|disabled` |
-| Global Codex install | off | `--install-codex-global` |
+| Global Codex install | on when `~/.codex/` exists; otherwise off | confirm interactively, or force with `--install-codex-global` |
 | RepoMap request | prompted, default `Y` | `--with-repomap`, `--yes --with-repomap`, or `--manual` |
 | Dry run | off | `--dry-run` |
 | Non-interactive mode | no prompts, safe defaults | `--yes` |
 | Full interactive mode | off | `--manual` |
 
-`--yes` still skips prompts and keeps safe defaults. To request RepoMap non-interactively, use:
+`--yes` skips prompts and keeps safe defaults. If `~/.codex/` exists, `--yes` also applies the AICTX-managed global Codex integration. To request RepoMap non-interactively, use:
 
 ```bash
 aictx install --yes --with-repomap
@@ -293,7 +295,11 @@ aictx install
 aictx init
 ```
 
-Optional global Codex support:
+Global Codex support:
+
+- if `~/.codex/` exists, `aictx install` offers to install/update it by default;
+- with `--yes`, detected `~/.codex/` is updated automatically;
+- if `~/.codex/` does not exist, force global Codex setup with:
 
 ```bash
 aictx install --install-codex-global

@@ -146,6 +146,8 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "execution_contract.first_action" in text
     assert ".aictx/continuity/resume_capsule.md" in text
     assert ".aictx/continuity/resume_capsule.json" in text
+    assert "resume.runtime_text_policy" in text
+    assert "resume.communication_policy" in text
     assert "unknown" in text
     assert "## Communication mode" in text
     assert "## Execution middleware" in text
@@ -1842,6 +1844,7 @@ def test_cmd_install_default_does_not_touch_codex_global(tmp_path: Path, monkeyp
     monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    monkeypatch.setattr(cli, "CODEX_HOME", codex_home)
     monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", codex_home)
     monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", codex_home / "config.toml")
 
@@ -1866,6 +1869,7 @@ def test_cmd_install_codex_global_opt_in_touches_codex_global(tmp_path: Path, mo
     monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
     monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
     monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    monkeypatch.setattr(cli, "CODEX_HOME", codex_home)
     monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", codex_home)
     monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", codex_home / "config.toml")
 
@@ -1881,6 +1885,61 @@ def test_cmd_install_codex_global_opt_in_touches_codex_global(tmp_path: Path, mo
     assert (codex_home / "AGENTS.override.md").exists()
     assert (codex_home / "config.toml").exists()
     assert "WARNING: updating global Codex files" in capsys.readouterr().out
+
+
+def test_cmd_install_detected_codex_home_touches_codex_global_by_default(tmp_path: Path, monkeypatch, capsys):
+    codex_home = tmp_path / ".codex"
+    codex_home.mkdir()
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
+    monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
+    monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    monkeypatch.setattr(cli, "CODEX_HOME", codex_home)
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", codex_home)
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", codex_home / "config.toml")
+
+    args = argparse.Namespace(
+        workspace_id="default",
+        workspace_root=None,
+        cross_project_mode="workspace",
+        install_codex_global=False,
+        dry_run=False,
+        yes=True,
+    )
+    assert cli.cmd_install(args) == 0
+    assert (codex_home / "AGENTS.override.md").exists()
+    assert (codex_home / "config.toml").exists()
+    assert "Detected ~/.codex; updating global Codex files." in capsys.readouterr().out
+
+
+def test_cmd_install_detected_codex_home_can_be_declined(tmp_path: Path, monkeypatch, capsys):
+    codex_home = tmp_path / ".codex"
+    codex_home.mkdir()
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "install_global_adapters", lambda: [])
+    monkeypatch.setattr(cli, "write_json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "read_json", lambda _path, default: default)
+    monkeypatch.setattr(cli, "workspace_path", lambda wid: tmp_path / f"{wid}.json")
+    monkeypatch.setattr(cli, "ask_yes_no", lambda prompt, default=True: False if "Codex" in prompt else default)
+    monkeypatch.setattr(cli, "CODEX_HOME", codex_home)
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_HOME", codex_home)
+    monkeypatch.setattr("aictx.runner_integrations.CODEX_CONFIG_PATH", codex_home / "config.toml")
+
+    args = argparse.Namespace(
+        workspace_id="default",
+        workspace_root=None,
+        cross_project_mode="workspace",
+        install_codex_global=False,
+        dry_run=False,
+        yes=False,
+        manual=False,
+    )
+    assert cli.cmd_install(args) == 0
+    assert not (codex_home / "AGENTS.override.md").exists()
+    assert "Skipped global Codex integration" in capsys.readouterr().out
 
 
 def test_cmd_install_dry_run_does_not_mutate(tmp_path: Path, monkeypatch, capsys):

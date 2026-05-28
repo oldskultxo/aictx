@@ -11,6 +11,7 @@ from aictx.continuity_view import (
     CONTINUITY_MAP_PATH,
     CONTINUITY_VIEW_PATH,
     build_continuity_view_model,
+    generate_mermaid_live_url,
     mermaid_live_url,
     render_continuity_markdown,
     render_continuity_mermaid,
@@ -31,6 +32,12 @@ def _parser():
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+
+
+def _decode_mermaid_live_url(url: str) -> dict:
+    encoded = url.split("#pako:", 1)[1]
+    padded = encoded + "=" * ((4 - len(encoded) % 4) % 4)
+    return json.loads(zlib.decompress(base64.urlsafe_b64decode(padded)).decode("utf-8"))
 
 
 def test_empty_continuity_view_is_deterministic_and_has_required_sections(tmp_path: Path):
@@ -225,8 +232,7 @@ def test_mermaid_live_url_encodes_diagram_for_online_view():
     mermaid = "flowchart TD\n  A[Start] --> B[End]\n"
     url = mermaid_live_url(mermaid)
     encoded = url.split("#pako:", 1)[1]
-    padded = encoded + "=" * ((4 - len(encoded) % 4) % 4)
-    payload = json.loads(zlib.decompress(base64.urlsafe_b64decode(padded)).decode("utf-8"))
+    payload = _decode_mermaid_live_url(url)
     mermaid_config = json.loads(payload["mermaid"])
 
     assert url.startswith("https://mermaid.live/view#pako:")
@@ -234,12 +240,31 @@ def test_mermaid_live_url_encodes_diagram_for_online_view():
     assert "+" not in encoded
     assert "/" not in encoded
     assert payload["code"] == mermaid
-    assert mermaid_config["theme"] == "default"
+    assert mermaid_config["theme"] == "dark"
     assert isinstance(payload["mermaid"], str)
-    assert payload["rough"] is False
+    assert payload["grid"] is True
+    assert payload["panZoom"] is True
+    assert payload["rough"] is True
     assert payload["updateDiagram"] is True
+    assert payload["autoSync"] is True
+    assert payload["renderCount"] == 0
+    assert payload["pan"] == {"x": 0, "y": 0}
+    assert payload["zoom"] == 1
     assert payload["editorMode"] == "code"
-    assert "autoSync" not in payload
+
+
+def test_generate_mermaid_live_url_uses_full_state_shape_and_theme():
+    mermaid = "flowchart TD\n  Repo[Repo] --> WS[Active Work]\n"
+    url = generate_mermaid_live_url(mermaid, theme="dark")
+    payload = _decode_mermaid_live_url(url)
+    mermaid_config = json.loads(payload["mermaid"])
+
+    assert url.startswith("https://mermaid.live/view#pako:")
+    assert payload["code"] == mermaid
+    assert mermaid_config["theme"] == "dark"
+    assert isinstance(payload["mermaid"], str)
+    for key in ("code", "grid", "mermaid", "panZoom", "rough", "updateDiagram", "autoSync", "renderCount", "pan", "zoom", "editorMode"):
+        assert key in payload
 
 
 def test_view_cli_creates_files_mermaid_stdout_json_and_custom_output(tmp_path: Path, capsys):
@@ -301,9 +326,9 @@ def test_finalize_include_view_and_resume_json_integration(tmp_path: Path, capsy
     assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in payload["agent_summary_text"]
     assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in payload["agent_summary_text"]
     encoded = payload["agent_summary_text"].split("https://mermaid.live/view#pako:", 1)[1].split(")", 1)[0]
-    padded = encoded + "=" * ((4 - len(encoded) % 4) % 4)
-    decoded = json.loads(zlib.decompress(base64.urlsafe_b64decode(padded)).decode("utf-8"))
+    decoded = _decode_mermaid_live_url(f"https://mermaid.live/view#pako:{encoded}")
     assert decoded["code"].startswith("flowchart TD")
+    assert json.loads(decoded["mermaid"])["theme"] == "dark"
 
     args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "continue", "--json"])
     assert args.func(args) == 0

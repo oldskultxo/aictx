@@ -49,6 +49,8 @@ aictx init
 aictx --version
 ```
 
+If `~/.codex/` already exists, `aictx install` detects Codex and installs/updates AICTX-managed global Codex integration by default. Interactive installs ask for confirmation; `aictx install --yes` applies the detected setup automatically.
+
 After that, keep using your coding agent.
 
 The generated repo instructions and hooks guide supported agents to call AICTX automatically. The normal user experience is:

@@ -21,6 +21,8 @@ aictx install
 aictx init
 ```
 
+If `~/.codex/` already exists, `aictx install` detects Codex and installs/updates AICTX-managed global Codex integration by default. In interactive mode it asks for confirmation; with `--yes` it applies the detected Codex setup automatically.
+
 Optional check:
 
 ```bash

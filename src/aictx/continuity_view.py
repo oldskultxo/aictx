@@ -818,24 +818,35 @@ def write_continuity_view(repo_root: Path, output: Path | str | None = None, map
     }
 
 
-def mermaid_live_url(mermaid: str, *, mode: str = "view") -> str:
+def generate_mermaid_live_url(code: str, *, theme: str = "dark", mode: str = "view") -> str:
     target_mode = "view" if str(mode or "").strip() == "view" else "edit"
     state = {
-        "code": str(mermaid or ""),
-        # Match Mermaid Live's State shape: `mermaid` is the config editor
-        # contents as a JSON string, and `rough`/`updateDiagram` are required
-        # state fields in current Mermaid Live. Missing or object-shaped fields
-        # decode as JSON but can fail while the editor restores the URL.
-        "mermaid": json.dumps({"theme": "default"}, ensure_ascii=True, indent=2),
-        "rough": False,
+        "code": str(code or ""),
+        "grid": True,
+        # Mermaid Live stores the config editor contents as a JSON string, not
+        # as an embedded object. Object-shaped values can decode locally but
+        # fail while Mermaid Live restores the URL state.
+        "mermaid": json.dumps({"theme": str(theme or "dark")}, ensure_ascii=True, indent=2),
+        "panZoom": True,
+        # Keep the share payload aligned with Mermaid Live's own reserialized
+        # view links. In practice the live editor currently emits `rough: true`
+        # and `autoSync: true` for working view URLs.
+        "rough": True,
         "updateDiagram": True,
+        "autoSync": True,
         "editorMode": "code",
+        "renderCount": 0,
+        "pan": {"x": 0, "y": 0},
+        "zoom": 1,
     }
     payload = json.dumps(state, ensure_ascii=True, separators=(",", ":")).encode("ascii")
-    compressor = zlib.compressobj(9, zlib.DEFLATED, 15, 8, zlib.Z_DEFAULT_STRATEGY)
-    compressed = compressor.compress(payload) + compressor.flush()
+    compressed = zlib.compress(payload, level=9)
     encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
     return f"https://mermaid.live/{target_mode}#pako:{encoded}"
+
+
+def mermaid_live_url(mermaid: str, *, mode: str = "view") -> str:
+    return generate_mermaid_live_url(mermaid, mode=mode)
 
 
 def continuity_view_summary_links(repo_root: Path) -> dict[str, str]:

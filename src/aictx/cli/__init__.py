@@ -25,7 +25,7 @@ from ..continuity import build_resume_capsule, load_continuity_context, render_n
 from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, render_continuity_mermaid, write_continuity_view
 from ..doctor import build_doctor_report
 from ..lifecycle import append_lifecycle_event
-from ..runner_integrations import install_codex_native_integration, install_repo_runner_integrations
+from ..runner_integrations import CODEX_HOME, install_codex_native_integration, install_repo_runner_integrations
 from ..integrations.mcp_config import DEFAULT_MCP_PROFILE, install_global_mcp_config, install_repo_mcp_config, mcp_status, normalize_mcp_profile
 from ..runtime_launcher import cli_run_execution
 from ..runtime_compact import compact_repo_records
@@ -1084,7 +1084,10 @@ def cmd_install(args: argparse.Namespace) -> int:
     workspace_id = args.workspace_id or "default"
     workspace_root = args.workspace_root
     cross_project_mode = args.cross_project_mode or "workspace"
-    install_codex_global = bool(getattr(args, "install_codex_global", False))
+    install_codex_global_explicit = bool(getattr(args, "install_codex_global", False))
+    install_codex_global_option_present = hasattr(args, "install_codex_global")
+    codex_home_detected = CODEX_HOME.exists()
+    install_codex_global = install_codex_global_explicit or (install_codex_global_option_present and codex_home_detected)
     with_repomap = bool(getattr(args, "with_repomap", False))
     dry_run = bool(getattr(args, "dry_run", False))
     manual = bool(getattr(args, "manual", False))
@@ -1101,9 +1104,13 @@ def cmd_install(args: argparse.Namespace) -> int:
         print("- prepare repos to work after a single `aictx init`")
         if mcp_enabled:
             print(f"- prepare AICTX global MCP runtime metadata (stdio, profile {mcp_profile})")
-        if install_codex_global:
+        if install_codex_global_explicit:
             print("- WARNING: update global Codex files under ~/.codex because --install-codex-global was passed")
+        elif install_codex_global_option_present and codex_home_detected:
+            print("- detected ~/.codex; update global Codex files by default")
         print()
+        if install_codex_global_option_present and codex_home_detected and not install_codex_global_explicit:
+            install_codex_global = ask_yes_no("Detected ~/.codex. Install/update global Codex integration?", True)
         if manual:
             workspace_id = ask_text("Default workspace name", workspace_id)
             if not workspace_root and ask_yes_no("Add a workspace root now?", True):
@@ -1193,7 +1200,10 @@ def cmd_install(args: argparse.Namespace) -> int:
     adapter_paths = install_global_adapters()
     native_runner_paths = []
     if install_codex_global:
-        print("WARNING: updating global Codex files under ~/.codex because --install-codex-global was passed.")
+        if install_codex_global_explicit:
+            print("WARNING: updating global Codex files under ~/.codex because --install-codex-global was passed.")
+        elif install_codex_global_option_present and codex_home_detected:
+            print("Detected ~/.codex; updating global Codex files.")
         native_runner_paths = install_codex_native_integration()
 
     print("Created:")
@@ -1409,7 +1419,7 @@ def build_parser() -> argparse.ArgumentParser:
     install.add_argument("--workspace-root", help="Initial workspace root")
     install.add_argument("--workspace-id", help="Workspace id", default="default")
     install.add_argument("--cross-project-mode", choices=["workspace", "explicit", "disabled"], help="Cross-project discovery mode")
-    install.add_argument("--install-codex-global", action="store_true", help="Opt in to global Codex ~/.codex integration")
+    install.add_argument("--install-codex-global", action="store_true", help="Force global Codex ~/.codex integration even when ~/.codex is not detected")
     install.add_argument("--with-repomap", action="store_true", help="Request optional RepoMap support using Tree-sitter")
     install.add_argument("--dry-run", action="store_true", help="Show planned install writes without mutating files")
     install.add_argument("--yes", action="store_true", help="Accept defaults without prompting")

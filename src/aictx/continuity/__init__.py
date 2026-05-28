@@ -19,6 +19,7 @@ from ..lifecycle import build_lifecycle_status
 from ..portability import append_portable_jsonl, write_portable_json, write_portable_jsonl
 from ..repo_map.config import is_repomap_enabled
 from ..report import build_repo_map_report
+from ..runtime_contract import resolve_effective_preferences
 from ..state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
@@ -3581,6 +3582,9 @@ def build_resume_capsule(
         for item in lifecycle_status.get("warnings", [])
         if isinstance(item, dict) and str(item.get("summary") or item.get("code") or "").strip()
     ]
+    resolved_preferences = resolve_effective_preferences(repo_root)
+    effective_preferences = resolved_preferences.get("effective_preferences") if isinstance(resolved_preferences.get("effective_preferences"), dict) else {}
+    communication_policy = effective_preferences.get("communication") if isinstance(effective_preferences.get("communication"), dict) else {}
     payload: dict[str, Any] = {
         "schema_version": "1.0",
         "generated_at": _now_iso(),
@@ -3605,6 +3609,14 @@ def build_resume_capsule(
             "data_source": "load_continuity_context",
             "does_not_replace_prepare_execution": True,
             "instruction": "Render this startup banner in the current user language at the top of the first substantive user-visible response. Prefer startup_banner_render_payload when available and use startup_banner_text only as fallback. Preserve exact facts, paths, commands, flags, package names, test names, code identifiers, and link targets. Do not satisfy this requirement only with a transient progress/status message that will be omitted from the final task response; if unsure, preserve the banner at the top of the final response.",
+        },
+        "communication_policy": communication_policy,
+        "runtime_text_policy": {
+            "communication": communication_policy,
+            "sources": resolved_preferences.get("sources") if isinstance(resolved_preferences.get("sources"), dict) else {},
+            "applies_to_agent_communication": True,
+            "does_not_modify_startup_banner": True,
+            "does_not_modify_agent_summary": True,
         },
         "startup_guard": _resume_startup_guard(),
         "continuity_match": continuity_match,

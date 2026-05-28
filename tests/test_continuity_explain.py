@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, build_resume_capsule
+from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, build_resume_capsule, render_resume_capsule
 from aictx.failure_memory import FAILURE_PATTERNS_PATH
 from aictx.scaffold import init_repo_scaffold
 from aictx.state import write_json
@@ -85,6 +85,29 @@ def test_resume_loaded_context_explains_loaded_sources_in_priority_order(tmp_pat
     assert any(reason.startswith("decision_related_path:src/aictx/middleware.py") for reason in loaded[3]["match_reasons"])
     assert all(item["kind"] != "repo_map" for item in loaded)
     assert all(not Path(path).is_absolute() for item in loaded for path in item["related_paths"])
+
+
+def test_resume_json_includes_communication_policy_without_rendering_it(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
+    prefs = json.loads(prefs_path.read_text(encoding="utf-8"))
+    prefs["communication"] = {
+        "layer": "enabled",
+        "mode": "caveman_ultra",
+        "intermediate_updates": "suppressed",
+        "final_style": "plain_direct_final_only",
+    }
+    prefs_path.write_text(json.dumps(prefs), encoding="utf-8")
+
+    payload = build_resume_capsule(repo, request_text="test communication policy", agent_id="codex")
+
+    assert payload["communication_policy"]["layer"] == "enabled"
+    assert payload["communication_policy"]["mode"] == "caveman_ultra"
+    assert payload["runtime_text_policy"]["communication"]["mode"] == "caveman_ultra"
+    assert payload["runtime_text_policy"]["does_not_modify_startup_banner"] is True
+    assert payload["runtime_text_policy"]["does_not_modify_agent_summary"] is True
+    assert "Communication: caveman_ultra" not in render_resume_capsule(payload)
 
 
 def test_resume_loaded_context_is_additive_when_no_context_is_loaded(tmp_path: Path):

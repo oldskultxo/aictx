@@ -7,7 +7,7 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 ## Current line: 6.9.x
 
-Current documented runtime: `6.9.0`.
+Current documented runtime: `6.9.1`.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -15,6 +15,37 @@ For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data mig
 aictx install
 aictx init
 ```
+
+---
+## 6.9.1
+
+`6.9.1` is a patch release for Codex setup, communication policy propagation, and Continuity View Mermaid Live links.
+
+This release does not require a data migration.
+
+Changed:
+- `aictx install` now detects an existing `~/.codex/` directory and installs or updates AICTX-managed global Codex integration by default.
+- Interactive installs ask for confirmation before updating detected Codex global files; `aictx install --yes` applies detected Codex setup automatically.
+- `aictx install --install-codex-global` now means "force global Codex setup" even when `~/.codex/` is not detected.
+- `aictx resume --json` now includes structured `communication_policy` and `runtime_text_policy` fields from effective user preferences so agents can apply `caveman_lite`, `caveman_full`, or `caveman_ultra`.
+- The communication policy change is payload-only: it does not modify `startup_banner_text`, `startup_banner_render_payload`, `agent_summary_text`, or `agent_summary_render_payload`.
+
+Fixed:
+- Mermaid Live URLs generated for Continuity View now use a centralized `generate_mermaid_live_url` helper.
+- Mermaid Live URLs now use zlib/pako-compatible compression and URL-safe base64 without padding.
+- Mermaid Live state now matches the working editor/view shape, including `autoSync`, `grid`, `rough`, `panZoom`, `pan`, `zoom`, `renderCount`, and `mermaid` as a JSON string.
+- Finalize summaries and agent summary render payloads now reuse the same hardened Continuity View Mermaid Live URL generation path.
+
+Upgrade notes:
+- No data migration is required.
+- Re-run setup if you want generated runner instructions and global Codex integration behavior from this patch:
+
+```bash
+aictx install
+aictx init
+```
+
+- If Codex is installed and `~/.codex/` exists, `aictx install` will now offer to update AICTX-managed global Codex files; use `--yes` for non-interactive setup.
 
 ---
 ## 6.9.0

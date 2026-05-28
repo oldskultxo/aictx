@@ -78,7 +78,7 @@ It may configure:
 
 - workspace id/root;
 - cross-project mode;
-- optional global Codex files;
+- global Codex files when `~/.codex/` is detected or `--install-codex-global` is passed;
 - optional RepoMap request;
 - AICTX home/config state.
 
@@ -321,7 +321,7 @@ AICTX is runner-aware, not runner-locked.
 Codex support uses:
 
 - `AGENTS.md`;
-- optional global Codex files through `aictx install --install-codex-global`;
+- global Codex files when `~/.codex/` is detected during `aictx install`, or when forced with `aictx install --install-codex-global`;
 - model instruction fallback files;
 - the same CLI/runtime contract.
 
