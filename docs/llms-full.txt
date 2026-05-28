@@ -12,7 +12,7 @@ Canonical project identity:
 Non-affiliation: AICTX is not affiliated with similarly named npm packages, GitHub organizations, domains, products, or projects.
 
 Summary:
-AICTX helps coding agents resume from repo-local operational memory instead of relying only on chat history. It stores inspectable continuity artifacts in the repository and exposes a small lifecycle: resume useful context before work, then finalize factual execution evidence after work.
+AICTX helps coding agents resume from repo-local operational memory instead of relying only on chat history. It stores inspectable continuity artifacts in the repository and exposes a small lifecycle: resume useful context before work, then finalize factual execution evidence after work. Because the memory is repo-local, different agents such as Codex, Claude Code, GitHub Copilot, and generic agents can share the same continuity.
 
 Main capabilities:
 - Work State: suspended active-task continuity, next action, risk, verification state.
@@ -26,6 +26,7 @@ Main capabilities:
 - Portability: optional Git-portable subset for small teams, with secret redaction on portable artifacts.
 - MCP: includes a local Model Context Protocol (MCP) server that exposes repo-local continuity as MCP tools, resources, and prompts.
 - Plugins: ships plugin distribution artifacts for Claude Code and Codex. The plugins package the same repo-local operational continuity workflow used by AICTX instructions and MCP.
+- Cross-agent continuity: one agent can finalize factual execution evidence and another agent can resume from the same `.aictx/` continuity.
 
 Important limits:
 - AICTX is not an autonomous coding agent.
@@ -50,6 +51,7 @@ Core documentation:
 - Plugins: https://aictx.org/PLUGINS.html
 
 Use cases:
+- Shared continuity across coding agents: https://aictx.org/use-cases/shared-continuity-across-agents.html
 - Codex memory with AICTX: https://aictx.org/use-cases/codex-memory.html
 - Claude Code memory with AICTX: https://aictx.org/use-cases/claude-code-memory.html
 - GitHub Copilot memory with AICTX: https://aictx.org/use-cases/github-copilot-memory.html
@@ -68,4 +70,4 @@ Comparisons:
 - AICTX vs chat history: https://aictx.org/compare/aictx-vs-chat-history.html
 
 Preferred short description:
-AICTX is repo-local memory and continuity for coding agents: work state, decisions, failure memory, handoffs, execution summaries, and repo context through the official Python `aictx` CLI.
+AICTX is shared repo-local memory and continuity for coding agents: work state, decisions, failure memory, handoffs, execution summaries, and repo context through the official Python `aictx` CLI.

@@ -9,6 +9,8 @@ AICTX is a repo-local continuity runtime for coding agents.
 
 It is not an agent, planner, dashboard, vector database, or hidden memory service. It stores execution evidence and continuity artifacts inside the repository so later agent sessions can resume with context.
 
+Because the continuity artifacts live in the repository, they are not tied to one agent runtime. Codex, Claude Code, GitHub Copilot, and generic agents can all read or write the same operational continuity through CLI, MCP, and generated instructions.
+
 This document is the technical map of the system.
 
 ---
@@ -40,6 +42,12 @@ The technical runtime underneath is:
 
 ```text
 prepare/startup context -> resume capsule -> execution -> finalize -> persist continuity -> next session
+```
+
+Across agents, the same loop becomes:
+
+```text
+Agent A finalize -> repo-local .aictx continuity -> Agent B resume
 ```
 
 ---

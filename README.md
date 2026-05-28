@@ -13,6 +13,8 @@ AICTX helps Codex, Claude, GitHub Copilot and other coding agents continue work 
 
 The next agent does not start from zero. It resumes from what actually happened.
 
+It also makes continuity shared across agents. Codex can finalize work into `.aictx/`, then Claude Code, GitHub Copilot, or another compatible agent can resume from the same repo-local facts instead of relying on one provider's chat history.
+
 **Website:** https://aictx.org  
 **PyPI package:** https://pypi.org/project/aictx/  
 **CLI:** `aictx`
@@ -71,6 +73,14 @@ resume useful context -> do the work -> finalize evidence -> next session contin
 
 AICTX stores continuity locally under `.aictx/`, so it is inspectable, reviewable and not dependent on hidden chat history.
 
+That continuity is agent-neutral:
+
+```text
+Codex finalize -> .aictx continuity -> Claude/Copilot/other agent resume
+```
+
+This is useful when a team or solo developer alternates between coding agents. The repo carries the operational handoff: what was tried, what failed, what passed, what remains, and where the next agent should start.
+
 Start lifecycle work with `aictx resume --task "..."` and close it with `aictx finalize`. For on-demand task planning outside the startup lifecycle, AICTX can also compile a bounded read-only Task Context Pack:
 
 ```bash
@@ -122,7 +132,7 @@ It sees active work, next action, known failures and validation path.
 After work, it finalizes factual evidence for the next session.
 ```
 
-AICTX turns disconnected agent sessions into a continuous operational workflow.
+AICTX turns disconnected agent sessions into a continuous operational workflow, even when the next session uses a different coding agent.
 
 ## Inspect the continuity
 
@@ -177,6 +187,7 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 | **Strategy Memory** | Reuses successful prior execution patterns | Known-good approaches can be suggested again |
 | **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
 | **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
+| **Cross-agent continuity** | Stores continuity in the repository instead of one agent's chat history | Codex, Claude Code, GitHub Copilot, and generic agents can hand off through the same `.aictx/` state |
 | **Continuity View** | Generates `.aictx/reports/continuity-view.md` and `.aictx/reports/continuity-map.mmd` from repo-local continuity | Users and agents can inspect active Work State, handoffs, failures, contracts, summaries, RepoMap hints, and portability in one deterministic Markdown/Mermaid view |
 | **Continuity Quality** | Scores repo-local continuity freshness and flags stale, missing, demoted, obsolete, or unverified context | Agents can avoid trusting old memory blindly and treat weak continuity as background evidence |
 | **Task Context Pack** | Compiles focused read-only context for a supplied goal through `aictx prepare` or `aictx_prepare_task_context` | Agents can ask for bounded task-specific context without mutating lifecycle state |
@@ -224,6 +235,7 @@ Core concepts:
 
 Use cases and comparisons:
 
+- [Shared continuity across coding agents](docs/use-cases/shared-continuity-across-agents.md)
 - [Codex operational continuity](docs/use-cases/codex-memory.md)
 - [Claude Code operational continuity](docs/use-cases/claude-code-memory.md)
 - [GitHub Copilot operational continuity](docs/use-cases/github-copilot-memory.md)

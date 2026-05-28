@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AICTX - Operational continuity for AI coding agents</title>
   <meta name="description"
-    content="AICTX is the official repo-local operational continuity layer for AI coding agents, with CLI support, a local MCP server, read-only Task Context Packs, Continuity Quality, Work State, handoffs, failures, decisions and validation evidence.">
+    content="AICTX is the official repo-local shared operational continuity layer for AI coding agents, with CLI support, a local MCP server, read-only Task Context Packs, Continuity Quality, Work State, handoffs, failures, decisions and validation evidence across Codex, Claude, GitHub Copilot and generic agents.">
   <meta name="keywords"
     content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, task context pack, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, MCP, Model Context Protocol, local MCP server, Claude Code plugin, Codex plugin, agent plugins">
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -41,7 +41,7 @@
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
     "programmingLanguage": "Python",
-    "description": "AICTX is a CLI and local MCP operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions, and can compile read-only Task Context Packs for specific goals.",
+    "description": "AICTX is a CLI and local MCP operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions and across agents such as Codex, Claude Code and GitHub Copilot, and can compile read-only Task Context Packs for specific goals.",
     "creator": {
       "@type": "Person",
       "name": "Santi Santamaria",
@@ -651,7 +651,7 @@
           <div class="eyebrow">Repo-local execution state for coding agents</div>
           <h1>Operational continuity for AI coding agents.</h1>
           <p class="lead">
-            AICTX helps Codex, Claude, GitHub Copilot and other coding agents continue work across sessions by
+            AICTX helps Codex, Claude, GitHub Copilot and other coding agents continue work across sessions and across tools by
             preserving the last useful execution state: active work, next actions, decisions, failures, validation
             evidence, repo context and quality signals for stale or unverified continuity.
           </p>
@@ -694,10 +694,11 @@ aictx init
       </section>
 
       <section class="section">
-        <h2>Disconnected sessions are the problem.</h2>
+        <h2>Disconnected sessions and disconnected agents are the problem.</h2>
         <p class="muted">
           Coding agents can reason through code, but every new session often starts operationally cold: it has to
-          rediscover the repo, infer the task state, avoid old mistakes and guess which validation matters.
+          rediscover the repo, infer the task state, avoid old mistakes and guess which validation matters. Switching
+          from Codex to Claude Code or Copilot should not mean losing the factual project state.
         </p>
 
         <div class="comparison">
@@ -716,6 +717,21 @@ It sees active work and next action.
 It sees known failures and validation path.
 It finalizes factual evidence for the next session.</code></pre>
           </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>One repo memory for multiple coding agents.</h2>
+        <p class="muted">
+          AICTX stores continuity in the repository, not inside a single provider's chat history. Codex can finalize
+          what happened, and Claude Code, GitHub Copilot or another compatible agent can resume from the same
+          <code>.aictx/</code> state later.
+        </p>
+        <div class="card">
+          <pre><code>Codex finalize
+  → .aictx continuity
+  → Claude Code / GitHub Copilot / generic agent resume</code></pre>
+          <a href="/use-cases/shared-continuity-across-agents.html">Read shared continuity use case →</a>
         </div>
       </section>
 
@@ -806,6 +822,11 @@ It finalizes factual evidence for the next session.</code></pre>
             <h3>GitHub Copilot</h3>
             <p class="muted">Best-effort repo instructions, prompt files and VS Code MCP config where
               supported.</p><a href="/use-cases/github-copilot-memory.html">Copilot continuity →</a>
+          </div>
+          <div class="card">
+            <h3>Shared agent memory</h3>
+            <p class="muted">Repo-local continuity lets different agents hand off through the same project state.</p>
+            <a href="/use-cases/shared-continuity-across-agents.html">Shared continuity →</a>
           </div>
         </div>
       </section>

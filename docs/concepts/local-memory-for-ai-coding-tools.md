@@ -33,6 +33,8 @@ Chat history is useful, but it is usually provider-bound and session-bound. A ch
 
 AICTX focuses on repo-local continuity that travels with the project. It gives coding agents a compact operational surface instead of asking every new session to infer state from a long conversation.
 
+Because the memory is repo-local, it can also be shared across different coding agents. Codex can record a handoff through `aictx finalize`; Claude Code, GitHub Copilot, or another compatible agent can later use `aictx resume` to load the same continuity. The project, not a single provider chat, becomes the common operational memory.
+
 ## Who can use it
 
 AICTX is designed for coding agents and AI coding tools that can read repository instructions, run shell commands and consume structured output. That includes workflows around Codex, Claude Code, GitHub Copilot and generic agents.

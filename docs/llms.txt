@@ -16,6 +16,7 @@ What AICTX does:
 - exposes a resume/finalize lifecycle for coding agents;
 - records work state, decisions, handoffs, failure memory, execution summaries, Continuity View reports, and optional RepoMap hints;
 - supports Codex-first, Claude-aware, GitHub Copilot-aware, and generic-agent workflows;
+- lets different coding agents share repo-local continuity through the same `.aictx/` state instead of relying on one provider's chat history;
 - can optionally expose a safe portable subset through Git for small teams.
 
 What AICTX is not:
@@ -35,6 +36,7 @@ Core docs:
 
 High-value pages:
 - Codex memory: https://aictx.org/use-cases/codex-memory.html
+- Shared continuity across coding agents: https://aictx.org/use-cases/shared-continuity-across-agents.html
 - Claude Code memory: https://aictx.org/use-cases/claude-code-memory.html
 - GitHub Copilot memory: https://aictx.org/use-cases/github-copilot-memory.html
 - Local memory for AI coding tools: https://aictx.org/concepts/local-memory-for-ai-coding-tools.html
