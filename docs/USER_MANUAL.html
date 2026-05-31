@@ -93,6 +93,22 @@
             font-size: .95rem
         }
 
+        .open-launch-badge {
+            display: inline-flex;
+            align-items: center;
+            line-height: 0
+        }
+
+        .open-launch-badge:hover {
+            text-decoration: none
+        }
+
+        .open-launch-badge img {
+            display: block;
+            width: 105px;
+            height: 30px
+        }
+
         .hero {
             display: grid;
             grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
@@ -281,6 +297,12 @@
                 white-space: nowrap
             }
 
+            .open-launch-badge {
+                grid-column: 1 / -1;
+                justify-content: center;
+                margin-top: .25rem
+            }
+
             .hero {
                 display: block;
                 width: 100%;
@@ -401,6 +423,9 @@
                     </span>
                 </a>
                 <a href="https://pypi.org/project/aictx/">PyPI</a>
+                <a class="open-launch-badge" href="https://open-launch.com/projects/aictx" target="_blank" rel="noopener" title="Open-Launch Top 1 Daily Winner">
+                    <img src="https://open-launch.com/images/badges/top1-dark.svg" alt="Open-Launch Top 1 Daily Winner" width="105" height="30" style="width: 105px; height: 30px;">
+                </a>
             </nav>
         </header>
         <main>

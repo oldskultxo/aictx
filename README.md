@@ -1,4 +1,6 @@
-# AICTX
+# AICTX 
+[![Open-Launch Top 1 Daily Winner](https://open-launch.com/images/badges/top1-light.svg)](https://open-launch.com/projects/aictx/)
+
 
 [![PyPI](https://img.shields.io/pypi/v/aictx.svg)](https://pypi.org/project/aictx/)
 [![Website](https://img.shields.io/badge/website-aictx.org-94b41e)](https://aictx.org)

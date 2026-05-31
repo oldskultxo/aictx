@@ -91,6 +91,22 @@ a:hover {
   flex: 0 0 auto;
 }
 
+.open-launch-badge {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.open-launch-badge:hover {
+  text-decoration: none;
+}
+
+.open-launch-badge img {
+  display: block;
+  width: 105px;
+  height: 30px;
+}
+
 .nav-label-short {
   display: none;
 }
@@ -360,6 +376,12 @@ a:hover {
     min-width: 0;
     text-align: center;
     white-space: nowrap;
+  }
+
+  .open-launch-badge {
+    grid-column: 1 / -1;
+    justify-content: center;
+    margin-top: 0.25rem;
   }
 
   .nav-label-full {
