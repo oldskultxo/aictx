@@ -8,7 +8,7 @@
     <meta name="description"
         content="Technical documentation hub for AICTX internals, runtime concepts, integrations, safety, portability and comparisons.">
     <meta name="keywords"
-        content="AICTX, operational continuity, AI coding agents, repo-local continuity, MCP, Model Context Protocol, Codex, Claude Code, GitHub Copilot, Work State, Continuity View">
+        content="AICTX, operational continuity, AI coding agents, repo-local continuity, MCP, Model Context Protocol, Codex, Claude Code, GitHub Copilot, Work State, Continuity View, Continuity Guard, Steer Guard">
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="author" content="Santi Santamaria">
     <meta name="theme-color" content="#101820">
@@ -27,7 +27,7 @@
         content="Technical documentation hub for AICTX internals, runtime concepts, integrations, safety, portability and comparisons.">
     <meta name="twitter:image" content="https://aictx.org/images/aictx-logo.png">
     <script
-        type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AICTX","alternateName":"aictx","url":"https://aictx.org/","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","programmingLanguage":"Python","description":"AICTX is a repo-local operational continuity runtime for AI coding agents, with CLI support, local MCP server, Continuity View, Work State, handoffs, failures and validation evidence.","creator":{"@type":"Person","name":"Santi Santamaria","url":"https://github.com/oldskultxo"},"codeRepository":"https://github.com/oldskultxo/aictx","downloadUrl":"https://pypi.org/project/aictx/","license":"https://github.com/oldskultxo/aictx/blob/main/LICENSE","keywords":["AICTX","operational continuity","AI coding agents","repo-local continuity","MCP","Model Context Protocol","Codex","Claude Code","GitHub Copilot"]}</script>
+        type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AICTX","alternateName":"aictx","url":"https://aictx.org/","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","programmingLanguage":"Python","description":"AICTX is a repo-local operational continuity runtime for AI coding agents, with CLI support, local MCP server, Continuity View, Continuity Guard, Steer Guard, Work State, handoffs, failures and validation evidence.","creator":{"@type":"Person","name":"Santi Santamaria","url":"https://github.com/oldskultxo"},"codeRepository":"https://github.com/oldskultxo/aictx","downloadUrl":"https://pypi.org/project/aictx/","license":"https://github.com/oldskultxo/aictx/blob/main/LICENSE","keywords":["AICTX","operational continuity","AI coding agents","repo-local continuity","MCP","Model Context Protocol","Codex","Claude Code","GitHub Copilot","Continuity Guard","Steer Guard"]}</script>
     <style>
         :root {
             --bg: #0b1117;
@@ -459,6 +459,8 @@ Technical Docs -> internals and reference</code></pre>
                         <h3>Guidance and safety</h3>
                         <ul class="docs-list">
                             <li><a href="/EXECUTION_CONTRACTS.html">Execution Contracts</a></li>
+                            <li><a href="/CONTINUITY_GUARD.html">Continuity Guard</a></li>
+                            <li><a href="/STEER_GUARD.html">Steer Guard</a></li>
                             <li><a href="/FAILURE_MEMORY.html">Failure Memory</a></li>
                             <li><a href="/STRATEGY_MEMORY.html">Strategy Memory</a></li>
                             <li><a href="/AREA_MEMORY.html">Area Signals</a></li>
