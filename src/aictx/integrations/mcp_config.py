@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -41,23 +42,55 @@ def normalize_mcp_profile(profile: str | None) -> str:
     return value
 
 
-def mcp_server_command(profile: str = DEFAULT_MCP_PROFILE) -> list[str]:
+def _is_aictx_source_checkout(repo: Path) -> bool:
+    pyproject = repo / "pyproject.toml"
+    package_init = repo / "src" / "aictx" / "__init__.py"
+    if not package_init.exists() or not pyproject.exists():
+        return False
+    try:
+        text = pyproject.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return 'name = "aictx"' in text or "name = 'aictx'" in text
+
+
+def _repo_python(repo: Path) -> str:
+    candidates = [
+        repo / ".venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate.relative_to(repo))
+    return "python3"
+
+
+def mcp_server_command(profile: str = DEFAULT_MCP_PROFILE, *, repo: Path | None = None) -> list[str]:
     profile = normalize_mcp_profile(profile)
+    if repo is not None:
+        root = repo.expanduser().resolve()
+        if _is_aictx_source_checkout(root):
+            return [_repo_python(root), "-m", "aictx", "mcp-server", "--repo", ".", "--profile", profile]
     return ["aictx", "mcp-server", "--repo", ".", "--profile", profile]
 
 
-def mcp_server_entry(profile: str = DEFAULT_MCP_PROFILE) -> dict[str, Any]:
-    command = mcp_server_command(profile)
-    return {
+def mcp_server_entry(profile: str = DEFAULT_MCP_PROFILE, *, repo: Path | None = None) -> dict[str, Any]:
+    root = repo.expanduser().resolve() if repo is not None else None
+    command = mcp_server_command(profile, repo=root)
+    entry: dict[str, Any] = {
         "command": command[0],
         "args": command[1:],
         "transport": "stdio",
+        "type": "stdio",
         "_aictx_managed": True,
         "_aictx_block": MCP_MANAGED_BLOCK,
     }
+    if root is not None and _is_aictx_source_checkout(root):
+        entry["cwd"] = "."
+        entry["env"] = {"PYTHONPATH": "src"}
+    return entry
 
 
-def _upsert_json_server(path: Path, profile: str, *, dry_run: bool = False) -> tuple[bool, str]:
+def _upsert_json_server(path: Path, profile: str, *, repo: Path | None = None, dry_run: bool = False) -> tuple[bool, str]:
     existing: dict[str, Any] = {}
     if path.exists():
         try:
@@ -87,7 +120,7 @@ def _upsert_json_server(path: Path, profile: str, *, dry_run: bool = False) -> t
             else:
                 updated.pop(alternate_key, None)
     servers = dict(servers)
-    servers[MCP_SERVER_NAME] = mcp_server_entry(profile)
+    servers[MCP_SERVER_NAME] = mcp_server_entry(profile, repo=repo)
     updated[container_key] = servers
     updated["_aictx"] = {"managed": True, "kind": MCP_MANAGED, "block": MCP_MANAGED_BLOCK}
     after = json.dumps(updated, sort_keys=True, ensure_ascii=False)
@@ -106,7 +139,7 @@ def install_repo_mcp_config(repo: Path, *, profile: str = DEFAULT_MCP_PROFILE, d
     changed = False
     for rel in (REPO_MCP_PATH, VSCODE_MCP_PATH):
         path = repo / rel
-        file_changed, status = _upsert_json_server(path, profile, dry_run=dry_run)
+        file_changed, status = _upsert_json_server(path, profile, repo=repo, dry_run=dry_run)
         if status.endswith("skipped") or status == "user_server_preserved":
             warnings.append(f"{rel.as_posix()}: {status}")
         if file_changed or status in {"updated", "unchanged"}:

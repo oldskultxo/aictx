@@ -5,9 +5,9 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 # Upgrade guide
 
-## Current line: 6.9.x
+## Current line: 6.10.x
 
-Current documented runtime: `6.9.1`.
+Current documented runtime: `6.10.0`.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -15,6 +15,42 @@ For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data mig
 aictx install
 aictx init
 ```
+
+---
+## 6.10.0
+
+`6.10.0` adds compact guard rails for active agent work and hardens repo-local MCP attachment for the AICTX source checkout.
+
+This release does not require a data migration.
+
+Added:
+- `aictx guard --repo . --action <action> --json` for compact read-only action-boundary checks before first edits, edits, risky commands, final answers, finalize, scope changes, agent switches, or continuing after idle.
+- `aictx_continuity_guard` MCP readonly tool with the same compact payload.
+- `aictx steer --repo . --message "<user message>" --json` for deterministic classification of user interventions during active agent work.
+- `aictx_steer_guard` MCP readonly tool.
+- Dedicated docs: [Continuity Guard](CONTINUITY_GUARD.md) and [Steer Guard](STEER_GUARD.md).
+
+Changed:
+- Guard outputs are intentionally compact and omit full resume capsules, loaded context, and long continuity payloads.
+- Repeated guard calls are faster through compact Continuity Quality issue collection, shared lifecycle Work State reads, process-local guard caching, and lightweight CLI entrypoints for `guard` and `steer`.
+- The readonly MCP profile includes both guard tools.
+- AICTX-managed JSON MCP entries include both `transport: "stdio"` and `type: "stdio"` for client compatibility.
+
+Fixed:
+- In the AICTX source checkout, managed repo-local MCP config now launches the current checkout with `.venv/bin/python -m aictx` plus `PYTHONPATH=src` instead of relying on a globally installed `aictx` binary.
+- MCP attachment is therefore less likely to load stale tool schemas after local development changes.
+
+Upgrade notes:
+- No data migration is required.
+- Existing `.aictx/` continuity data remains compatible.
+- Re-run setup to refresh generated runner instructions and repo-local MCP config:
+
+```bash
+aictx install
+aictx init
+```
+
+- In the AICTX source repository, also refresh the managed MCP files after pulling this release so `.mcp.json` / `.vscode/mcp.json` point at the local checkout runtime.
 
 ---
 ## 6.9.1

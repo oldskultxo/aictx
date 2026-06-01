@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AICTX - Operational continuity for AI coding agents</title>
   <meta name="description"
-    content="AICTX is the official repo-local shared operational continuity layer for AI coding agents, with CLI support, a local MCP server, read-only Task Context Packs, Continuity Quality, Work State, handoffs, failures, decisions and validation evidence across Codex, Claude, GitHub Copilot and generic agents.">
+    content="AICTX is the official repo-local shared operational continuity layer for AI coding agents, with CLI support, a local MCP server, read-only Task Context Packs, Continuity Quality, Continuity Guard, Steer Guard, Work State, handoffs, failures, decisions and validation evidence across Codex, Claude, GitHub Copilot and generic agents.">
   <meta name="keywords"
-    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, task context pack, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, MCP, Model Context Protocol, local MCP server, Claude Code plugin, Codex plugin, agent plugins">
+    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, task context pack, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, Continuity Guard, Steer Guard, MCP, Model Context Protocol, local MCP server, Claude Code plugin, Codex plugin, agent plugins">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="author" content="Santi Santamaria">
   <meta name="application-name" content="AICTX">
@@ -41,7 +41,7 @@
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
     "programmingLanguage": "Python",
-    "description": "AICTX is a CLI and local MCP operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions and across agents such as Codex, Claude Code and GitHub Copilot, and can compile read-only Task Context Packs for specific goals.",
+    "description": "AICTX is a CLI and local MCP operational continuity layer for AI coding agents. It preserves repo-local execution state, handoffs, failures, decisions, validation evidence and next actions across sessions and across agents such as Codex, Claude Code and GitHub Copilot, can compile read-only Task Context Packs for specific goals, and exposes read-only Continuity Guard and Steer Guard checks.",
     "creator": {
       "@type": "Person",
       "name": "Santi Santamaria",
@@ -54,7 +54,7 @@
     },
     "codeRepository": "https://github.com/oldskultxo/aictx",
     "downloadUrl": "https://pypi.org/project/aictx/",
-    "softwareVersion": "6.9.1",
+    "softwareVersion": "6.10.0",
     "license": "https://github.com/oldskultxo/aictx/blob/main/LICENSE",
     "keywords": [
       "AICTX",
@@ -69,6 +69,8 @@
       "failure memory",
       "handoffs",
       "execution contracts",
+      "Continuity Guard",
+      "Steer Guard",
       "Codex",
       "Claude",
       "GitHub Copilot",
@@ -803,6 +805,22 @@ It finalizes factual evidence for the next session.</code></pre>
 # also exposed through:
 # aictx resume --json
 # MCP continuity quality</code></pre>
+          </div>
+          <div class="card">
+            <h3>Continuity Guard</h3>
+            <p class="muted">Run compact read-only checks before first edits, risky commands, scope changes, final answers or finalize boundaries.</p>
+            <pre><code>aictx guard --repo . --action final_answer --json
+
+# MCP tool:
+# aictx_continuity_guard</code></pre>
+          </div>
+          <div class="card">
+            <h3>Steer Guard</h3>
+            <p class="muted">Classify user interruptions during active work as scope constraints, validation changes, strategy changes, side comments or cancellations.</p>
+            <pre><code>aictx steer --repo . --message "don't touch src/auth.py" --current-action edit --json
+
+# MCP tool:
+# aictx_steer_guard</code></pre>
           </div>
         </div>
       </section>

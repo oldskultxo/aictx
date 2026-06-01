@@ -12,6 +12,7 @@ from ..continuity import DECISIONS_PATH, HANDOFF_PATH, HANDOFFS_HISTORY_PATH, ap
 from ..continuity.quality import build_continuity_quality_report
 from ..continuity_view import write_continuity_view
 from ..continuity_guard import GUARD_ACTIONS, GUARD_RISKS, build_continuity_guard
+from ..steer_guard import STEER_CURRENT_ACTIONS, build_steer_guard
 from ..doctor import build_doctor_report
 from ..failures import FAILURE_PATTERNS_PATH, failure_signature, load_failures, write_failure_index
 from ..integrations.mcp_config import DEFAULT_MCP_PROFILE, install_repo_mcp_config, mcp_status, normalize_mcp_profile
@@ -65,6 +66,7 @@ TOOL_INPUT_SCHEMAS: dict[str, dict[str, Any]] = {
     "aictx_continuity_view_generate": _schema({**_REPO_PROP, "output": _TEXT_PROP}),
     "aictx_continuity_quality": _schema({**_REPO_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP}),
     "aictx_continuity_guard": _schema({**_REPO_PROP, "action": {"type": "string", "enum": sorted(GUARD_ACTIONS)}, "paths": _STRING_LIST_PROP, "command": _TEXT_PROP, "intent": _TEXT_PROP, "risk": {"type": "string", "enum": sorted(GUARD_RISKS)}, "agent_id": _TEXT_PROP, "session_id": _TEXT_PROP}, required=["action"]),
+    "aictx_steer_guard": _schema({**_REPO_PROP, "message": _TEXT_PROP, "current_action": {"type": "string", "enum": sorted(STEER_CURRENT_ACTIONS)}, "paths": _STRING_LIST_PROP, "agent_id": _TEXT_PROP, "session_id": _TEXT_PROP}, required=["message"]),
     "aictx_doctor": _schema({**_REPO_PROP, "release_readiness": {"type": "boolean"}}),
     "aictx_messages_set": _schema({**_REPO_PROP, "mode": {"type": "string", "enum": [MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED]}}, required=["mode"]),
 }
@@ -78,6 +80,7 @@ TOOL_DESCRIPTIONS = {
     "aictx_continuity_view_generate": "Generate Continuity View files.",
     "aictx_continuity_quality": "Inspect continuity quality and freshness.",
     "aictx_continuity_guard": "Check continuity alignment before an important action boundary.",
+    "aictx_steer_guard": "Classify a user intervention during active agent work.",
     "aictx_doctor": "Run AICTX diagnostics.",
     "aictx_task_list": "List Work State tasks.",
     "aictx_task_show": "Show a Work State task.",
@@ -255,6 +258,19 @@ def aictx_continuity_guard(args: dict[str, Any]) -> dict[str, Any]:
         session_id=_text(args.get("session_id"), "session_id"),
     )
     return ok(**guard)
+
+
+def aictx_steer_guard(args: dict[str, Any]) -> dict[str, Any]:
+    repo = resolve_repo(args.get("repo"))
+    steer = build_steer_guard(
+        repo,
+        message=_text(args.get("message"), "message", required=True),
+        current_action=_text(args.get("current_action"), "current_action") or "unknown",
+        paths=_list(args.get("paths"), "paths"),
+        agent_id=_text(args.get("agent_id"), "agent_id"),
+        session_id=_text(args.get("session_id"), "session_id"),
+    )
+    return ok(**steer)
 
 
 def aictx_task_list(args: dict[str, Any]) -> dict[str, Any]:

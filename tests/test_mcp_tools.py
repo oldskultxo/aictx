@@ -67,6 +67,10 @@ def test_mcp_tool_specs_expose_main_input_schemas():
     assert "task" in quality_schema["properties"]
     assert quality_schema["additionalProperties"] is False
 
+    steer_schema = specs["aictx_steer_guard"]["inputSchema"]
+    assert steer_schema["required"] == ["message"]
+    assert steer_schema["properties"]["current_action"]["enum"] == ["command", "edit", "final_answer", "finalize", "planning", "unknown"]
+
     finalize_schema = specs["aictx_finalize"]["inputSchema"]
     assert finalize_schema["required"] == ["status", "summary"]
     assert finalize_schema["properties"]["status"]["enum"] == ["success", "failure"]

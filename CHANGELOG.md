@@ -1,5 +1,21 @@
 # Changelog
 
+## 6.10.0 - 2026-06-01
+
+### Added
+- Added Continuity Guard as a compact read-only action-boundary check through `aictx guard` and MCP tool `aictx_continuity_guard`.
+- Added Steer Guard as a deterministic read-only user-intervention classifier through `aictx steer` and MCP tool `aictx_steer_guard`.
+- Added dedicated Continuity Guard and Steer Guard documentation, plus README, usage, and MCP references.
+
+### Changed
+- Optimized repeated guard usage with compact Continuity Quality issue collection, shared lifecycle Work State reads, a lightweight `aictx guard` / `aictx steer` entrypoint, and process-local guard caching.
+- Expanded the readonly MCP profile with `aictx_continuity_guard` and `aictx_steer_guard` so agents can use guard rails without mutating continuity state.
+- Repo-local MCP JSON entries now include both `transport: "stdio"` and `type: "stdio"` for broader client compatibility.
+
+### Fixed
+- Fixed AICTX source-checkout MCP attachment by generating managed repo-local MCP entries that run the current checkout with `.venv/bin/python -m aictx` and `PYTHONPATH=src` instead of relying on a potentially stale global `aictx` binary.
+- Kept guard outputs compact by omitting full resume capsules, loaded context, and long continuity payloads.
+
 ## 6.9.1 - 2026-05-28
 
 ### Changed

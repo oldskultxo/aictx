@@ -69,6 +69,14 @@ aictx guard --repo . --action final_answer --json
 
 `guard` returns compact `allow`, `caution`, `re_ground`, or `block` guidance from Work State, execution contract, Continuity Quality, lifecycle diagnostics, validation hints, and path/scope alignment. It is intended for first edits, out-of-scope edits, risky commands, final answers/finalize, scope changes, agent switches, or continuing after idle; it is not a replacement for `resume` or `finalize`. See [Continuity Guard](CONTINUITY_GUARD.md).
 
+When a user interrupts or modifies active agent work, classify the intervention before continuing:
+
+```bash
+aictx steer --repo . --message "don't touch src/auth.py" --current-action edit --json
+```
+
+`steer` returns compact classification and steering instructions such as `pause`, `replan`, `update_contract`, `update_validation`, or `append_requirement`. It is read-only in V1 and does not replace human instruction following. See [Steer Guard](STEER_GUARD.md).
+
 To generate an inspectable local Markdown/Mermaid map of current repo continuity, run:
 
 ```bash

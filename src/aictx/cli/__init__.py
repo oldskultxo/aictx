@@ -24,6 +24,7 @@ from ..portability import compact_portable_jsonl, detect_portable_continuity_fro
 from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
 from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, render_continuity_mermaid, write_continuity_view
 from ..continuity_guard import GUARD_ACTIONS, GUARD_RISKS, build_continuity_guard
+from ..steer_guard import STEER_CURRENT_ACTIONS, build_steer_guard
 from ..doctor import build_doctor_report
 from ..lifecycle import append_lifecycle_event
 from ..runner_integrations import CODEX_HOME, install_codex_native_integration, install_repo_runner_integrations
@@ -679,6 +680,25 @@ def cmd_guard(args: argparse.Namespace) -> int:
         for item in payload.get("warnings", []):
             print(f"- {item.get('code')}: {item.get('message')}")
         print(f"next: {payload['suggested_next']}")
+    return 0
+
+
+def cmd_steer(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = build_steer_guard(
+        repo,
+        message=str(getattr(args, "message", "") or ""),
+        current_action=str(getattr(args, "current_action", "unknown") or "unknown"),
+        paths=list(getattr(args, "paths", []) or []),
+        agent_id=str(getattr(args, "agent_id", "") or ""),
+        session_id=str(getattr(args, "session_id", "") or ""),
+    )
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print(f"AICTX steer: {payload['classification']} -> {payload['decision']} ({payload['status']})")
+        print(payload["summary"])
+        print(f"next: {payload['agent_instruction']}")
     return 0
 
 
@@ -1519,6 +1539,16 @@ def build_parser() -> argparse.ArgumentParser:
     guard.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     guard.add_argument("--json", action="store_true", help="Print compact guard JSON")
     guard.set_defaults(func=cmd_guard)
+
+    steer = sub.add_parser("steer", help="Classify a user intervention during active agent work")
+    steer.add_argument("--repo", default=".", help="Repository root")
+    steer.add_argument("--message", required=True, help="User message to classify")
+    steer.add_argument("--current-action", choices=sorted(STEER_CURRENT_ACTIONS), default="unknown", help="Current agent action")
+    steer.add_argument("--paths", action="append", default=[], help="Path involved in the current action; may be repeated")
+    steer.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
+    steer.add_argument("--session-id", default="", help=argparse.SUPPRESS)
+    steer.add_argument("--json", action="store_true", help="Print compact steer JSON")
+    steer.set_defaults(func=cmd_steer)
 
     prepare_task = sub.add_parser("prepare", help="Compile a read-only task-specific context pack")
     prepare_task.add_argument("goal", help="Task goal to compile context for")

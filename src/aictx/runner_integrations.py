@@ -71,8 +71,6 @@ def render_aictx_lifecycle_rules(*, agent_id: str, adapter_id: str, include_sour
         "- Prefer `startup_banner_render_payload` when present; use `startup_banner_text` as fallback.",
         "- After finalize, append the AICTX final summary using `agent_summary_render_payload` when present; use `agent_summary_text` as fallback.",
     ]
-    if include_source_repo_hint:
-        rules.append("- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a global `aictx` binary.")
     return "\n".join(rules)
 
 
@@ -93,7 +91,6 @@ When Codex is running inside a repository initialized with `aictx`:
 - `.aictx/memory/source/` is editable source knowledge; avoid hand-editing generated `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar derived artifacts
 - do not run `aictx internal`, `aictx -h`, `aictx reuse`, `aictx suggest`, `aictx next`, `aictx task`, `aictx messages`, `aictx reflect`, or `aictx report` during normal task startup unless the user asks for AICTX diagnostics, the task is about AICTX itself, resume is missing/corrupt/contradictory, or finalization/update lifecycle requires it
 - on the first execution of each visible session, always show the startup banner at the start of the first substantive user-visible response; do not consume it with a transient progress/status message that will be omitted from the final task response; render the selected resume/prepare startup banner in the current user language. When the selected startup banner policy points to a structured render payload, prefer that structured payload for localization and use compact text only as the fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from selected identity fields; do not render it again after `already_shown` is true
-- in the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime
 - final responses for non-trivial tasks must include the AICTX final summary from finalize, using `agent_summary_text` as the compact fallback user-facing source. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization while preserving exact facts, technical tokens, and the details/continuity link targets; render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not replace Mermaid URLs with placeholders and do not manually reconstruct or retype pako URLs; if unavailable, say `AICTX summary unavailable`
 {AICTX_END}
 """
@@ -120,7 +117,6 @@ Required behavior:
 - On the first execution of each visible session, always place the startup banner at the start of the first substantive user-visible response; do not consume it with a transient progress/status message that will be omitted from the final task response. Render the selected resume/prepare startup banner in the current user language. When the selected startup banner policy points to a structured render payload, prefer that structured payload for localization and use compact text only as the fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from selected identity fields. Do not render it again after `already_shown` is true.
 - Final responses for non-trivial tasks must append the AICTX final summary after finalize, using `agent_summary_text` as the compact fallback user-facing source. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization while preserving exact facts, technical tokens, and the details/continuity link targets. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not replace Mermaid URLs with placeholders and do not manually reconstruct or retype pako URLs.
 - If finalize output is unavailable, say exactly `AICTX summary unavailable`.
-- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 """
 
 
@@ -144,7 +140,6 @@ This repository is initialized with `aictx`.
 - On the first execution of each visible session, always show the startup banner at the start of the first substantive user-visible response; do not consume it with a transient progress/status message that will be omitted from the final task response. Render the selected resume/prepare startup banner in the current user language. When the selected startup banner policy points to a structured render payload, prefer that structured payload for localization and use compact text only as the fallback source. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, file paths, commands, flags, package names, test names, code identifiers, and other technical tokens; do not add, remove, reorder, reinterpret, or invent facts. If first-session text is missing, render `{{agent_label}} · session #{{session_count}} · awake` from selected identity fields. Do not render it again after `already_shown` is true.
 - After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the compact fallback user-facing source. When `finalized.agent_summary_policy.render_payload_field` points to `finalized.agent_summary_render_payload`, prefer that structured payload for localization while preserving exact facts, technical tokens, and the details/continuity link targets. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not replace Mermaid URLs with placeholders and do not manually reconstruct or retype pako URLs.
 - If no finalize output exists, say `AICTX summary unavailable`.
-- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 
 ## aictx usage rules
 
@@ -170,7 +165,6 @@ Critical lifecycle:
 - Append the AICTX final summary from finalize when available. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; preserve Continuity View file links and Mermaid online view links; do not replace URLs with placeholders and do not manually reconstruct or retype pako URLs. If command execution is unavailable, say that the AICTX lifecycle could not be executed.
 - Do not inspect `.aictx/` directly during normal startup; use `aictx resume`.
 - Do not run exploratory AICTX commands during normal startup.
-- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a global `aictx` binary.
 
 Verification tip: in Copilot Chat, expand response References and confirm `.github/copilot-instructions.md` is listed.
 {AICTX_END}

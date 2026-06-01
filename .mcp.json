@@ -9,14 +9,21 @@
       "_aictx_block": "<AICTX>",
       "_aictx_managed": true,
       "args": [
+        "-m",
+        "aictx",
         "mcp-server",
         "--repo",
         ".",
         "--profile",
         "full"
       ],
-      "command": "aictx",
-      "transport": "stdio"
+      "command": ".venv/bin/python",
+      "cwd": ".",
+      "env": {
+        "PYTHONPATH": "src"
+      },
+      "transport": "stdio",
+      "type": "stdio"
     }
   }
 }

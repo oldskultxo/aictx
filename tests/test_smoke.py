@@ -155,7 +155,6 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "Do not inspect `.aictx/`" in text
     assert "`aictx suggest`" in text
     assert "`aictx reuse`" in text
-    assert "PYTHONPATH=src .venv/bin/python -m aictx" in text
     assert "enabled` or `disabled" in text
     assert "caveman_lite" in text
     assert "caveman_full" in text
@@ -181,7 +180,6 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "startup_banner_render_payload" in repo_block
     assert "agent_summary_render_payload" in repo_block
     assert "AICTX summary unavailable" in repo_block
-    assert "PYTHONPATH=src .venv/bin/python -m aictx" in repo_block
     claude_block = render_claude_md_block()
     assert "agent_summary_text" in claude_block
     assert "startup_banner_text" in claude_block
@@ -191,7 +189,6 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "startup_banner_render_payload" in claude_block
     assert "agent_summary_render_payload" in claude_block
     assert "AICTX summary unavailable" in claude_block
-    assert "PYTHONPATH=src .venv/bin/python -m aictx" in claude_block
     prompt_hook = render_user_prompt_submit_script()
     assert "localized to the current user language" in prompt_hook
     assert "startup_banner_text" in prompt_hook
@@ -201,7 +198,6 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "startup_banner_render_payload" in prompt_hook
     assert "agent_summary_render_payload" in prompt_hook
     assert "AICTX summary unavailable" in prompt_hook
-    assert "PYTHONPATH=src .venv/bin/python -m aictx" in prompt_hook
     assert 'aictx resume --repo . --task \\"<task goal>\\" --json --agent-id claude' in prompt_hook
     assert "Do not pass the full user prompt to resume" in prompt_hook
     assert 'run_json(["aictx", "resume"' not in prompt_hook

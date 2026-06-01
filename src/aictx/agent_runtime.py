@@ -57,7 +57,6 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Do not enrich the final AICTX summary with invented facts; never invent data; prefer structured render payload fields when provided, use compact text fields only as fallback, and preserve file paths, commands, flags, test names, package names, code identifiers, Markdown details links, Continuity View file links, and Mermaid online view links.
 
 ## aictx usage rules
-- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 - At normal startup, run only one continuity action: attached AICTX MCP resume tool when available, otherwise `aictx resume --repo . --task "<task goal>" --json`. Do not pass the full user prompt to resume.
 - After task work, run only one finalization action: attached AICTX MCP finalize tool when available, otherwise `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
 - Render exactly one startup banner source. Normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`. Wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
@@ -103,7 +102,6 @@ Agent rules:
 - Use `aictx finalize --repo . --status success|failure --summary "<what happened>" --json` for normal agent finalization. finalize_execution is the middleware API behind that command; do not call it directly from the shell. Do not run `aictx internal execution finalize` during normal task flow.
 - After finalize, append the AICTX final summary to the final user response, using `agent_summary_text` as the compact fallback user-facing source. When `agent_summary_policy.render_payload_field` points to `agent_summary_render_payload`, prefer that structured payload for localization while preserving exact facts, technical tokens, and the details/continuity link targets. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not replace Mermaid URLs with placeholders and do not manually reconstruct or retype pako URLs.
 - If no finalize output exists, say `AICTX summary unavailable`.
-- In the `aictx` source repository, prefer `PYTHONPATH=src .venv/bin/python -m aictx ...` over a globally installed `aictx` binary so the current checkout drives the runtime.
 - Use the `aictx resume` capsule before deeper repo analysis.
 - `.aictx/memory/source/` is editable source knowledge; do not hand-edit generated derived artifacts under `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders.
 - Use `resume.runtime_text_policy` / `resume.communication_policy`, `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.

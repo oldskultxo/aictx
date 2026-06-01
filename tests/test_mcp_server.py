@@ -36,6 +36,7 @@ def test_mcp_server_lists_resources_prompts_and_readonly_tools(tmp_path: Path):
     names = {tool["name"] for tool in tools["result"]["tools"]}
     assert "aictx_resume" in names
     assert "aictx_lifecycle_status" in names
+    assert "aictx_steer_guard" in names
     assert "aictx_finalize" not in names
     resume = next(tool for tool in tools["result"]["tools"] if tool["name"] == "aictx_resume")
     assert "task" in resume["inputSchema"]["properties"]

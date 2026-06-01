@@ -29,7 +29,7 @@ args = ["mcp-server", "--repo", ".", "--profile", "full"]
 # <AICTX:END mcp>
 ```
 
-JSON MCP files cannot carry comment blocks, so AICTX writes explicit `_aictx` / `_aictx_managed` metadata in `.mcp.json` and `.vscode/mcp.json` instead. Use `--no-mcp` to opt out:
+JSON MCP files cannot carry comment blocks, so AICTX writes explicit `_aictx` / `_aictx_managed` metadata in `.mcp.json` and `.vscode/mcp.json` instead. JSON entries include both `transport: "stdio"` and `type: "stdio"` for client compatibility. In the AICTX source checkout only, the managed entry runs the repo-local module with `PYTHONPATH=src` so MCP attachment uses the current checkout instead of a stale global binary. Use `--no-mcp` to opt out:
 
 ```bash
 aictx install --no-mcp
@@ -40,7 +40,7 @@ Choose a profile with `--mcp-profile readonly|standard|full`. The default is `fu
 
 ## Profiles
 
-- `readonly`: inspection tools only, such as resume, task context preparation, lifecycle status, next, doctor, Work State read, RepoMap query, portability status, messages status, continuity quality, continuity guard, and real usage report.
+- `readonly`: inspection tools only, such as resume, task context preparation, lifecycle status, next, doctor, Work State read, RepoMap query, portability status, messages status, continuity quality, continuity guard, steer guard, and real usage report.
 - `standard`: readonly plus normal lifecycle writes: finalize, Work State start/update/close, and Continuity View generation.
 - `full`: standard plus decision, handoff, failure, strategy, RepoMap refresh, portability compact, and messages mode writes.
 
@@ -64,6 +64,14 @@ aictx_continuity_guard
 ```
 
 This returns compact `allow`, `caution`, `re_ground`, or `block` guidance before important action boundaries without mutating continuity state or returning the full resume capsule. See [Continuity Guard](CONTINUITY_GUARD.md).
+
+The read-only profile also exposes Steer Guard through:
+
+```text
+aictx_steer_guard
+```
+
+This classifies user interventions during active agent work and returns compact steering instructions without mutating Work State or contracts. See [Steer Guard](STEER_GUARD.md).
 
 The read-only profile also exposes focused task context preparation through:
 
