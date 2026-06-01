@@ -40,7 +40,7 @@ Choose a profile with `--mcp-profile readonly|standard|full`. The default is `fu
 
 ## Profiles
 
-- `readonly`: inspection tools only, such as resume, task context preparation, lifecycle status, next, doctor, Work State read, RepoMap query, portability status, messages status, continuity quality, and real usage report.
+- `readonly`: inspection tools only, such as resume, task context preparation, lifecycle status, next, doctor, Work State read, RepoMap query, portability status, messages status, continuity quality, continuity guard, and real usage report.
 - `standard`: readonly plus normal lifecycle writes: finalize, Work State start/update/close, and Continuity View generation.
 - `full`: standard plus decision, handoff, failure, strategy, RepoMap refresh, portability compact, and messages mode writes.
 
@@ -56,6 +56,14 @@ aictx://repo/current/continuity-quality
 ```
 
 This lets compatible agents inspect whether repo-local continuity is fresh, stale, missing, demoted, obsolete, or unverified before relying on it.
+
+The read-only profile also exposes Continuity Guard through:
+
+```text
+aictx_continuity_guard
+```
+
+This returns compact `allow`, `caution`, `re_ground`, or `block` guidance before important action boundaries without mutating continuity state or returning the full resume capsule. See [Continuity Guard](CONTINUITY_GUARD.md).
 
 The read-only profile also exposes focused task context preparation through:
 

@@ -32,7 +32,7 @@ Repository = "https://github.com/oldskultxo/aictx"
 Issues = "https://github.com/oldskultxo/aictx/issues"
 
 [project.scripts]
-aictx = "aictx.cli:main"
+aictx = "aictx.entrypoint:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -103,7 +103,7 @@ aictx mcp-server --repo . --profile full
 
 The default `aictx install` / `aictx init` flow prepares AICTX MCP runtime metadata and repo-local MCP config through AICTX-managed, reversible setup. Sensitive client config is written as a managed `<AICTX>` block where the format supports comments, and as AICTX-managed JSON metadata in `.mcp.json` / `.vscode/mcp.json`. `aictx clean` / `aictx uninstall` remove only those managed entries and preserve user-authored MCP servers. Agents should prefer MCP tools when available and fall back to CLI commands otherwise.
 
-See [MCP](docs/MCP.md).
+See [MCP](docs/MCP.md) and [Continuity Guard](docs/CONTINUITY_GUARD.md).
 
 
 ## Agent plugins
@@ -192,6 +192,7 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 | **Cross-agent continuity** | Stores continuity in the repository instead of one agent's chat history | Codex, Claude Code, GitHub Copilot, and generic agents can hand off through the same `.aictx/` state |
 | **Continuity View** | Generates `.aictx/reports/continuity-view.md` and `.aictx/reports/continuity-map.mmd` from repo-local continuity | Users and agents can inspect active Work State, handoffs, failures, contracts, summaries, RepoMap hints, and portability in one deterministic Markdown/Mermaid view |
 | **Continuity Quality** | Scores repo-local continuity freshness and flags stale, missing, demoted, obsolete, or unverified context | Agents can avoid trusting old memory blindly and treat weak continuity as background evidence |
+| **Continuity Guard** | Provides read-only action-boundary checks through `aictx guard` / `aictx_continuity_guard` | Agents can re-ground before edits, risky commands, final answers, finalize, scope changes, or handoffs |
 | **Task Context Pack** | Compiles focused read-only context for a supplied goal through `aictx prepare` or `aictx_prepare_task_context` | Agents can ask for bounded task-specific context without mutating lifecycle state |
 | **Lifecycle Diagnostics** | Tracks resume, Work State writes, and finalize events as best-effort local diagnostics | Users can see incomplete or unfinalized sessions without AICTX blocking work |
 | **Contract Compliance** | Audits first action, edit scope, validation, and structural alignment | Gaps can carry over into Work State instead of disappearing |

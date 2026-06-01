@@ -121,7 +121,7 @@ def _has_recent_finalize(finalizes: list[dict[str, Any]], task: str, cutoff: dat
     return False
 
 
-def build_lifecycle_status(repo_root: Path, *, request_text: str = "", session_id: str = "", now: datetime | None = None) -> dict[str, Any]:
+def build_lifecycle_status(repo_root: Path, *, request_text: str = "", session_id: str = "", now: datetime | None = None, active_work_state: dict[str, Any] | None = None) -> dict[str, Any]:
     repo = Path(repo_root).expanduser().resolve()
     current = (now or _now()).astimezone(timezone.utc).replace(microsecond=0)
     resume_cutoff = current - timedelta(hours=RESUME_FINALIZE_HOURS)
@@ -175,7 +175,7 @@ def build_lifecycle_status(repo_root: Path, *, request_text: str = "", session_i
                 warnings.append(_warning("changes_without_evidence", "Changes were finalized without command or test evidence.", finalize, "Record commands/tests in `aictx finalize` when work changes files."))
                 warnings.append(_warning("validation_evidence_missing", "Validation evidence is missing for a completed task.", finalize, "Run and record the focused validation command."))
 
-    active = load_active_work_state(repo)
+    active = active_work_state if isinstance(active_work_state, dict) else load_active_work_state(repo)
     active_updated = _parse_time(active.get("updated_at")) if isinstance(active, dict) else None
     if active and active_updated and active_updated < stale_cutoff:
         probe = {"session_id": "", "task": str(active.get("goal") or active.get("task_id") or "")}

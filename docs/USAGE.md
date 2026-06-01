@@ -61,6 +61,14 @@ After task work, supported agents should close the lifecycle with the public fin
 aictx finalize --repo . --status success|failure --summary "<what happened>" --json
 ```
 
+Before important action boundaries, agents can run a lightweight read-only continuity check:
+
+```bash
+aictx guard --repo . --action final_answer --json
+```
+
+`guard` returns compact `allow`, `caution`, `re_ground`, or `block` guidance from Work State, execution contract, Continuity Quality, lifecycle diagnostics, validation hints, and path/scope alignment. It is intended for first edits, out-of-scope edits, risky commands, final answers/finalize, scope changes, agent switches, or continuing after idle; it is not a replacement for `resume` or `finalize`. See [Continuity Guard](CONTINUITY_GUARD.md).
+
 To generate an inspectable local Markdown/Mermaid map of current repo continuity, run:
 
 ```bash

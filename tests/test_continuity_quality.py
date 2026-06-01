@@ -6,7 +6,7 @@ from pathlib import Path
 
 from aictx import cli
 from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH
-from aictx.continuity.quality import DEMOTED_MAX_DAYS, FRESH_MAX_DAYS, POSSIBLY_STALE_MAX_DAYS, build_continuity_quality_report
+from aictx.continuity.quality import DEMOTED_MAX_DAYS, FRESH_MAX_DAYS, POSSIBLY_STALE_MAX_DAYS, build_continuity_quality_issues, build_continuity_quality_report
 from aictx.failures import FAILURE_PATTERNS_PATH
 from aictx.mcp.resources import resource_content
 from aictx.mcp.tools import call_tool
@@ -268,6 +268,18 @@ def test_continuity_quality_warns_for_carried_missing_validation_gap(tmp_path: P
     assert matches[0]["severity"] == "warning"
     assert report["status"] == "warning"
 
+
+
+
+def test_continuity_quality_issues_is_compact(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    payload = build_continuity_quality_issues(repo, limit=2)
+
+    assert set(payload) == {"schema_version", "generated_at", "score", "status", "request", "task_type", "advisory_only", "issues"}
+    assert "loaded_items" not in payload
+    assert len(payload["issues"]) <= 2
 
 def test_continuity_quality_age_threshold_constants_are_public() -> None:
     assert FRESH_MAX_DAYS == 7

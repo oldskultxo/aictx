@@ -332,11 +332,9 @@ def _used_repomap(repo_map: dict[str, Any], loaded_items: list[dict[str, Any]]) 
     return any(str(item.get("kind") or "") == "repo_map" or "repo_map" in str(item.get("source") or "") for item in loaded_items)
 
 
-def build_continuity_quality_report(
+def _collect_continuity_quality(
     repo_root: Path,
     *,
-    request_text: str = "",
-    task_type: str = "",
     context: dict[str, Any] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -492,6 +490,21 @@ def build_continuity_quality_report(
             recommendation="Run or record the expected validation during finalize.",
         ))
 
+    return {"repo": repo, "current": current, "ctx": ctx, "issues": issues, "loaded_items": loaded_items}
+
+
+def build_continuity_quality_report(
+    repo_root: Path,
+    *,
+    request_text: str = "",
+    task_type: str = "",
+    context: dict[str, Any] | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    collected = _collect_continuity_quality(repo_root, context=context, now=now)
+    current = collected["current"]
+    issues = collected["issues"]
+    loaded_items = collected["loaded_items"]
     scoring_breakdown = _score_breakdown(issues)
     score = int(scoring_breakdown["final_score"])
     issue_severities = {str(item.get("severity") or "warning") for item in issues}
@@ -530,3 +543,32 @@ def build_continuity_quality_report(
             "demoted_max_days": DEMOTED_MAX_DAYS,
         },
     }
+
+
+def build_continuity_quality_issues(
+    repo_root: Path,
+    *,
+    request_text: str = "",
+    task_type: str = "",
+    context: dict[str, Any] | None = None,
+    now: datetime | None = None,
+    limit: int = 12,
+) -> dict[str, Any]:
+    collected = _collect_continuity_quality(repo_root, context=context, now=now)
+    current = collected["current"]
+    all_issues = list(collected["issues"])
+    issues = all_issues[: max(0, int(limit or 0))]
+    score = _score(all_issues)
+    severities = {str(item.get("severity") or "warning") for item in all_issues}
+    status = "error" if score < 50 or "error" in severities else "warning" if score < 80 or "warning" in severities else "ok"
+    return {
+        "schema_version": "1.0",
+        "generated_at": current.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "score": score,
+        "status": status,
+        "request": str(request_text or ""),
+        "task_type": str(task_type or ""),
+        "advisory_only": True,
+        "issues": issues,
+    }
+

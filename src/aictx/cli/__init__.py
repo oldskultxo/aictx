@@ -23,6 +23,7 @@ from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mod
 from ..portability import compact_portable_jsonl, detect_portable_continuity_from_gitignore, load_portability_state, portability_status
 from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
 from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, render_continuity_mermaid, write_continuity_view
+from ..continuity_guard import GUARD_ACTIONS, GUARD_RISKS, build_continuity_guard
 from ..doctor import build_doctor_report
 from ..lifecycle import append_lifecycle_event
 from ..runner_integrations import CODEX_HOME, install_codex_native_integration, install_repo_runner_integrations
@@ -656,6 +657,28 @@ def cmd_resume(args: argparse.Namespace) -> int:
         _print_json(payload)
     else:
         print(render_resume_capsule(payload, full=bool(getattr(args, "full", False))), end="")
+    return 0
+
+
+def cmd_guard(args: argparse.Namespace) -> int:
+    repo = Path(args.repo or ".").expanduser().resolve()
+    payload = build_continuity_guard(
+        repo,
+        action=str(getattr(args, "action", "") or ""),
+        paths=list(getattr(args, "paths", []) or []),
+        command=str(getattr(args, "command", "") or ""),
+        intent=str(getattr(args, "intent", "") or ""),
+        risk=str(getattr(args, "risk", "normal") or "normal"),
+        agent_id=str(getattr(args, "agent_id", "") or ""),
+        session_id=str(getattr(args, "session_id", "") or ""),
+    )
+    if bool(getattr(args, "json", False)):
+        _print_json(payload)
+    else:
+        print(f"AICTX guard: {payload['decision']} ({payload['status']})")
+        for item in payload.get("warnings", []):
+            print(f"- {item.get('code')}: {item.get('message')}")
+        print(f"next: {payload['suggested_next']}")
     return 0
 
 
@@ -1484,6 +1507,18 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
     resume.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     resume.set_defaults(func=cmd_resume)
+
+    guard = sub.add_parser("guard", help="Check continuity alignment before an important action boundary")
+    guard.add_argument("--repo", default=".", help="Repository root")
+    guard.add_argument("--action", choices=sorted(GUARD_ACTIONS), required=True, help="Action boundary to check")
+    guard.add_argument("--paths", action="append", default=[], help="Path involved in the action; may be repeated")
+    guard.add_argument("--command", default="", help="Command involved in the action")
+    guard.add_argument("--intent", default="", help="Short intent for the action")
+    guard.add_argument("--risk", choices=sorted(GUARD_RISKS), default="normal", help="Risk level")
+    guard.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
+    guard.add_argument("--session-id", default="", help=argparse.SUPPRESS)
+    guard.add_argument("--json", action="store_true", help="Print compact guard JSON")
+    guard.set_defaults(func=cmd_guard)
 
     prepare_task = sub.add_parser("prepare", help="Compile a read-only task-specific context pack")
     prepare_task.add_argument("goal", help="Task goal to compile context for")

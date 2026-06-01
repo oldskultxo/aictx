@@ -1,3 +1,3 @@
-from .cli import main
+from .entrypoint import main
 
 raise SystemExit(main())
