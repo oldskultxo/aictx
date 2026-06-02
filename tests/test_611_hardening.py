@@ -72,9 +72,9 @@ def test_strategy_entry_includes_rationale_and_evidence_quality() -> None:
 
 
 def test_git_state_parses_staged_unstaged_untracked_and_edited(tmp_path: Path) -> None:
-    parsed = parse_git_porcelain(["M  staged.py", " M unstaged.py", "?? new.py", "R  old.py -> renamed.py"])
-    assert parsed["staged_files"] == ["staged.py", "renamed.py"]
-    assert parsed["unstaged_files"] == ["unstaged.py", "new.py"]
+    parsed = parse_git_porcelain(["M  staged.py", " M unstaged.py", "?? new.py", "R  old.py -> renamed.py", "MM both.py"])
+    assert parsed["staged_files"] == ["staged.py", "renamed.py", "both.py"]
+    assert parsed["unstaged_files"] == ["unstaged.py", "new.py", "both.py"]
     assert parsed["untracked_files"] == ["new.py"]
 
     repo = tmp_path / "repo"

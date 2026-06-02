@@ -179,7 +179,7 @@ Added:
 - MCP profiles for `readonly`, `standard`, and `full` usage.
 - Default MCP preparation during `aictx install` and repo-local MCP configuration during `aictx init`.
 - Safe cleanup/uninstall support for AICTX-managed MCP configuration.
-- Claude Code and Codex plugin distribution artifacts for AICTX.
+- Claude Code and Codex packaged integration artifacts for AICTX.
 - Shared generated agent guidance for MCP-first, CLI-fallback AICTX usage.
 - Plugin marketplace manifests for Claude Code and Codex.
 

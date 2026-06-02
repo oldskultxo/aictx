@@ -100,7 +100,7 @@ def _normalize_discarded_hypothesis(item: Any) -> dict[str, Any] | None:
         return {"hypothesis": hypothesis, "confidence": "unknown"}
     if not isinstance(item, dict):
         return None
-    hypothesis = _truncate(item.get("hypothesis") or item.get("claim") or item.get("path"))
+    hypothesis = _truncate(item.get("hypothesis") or item.get("summary") or item.get("claim") or item.get("path"))
     if not hypothesis:
         return None
     confidence = str(item.get("confidence") or "unknown").strip().lower() or "unknown"

@@ -7,8 +7,8 @@ description: "AICTX ships generated integration artifacts for Claude Code and Co
 
 ## Locations
 
-- Codex plugin: `integrations/codex/plugins/aictx/`
-- Claude Code plugin: `integrations/claude/plugins/aictx/`
+- Codex packaged integration: `integrations/codex/plugins/aictx/`
+- Claude Code packaged integration: `integrations/claude/plugins/aictx/`
 - Codex marketplace: `.agents/plugins/marketplace.json`
 - Claude marketplace: `.claude-plugin/marketplace.json`
 - Shared guidance template: `integrations/templates/agent-guidance.md`

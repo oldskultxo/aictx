@@ -80,6 +80,28 @@ def test_steer_ambiguous_asks_user(tmp_path: Path):
     assert payload["decision"] == "ask_user"
 
 
+def test_steer_correction_suggests_discarded_hypothesis(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    payload = build_steer_guard(repo, message="No, the error is from deploy, not the local diff.", current_action="edit")
+    suggested = payload["suggested_updates"]
+
+    assert payload["classification"] == "agent_correction"
+    assert "discarded_hypothesis" in suggested
+    assert suggested["discarded_hypothesis"]["evidence"] == "user_correction"
+
+
+def test_steer_side_comment_has_no_discarded_hypothesis(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    payload = build_steer_guard(repo, message="just an idea for later")
+
+    assert payload["classification"] == "side_comment"
+    assert "discarded_hypothesis" not in payload["suggested_updates"]
+
+
 def test_steer_output_is_compact(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo_scaffold(repo, update_gitignore=False)

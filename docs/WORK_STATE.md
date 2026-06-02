@@ -51,7 +51,7 @@ Example:
 
 ```json
 {
-  "summary": "Local diff was not the cause of the deploy failure.",
+  "hypothesis": "Local diff was not the cause of the deploy failure.",
   "reason": "User clarified the failure came from CI/deploy.",
   "confidence": "medium"
 }

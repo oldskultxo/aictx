@@ -292,3 +292,54 @@ def test_dirty_work_state_from_another_branch_is_skipped(tmp_path: Path) -> None
     assert checked["active_work_state"] == {}
     assert checked["work_state_git_status"]["reason"] == "dirty_branch_mismatch"
     assert checked["skipped_work_state"]["reason"] == "dirty_branch_mismatch"
+
+
+def test_discarded_hypotheses_accept_summary_alias_and_normalize(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    start_work_state(repo, "Fix deploy failure")
+
+    state = update_work_state(
+        repo,
+        {
+            "discarded_hypotheses": [
+                {
+                    "summary": "Local diff was not the cause of the deploy failure.",
+                    "reason": "User clarified the failure came from CI/deploy.",
+                    "confidence": "medium",
+                }
+            ]
+        },
+    )
+
+    discarded = state["discarded_hypotheses"]
+    assert discarded[0]["hypothesis"] == "Local diff was not the cause of the deploy failure."
+    assert discarded[0]["reason"] == "User clarified the failure came from CI/deploy."
+    assert discarded[0]["confidence"] == "medium"
+
+
+def test_discarded_hypotheses_cap_dedupe_and_invalid_confidence(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    start_work_state(repo, "Fix deploy failure")
+
+    state = update_work_state(
+        repo,
+        {
+            "discarded_hypotheses": [
+                {"hypothesis": "duplicate", "reason": "same", "confidence": "impossible"},
+                {"hypothesis": "duplicate", "reason": "same", "confidence": "high"},
+                {"hypothesis": "h2"},
+                {"hypothesis": "h3"},
+                {"hypothesis": "h4"},
+                {"hypothesis": "h5"},
+                {"hypothesis": "h6"},
+            ]
+        },
+    )
+
+    discarded = state["discarded_hypotheses"]
+    assert len(discarded) == 5
+    assert discarded[0]["hypothesis"] == "duplicate"
+    assert discarded[0]["confidence"] == "unknown"
+    assert [item["hypothesis"] for item in discarded].count("duplicate") == 1

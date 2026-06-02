@@ -145,3 +145,36 @@ def test_select_strategy_matches_area_or_subsystem_overlap(tmp_path: Path):
     assert selected["task_id"] == "subsystem-match"
     assert "subsystem:src/aictx" in selected["matched_signals"]
     assert selected["similarity_breakdown"]["subsystem"] == 600
+
+
+def test_build_strategy_entry_adds_compact_rationale_for_success():
+    prepared = {
+        "effective_task_type": "bug_fixing",
+        "effective_area_id": "src/aictx",
+        "continuity_context": {
+            "active_work_state": {
+                "discarded_hypotheses": [
+                    {
+                        "hypothesis": "Config-only fix was enough.",
+                        "reason": "Tests showed middleware path was still failing.",
+                        "confidence": "medium",
+                    }
+                ]
+            }
+        },
+    }
+    execution_log = {
+        "task_id": "fix-middleware",
+        "task_text": "fix middleware continuity",
+        "files_edited": ["src/aictx/middleware/__init__.py"],
+        "tests_executed": ["python -m pytest tests/test_middleware.py"],
+        "commands_executed": ["python -m pytest tests/test_middleware.py"],
+    }
+
+    entry = strategy_memory.build_strategy_entry(prepared, execution_log, timestamp="2026-06-02T00:00:00Z", is_failure=False)
+
+    assert entry["why_it_worked"]
+    assert entry["reuse_when"]
+    assert entry["avoid_when"]
+    assert entry["evidence_quality"] in {"low", "medium", "high", "unknown"}
+    assert entry["discarded_hypotheses"][0]["hypothesis"] == "Config-only fix was enough."

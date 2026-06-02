@@ -26,8 +26,6 @@ It is a repo-local CLI/runtime layer for agent continuity. It stores inspectable
 
 AICTX is **Codex-first**, **GitHub Copilot-aware**, **Claude-aware**, and **generic-agent compatible**.
 
-![AICTX + Coding Agent Runtime Flow](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/aictx-runtime-flow.png)
-
 [Quickstart](docs/QUICK-START.md) · [Installation](docs/INSTALLATION.md) · [Continuity View](docs/CONTINUITY_VIEW.md) · [Demo](docs/DEMO.md) · [Technical overview](docs/TECHNICAL_OVERVIEW.md) · [Official project](docs/OFFICIAL_PROJECT.md)
 
 ---
@@ -75,6 +73,9 @@ See [Installation](docs/INSTALLATION.md) and [Quickstart](docs/QUICK-START.md).
 ```text
 resume useful context -> do the work -> finalize evidence -> next session continues
 ```
+
+![AICTX + Coding Agent Runtime Flow](https://raw.githubusercontent.com/oldskultxo/aictx/main/docs/images/aictx-runtime-flow.png)
+
 
 AICTX stores continuity locally under `.aictx/`, so it is inspectable, reviewable and not dependent on hidden chat history.
 

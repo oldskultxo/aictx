@@ -200,7 +200,7 @@ def build_steer_guard(
             suggested_updates={"risk_note": text},
         )
 
-    if _has(low, r"\b(that['’]?s wrong|wrong|not that|you misunderstood|misunderstood)\b"):
+    if _has(low, r"\b(that['’]?s wrong|wrong|not that|you misunderstood|misunderstood)\b", r"^\s*no[,.;:!?]?\s+.*\bnot\b"):
         discarded = infer_discarded_hypothesis_from_correction(text)
         return _payload(
             status="warning",
