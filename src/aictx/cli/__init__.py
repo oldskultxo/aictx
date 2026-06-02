@@ -499,6 +499,9 @@ def cmd_next(args: argparse.Namespace) -> int:
     commands = _list_arg(args, "commands_executed")
     tests = _list_arg(args, "tests_executed")
     errors = _list_arg(args, "notable_errors")
+    if bool(getattr(args, "brief", False)) and bool(getattr(args, "full", False)):
+        print("error: --brief and --full are mutually exclusive", file=sys.stderr)
+        return 2
     explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
     resolved = resolve_task_type(request, explicit_task_type=explicit_task_type or None, touched_files=files)
     task_type = str(resolved.get("task_type") or explicit_task_type or "")
@@ -638,6 +641,9 @@ def cmd_view(args: argparse.Namespace) -> int:
 def cmd_resume(args: argparse.Namespace) -> int:
     repo = Path(args.repo or ".").expanduser().resolve()
     request = str(getattr(args, "task", "") or "").strip()
+    if bool(getattr(args, "brief", False)) and bool(getattr(args, "full", False)):
+        print("error: --brief and --full are mutually exclusive", file=sys.stderr)
+        return 2
     explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
     resolved = resolve_task_type(request, explicit_task_type=explicit_task_type or None, touched_files=[])
     task_type = str(resolved.get("task_type") or explicit_task_type or "")
@@ -647,6 +653,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
         repo,
         request_text=request,
         full=bool(getattr(args, "full", False)),
+        brief=bool(getattr(args, "brief", False)),
         task_type=task_type,
         agent_id=agent_id,
         adapter_id=adapter_id,
@@ -850,6 +857,9 @@ def _strategy_cli_context(args: argparse.Namespace) -> dict[str, Any]:
     commands = _list_arg(args, "commands_executed")
     tests = _list_arg(args, "tests_executed")
     errors = _list_arg(args, "notable_errors")
+    if bool(getattr(args, "brief", False)) and bool(getattr(args, "full", False)):
+        print("error: --brief and --full are mutually exclusive", file=sys.stderr)
+        return 2
     explicit_task_type = str(getattr(args, "task_type", "") or "").strip()
     task_type = explicit_task_type
     if not task_type and request:
@@ -1522,6 +1532,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--task", required=True, help="Task goal only for agent startup.")
     resume.add_argument("--json", action="store_true", help="Print structured continuity capsule JSON")
     resume.add_argument("--full", action="store_true", help="Include a larger continuity capsule")
+    resume.add_argument("--brief", action="store_true", help="Print compact routine-startup payload")
     resume.add_argument("--task-type", default="", help="Optional task type override")
     resume.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
     resume.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)

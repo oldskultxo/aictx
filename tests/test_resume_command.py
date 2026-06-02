@@ -1525,3 +1525,51 @@ def test_public_docs_prefer_task_for_normal_startup():
     assert 'aictx resume --repo . --task "<task goal>" --json' in technical
     assert "--request` remains supported" not in readme
     assert "--request` remains supported" not in technical
+
+
+def test_resume_json_includes_runner_contract_and_guard_triggers(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "fix parser bug", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    contract = payload["runner_contract"]
+    assert contract["aictx_required"] is True
+    assert contract["preferred_surface"] == "mcp"
+    assert contract["fallback_surface"] == "cli"
+    assert set(["aictx_resume", "aictx_finalize", "aictx_continuity_guard", "aictx_steer_guard"]).issubset(contract["required_tools"])
+    assert any(trigger["condition"] == "before_final_answer_after_repo_work" for trigger in payload["guard_triggers"])
+    assert payload["execution_contract"]["validation_policy"]["version"] == 1
+
+
+def test_resume_brief_is_compact_and_omits_loaded_items(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    _seed_parser_fixture(repo)
+
+    parser = _parser()
+    standard_args = parser.parse_args(["resume", "--repo", str(repo), "--task", "fix parser bug", "--json"])
+    assert standard_args.func(standard_args) == 0
+    standard = json.loads(capsys.readouterr().out)
+    brief_args = parser.parse_args(["resume", "--repo", str(repo), "--task", "fix parser bug", "--json", "--brief"])
+    assert brief_args.func(brief_args) == 0
+    brief = json.loads(capsys.readouterr().out)
+
+    assert brief["mode"] == "brief"
+    assert "runner_contract" in brief
+    assert "guard_triggers" in brief
+    assert "loaded_context" not in brief
+    assert len(json.dumps(brief)) < len(json.dumps(standard))
+
+
+def test_resume_brief_and_full_are_mutually_exclusive(tmp_path: Path, capsys):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+
+    args = _parser().parse_args(["resume", "--repo", str(repo), "--task", "check flags", "--json", "--brief", "--full"])
+    assert args.func(args) == 2
+    captured = capsys.readouterr()
+    assert "--brief and --full are mutually exclusive" in captured.err

@@ -177,12 +177,12 @@ def aictx_resume(args: dict[str, Any]) -> dict[str, Any]:
     agent_id = infer_agent_id(_text(args.get("agent_id"), "agent_id"), mcp_default=True)
     adapter_id = infer_adapter_id(_text(args.get("adapter_id"), "adapter_id"), agent_id=agent_id)
     session_id = _text(args.get("session_id"), "session_id")
-    payload = build_resume_capsule(repo, request_text=task, full=(mode == "full"), task_type=task_type, agent_id=agent_id, adapter_id=adapter_id, session_id=session_id)
+    payload = build_resume_capsule(repo, request_text=task, full=(mode == "full"), brief=(mode == "brief"), task_type=task_type, agent_id=agent_id, adapter_id=adapter_id, session_id=session_id)
     contract_ref = payload.get("contract_ref") if isinstance(payload.get("contract_ref"), dict) else {}
     append_lifecycle_event(repo, {"event_type": "resume_called", "source": "mcp", "agent_id": agent_id, "adapter_id": adapter_id, "session_id": session_id, "task": task, "task_type": task_type, "contract_id": str(contract_ref.get("contract_id") or "")})
     contract = payload.get("execution_contract", {}) if isinstance(payload.get("execution_contract"), dict) else {}
     capsule = payload.get("capsule", {}) if isinstance(payload.get("capsule"), dict) else {}
-    return ok(mode=mode, active_task=payload.get("active_task") or {}, next_action=str(capsule.get("next_action") or ""), known_failures=payload.get("failures", []), relevant_files=list(capsule.get("entry_points", []) or []), validation=contract.get("test_command", {}), continuity_brief=payload if mode != "brief" else capsule, suggested_followups=list(capsule.get("fallback_entry_points", []) or []))
+    return ok(mode=mode, active_task=payload.get("active_task") or {}, next_action=str(capsule.get("next_action") or ""), known_failures=payload.get("failures", []), relevant_files=list(capsule.get("entry_points", []) or []), validation=contract.get("test_command", {}), runner_contract=payload.get("runner_contract", {}), guard_triggers=payload.get("guard_triggers", []), continuity_brief=payload, suggested_followups=list(capsule.get("fallback_entry_points", []) or []))
 
 
 def aictx_prepare_task_context(args: dict[str, Any]) -> dict[str, Any]:

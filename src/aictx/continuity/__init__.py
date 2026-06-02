@@ -20,6 +20,7 @@ from ..portability import append_portable_jsonl, write_portable_json, write_port
 from ..repo_map.config import is_repomap_enabled
 from ..report import build_repo_map_report
 from ..runtime_contract import resolve_effective_preferences
+from ..runner_contract import build_guard_triggers, build_runner_contract, build_validation_policy
 from ..state import (
     REPO_CONTINUITY_DIR,
     REPO_CONTINUITY_SESSION_PATH,
@@ -481,6 +482,10 @@ def _normalize_handoff_history_row(row: dict[str, Any]) -> dict[str, Any]:
         "recommended_starting_points": _clean_string_list(row.get("recommended_starting_points"), limit=5),
         "files_observed": int(row.get("files_observed", 0) or 0),
         "tests_observed": _clean_string_list(row.get("tests_observed"), limit=8),
+        "agent_id": str(row.get("agent_id") or "").strip(),
+        "adapter_id": str(row.get("adapter_id") or "").strip(),
+        "session_id": str(row.get("session_id") or "").strip(),
+        "evidence_quality": str(row.get("evidence_quality") or "").strip(),
     }
 
 
@@ -703,6 +708,33 @@ def _observed_files(prepared: dict[str, Any]) -> list[str]:
     return _clean_string_list(candidates, limit=8)
 
 
+def resolve_evidence_quality(execution_log: dict[str, Any]) -> str:
+    log = execution_log if isinstance(execution_log, dict) else {}
+    observed = 0
+    files_edited = _clean_string_list(log.get("files_edited"), limit=1)
+    for key in ("files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors"):
+        if _clean_string_list(log.get(key), limit=1):
+            observed += 1
+    if files_edited and not (_clean_string_list(log.get("commands_executed"), limit=1) or _clean_string_list(log.get("tests_executed"), limit=1)):
+        return "low"
+    if observed >= 3:
+        return "high"
+    if observed >= 1:
+        return "medium"
+    return "low"
+
+
+def _compact_sentence(text: Any, limit: int = 200) -> str:
+    cleaned = " ".join(str(text or "").split())
+    if len(cleaned) <= limit:
+        return cleaned
+    for sep in [". ", "; ", ", "]:
+        candidate = cleaned[:limit].rsplit(sep, 1)[0].strip()
+        if len(candidate) >= 40:
+            return candidate.rstrip(".;,") + "."
+    return cleaned[:limit].rstrip()
+
+
 def _has_nonempty_list(payload: dict[str, Any], key: str) -> bool:
     value = payload.get(key)
     return isinstance(value, list) and any(str(item or "").strip() for item in value)
@@ -746,7 +778,7 @@ def persist_handoff_memory(
     ):
         return None
     handoff_payload = result.get("handoff") if isinstance(result.get("handoff"), dict) else {}
-    summary = str(handoff_payload.get("summary") or result.get("result_summary") or "").strip()
+    summary = _compact_sentence(handoff_payload.get("summary") or result.get("result_summary") or "", limit=200)
     if not summary:
         return None
     session = prepared.get("continuity_context", {}).get("session", {}) if isinstance(prepared.get("continuity_context"), dict) else {}
@@ -755,6 +787,12 @@ def persist_handoff_memory(
     except (TypeError, ValueError):
         source_session = 0
     source_execution_id = str(prepared.get("envelope", {}).get("execution_id") or "") if isinstance(prepared.get("envelope"), dict) else ""
+    envelope = prepared.get("envelope", {}) if isinstance(prepared.get("envelope"), dict) else {}
+    agent_id = str(envelope.get("agent_id") or prepared.get("agent_id") or "")
+    adapter_id = str(envelope.get("adapter_id") or prepared.get("adapter_id") or agent_id or "")
+    session_id = str((prepared.get("resume_contract") if isinstance(prepared.get("resume_contract"), dict) else {}).get("session_id") or source_execution_id)
+    execution_log = prepared.get("last_execution_log") if isinstance(prepared.get("last_execution_log"), dict) else {}
+    evidence_quality = resolve_evidence_quality(execution_log)
     tests_observed = _clean_string_list(
         list(prepared.get("last_execution_log", {}).get("tests_executed", []))
         if isinstance(prepared.get("last_execution_log"), dict) and isinstance(prepared.get("last_execution_log", {}).get("tests_executed"), list)
@@ -765,10 +803,10 @@ def persist_handoff_memory(
     task_type = str(prepared.get("effective_task_type") or prepared.get("resolved_task_type") or "")
     reason = str(prepared.get("envelope", {}).get("user_request") or "") if isinstance(prepared.get("envelope"), dict) else ""
     files_observed = len(_observed_files(prepared))
-    completed = _clean_string_list(handoff_payload.get("completed"), limit=8) or [summary]
-    next_steps = _clean_string_list(handoff_payload.get("next_steps"), limit=8)
-    blocked = _clean_string_list(handoff_payload.get("blocked") or handoff_payload.get("open_items"), limit=8)
-    risks = _clean_string_list(handoff_payload.get("risks"), limit=8)
+    completed = [_compact_sentence(item, 80) for item in _clean_string_list(handoff_payload.get("completed"), limit=8)] or [summary]
+    next_steps = [_compact_sentence(item, 80) for item in _clean_string_list(handoff_payload.get("next_steps"), limit=8)]
+    blocked = [_compact_sentence(item, 80) for item in _clean_string_list(handoff_payload.get("blocked") or handoff_payload.get("open_items"), limit=8)]
+    risks = [_compact_sentence(item, 80) for item in _clean_string_list(handoff_payload.get("risks"), limit=8)]
     recommended = _clean_string_list(handoff_payload.get("recommended_starting_points"), limit=8) or _observed_files(prepared)
     handoff = {
         "summary": summary,
@@ -781,7 +819,14 @@ def persist_handoff_memory(
         "updated_at": timestamp,
         "source_session": source_session,
         "source_execution_id": source_execution_id,
+        "agent_id": agent_id,
+        "adapter_id": adapter_id,
+        "session_id": session_id,
+        "evidence_quality": evidence_quality,
     }
+    details = str(handoff_payload.get("details") or "").strip()
+    if details:
+        handoff["details"] = details
     write_json(repo_root / HANDOFF_PATH, handoff)
     history = append_handoff_history(
         repo_root,
@@ -799,6 +844,10 @@ def persist_handoff_memory(
             "recommended_starting_points": handoff.get("recommended_starting_points", []),
             "files_observed": files_observed,
             "tests_observed": tests_observed,
+            "agent_id": agent_id,
+            "adapter_id": adapter_id,
+            "session_id": session_id,
+            "evidence_quality": evidence_quality,
         },
         limit=10,
     )
@@ -2579,7 +2628,7 @@ def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, li
     handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
     active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
     recent = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
-    brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
+    continuity_brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
     strategy = context.get("procedural_reuse") if isinstance(context.get("procedural_reuse"), dict) else {}
     repo_map_paths = _resume_collect_repo_map_paths(ranked)
     strategy_paths = _resume_collect_strategy_paths(strategy)
@@ -2602,7 +2651,7 @@ def _resume_collect_entry_points(repo_root: Path, context: dict[str, Any], *, li
         reason = str(item.get("kind") or "continuity")
         for path in _clean_string_list(item.get("paths"), limit=3):
             candidates.append(_resume_entry(path, f"{reason}: {_resume_item_text(item)}"))
-    for path in _clean_string_list(brief.get("probable_paths"), limit=8):
+    for path in _clean_string_list(continuity_brief.get("probable_paths"), limit=8):
         candidates.append(_resume_entry(path, "probable continuity path"))
 
     live: list[dict[str, str]] = []
@@ -3211,6 +3260,49 @@ def _render_structural_entry_points(entries: list[dict[str, Any]], *, full: bool
     return lines
 
 
+def _compact_brief_resume_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    contract = payload.get("execution_contract") if isinstance(payload.get("execution_contract"), dict) else {}
+    handoff = payload.get("capsule") if isinstance(payload.get("capsule"), dict) else {}
+    quality = payload.get("continuity_quality") if isinstance(payload.get("continuity_quality"), dict) else {}
+    issues = quality.get("issues") if isinstance(quality.get("issues"), list) else []
+    decisions = _clean_string_list(handoff.get("decisions"), limit=3)
+    brief_contract = {
+        "contract_strength": str(contract.get("contract_strength") or ""),
+        "first_action": contract.get("first_action") if isinstance(contract.get("first_action"), dict) else {},
+        "edit_scope": contract.get("edit_scope") if isinstance(contract.get("edit_scope"), dict) else {},
+        "validation_policy": contract.get("validation_policy") if isinstance(contract.get("validation_policy"), dict) else {},
+    }
+    return {
+        "schema_version": str(payload.get("schema_version") or "1.0"),
+        "generated_at": str(payload.get("generated_at") or ""),
+        "mode": "brief",
+        "repo": str(payload.get("repo") or ""),
+        "request": str(payload.get("request") or ""),
+        "active_task": payload.get("active_task") if isinstance(payload.get("active_task"), dict) else {},
+        "handoff": {
+            "summary": str(handoff.get("last_progress") or handoff.get("resuming") or "")[:240],
+            "next_steps": _clean_string_list([handoff.get("next_action")], limit=1),
+        },
+        "startup_banner_text": str(payload.get("startup_banner_text") or ""),
+        "startup_banner_render_payload": payload.get("startup_banner_render_payload") if isinstance(payload.get("startup_banner_render_payload"), dict) else {},
+        "startup_banner_policy": payload.get("startup_banner_policy") if isinstance(payload.get("startup_banner_policy"), dict) else {},
+        "communication_policy": payload.get("communication_policy") if isinstance(payload.get("communication_policy"), dict) else {},
+        "execution_contract": brief_contract,
+        "runner_contract": payload.get("runner_contract") if isinstance(payload.get("runner_contract"), dict) else {},
+        "guard_triggers": payload.get("guard_triggers") if isinstance(payload.get("guard_triggers"), list) else [],
+        "carryover_gaps": [gap for gap in payload.get("carryover_gaps", []) if isinstance(gap, dict)][:5] if isinstance(payload.get("carryover_gaps"), list) else [],
+        "lifecycle_gaps": [gap for gap in payload.get("lifecycle_gaps", []) if isinstance(gap, dict)][:5] if isinstance(payload.get("lifecycle_gaps"), list) else [],
+        "decisions": decisions,
+        "continuity_quality": {
+            "score": quality.get("score", 0),
+            "status": str(quality.get("status") or ""),
+            "issue_codes": _clean_string_list([item.get("code") for item in issues if isinstance(item, dict)], limit=8),
+        },
+        "written_files": payload.get("written_files") if isinstance(payload.get("written_files"), dict) else {},
+        "contract_ref": payload.get("contract_ref") if isinstance(payload.get("contract_ref"), dict) else {},
+    }
+
+
 def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = False) -> str:
     capsule = payload.get("capsule") if isinstance(payload.get("capsule"), dict) else {}
     task_state = payload.get("task_state") if isinstance(payload.get("task_state"), dict) else {}
@@ -3224,6 +3316,23 @@ def _render_resume_capsule_markdown(payload: dict[str, Any], *, full: bool = Fal
     lines = [
         "AICTX continuity capsule",
     ]
+    runner_contract = payload.get("runner_contract") if isinstance(payload.get("runner_contract"), dict) else {}
+    guard_triggers = payload.get("guard_triggers") if isinstance(payload.get("guard_triggers"), list) else []
+    if runner_contract:
+        lines.extend(
+            [
+                "",
+                "Runner contract",
+                "- AICTX required.",
+                "- Prefer MCP tools; use CLI fallback if unavailable.",
+                "- Verify MCP tools once per session.",
+            ]
+        )
+    if guard_triggers:
+        lines.extend(["", "Guard triggers"])
+        for trigger in guard_triggers[:5]:
+            if isinstance(trigger, dict):
+                lines.append(f"- {trigger.get('condition')} -> {trigger.get('tool')}")
     if contract:
         contract_first = contract.get("first_action") if isinstance(contract.get("first_action"), dict) else {}
         continuity_match = contract.get("continuity_match") if isinstance(contract.get("continuity_match"), dict) else {}
@@ -3411,6 +3520,7 @@ def build_resume_capsule(
     request_text: str = "",
     *,
     full: bool = False,
+    brief: bool = False,
     task_type: str = "",
     agent_id: str = "",
     adapter_id: str = "",
@@ -3451,7 +3561,7 @@ def build_resume_capsule(
     active = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
     recent = context.get("recent_work_state") if isinstance(context.get("recent_work_state"), dict) else {}
     handoff = context.get("handoff") if isinstance(context.get("handoff"), dict) else {}
-    brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
+    continuity_brief = context.get("continuity_brief") if isinstance(context.get("continuity_brief"), dict) else {}
     strategy = context.get("procedural_reuse") if isinstance(context.get("procedural_reuse"), dict) else {}
 
     if active:
@@ -3470,7 +3580,7 @@ def build_resume_capsule(
     if not next_action and task_state["status"] == "completed" and request and entry_points:
         next_action = f"Use current request; start from {entry_points[0]['path']}"
     if not next_action and not (task_state["status"] == "completed" and request):
-        where = _clean_string_list(brief.get("where_to_continue"), limit=1)
+        where = _clean_string_list(continuity_brief.get("where_to_continue"), limit=1)
         next_action = where[0] if where and _resume_is_action_path(where[0]) else ""
     if not next_action and task_state["status"] == "completed" and request:
         next_action = "Use the current request; previous task is background."
@@ -3496,6 +3606,10 @@ def build_resume_capsule(
         repo_map=repo_map,
         structural_entry_points=structural_entry_points,
     )
+    validation_policy = build_validation_policy(task_type, str(execution_contract.get("contract_strength") or ""))
+    execution_contract["validation_policy"] = validation_policy
+    runner_contract = build_runner_contract(agent_id=agent_id, adapter_id=adapter_id or agent_id)
+    guard_triggers = build_guard_triggers(execution_contract, task_type=task_type)
 
     validated = _clean_string_list(
         list(active.get("verified", []) or [])
@@ -3562,6 +3676,8 @@ def build_resume_capsule(
         **context,
         "loaded_context": loaded_context,
         "execution_contract": execution_contract,
+        "runner_contract": runner_contract,
+        "guard_triggers": guard_triggers,
         "task_state": task_state,
         "carryover_gaps": carryover_gaps,
         "structural_context": structural_context,
@@ -3623,6 +3739,8 @@ def build_resume_capsule(
         "structural_context": structural_context,
         "structural_entry_points": structural_entry_points,
         "execution_contract": execution_contract,
+        "runner_contract": runner_contract,
+        "guard_triggers": guard_triggers,
         "contract_checks": _build_contract_checks(execution_contract),
         "previous_contract_result": previous_contract_result,
         "budget": {"target_tokens": 1200, "estimated_tokens": 0, "chars": 0},
@@ -3648,6 +3766,16 @@ def build_resume_capsule(
         "continuity_view": continuity_view_status,
         "continuity_quality": continuity_quality,
         "lifecycle_status": lifecycle_status,
+        "lifecycle_gaps": [
+            {
+                "code": str(item.get("code") or ""),
+                "severity": str(item.get("severity") or "warning"),
+                "summary": str(item.get("summary") or ""),
+                "suggested_next_action": str(item.get("suggested_next_action") or ""),
+            }
+            for item in lifecycle_status.get("warnings", [])
+            if isinstance(item, dict)
+        ][:5],
         "written_files": {
             "markdown": RESUME_CAPSULE_MARKDOWN_PATH.as_posix(),
             "json": RESUME_CAPSULE_JSON_PATH.as_posix(),
@@ -3659,6 +3787,8 @@ def build_resume_capsule(
     contract_ref = persist_resume_contract(repo_root, payload, session_id=session_key, agent_id=str(session.get("agent_id") or ""))
     if contract_ref:
         payload["contract_ref"] = contract_ref
+    if brief:
+        payload = _compact_brief_resume_payload(payload)
     markdown, payload = _resume_with_budget(payload, full=full, max_chars=max_chars)
     payload["budget"] = {
         "target_tokens": 2400 if full else 1200,

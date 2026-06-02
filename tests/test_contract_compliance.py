@@ -142,3 +142,16 @@ def test_persisted_resume_contract_loads_with_fuzzy_task_match(tmp_path: Path):
     assert loaded["task_goal_match"] is True
     assert unrelated == {}
     assert (tmp_path / ".aictx" / "continuity" / "contracts" / "index.json").exists()
+
+
+def test_documentation_contract_does_not_fake_first_action_or_validation_penalties():
+    contract = _contract()
+    contract["execution_contract"]["contract_strength"] = "soft"
+    contract["execution_contract"]["validation_policy"] = {"task_type": "documentation", "required": False}
+    payload = evaluate_contract_compliance(
+        contract,
+        {"files_opened": ["README.md"], "files_edited": ["README.md"], "commands_executed": ["echo reviewed"]},
+        finalize_status="success",
+    )
+    assert payload["main_issue"] != "missing_first_action"
+    assert not any(item["code"].startswith("canonical_test") for item in payload["warnings"] + payload["violations"])

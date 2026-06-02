@@ -110,3 +110,24 @@ def test_handoff_history_is_capped_to_latest_ten_records(tmp_path: Path):
     assert history[0]["execution_id"] == "exec-2"
     assert history[-1]["execution_id"] == "exec-11"
     assert (repo / HANDOFFS_HISTORY_PATH).exists()
+
+
+def test_handoff_includes_agent_attribution_and_evidence_quality(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution({
+        **_payload(repo, "exec-handoff-attribution"),
+        "files_opened": ["src/aictx/middleware.py"],
+        "files_edited": ["src/aictx/continuity.py"],
+        "commands_executed": ["pytest -q tests/test_handoff_memory.py"],
+    })
+
+    finalize_execution(prepared, {"success": True, "result_summary": "Stored attributed handoff.", "validated_learning": False})
+    handoff = read_json(repo / HANDOFF_PATH, {})
+    history = load_handoff_history(repo)
+
+    assert handoff["agent_id"] == "codex"
+    assert handoff["adapter_id"] == "codex"
+    assert handoff["evidence_quality"] == "high"
+    assert history[-1]["agent_id"] == "codex"
+    assert history[-1]["evidence_quality"] == "high"

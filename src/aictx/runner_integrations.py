@@ -104,10 +104,13 @@ Use AICTX in every Codex session for repositories initialized with `aictx`.
 Required behavior:
 - Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
 - {render_mcp_first_startup_rule()}
+- At the first task in each new Codex session, verify whether AICTX MCP tools are visible: `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard`. If any are missing, report degraded mode and use the CLI fallback.
+- AICTX is mandatory for initialized repos: do not skip resume, guard triggers from the payload, or finalize.
 - Do not decide whether AICTX applies. If the repository contains `.aictx/`, use it.
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
 - Use the returned continuity capsule as the operational brief.
+- Follow `runner_contract` and `guard_triggers` returned by resume. Before the final answer for repo work, finalize with observed evidence: files opened/edited, commands run, tests run, and notable errors.
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
 - Do not inspect `.aictx/` during normal startup.
@@ -128,9 +131,12 @@ This repository is initialized with `aictx`.
 
 - Prefer AICTX MCP tools when available; fall back to AICTX CLI commands otherwise.
 - {render_mcp_first_startup_rule()}
+- Verify once per session that `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` are available; if not, use CLI fallback and report degraded mode.
+- AICTX lifecycle usage is mandatory for initialized repos.
 - The lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - At session start, run exactly one AICTX continuity command: `aictx resume --repo . --task "<task goal>" --json`.
 - Use the returned continuity capsule as the operational brief.
+- Follow `runner_contract` and `guard_triggers` returned by resume. Before final response, finalize with observed files, commands, tests, and notable errors.
 - Render exactly one startup banner source: normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`; wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - `resume` is the canonical agent-facing continuity query; it does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence.
 - Do not inspect `.aictx/` during normal startup.
@@ -218,7 +224,7 @@ def render_copilot_finalize_prompt() -> str:
 
 Use this prompt before the final response for a non-trivial GitHub Copilot repository task.
 
-1. Summarize what happened factually.
+1. Summarize what happened factually and include evidence: files opened/edited, commands run, tests run, and notable errors.
 2. Prefer the AICTX MCP finalize tool if it is attached.
 3. If MCP tools are unavailable, run:
 
@@ -352,11 +358,14 @@ print(json.dumps({
 def render_user_prompt_submit_script() -> str:
     return """#!/usr/bin/env python3
 import json
+import os
+import subprocess
 import sys
 
 
 payload = json.load(sys.stdin)
 prompt = str(payload.get("prompt") or "").strip()
+repo_root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 if not prompt:
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "AICTX: empty prompt"}}))
     raise SystemExit(0)
@@ -381,6 +390,21 @@ summary.append("Render exactly one startup banner source. Normal agent startup u
 summary.append("After finalize, append the AICTX final summary to the final user response, localized to the current user language while preserving factual runtime content.")
 summary.append("When available, follow resume.runtime_text_policy / resume.communication_policy, prepared.runtime_text_policy, prepared.startup_banner_policy, and finalized.agent_summary_policy. If render_payload_field points to startup_banner_render_payload or agent_summary_render_payload, prefer those structured payloads for localization and use compact text fields only as fallback while preserving exact facts, technical tokens, and the details/continuity link targets. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not replace Mermaid URLs with placeholders and do not manually reconstruct or retype pako URLs.")
 summary.append("If no finalize output exists, say: AICTX summary unavailable.")
+try:
+    steer = subprocess.run(
+        ["aictx", "steer", "--repo", repo_root, "--message", prompt, "--current-action", "unknown", "--agent-id", "claude", "--json"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if steer.stdout.strip():
+        steer_payload = json.loads(steer.stdout)
+        if steer_payload.get("classification") == "agent_correction":
+            summary.append("AICTX steer guard detected user correction/task redirect; follow steer guidance before continuing.")
+            summary.append(str(steer_payload.get("agent_instruction") or ""))
+except Exception:
+    summary.append("AICTX steer guard unavailable in hook; use MCP aictx_steer_guard or CLI fallback if this prompt is a correction/task redirect.")
 
 print(json.dumps({
     "hookSpecificOutput": {
@@ -396,6 +420,7 @@ def render_claude_pre_tool_use_script() -> str:
     return """#!/usr/bin/env python3
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -432,6 +457,27 @@ def path_is_blocked(rel_path: str) -> bool:
     return False
 
 
+def run_guard(action: str, risk: str = "normal", rel_path: str = "", command: str = "", intent: str = "") -> None:
+    cmd = ["aictx", "guard", "--repo", str(repo_root), "--action", action, "--risk", risk, "--agent-id", "claude", "--json"]
+    if rel_path:
+        cmd.extend(["--paths", rel_path])
+    if command:
+        cmd.extend(["--command", command])
+    if intent:
+        cmd.extend(["--intent", intent])
+    try:
+        completed = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=10)
+        if completed.stdout.strip():
+            guard = json.loads(completed.stdout)
+            if str(guard.get("decision") or "") == "block":
+                deny("AICTX guard blocked this action: " + str(guard.get("suggested_next") or "review continuity contract"))
+            for warning in guard.get("warnings", []) if isinstance(guard.get("warnings"), list) else []:
+                if isinstance(warning, dict) and warning.get("blocking"):
+                    deny("AICTX guard blocked this action: " + str(warning.get("message") or warning.get("code") or "blocking warning"))
+    except Exception:
+        return
+
+
 payload = json.load(sys.stdin)
 repo_root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
 tool_name = str(payload.get("tool_name") or "")
@@ -445,6 +491,8 @@ if tool_name in WRITE_TOOL_NAMES:
             "AICTX policy: generated runtime artifacts must not be edited directly. "
             "Edit durable notes in .aictx/memory/source/ instead and let aictx regenerate derived state."
         )
+    run_guard("before_first_edit", "low", rel_path=rel_path, intent="claude_edit")
+    run_guard("scope_change", "normal", rel_path=rel_path, intent="claude_edit")
 
 if tool_name == "Bash":
     command = str(tool_input.get("command") or "")
@@ -456,6 +504,8 @@ if tool_name == "Bash":
             "AICTX policy: do not mutate generated runtime artifacts from Bash. "
             "Use aictx-owned flows instead."
         )
+    if any(token in lowered for token in ["rm ", "mv ", "sed ", "perl ", "python ", "python3 ", "git reset", "git clean"]):
+        run_guard("risky_command", "high", command=command, intent="claude_bash")
 
 raise SystemExit(0)
 """

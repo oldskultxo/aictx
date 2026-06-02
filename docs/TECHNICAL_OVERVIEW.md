@@ -913,3 +913,15 @@ Operations and trust:
 ## MCP architecture
 
 The AICTX MCP server is a local stdio interface over the existing AICTX core. It does not duplicate business logic: MCP tools call the same Python runtime functions used by CLI commands. The server exposes AICTX continuity operations only, not generic machine-control tools.
+
+## AICTX 6.11 agent lifecycle enforcement
+
+AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+
+- `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
+- `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
+- `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
+
+Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
+
+Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.

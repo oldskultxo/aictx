@@ -492,11 +492,16 @@ def evaluate_contract_compliance(
     secondary = _clean_string_list(edit_scope.get("secondary_if_needed"), limit=20)
     allowed = primary + secondary
     structural = _structural_alignment(_clean_string_list(contract.get("expected_first_files"), limit=3), observation)
+    validation_policy = contract.get("validation_policy") if isinstance(contract.get("validation_policy"), dict) else {}
+    task_type = str(validation_policy.get("task_type") or "").strip()
+    validation_required = bool(validation_policy.get("required", True))
+    contract_strength = str(contract.get("contract_strength") or "").strip()
+    enforce_first_action = contract_strength != "exploratory" and task_type not in {"analysis", "investigation", "documentation", "qa"}
 
     violations: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
 
-    if first_path:
+    if first_path and enforce_first_action:
         followed_first_action = first_path in files_opened or first_path in files_edited
         if not followed_first_action:
             violations.append(_issue("missing_first_action", "violation", "Expected first action path was not observed.", first_path))
@@ -515,7 +520,7 @@ def evaluate_contract_compliance(
     test_command = contract.get("test_command") if isinstance(contract.get("test_command"), dict) else {}
     expected_test = str(test_command.get("command") or "").strip()
     canonical_test_used = _command_observed(expected_test, commands + tests) if expected_test else True
-    if expected_test and not canonical_test_used:
+    if expected_test and not canonical_test_used and validation_required:
         if finalize_status == "success":
             warnings.append(_issue("canonical_test_not_observed", "warning", "Canonical test command was not observed.", expected_test))
         else:
@@ -527,7 +532,7 @@ def evaluate_contract_compliance(
     warnings = warnings[:8]
 
     score = 1.0
-    if first_path and not followed_first_action:
+    if first_path and enforce_first_action and not followed_first_action:
         score -= 0.30
     if outside_scope:
         score -= 0.30

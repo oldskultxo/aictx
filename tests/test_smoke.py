@@ -48,6 +48,7 @@ from aictx.runner_integrations import (
     install_codex_native_integration,
     install_repo_runner_integrations,
     render_claude_md_block,
+    render_claude_pre_tool_use_script,
     render_user_prompt_submit_script,
 )
 from aictx.scaffold import TEMPLATES_DIR, ensure_repo_memory_sources, ensure_repo_user_preferences, init_repo_scaffold, migrate_portability_scaffold
@@ -2987,3 +2988,12 @@ def test_python_m_aictx_cli_module_invocation_works():
 
     assert proc.returncode == 0
     assert "usage:" in proc.stdout.lower()
+
+
+def test_claude_hooks_use_repo_root_and_scope_guard():
+    prompt_hook = render_user_prompt_submit_script()
+    assert 'repo_root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()' in prompt_hook
+    assert '["aictx", "steer", "--repo", repo_root' in prompt_hook
+    pre_tool = render_claude_pre_tool_use_script()
+    assert 'run_guard("before_first_edit", "low", rel_path=rel_path, intent="claude_edit")' in pre_tool
+    assert 'run_guard("scope_change", "normal", rel_path=rel_path, intent="claude_edit")' in pre_tool

@@ -430,3 +430,15 @@ aictx uninstall
 `aictx install` prepares AICTX global MCP runtime metadata by default with profile `full`. Use `aictx install --no-mcp` to opt out, or `aictx install --mcp-profile readonly|standard|full` to choose a profile.
 
 `aictx init` writes repo-local AICTX-managed MCP config by default. Use `aictx init --no-mcp` to skip that config.
+
+## AICTX 6.11 agent lifecycle enforcement
+
+AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+
+- `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
+- `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
+- `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
+
+Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
+
+Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.

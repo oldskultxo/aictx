@@ -4,6 +4,7 @@ import argparse
 import fnmatch
 import json
 import re
+import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1514,12 +1515,58 @@ def build_agent_summary(
         "next_guidance": dict(continuity.get("continuity_brief", {})) if isinstance(continuity.get("continuity_brief"), dict) else {},
         "continuity_value": build_continuity_value(prepared, execution_log, bool(handoff), bool(decisions), bool(failure)),
         "capture_quality": build_capture_quality(execution_log),
+        "git_state": dict(prepared.get("git_state", {})) if isinstance(prepared.get("git_state"), dict) else {},
         "repo_map_status": dict(prepared.get("repo_map_status", {})) if isinstance(prepared.get("repo_map_status"), dict) else {},
         "work_state_updated": dict(prepared.get("work_state_updated", {})) if isinstance(prepared.get("work_state_updated"), dict) else {},
         "active_work_state": dict(continuity.get("active_work_state", {})) if isinstance(continuity.get("active_work_state"), dict) else {},
         "maintenance_notice": dict(prepared.get("maintenance_notice", {})) if isinstance(prepared.get("maintenance_notice"), dict) else {},
     }
     return {"structured": summary, "rendered": render_agent_summary(summary)}
+
+
+def capture_git_state(repo_root: Path) -> dict[str, Any]:
+    try:
+        inside = subprocess.run(
+            ["git", "-C", repo_root.as_posix(), "rev-parse", "--is-inside-work-tree"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if inside.returncode != 0 or inside.stdout.strip() != "true":
+            return {"available": False, "reason": "not_git_repo"}
+        branch = subprocess.run(
+            ["git", "-C", repo_root.as_posix(), "branch", "--show-current"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        commit = subprocess.run(
+            ["git", "-C", repo_root.as_posix(), "rev-parse", "--short", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        porcelain = subprocess.run(
+            ["git", "-C", repo_root.as_posix(), "status", "--porcelain"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception as exc:
+        return {"available": False, "reason": f"git_state_error:{type(exc).__name__}"}
+    lines = [line for line in porcelain.stdout.splitlines() if line.strip()] if porcelain.returncode == 0 else []
+    return {
+        "available": True,
+        "branch": branch.stdout.strip() if branch.returncode == 0 else "",
+        "commit": commit.stdout.strip() if commit.returncode == 0 else "",
+        "dirty": bool(lines),
+        "changed_count": len(lines),
+        "sample": lines[:10],
+    }
 
 
 def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
@@ -1545,6 +1592,8 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "handoff": result.get("handoff", {}) if isinstance(result.get("handoff"), dict) else {},
         "work_state": result.get("work_state", {}) if isinstance(result.get("work_state"), dict) else {},
     }
+    git_state = capture_git_state(repo_root)
+    prepared["git_state"] = git_state
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     contract_compliance = evaluate_contract_compliance(
         prepared.get("resume_contract", {}) if isinstance(prepared.get("resume_contract"), dict) else {},
@@ -1726,6 +1775,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "continuity_value": agent_summary["structured"].get("continuity_value", {}),
         "reuse_confidence": agent_summary["structured"].get("reuse_confidence", "low"),
         "capture_quality": agent_summary["structured"].get("capture_quality", {}),
+        "git_state": git_state,
         "agent_summary_policy": {
             "append_to_final_response": True,
             "render_in_user_language": True,

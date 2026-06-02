@@ -16,8 +16,8 @@ Agent rules:
 - The AICTX lifecycle remains `prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence`.
 - MCP-first startup:
   1. If AICTX MCP tools are already visible, use MCP tools for resume/finalize.
-  2. If AICTX MCP tools are not visible but `.mcp.json` or `.vscode/mcp.json` exists, have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session.
-  3. If MCP tools still are not attached, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
+  2. If AICTX MCP tools are not visible but `.mcp.json` or `.vscode/mcp.json` exists, first use runner tool discovery when available (for example search for `aictx resume finalize lifecycle`) so lazy-loaded MCP namespaces can attach, then have the runner attach/start the configured stdio MCP server before the first AICTX command of each new session.
+  3. If MCP tools still are not attached after discovery/attachment, state that MCP config exists but tools are unavailable in this runner and use the CLI fallback.
 - At session start:
   1. Extract the task goal from the user prompt.
   2. Run exactly one AICTX continuity command: MCP resume when available, otherwise `aictx resume --repo . --task "<task goal>" --json`.
@@ -35,7 +35,7 @@ Agent rules:
 - If no finalize output exists, say `AICTX summary unavailable`.
 - Use the `aictx resume` capsule before deeper repo analysis.
 - `.aictx/memory/source/` is editable source knowledge; do not hand-edit generated derived artifacts under `.aictx/boot`, `.aictx/store`, `.aictx/indexes`, `.aictx/metrics`, and similar runtime folders.
-- Use `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
+- Use `resume.runtime_text_policy` / `resume.communication_policy`, `prepared.runtime_text_policy`, `prepared.startup_banner_policy`, and `finalized.agent_summary_policy` when available.
 - You may enrich AICTX-originated user-visible texts if helpful, but you must preserve real facts and never invent missing data.
 - Advanced/diagnostic/building-block commands remain available for humans and diagnostics, but normal agents should not use them during startup.
 
