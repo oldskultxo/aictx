@@ -1,12 +1,14 @@
 # AICTX
 
+[![Open-Launch Top 1 Daily Winner](https://open-launch.com/images/badges/top1-light.svg)](https://open-launch.com/projects/aictx/)
+
+
 [![PyPI](https://img.shields.io/pypi/v/aictx.svg)](https://pypi.org/project/aictx/)
 [![Website](https://img.shields.io/badge/website-aictx.org-94b41e)](https://aictx.org)
 [![Python](https://img.shields.io/pypi/pyversions/aictx.svg)](https://pypi.org/project/aictx/)
 [![CI](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml/badge.svg)](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/aictx?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=BLUE&left_text=downloads)](https://pepy.tech/projects/aictx)
-[![Open-Launch Top 1 Daily Winner](https://open-launch.com/images/badges/top1-light.svg)](https://open-launch.com/projects/aictx/)
 
 **Operational continuity for AI coding agents.**
 
