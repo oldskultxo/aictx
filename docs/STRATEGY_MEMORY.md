@@ -5,12 +5,12 @@ description: "Capture successful repo-local execution patterns so future AI codi
 
 # Strategy Memory
 
-Strategy Memory stores successful execution patterns that may be reused in similar future tasks.
+Strategy Memory stores successful execution patterns that may be reused in similar future tasks. In 6.11, useful strategies can also carry compact rationale: why the strategy worked, when to reuse it, and when not to reuse it.
 
 It answers:
 
 ```text
-What worked before in this repo?
+What worked before in this repo, why did it work, and when should it not be reused?
 ```
 
 It is not a planner, task runner, or autonomous decision system. It is repo-local memory of observed successful work.
@@ -40,6 +40,10 @@ A strategy record may include:
 - related errors/signals;
 - area id;
 - result summary;
+- compact `why_it_worked` rationale;
+- `reuse_when` boundaries;
+- `avoid_when` boundaries;
+- evidence quality;
 - recency;
 - similarity/reuse metadata.
 
@@ -151,6 +155,8 @@ Bad usage:
 ```text
 Repeat the previous strategy blindly.
 ```
+
+Strategy rationale is a reuse hint, not proof. Agents should use it to avoid blind repetition, not to skip validation.
 
 ---
 

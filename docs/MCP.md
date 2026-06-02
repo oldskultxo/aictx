@@ -46,6 +46,8 @@ Choose a profile with `--mcp-profile readonly|standard|full`. The default is `fu
 
 Full means full AICTX continuity, not full machine control.
 
+If required AICTX MCP tools are not visible in a runner, AICTX remains usable through CLI fallback.
+
 ## Continuity Quality over MCP
 
 The read-only profile exposes Continuity Quality through:
@@ -111,16 +113,24 @@ AICTX-managed MCP setup is reversible. Repo-local config is removed by `aictx cl
 
 Generated agent instructions tell compatible agents to prefer AICTX MCP tools when available, call `aictx_resume` before work, call `aictx_finalize` at the end, and fall back to CLI commands when MCP tools are unavailable.
 
-## AICTX 6.11 agent lifecycle enforcement
+## AICTX 6.11 agent lifecycle hardening
 
-AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+AICTX 6.11 adds compact metadata to `aictx_resume` / `aictx resume --json`:
 
-- `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
-- `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
+- `runner_contract`: required tool expectations and MCP-first / CLI-fallback policy.
+- `guard_triggers`: boundaries where agents should call Continuity Guard or Steer Guard.
+- `validation_policy`: task-aware validation expectations.
+- `--brief`: smaller routine startup payloads.
 - `discarded_hypotheses` and selected strategy rationale are bounded resume hints; they avoid repeated dead ends without exposing hidden chain-of-thought.
-- Finalize includes detailed local git-state context for edited files; it is advisory and does not auto-stage or commit.
-- `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
+- detailed git-state context can surface staged, unstaged and untracked edited files as non-blocking continuity signals.
 
-Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
+The required core tools are:
 
-Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+```text
+aictx_resume
+aictx_finalize
+aictx_continuity_guard
+aictx_steer_guard
+```
+
+If those tools are unavailable in a runner, generated instructions tell agents to use CLI fallback instead.

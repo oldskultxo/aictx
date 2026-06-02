@@ -25,6 +25,7 @@ A Work State thread can preserve:
 - verified items;
 - unverified assumptions;
 - discarded paths;
+- compact discarded hypotheses / abandoned approaches;
 - next action;
 - recommended commands;
 - risks;
@@ -39,6 +40,24 @@ A Work State thread can preserve:
 Work State is not a task manager, kanban board, issue tracker, planner, or hidden semantic memory.
 
 It is deterministic operational continuity.
+
+---
+
+## Dead-end capture
+
+Work State can preserve compact discarded hypotheses when an agent explicitly records that it abandoned an approach.
+
+Example:
+
+```json
+{
+  "summary": "Local diff was not the cause of the deploy failure.",
+  "reason": "User clarified the failure came from CI/deploy.",
+  "confidence": "medium"
+}
+```
+
+This is not chain-of-thought. It is an operational breadcrumb for future sessions.
 
 ---
 

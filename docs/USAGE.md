@@ -7,7 +7,7 @@ description: "Command reference for `aictx` CLI, including setup, resume, finali
 
 This is the command reference.
 
-For normal setup, start with [Installation](INSTALLATION.md). For a fast walkthrough, see [Quickstart](QUICKSTART.md).
+For normal setup, start with [Installation](INSTALLATION.md). For a fast walkthrough, see [Quickstart](QUICK-START.md).
 
 ---
 
@@ -89,6 +89,60 @@ When finalization includes Continuity View links, the agent should append the AI
 
 `aictx finalize` is the normal public CLI surface for finalization. Advanced integrations can still use `aictx internal execution finalize ...` when they already have a prepared execution payload.
 
+---
+
+## Common recipes
+
+### Check whether AICTX is installed in this repo
+
+```bash
+aictx doctor --repo . --json
+```
+
+### Start work manually when an agent did not call resume
+
+```bash
+aictx resume --repo . --task "<task goal>" --json
+```
+
+Use `--brief` when you want a smaller startup payload:
+
+```bash
+aictx resume --repo . --task "<task goal>" --json --brief
+```
+
+### Close work manually when an agent did not finalize
+
+```bash
+aictx finalize --repo . --status success --summary "<what happened>" --json
+```
+
+Use `--status failure` when the task did not complete successfully.
+
+### Inspect what AICTX saved
+
+```bash
+aictx view --repo .
+```
+
+### Check MCP setup
+
+```bash
+aictx mcp status --repo .
+```
+
+### Remove AICTX-managed repo files
+
+```bash
+aictx clean --repo .
+```
+
+### Remove AICTX globally
+
+```bash
+aictx uninstall
+```
+
 For JSON inspection, use a JSON parser:
 
 ```bash
@@ -150,7 +204,11 @@ aictx report real-usage
 
 ---
 
-## Public commands
+## Full command reference
+
+Most users do not need this list during normal agent-driven work. These commands are available for diagnostics, manual control, demos, and advanced workflows.
+
+Work State commands are advanced manual controls. AICTX is not a task manager; supported agents normally update Work State through the lifecycle.
 
 ```bash
 aictx install
@@ -332,21 +390,20 @@ aictx mcp install --repo . --dry-run
 aictx mcp-server --repo . --profile full
 ```
 
-## Agent plugins
+## Agent integration files
 
-AICTX ships Claude Code and Codex plugin artifacts. They are MCP-first and CLI-fallback: use `aictx_resume`, `aictx_finalize`, and `aictx_view` when available, otherwise use the AICTX CLI lifecycle. See [Plugins](PLUGINS.md).
+AICTX ships generated Claude Code and Codex integration files. They are MCP-first and CLI-fallback: use `aictx_resume`, `aictx_finalize`, and `aictx_view` when available, otherwise use the AICTX CLI lifecycle. See [Agent integrations](PLUGINS.md).
 
-## AICTX 6.11 agent lifecycle enforcement
+## AICTX 6.11 agent lifecycle hardening
 
-AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+AICTX 6.11 makes the continuity loop harder to skip and less noisy in large repositories.
 
-- `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
+- `runner_contract`: compact metadata telling supported agents that AICTX is required, MCP is preferred, CLI fallback is mandatory, and core tools should be verified once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
-- Work State can preserve bounded `discarded_hypotheses`; brief resume surfaces at most one relevant discarded hypothesis so agents avoid repeating known dead ends.
-- Strategy Memory can surface compact rationale (`why_it_worked`, `reuse_when`, `avoid_when`, `evidence_quality`) when a prior strategy is selected.
-- Finalize git-state capture reports staged, unstaged, untracked, `files_edited_uncommitted`, and `files_edited_unstaged` as non-blocking carryover context.
 - `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
+- `--brief`: a smaller resume payload for routine startup.
+- git-state awareness at finalize: staged, unstaged and untracked edited files can be surfaced as non-blocking continuity gaps.
+- dead-end capture: compact discarded hypotheses can be preserved when an agent explicitly records an abandoned approach or receives a clear correction.
+- strategy rationale: selected successful strategies can include why they worked, when to reuse them, and when to avoid them.
 
-Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
-
-Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly.

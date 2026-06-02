@@ -1,6 +1,4 @@
-# AICTX 
-[![Open-Launch Top 1 Daily Winner](https://open-launch.com/images/badges/top1-light.svg)](https://open-launch.com/projects/aictx/)
-
+# AICTX
 
 [![PyPI](https://img.shields.io/pypi/v/aictx.svg)](https://pypi.org/project/aictx/)
 [![Website](https://img.shields.io/badge/website-aictx.org-94b41e)](https://aictx.org)
@@ -8,18 +6,21 @@
 [![CI](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml/badge.svg)](https://github.com/oldskultxo/aictx/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/aictx?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=BLUE&left_text=downloads)](https://pepy.tech/projects/aictx)
+[![Open-Launch Top 1 Daily Winner](https://open-launch.com/images/badges/top1-light.svg)](https://open-launch.com/projects/aictx/)
 
 **Operational continuity for AI coding agents.**
 
-AICTX helps Codex, Claude, GitHub Copilot and other coding agents continue work across sessions by preserving the last useful execution state: active work, next actions, decisions, failures, validation evidence and repo context.
+AICTX helps Codex, Claude Code, GitHub Copilot and other coding agents continue across sessions from repo-local execution state: active work, next actions, decisions, failures, validation evidence and useful repo context.
 
-The next agent does not start from zero. It resumes from what actually happened.
+The next session does not start from zero. It resumes from what actually happened.
 
 It also makes continuity shared across agents. Codex can finalize work into `.aictx/`, then Claude Code, GitHub Copilot, or another compatible agent can resume from the same repo-local facts instead of relying on one provider's chat history.
 
 **Website:** https://aictx.org  
 **PyPI package:** https://pypi.org/project/aictx/  
 **CLI:** `aictx`
+
+![AICTX stops onboarding coding agents like rookies every session](docs/images/aictx-stop-onboarding-rookies.png)
 
 It is a repo-local CLI/runtime layer for agent continuity. It stores inspectable artifacts under `.aictx/` and exposes continuity through CLI commands, local MCP tools/resources/prompts, and generated agent instructions.
 
@@ -42,6 +43,8 @@ Coding agents are powerful, but most sessions still start cold:
 
 AICTX makes that continuity repo-local, inspectable, and reusable.
 
+![AICTX turns cold-start coding-agent sessions into continuity](docs/images/aictx-cold-starts-to-continuity.png)
+
 ## Install
 
 Install AICTX, then initialize the repository:
@@ -57,7 +60,7 @@ If `~/.codex/` already exists, `aictx install` detects Codex and installs/update
 
 After that, keep using your coding agent.
 
-The generated repo instructions and hooks guide supported agents to call AICTX automatically. The normal user experience is:
+The generated repo instructions and hooks tell supported agents to use AICTX. When a runner cannot attach MCP tools, the CLI fallback remains available. The normal user experience is:
 
 ```text
 install -> init -> use your coding agent
@@ -80,6 +83,8 @@ That continuity is agent-neutral:
 ```text
 Codex finalize -> .aictx continuity -> Claude/Copilot/other agent resume
 ```
+
+![AICTX shares repo-local continuity across Codex Claude Code GitHub Copilot and other coding agents](docs/images/aictx-shared-continuity-across-agents.png)
 
 This is useful when a team or solo developer alternates between coding agents. The repo carries the operational handoff: what was tried, what failed, what passed, what remains, and where the next agent should start.
 
@@ -106,13 +111,13 @@ The default `aictx install` / `aictx init` flow prepares AICTX MCP runtime metad
 See [MCP](docs/MCP.md), [Continuity Guard](docs/CONTINUITY_GUARD.md), and [Steer Guard](docs/STEER_GUARD.md).
 
 
-## Agent plugins
+## Agent integration files
 
-AICTX also ships Claude Code and Codex plugin artifacts.
+AICTX also ships generated integration files for Claude Code and Codex.
 
-The plugins are MCP-first and CLI-fallback: compatible agents should call AICTX MCP tools such as `aictx_resume`, `aictx_finalize`, and `aictx_view`; when MCP is unavailable they fall back to the AICTX CLI.
+These integrations are MCP-first and CLI-fallback: compatible agents should call AICTX MCP tools such as `aictx_resume`, `aictx_finalize`, and `aictx_view`; when MCP is unavailable they fall back to the AICTX CLI.
 
-See [Plugins](docs/PLUGINS.md).
+See [Agent integrations](docs/PLUGINS.md).
 
 ## What changes?
 
@@ -163,7 +168,8 @@ AICTX focuses on operational facts that help the next agent continue useful work
 - execution summaries and handoffs;
 - explicit decisions;
 - known failures and resolved failure patterns;
-- strategy hints from successful prior work;
+- strategy hints from successful prior work, including compact rationale when available;
+- compact discarded hypotheses / abandoned approaches when agents explicitly record a pivot;
 - execution contracts and contract-compliance signals;
 - optional RepoMap structural entry points;
 - continuity quality signals for stale, missing, demoted, obsolete, or unverified context;
@@ -181,24 +187,28 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 
 ## Core capabilities
 
-| Capability | What it does | Why it matters |
-|---|---|---|
-| **Work State** | Preserves active task, hypothesis, files, next action, risks, and verification state | The next session knows what was in progress |
-| **Failure Memory** | Stores observed command/test/build/type/lint failures as structured patterns | Agents can avoid repeating known mistakes |
-| **RepoMap** | Optional Tree-sitter structural map of files and symbols | Agents get compact structural entry points for “where should I look first?” |
-| **Strategy Memory** | Reuses successful prior execution patterns | Known-good approaches can be suggested again |
-| **Handoff / Decisions** | Keeps operational summaries and explicit project decisions | Architecture and intent survive session boundaries |
-| **Execution Summary** | Captures what happened at finalize time | The next session starts from factual continuity |
-| **Cross-agent continuity** | Stores continuity in the repository instead of one agent's chat history | Codex, Claude Code, GitHub Copilot, and generic agents can hand off through the same `.aictx/` state |
-| **Continuity View** | Generates `.aictx/reports/continuity-view.md` and `.aictx/reports/continuity-map.mmd` from repo-local continuity | Users and agents can inspect active Work State, handoffs, failures, contracts, summaries, RepoMap hints, and portability in one deterministic Markdown/Mermaid view |
-| **Continuity Quality** | Scores repo-local continuity freshness and flags stale, missing, demoted, obsolete, or unverified context | Agents can avoid trusting old memory blindly and treat weak continuity as background evidence |
-| **Continuity Guard** | Provides read-only action-boundary checks through `aictx guard` / `aictx_continuity_guard` | Agents can re-ground before edits, risky commands, final answers, finalize, scope changes, or handoffs |
-| **Steer Guard** | Classifies user interventions through `aictx steer` / `aictx_steer_guard` | Agents can distinguish side comments from task-changing instructions during active work |
-| **Task Context Pack** | Compiles focused read-only context for a supplied goal through `aictx prepare` or `aictx_prepare_task_context` | Agents can ask for bounded task-specific context without mutating lifecycle state |
-| **Lifecycle Diagnostics** | Tracks resume, Work State writes, and finalize events as best-effort local diagnostics | Users can see incomplete or unfinalized sessions without AICTX blocking work |
-| **Contract Compliance** | Audits first action, edit scope, validation, and structural alignment | Gaps can carry over into Work State instead of disappearing |
-| **Doctor** | Read-only repo/runtime diagnostic with `aictx doctor --repo . --json`; add `--release-readiness` for strict aictx release-gate checks | Support uses a general repo diagnostic while releases keep stricter checks |
-| **Resume capsule** | Compiles continuity into one agent brief | Agents do not need to discover AICTX internals at startup |
+AICTX has a small core loop and several optional continuity layers.
+
+### Core loop
+
+| Capability | What it does |
+|---|---|
+| **Resume capsule** | Compiles repo-local continuity into one compact agent brief |
+| **Work State** | Preserves active task, hypothesis, files, next action, risks and verification state |
+| **Finalize / Execution Summary** | Records what actually happened at the end of work |
+| **Handoffs / Decisions** | Keeps operational summaries and explicit project decisions across sessions |
+
+### Continuity layers
+
+| Capability | What it adds |
+|---|---|
+| **Failure Memory** | Helps agents avoid repeating known failed commands or error paths |
+| **Strategy Memory** | Suggests successful prior approaches when they are relevant |
+| **RepoMap** | Provides optional structural entry points from files and symbols |
+| **Execution Contracts** | Records expected first action, edit scope and validation path |
+| **Continuity Guard / Steer Guard** | Gives lightweight boundary checks before risky actions or user redirections |
+| **MCP + CLI** | Exposes the same repo-local continuity through local MCP tools and CLI fallback |
+| **Continuity View** | Renders inspectable Markdown/Mermaid reports of current continuity |
 
 ---
 
@@ -206,8 +216,8 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 
 AICTX is runner-aware, not runner-locked.
 
-- **Codex-first:** `AGENTS.md`, optional global Codex setup, CLI/runtime JSON contract, MCP support, and Codex plugin artifacts.
-- **Claude-aware:** `CLAUDE.md`, `.claude/settings.json`, hooks, MCP support, and Claude Code plugin artifacts.
+- **Codex-first:** `AGENTS.md`, optional global Codex setup, CLI/runtime JSON contract, MCP support, and Codex integration files.
+- **Claude-aware:** `CLAUDE.md`, `.claude/settings.json`, hooks, MCP support, and Claude Code integration files.
 - **GitHub Copilot:** best-effort instruction hardening through `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, optional prompt files, and VS Code MCP config when supported.
 - **Generic fallback:** any agent that can read repo instructions, run CLI commands, consume JSON/Markdown, or connect to a local MCP server.
 
@@ -269,14 +279,19 @@ AICTX does not claim measured productivity gains, guaranteed speedups, or automa
 
 It makes operational continuity visible, inspectable, and reusable.
 
-## AICTX 6.11 agent lifecycle enforcement
+## AICTX 6.11 agent lifecycle hardening
 
-AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+AICTX 6.11 makes the continuity loop harder to skip and less noisy in large repositories.
 
-- `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
+It adds:
+
+- `runner_contract`: compact metadata telling supported agents that AICTX is required, MCP is preferred, CLI fallback is mandatory, and the core tools should be verified once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
 - `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
+- `--brief`: a smaller resume payload for routine agent startup.
+- attributed handoffs: `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+- git-state awareness at finalize: staged, unstaged and untracked edited files can be surfaced as non-blocking continuity gaps.
+- dead-end capture: compact discarded hypotheses can be preserved when an agent explicitly records an abandoned approach or receives a clear correction.
+- strategy rationale: selected successful strategies can include why they worked, when to reuse them, and when to avoid them.
 
-Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
-
-Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly.

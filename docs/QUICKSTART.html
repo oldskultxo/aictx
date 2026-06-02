@@ -92,9 +92,10 @@ ul.flow{color:var(--muted);padding-left:1.2rem}
 aictx install
 aictx init
 
-# Then just keep using your coding agent.
-# Agents handle the lifecycle themselves:
+# Then keep using your coding agent.
+# Supported agents are instructed to:
 # resume context → work → finalize continuity</code></pre>
+          <p class="muted">You install and initialize AICTX. Supported agents are instructed to resume before work and finalize after work. Everything is stored locally under <code>.aictx/</code>.</p>
           <p class="muted">Optional check:</p>
           <pre><code>aictx --version
 aictx doctor --repo . --json</code></pre>
@@ -134,13 +135,8 @@ aictx init --no-mcp</code></pre>
       </section>
 
       <section class="section">
-        <h2>Interactive init</h2>
-        <p class="muted">During initialization, you can choose from different communication modes. <code>disabled</code> is the default.</p>
-        <pre><code>Communication modes:
-- disabled: No special communication layer; agents answer normally.
-- caveman_lite: Light compact mode; keeps explanations but reduces chatter.
-- caveman_full: Strong compact mode; recommended if you want less runtime noise.
-- caveman_ultra: Aggressive compression; shortest responses, least prose.</code></pre>
+        <h2>Communication mode</h2>
+        <p class="muted"><code>aictx init</code> can optionally enable compact runtime communication hints for supported agents. The default leaves agent communication unchanged.</p>
         <p class="muted">Need more setup detail? See <a href="/INSTALLATION.html">Installation</a>.</p>
       </section>
 
@@ -183,6 +179,20 @@ View continuity online: mermaid.live view</code></pre>
         <pre><code>.aictx/reports/continuity-view.md
 .aictx/reports/continuity-map.mmd</code></pre>
         <p class="muted">Not hidden memory. Reviewable operational continuity.</p>
+      </section>
+
+
+      <section class="section">
+        <h2>AICTX 6.11 in one minute</h2>
+        <p class="muted">AICTX already provided repo-local continuity. 6.11 makes that loop harder for supported agents to skip, less noisy, and more truthful.</p>
+        <ul class="flow">
+          <li><code>resume --brief</code> can return a smaller startup payload.</li>
+          <li>Supported integrations get compact runner contracts and guard triggers.</li>
+          <li>Validation expectations are task-aware, so documentation and analysis tasks stay advisory.</li>
+          <li><code>finalize</code> can surface dirty edited files without staging or committing them.</li>
+          <li>Work State can preserve compact discarded hypotheses when an agent explicitly records an abandoned approach.</li>
+          <li>Strategy Memory can preserve compact rationale for why a strategy worked and when not to reuse it.</li>
+        </ul>
       </section>
 
       <section class="section">

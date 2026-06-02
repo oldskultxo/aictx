@@ -1,9 +1,9 @@
 ---
-title: "Plugin distribution artifacts"
-description: "AICTX ships plugin distribution artifacts for Claude Code and Codex. The plugins package the same repo-local operational continuity workflow used by AICTX instructions and MCP."
+title: "Agent integration artifacts"
+description: "AICTX ships generated integration artifacts for Claude Code and Codex. They package the same repo-local operational continuity workflow used by AICTX instructions and MCP."
 ---
 
-# AICTX Agent Plugins
+# AICTX Agent integrations
 
 ## Locations
 
@@ -18,7 +18,7 @@ description: "AICTX ships plugin distribution artifacts for Claude Code and Code
 
 ## MCP-first, CLI-fallback model
 
-The plugins are MCP-first when AICTX MCP tools are available. Compatible agents should prefer tools such as `aictx_resume`, `aictx_finalize`, and `aictx_view`.
+The generated integrations are MCP-first when AICTX MCP tools are available. Compatible agents should prefer tools such as `aictx_resume`, `aictx_finalize`, and `aictx_view`.
 
 When MCP tools are unavailable, agents fall back to the AICTX CLI:
 
@@ -62,6 +62,6 @@ The generator reads `pyproject.toml`, `LICENSE`, and the shared guidance templat
 
 ## Install/init relationship
 
-Plugins do not replace `aictx install` or `aictx init`. Those commands prepare AICTX runtime state and managed MCP configuration. Plugin artifacts only package guidance and discovery for compatible agents.
+Agent integrations do not replace `aictx install` or `aictx init`. Those commands prepare AICTX runtime state and managed MCP configuration. Plugin artifacts only package guidance and discovery for compatible agents.
 
 Cleanup and uninstall remain handled by AICTX managed config where applicable: use `aictx clean` for repo-local managed artifacts and `aictx uninstall` for global managed AICTX state.

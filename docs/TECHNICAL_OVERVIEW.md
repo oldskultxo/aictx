@@ -186,33 +186,11 @@ Execution contracts may include `expected_first_files` with up to three RepoMap-
 
 ### Optional entrypoint arbiter
 
-AICTX can optionally ask a configured runner-side entrypoint arbiter to classify whether a candidate starting point is relevant to the current task.
+Advanced users can configure an optional runner-side entrypoint arbiter to help rank candidate starting points.
 
-This is disabled by default. It runs only when an arbiter command is explicitly configured through environment variables such as:
+It is disabled by default. When configured, it receives bounded JSON, returns a compact ranking hint, and cannot grant credentials, runtime authority, service handles, secrets, or permissions.
 
-```text
-AICTX_CODEX_ENTRYPOINT_ARBITER_COMMAND
-AICTX_CLAUDE_ENTRYPOINT_ARBITER_COMMAND
-AICTX_GENERIC_ENTRYPOINT_ARBITER_COMMAND
-AICTX_ENTRYPOINT_ARBITER_COMMAND
-```
-
-The generated adapter contract also publishes official wrapper names such as `aictx-codex-entrypoint-arbiter`, `aictx-claude-entrypoint-arbiter`, and `aictx-generic-entrypoint-arbiter`.
-
-The arbiter receives compact JSON on stdin and must return compact JSON on stdout:
-
-```json
-{
-  "relation": "continuation|adjacent|unrelated",
-  "confidence": 0.0,
-  "recommended_priority": "keep|demote|ignore",
-  "reason_short": "short explanation"
-}
-```
-
-AICTX treats the response as a ranking hint only. It does not grant credentials, service handles, runtime authority, secrets, or permissions, and it is not an enforcement layer.
-
-Execution is timeout-bounded by `ENTRYPOINT_ARBITER_TIMEOUT_SECONDS` with a default of `2.0`. If the arbiter is missing, times out, exits non-zero, writes malformed JSON, or returns an incomplete schema, `resume` silently falls back to deterministic local ranking and keeps producing valid JSON.
+If the arbiter is missing, times out, exits non-zero, or returns invalid JSON, `resume` falls back to deterministic local ranking.
 
 ### 5. Continuity View
 
@@ -308,7 +286,7 @@ aictx internal execution finalize ...
 aictx internal run-execution ...
 ```
 
-These are the runtime contract. Supported agents should use them automatically through repo instructions or hooks.
+These are the runtime contract. Supported agents are instructed to use them through repo instructions or hooks.
 
 Important distinction:
 
@@ -567,11 +545,14 @@ Work State preserves active task state:
 - verified items;
 - unverified assumptions;
 - discarded paths;
+- compact discarded hypotheses / abandoned approaches;
 - next action;
 - recommended commands;
 - risks;
 - uncertainties;
 - source execution ids.
+
+Work State does not store chain-of-thought. When available, discarded hypotheses are short operational notes about an abandoned approach and why it was abandoned.
 
 It lives under:
 
@@ -697,7 +678,7 @@ Failed strategies are not reused as positive strategy hints.
 
 ## Strategy Memory
 
-Strategy Memory stores successful execution patterns. See [Strategy Memory](STRATEGY_MEMORY.md) for the dedicated concept page.
+Strategy Memory stores successful execution patterns and, when available, compact rationale about why a strategy worked and when it should not be reused. See [Strategy Memory](STRATEGY_MEMORY.md) for the dedicated concept page.
 
 It can consider:
 
@@ -708,7 +689,9 @@ It can consider:
 - commands/tests/errors;
 - area id;
 - recency;
-- observed execution evidence.
+- observed execution evidence;
+- compact `why_it_worked` rationale;
+- `reuse_when` / `avoid_when` boundaries.
 
 Failed strategies are retained for history/debugging but excluded from positive reuse.
 
@@ -890,7 +873,7 @@ Product and setup:
 
 - [README](../README.md)
 - [Installation](INSTALLATION.md)
-- [Quickstart](QUICKSTART.md)
+- [Quickstart](QUICK-START.md)
 
 Core runtime concepts:
 
@@ -914,14 +897,19 @@ Operations and trust:
 
 The AICTX MCP server is a local stdio interface over the existing AICTX core. It does not duplicate business logic: MCP tools call the same Python runtime functions used by CLI commands. The server exposes AICTX continuity operations only, not generic machine-control tools.
 
-## AICTX 6.11 agent lifecycle enforcement
+## AICTX 6.11 agent lifecycle hardening
 
-AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+AICTX 6.11 makes the continuity loop harder to skip and less noisy in large repositories.
 
-- `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
+It adds:
+
+- `runner_contract`: compact metadata telling supported agents that AICTX is required, MCP is preferred, CLI fallback is mandatory, and the core tools should be verified once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
 - `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
+- `--brief`: a smaller resume payload for routine agent startup.
+- attributed handoffs: `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+- git-state awareness at finalize: staged, unstaged and untracked edited files can be surfaced as non-blocking continuity gaps.
+- dead-end capture: compact discarded hypotheses can be preserved when an agent explicitly records an abandoned approach or receives a clear correction.
+- strategy rationale: selected successful strategies can include why they worked, when to reuse them, and when to avoid them.
 
-Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
-
-Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly.

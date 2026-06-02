@@ -21,6 +21,14 @@ aictx install
 aictx init
 ```
 
+That is the normal user path.
+
+```text
+You install and initialize AICTX.
+Supported agents are instructed to resume before work and finalize after work.
+Everything is stored locally under `.aictx/`.
+```
+
 If `~/.codex/` already exists, `aictx install` detects Codex and installs/updates AICTX-managed global Codex integration by default. In interactive mode it asks for confirmation; with `--yes` it applies the detected Codex setup automatically.
 
 Optional check:
@@ -62,16 +70,9 @@ Installation prepares AICTX MCP support by default and will only ask you about e
 
 RepoMap uses Tree-sitter to build a compact structural map of files and symbols. It helps agents choose better starting points without reading the whole repo.
 
-### Interactive init
-During initialization, you can choose from different communication modes. `disabled` is the default.
+### Communication mode
 
-```bash
-Communication modes:
-- disabled: No special communication layer; agents answer normally.
-- caveman_lite: Light compact mode; keeps explanations but reduces chatter.
-- caveman_full: Strong compact mode; recommended if you want less runtime noise.
-- caveman_ultra: Aggressive compression; shortest responses, least prose.
-```
+`aictx init` can optionally enable compact runtime communication hints for supported agents. The default leaves agent communication unchanged.
 
 Need more setup detail? See [Installation](INSTALLATION.md).
 
@@ -123,14 +124,15 @@ Default output:
 
 Not hidden memory. Reviewable operational continuity.
 
-## AICTX 6.11 agent lifecycle enforcement
+## AICTX 6.11 in one minute
 
-AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+AICTX already provided repo-local continuity. 6.11 makes that loop harder for supported agents to skip, less noisy, and more truthful.
 
-- `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
-- `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
-- `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
+- `resume --brief` can return a smaller startup payload.
+- Supported integrations get compact runner contracts and guard triggers.
+- Validation expectations are task-aware, so documentation and analysis tasks stay advisory.
+- `finalize` can surface dirty edited files without staging or committing them.
+- Work State can preserve compact discarded hypotheses when an agent explicitly records an abandoned approach.
+- Strategy Memory can preserve compact rationale for why a strategy worked and when not to reuse it.
 
-Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
-
-Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+For implementation details, see [Technical overview](TECHNICAL_OVERVIEW.md).

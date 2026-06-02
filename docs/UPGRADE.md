@@ -7,7 +7,7 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 ## Current line: 6.10.x
 
-Current documented runtime: `6.10.0`.
+Current documented runtime: `6.11.0`.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -17,9 +17,9 @@ aictx init
 ```
 
 ---
-## 6.10.0
+## 6.10
 
-`6.10.0` adds compact guard rails for active agent work and hardens repo-local MCP attachment for the AICTX source checkout.
+`6.10` adds compact guard rails for active agent work and hardens repo-local MCP attachment for the AICTX source checkout.
 
 This release does not require a data migration.
 

@@ -446,8 +446,21 @@ aictx init
                         <li><code>pip install aictx</code>: installs the AICTX Python package.</li>
                         <li><code>aictx install</code>: installs global runner integration files.</li>
                         <li><code>aictx init</code>: initializes AICTX in the current repository.</li>
-                        <li>Then let your agent run the resume/work/finalize lifecycle.</li>
+                        <li>Supported agents are instructed to run the resume/work/finalize lifecycle.</li>
                     </ul>
+                </div>
+            </section>
+            <section class="section">
+                <h2>Common recipes</h2>
+                <div class="grid">
+                    <div class="card"><h3>Check this repo</h3><pre><code>aictx doctor --repo . --json</code></pre></div>
+                    <div class="card"><h3>Manual resume</h3><pre><code>aictx resume --repo . --task "&lt;task goal&gt;" --json
+aictx resume --repo . --task "&lt;task goal&gt;" --json --brief</code></pre></div>
+                    <div class="card"><h3>Manual finalize</h3><pre><code>aictx finalize --repo . --status success --summary "&lt;what happened&gt;" --json</code></pre></div>
+                    <div class="card"><h3>Inspect saved continuity</h3><pre><code>aictx view --repo .</code></pre></div>
+                    <div class="card"><h3>Check MCP setup</h3><pre><code>aictx mcp status --repo .</code></pre></div>
+                    <div class="card"><h3>Clean up</h3><pre><code>aictx clean --repo .
+aictx uninstall</code></pre></div>
                 </div>
             </section>
             <section class="section">
@@ -607,10 +620,11 @@ full      -> full AICTX continuity</code></pre>
                 </div>
             </section>
             <section class="section">
-                <h2>Operational tools</h2>
+                <h2>Advanced manual controls</h2>
                 <div class="grid">
                     <div class="card">
                         <h3>Work State</h3>
+                        <p class="muted">Work State commands are advanced manual controls. AICTX is not a task manager; supported agents normally update Work State through the lifecycle.</p>
                         <pre><code>aictx task start "Fix login token refresh"
 aictx task status --json
 aictx task update --json-patch '{"next_action":"run targeted auth tests"}' --json
