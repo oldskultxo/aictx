@@ -203,6 +203,50 @@ def _entry_point_is_redundant(row: dict[str, Any], entry_point: str) -> bool:
     return needle in topic.casefold() or needle in progress.casefold()
 
 
+def _resume_discarded_hypotheses(active: dict[str, Any], recent: dict[str, Any], *, full: bool = False, brief: bool = False) -> list[dict[str, Any]]:
+    limit = 1 if brief else (5 if full else 3)
+    items: list[dict[str, Any]] = []
+    for state in (active, recent):
+        source = state.get("discarded_hypotheses") if isinstance(state.get("discarded_hypotheses"), list) else []
+        for item in source:
+            if not isinstance(item, dict):
+                continue
+            payload = {
+                "hypothesis": str(item.get("hypothesis") or "").strip()[:240],
+                "reason": str(item.get("reason") or "").strip()[:240],
+                "evidence": str(item.get("evidence") or "").strip()[:160],
+                "confidence": str(item.get("confidence") or "unknown").strip(),
+                "related_paths": _clean_string_list(item.get("related_paths"), limit=3),
+            }
+            if full and str(item.get("created_at") or "").strip():
+                payload["created_at"] = str(item.get("created_at") or "").strip()
+            payload = {key: value for key, value in payload.items() if value not in ("", [], None)}
+            if payload and payload not in items:
+                items.append(payload)
+            if len(items) >= limit:
+                return items
+    return items
+
+
+def _resume_strategy_hint(strategy: dict[str, Any], *, full: bool = False) -> dict[str, Any]:
+    if not isinstance(strategy, dict) or not strategy:
+        return {}
+    if not any(str(strategy.get(key) or "").strip() for key in ("why_it_worked", "reuse_when", "avoid_when", "evidence_quality")):
+        return {}
+    payload: dict[str, Any] = {
+        "task_id": str(strategy.get("task_id") or ""),
+        "why_it_worked": str(strategy.get("why_it_worked") or "")[:280],
+        "reuse_when": str(strategy.get("reuse_when") or "")[:240],
+        "avoid_when": str(strategy.get("avoid_when") or "")[:240],
+        "evidence_quality": str(strategy.get("evidence_quality") or "unknown"),
+        "reuse_confidence": str(strategy.get("reuse_confidence") or strategy_reuse_confidence(strategy)),
+        "selection_reason": str(strategy.get("selection_reason") or "")[:240],
+    }
+    if full and isinstance(strategy.get("discarded_hypotheses"), list):
+        payload["discarded_hypotheses"] = [item for item in strategy.get("discarded_hypotheses", []) if isinstance(item, dict)][:3]
+    return {key: value for key, value in payload.items() if value not in ("", [], None)}
+
+
 def _active_work_state_payload(context: dict[str, Any]) -> dict[str, str]:
     state = context.get("active_work_state") if isinstance(context.get("active_work_state"), dict) else {}
     if not state:
@@ -1717,6 +1761,8 @@ def build_continuity_brief(
             risks.extend(_clean_string_list(subsystem.get("fragile_areas"), limit=2))
     active_state = compact_work_state_for_prepare(active_work_state or {})
     recent_state = compact_work_state_for_prepare(recent_work_state or {}) if not active_state else {}
+    discarded = _resume_discarded_hypotheses(active_state, recent_state, brief=True)
+    strategy_hint = _resume_strategy_hint(procedural_reuse)
     where = _clean_string_list(handoff.get("next_steps"), limit=3) or _clean_string_list(handoff.get("recommended_starting_points"), limit=3)
     if active_state.get("next_action"):
         where = [str(active_state.get("next_action"))]
@@ -1762,6 +1808,8 @@ def build_continuity_brief(
         "recommended_commands": commands,
         "recommended_tests": tests,
         "reuse_confidence": strategy_reuse_confidence(procedural_reuse),
+        "discarded_hypotheses": discarded,
+        "strategy_hint": strategy_hint,
         "top_ranked_items": ranked_items[:5],
         "why_loaded": why_loaded,
     }
@@ -3291,6 +3339,8 @@ def _compact_brief_resume_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "runner_contract": payload.get("runner_contract") if isinstance(payload.get("runner_contract"), dict) else {},
         "guard_triggers": payload.get("guard_triggers") if isinstance(payload.get("guard_triggers"), list) else [],
         "carryover_gaps": [gap for gap in payload.get("carryover_gaps", []) if isinstance(gap, dict)][:5] if isinstance(payload.get("carryover_gaps"), list) else [],
+        "discarded_hypotheses": [item for item in payload.get("discarded_hypotheses", []) if isinstance(item, dict)][:1] if isinstance(payload.get("discarded_hypotheses"), list) else [],
+        "strategy_hint": payload.get("strategy_hint") if isinstance(payload.get("strategy_hint"), dict) else {},
         "lifecycle_gaps": [gap for gap in payload.get("lifecycle_gaps", []) if isinstance(gap, dict)][:5] if isinstance(payload.get("lifecycle_gaps"), list) else [],
         "decisions": decisions,
         "continuity_quality": {
@@ -3656,6 +3706,8 @@ def build_resume_capsule(
         if isinstance(state, dict) and isinstance(state.get("contract_gaps"), list):
             carryover_gaps.extend([gap for gap in state.get("contract_gaps", []) if isinstance(gap, dict)])
     carryover_gaps = carryover_gaps[:8]
+    discarded_hypotheses = _resume_discarded_hypotheses(active, recent, full=full, brief=False)
+    strategy_hint = _resume_strategy_hint(strategy, full=full)
     loaded_context = build_loaded_context_metadata(
         repo_root,
         request_text=request,
@@ -3747,6 +3799,8 @@ def build_resume_capsule(
         "task_state": task_state,
         "carryover_gaps": carryover_gaps,
         "strongest_carryover_gap": (active.get("strongest_contract_gap") if isinstance(active.get("strongest_contract_gap"), dict) and active.get("strongest_contract_gap") else recent.get("strongest_contract_gap") if isinstance(recent.get("strongest_contract_gap"), dict) else {}),
+        "discarded_hypotheses": discarded_hypotheses,
+        "strategy_hint": strategy_hint,
         "capsule": {
             "current_request": request,
             "first_action": first_action,

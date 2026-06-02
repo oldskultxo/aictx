@@ -65,6 +65,24 @@ def _message_paths(message: str) -> list[str]:
     return _dedupe(paths)
 
 
+def infer_discarded_hypothesis_from_correction(message: str) -> dict[str, Any]:
+    text = _clean(message)
+    if not text:
+        return {}
+    paths = _message_paths(text)
+    hypothesis = "Previous agent understanding or path was corrected by the user."
+    if paths:
+        hypothesis = f"Previous direction involving {', '.join(paths[:3])} was wrong or incomplete."
+    reason = text
+    return {
+        "hypothesis": hypothesis,
+        "reason": reason,
+        "evidence": "user_correction",
+        "confidence": "medium",
+        "related_paths": paths,
+    }
+
+
 def _has(text: str, *patterns: str) -> bool:
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
 
@@ -183,6 +201,7 @@ def build_steer_guard(
         )
 
     if _has(low, r"\b(that['’]?s wrong|wrong|not that|you misunderstood|misunderstood)\b"):
+        discarded = infer_discarded_hypothesis_from_correction(text)
         return _payload(
             status="warning",
             classification="agent_correction",
@@ -190,7 +209,7 @@ def build_steer_guard(
             impact="plan_update_required",
             summary="User corrected the agent's understanding.",
             agent_instruction="Pause and update the plan according to the correction before continuing.",
-            suggested_updates={"correction_note": text},
+            suggested_updates={"correction_note": text, "discarded_hypothesis": discarded} if discarded else {"correction_note": text},
         )
 
     if _has(low, r"\b(also|add|include)\b", r"\bupdate\s+docs\b", r"\bupdate\s+documentation\b"):

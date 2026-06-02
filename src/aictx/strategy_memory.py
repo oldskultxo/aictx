@@ -101,6 +101,75 @@ def _dedupe(values: list[Any], *, limit: int = 0) -> list[str]:
     return cleaned
 
 
+def _truncate(value: Any, limit: int = 240) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
+
+
+def resolve_strategy_evidence_quality(execution_log: dict[str, Any]) -> str:
+    commands = _list_field(execution_log, "commands_executed")
+    tests = _list_field(execution_log, "tests_executed")
+    edited = _list_field(execution_log, "files_edited")
+    errors = _list_field(execution_log, "notable_errors")
+    if tests and edited:
+        return "high"
+    if (tests or commands) and edited:
+        return "medium"
+    if commands or edited or errors:
+        return "low"
+    return "unknown"
+
+
+def _compact_discarded_hypotheses(prepared: dict[str, Any], *, limit: int = 3) -> list[dict[str, Any]]:
+    context = prepared.get("continuity_context") if isinstance(prepared.get("continuity_context"), dict) else {}
+    items: list[dict[str, Any]] = []
+    for key in ("active_work_state", "recent_work_state"):
+        state = context.get(key) if isinstance(context.get(key), dict) else {}
+        for item in state.get("discarded_hypotheses", []) if isinstance(state.get("discarded_hypotheses"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            payload = {
+                "hypothesis": _truncate(item.get("hypothesis")),
+                "reason": _truncate(item.get("reason")),
+                "confidence": _truncate(item.get("confidence"), 40) or "unknown",
+                "related_paths": _dedupe(list(item.get("related_paths", []) or []), limit=4) if isinstance(item.get("related_paths"), list) else [],
+            }
+            payload = {field: value for field, value in payload.items() if value not in ("", [], None)}
+            if payload and payload not in items:
+                items.append(payload)
+            if len(items) >= limit:
+                return items
+    return items
+
+
+def build_strategy_rationale(prepared: dict[str, Any], execution_log: dict[str, Any]) -> dict[str, Any]:
+    files_edited = _dedupe(_list_field(execution_log, "files_edited"), limit=4)
+    tests = _dedupe(_list_field(execution_log, "tests_executed"), limit=3)
+    commands = _dedupe(_list_field(execution_log, "commands_executed"), limit=3)
+    evidence_quality = resolve_strategy_evidence_quality(execution_log)
+    if tests:
+        why = "Validated by " + "; ".join(tests[:2])
+    elif commands:
+        why = "Supported by command evidence: " + "; ".join(commands[:2])
+    elif files_edited:
+        why = "Implementation touched scoped files: " + ", ".join(files_edited[:3])
+    else:
+        why = "Captured as a successful task pattern with limited evidence."
+    task_type = str(prepared.get("effective_task_type") or prepared.get("resolved_task_type") or execution_log.get("task_type") or "similar")
+    area = str(prepared.get("effective_area_id") or prepared.get("area_id") or execution_log.get("area_id") or "").strip()
+    reuse_when = f"Reuse for {task_type} tasks" + (f" in {area}" if area and area != "unknown" else "") + "."
+    avoid_when = "Avoid if the task goal, edit scope, or validation policy differs materially."
+    return {
+        "why_it_worked": _truncate(why),
+        "reuse_when": _truncate(reuse_when),
+        "avoid_when": _truncate(avoid_when),
+        "evidence_quality": evidence_quality,
+        "discarded_hypotheses": _compact_discarded_hypotheses(prepared, limit=3),
+    }
+
+
 def _parse_iso(value: Any) -> datetime | None:
     text = str(value or "").strip()
     if not text:
@@ -293,7 +362,7 @@ def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any]
     normalized_files = _dedupe(list(files_opened) + list(files_edited) + list(tests_executed))
     entry_points = _dedupe(list(files_edited) + list(files_opened) + list(tests_executed), limit=3)
     primary_entry_point = entry_points[0] if entry_points else None
-    return {
+    entry = {
         "task_id": str(execution_log.get("task_id") or prepared.get("envelope", {}).get("execution_id") or ""),
         "task_text": str(prepared.get("envelope", {}).get("user_request") or ""),
         "task_type": str(prepared.get("effective_task_type") or execution_log.get("task_type") or prepared.get("resolved_task_type") or "unknown"),
@@ -309,6 +378,9 @@ def build_strategy_entry(prepared: dict[str, Any], execution_log: dict[str, Any]
         "is_failure": is_failure,
         "timestamp": timestamp,
     }
+    if not is_failure:
+        entry.update(build_strategy_rationale(prepared, execution_log))
+    return entry
 
 
 def strategy_exists(repo_root: Path, strategy: dict[str, Any]) -> bool:

@@ -21,6 +21,7 @@ _MAX_ITEMS = {
     "verified": 12,
     "unverified": 12,
     "discarded_paths": 12,
+    "discarded_hypotheses": 5,
     "recommended_commands": 8,
     "risks": 8,
     "uncertainties": 8,
@@ -33,6 +34,7 @@ _LIST_FIELDS = {
     "verified",
     "unverified",
     "discarded_paths",
+    "discarded_hypotheses",
     "recommended_commands",
     "risks",
     "source_execution_ids",
@@ -40,6 +42,7 @@ _LIST_FIELDS = {
 }
 _STRING_FIELDS = {"task_id", "status", "goal", "current_hypothesis", "next_action", "created_at", "updated_at"}
 _ALLOWED_FIELDS = _STRING_FIELDS | _LIST_FIELDS | {"version", "uncertainties", "strongest_contract_gap"}
+_ALLOWED_CONFIDENCE = {"unknown", "low", "medium", "high"}
 
 
 def now_iso() -> str:
@@ -87,6 +90,50 @@ def _normalize_uncertainty(item: Any) -> dict[str, str] | None:
         "confidence": confidence,
         "needs_validation": needs_validation,
     }
+
+
+def _normalize_discarded_hypothesis(item: Any) -> dict[str, Any] | None:
+    if isinstance(item, str):
+        hypothesis = _truncate(item)
+        if not hypothesis:
+            return None
+        return {"hypothesis": hypothesis, "confidence": "unknown"}
+    if not isinstance(item, dict):
+        return None
+    hypothesis = _truncate(item.get("hypothesis") or item.get("claim") or item.get("path"))
+    if not hypothesis:
+        return None
+    confidence = str(item.get("confidence") or "unknown").strip().lower() or "unknown"
+    if confidence not in _ALLOWED_CONFIDENCE:
+        confidence = "unknown"
+    payload: dict[str, Any] = {
+        "hypothesis": hypothesis,
+        "reason": _truncate(item.get("reason") or item.get("why")),
+        "evidence": _truncate(item.get("evidence")),
+        "confidence": confidence,
+        "related_paths": _dedupe_strings(item.get("related_paths") or item.get("paths"), limit=6),
+        "created_at": _truncate(item.get("created_at"), 40),
+    }
+    return {key: value for key, value in payload.items() if value not in ("", [], None)}
+
+
+def _normalize_discarded_hypotheses(values: Any) -> list[dict[str, Any]]:
+    if not isinstance(values, list):
+        return []
+    seen: set[tuple[str, str]] = set()
+    cleaned: list[dict[str, Any]] = []
+    for item in values:
+        payload = _normalize_discarded_hypothesis(item)
+        if not payload:
+            continue
+        key = (str(payload.get("hypothesis") or ""), str(payload.get("reason") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(payload)
+        if len(cleaned) >= _MAX_ITEMS["discarded_hypotheses"]:
+            break
+    return cleaned
 
 
 def _normalize_contract_gap(item: Any) -> dict[str, Any] | None:
@@ -263,6 +310,7 @@ def normalize_work_state(payload: dict[str, Any]) -> dict[str, Any]:
         "verified": _dedupe_strings(payload.get("verified"), limit=_MAX_ITEMS["verified"]),
         "unverified": _dedupe_strings(payload.get("unverified"), limit=_MAX_ITEMS["unverified"]),
         "discarded_paths": _dedupe_strings(payload.get("discarded_paths"), limit=_MAX_ITEMS["discarded_paths"]),
+        "discarded_hypotheses": _normalize_discarded_hypotheses(payload.get("discarded_hypotheses")),
         "uncertainties": _normalize_uncertainties(payload.get("uncertainties")),
         "next_action": _truncate(payload.get("next_action")),
         "recommended_commands": _dedupe_strings(payload.get("recommended_commands"), limit=_MAX_ITEMS["recommended_commands"]),
@@ -674,6 +722,7 @@ def compact_work_state_for_prepare(state: dict[str, Any]) -> dict[str, Any]:
             normalized.get("unverified"),
             normalized.get("recommended_commands"),
             normalized.get("risks"),
+            normalized.get("discarded_hypotheses"),
             normalized.get("contract_gaps"),
         ]
     )
@@ -690,6 +739,7 @@ def compact_work_state_for_prepare(state: dict[str, Any]) -> dict[str, Any]:
         "next_action": normalized.get("next_action", ""),
         "recommended_commands": list(normalized.get("recommended_commands", []))[:4],
         "risks": list(normalized.get("risks", []))[:4],
+        "discarded_hypotheses": list(normalized.get("discarded_hypotheses", []))[:3],
         "contract_gaps": list(normalized.get("contract_gaps", []))[:4],
         "strongest_contract_gap": dict(normalized.get("strongest_contract_gap", {})) if isinstance(normalized.get("strongest_contract_gap"), dict) else {},
         "updated_at": normalized.get("updated_at", ""),

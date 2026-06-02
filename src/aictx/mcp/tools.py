@@ -294,7 +294,20 @@ def aictx_task_start(args: dict[str, Any]) -> dict[str, Any]:
 
 def aictx_task_update(args: dict[str, Any]) -> dict[str, Any]:
     repo = resolve_repo(args.get("repo"))
-    patch = {k: v for k, v in {"goal": _text(args.get("goal"), "goal"), "status": _text(args.get("status"), "status"), "hypothesis": _text(args.get("hypothesis"), "hypothesis"), "next_action": _text(args.get("next_action"), "next_action"), "files": _list(args.get("files"), "files"), "risks": _list(args.get("risks"), "risks"), "verification": _text(args.get("verification"), "verification")}.items() if v}
+    patch = {
+        k: v
+        for k, v in {
+            "goal": _text(args.get("goal"), "goal"),
+            "status": _text(args.get("status"), "status"),
+            "current_hypothesis": _text(args.get("hypothesis"), "hypothesis"),
+            "next_action": _text(args.get("next_action"), "next_action"),
+            "active_files": _list(args.get("files"), "files"),
+            "risks": _list(args.get("risks"), "risks"),
+            "verified": [_text(args.get("verification"), "verification")] if _text(args.get("verification"), "verification") else [],
+            "discarded_hypotheses": args.get("discarded_hypotheses") if isinstance(args.get("discarded_hypotheses"), list) else [],
+        }.items()
+        if v
+    }
     before = load_work_state(repo, _text(args.get("task_id"), "task_id")) if args.get("task_id") else load_active_work_state(repo)
     state = update_work_state(repo, patch, task_id=_text(args.get("task_id"), "task_id") or None)
     changed = changed_work_state_fields(before, state, patch)

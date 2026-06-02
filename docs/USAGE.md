@@ -342,6 +342,9 @@ AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
 
 - `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
+- Work State can preserve bounded `discarded_hypotheses`; brief resume surfaces at most one relevant discarded hypothesis so agents avoid repeating known dead ends.
+- Strategy Memory can surface compact rationale (`why_it_worked`, `reuse_when`, `avoid_when`, `evidence_quality`) when a prior strategy is selected.
+- Finalize git-state capture reports staged, unstaged, untracked, `files_edited_uncommitted`, and `files_edited_unstaged` as non-blocking carryover context.
 - `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
 
 Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.

@@ -774,6 +774,11 @@ def build_contract_adherence(prepared: dict[str, Any], execution_log: dict[str, 
     files_edited = [str(item) for item in execution_log.get("files_edited", [])] if isinstance(execution_log.get("files_edited"), list) else []
     commands = [str(item) for item in execution_log.get("commands_executed", [])] if isinstance(execution_log.get("commands_executed"), list) else []
     tests = [str(item) for item in execution_log.get("tests_executed", [])] if isinstance(execution_log.get("tests_executed"), list) else []
+    validation_policy = contract.get("validation_policy") if isinstance(contract.get("validation_policy"), dict) else {}
+    task_type = str(prepared.get("effective_task_type") or prepared.get("resolved_task_type") or contract.get("task_type") or "").strip().lower()
+    contract_strength = str(contract.get("contract_strength") or "").strip().lower()
+    validation_required = bool(validation_policy.get("required", True)) or task_type not in {"analysis", "investigation", "documentation"}
+    enforce_first_action = contract_strength != "exploratory" and task_type not in {"analysis", "investigation", "documentation"}
     first_action = contract.get("first_action") if isinstance(contract.get("first_action"), dict) else {}
     first_path = str(first_action.get("path") or "").strip()
     opened_first_action = bool(first_path and first_path in files_opened)
@@ -790,7 +795,7 @@ def build_contract_adherence(prepared: dict[str, Any], execution_log: dict[str, 
     test_command = contract.get("test_command") if isinstance(contract.get("test_command"), dict) else {}
     expected_test = str(test_command.get("command") or "").strip()
     observed_test_commands = commands + tests
-    canonical_test_used = bool(expected_test and any(_command_matches(command, expected_test) for command in observed_test_commands))
+    canonical_test_used = True if not expected_test else any(_command_matches(command, expected_test) for command in observed_test_commands)
     alternative_tests = [
         command
         for command in observed_test_commands
@@ -800,15 +805,15 @@ def build_contract_adherence(prepared: dict[str, Any], execution_log: dict[str, 
     ]
 
     violations: list[str] = []
-    if first_path and not opened_first_action:
+    if enforce_first_action and first_path and not opened_first_action:
         violations.append("missing_first_action_open")
     if outside_scope:
         violations.append("edit_outside_scope")
     if avoided_edits:
         violations.append("edited_avoided_path")
-    if expected_test and not canonical_test_used:
+    if validation_required and expected_test and not canonical_test_used:
         violations.append("canonical_test_not_observed")
-    if alternative_tests and not canonical_test_used:
+    if validation_required and alternative_tests and not canonical_test_used:
         violations.append("alternative_test_command_before_canonical_test")
     orientation_checks = {
         "git_status_before_first_edit": "git status",
@@ -831,6 +836,8 @@ def build_contract_adherence(prepared: dict[str, Any], execution_log: dict[str, 
         "edited_within_scope": edited_within_scope,
         "canonical_test_command": expected_test,
         "canonical_test_used": canonical_test_used,
+        "validation_required": validation_required,
+        "first_action_enforced": enforce_first_action,
         "finalize_called": True,
         "violations": sorted(set(violations)),
         "sequence_observable": False,
@@ -1524,7 +1531,49 @@ def build_agent_summary(
     return {"structured": summary, "rendered": render_agent_summary(summary)}
 
 
-def capture_git_state(repo_root: Path) -> dict[str, Any]:
+def _normalize_git_status_path(path: str) -> str:
+    text = str(path or "").strip().replace("\\", "/")
+    if " -> " in text:
+        text = text.split(" -> ", 1)[1].strip()
+    while text.startswith("./"):
+        text = text[2:]
+    return text.strip()
+
+
+def parse_git_porcelain(lines: list[str]) -> dict[str, list[str]]:
+    changed: list[str] = []
+    staged: list[str] = []
+    unstaged: list[str] = []
+    untracked: list[str] = []
+    for line in lines:
+        if not line:
+            continue
+        index = line[0] if len(line) > 0 else " "
+        worktree = line[1] if len(line) > 1 else " "
+        path = _normalize_git_status_path(line[3:] if len(line) >= 4 else line)
+        if not path:
+            continue
+        if path not in changed:
+            changed.append(path)
+        if index == "?" and worktree == "?":
+            if path not in untracked:
+                untracked.append(path)
+            if path not in unstaged:
+                unstaged.append(path)
+            continue
+        if index.strip() and path not in staged:
+            staged.append(path)
+        if worktree.strip() and path not in unstaged:
+            unstaged.append(path)
+    return {
+        "changed_files": changed,
+        "staged_files": staged,
+        "unstaged_files": unstaged,
+        "untracked_files": untracked,
+    }
+
+
+def capture_git_state(repo_root: Path, files_edited: list[str] | None = None) -> dict[str, Any]:
     try:
         inside = subprocess.run(
             ["git", "-C", repo_root.as_posix(), "rev-parse", "--is-inside-work-tree"],
@@ -1559,12 +1608,24 @@ def capture_git_state(repo_root: Path) -> dict[str, Any]:
     except Exception as exc:
         return {"available": False, "reason": f"git_state_error:{type(exc).__name__}"}
     lines = [line for line in porcelain.stdout.splitlines() if line.strip()] if porcelain.returncode == 0 else []
+    parsed = parse_git_porcelain(lines)
+    edited = [_normalize_git_status_path(path) for path in (files_edited or []) if str(path or "").strip()]
+    changed_set = set(parsed["changed_files"])
+    unstaged_set = set(parsed["unstaged_files"]) | set(parsed["untracked_files"])
+    edited_uncommitted = [path for path in edited if path in changed_set]
+    edited_unstaged = [path for path in edited if path in unstaged_set]
     return {
         "available": True,
         "branch": branch.stdout.strip() if branch.returncode == 0 else "",
         "commit": commit.stdout.strip() if commit.returncode == 0 else "",
         "dirty": bool(lines),
         "changed_count": len(lines),
+        "changed_files": parsed["changed_files"][:200],
+        "staged_files": parsed["staged_files"][:200],
+        "unstaged_files": parsed["unstaged_files"][:200],
+        "untracked_files": parsed["untracked_files"][:200],
+        "files_edited_uncommitted": edited_uncommitted[:200],
+        "files_edited_unstaged": edited_unstaged[:200],
         "sample": lines[:10],
     }
 
@@ -1592,8 +1653,6 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "handoff": result.get("handoff", {}) if isinstance(result.get("handoff"), dict) else {},
         "work_state": result.get("work_state", {}) if isinstance(result.get("work_state"), dict) else {},
     }
-    git_state = capture_git_state(repo_root)
-    prepared["git_state"] = git_state
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     contract_compliance = evaluate_contract_compliance(
         prepared.get("resume_contract", {}) if isinstance(prepared.get("resume_contract"), dict) else {},
@@ -1615,11 +1674,34 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "warnings": list(contract_compliance.get("warnings", [])) if isinstance(contract_compliance.get("warnings"), list) else [],
         "compact_summary": str(contract_compliance.get("compact_summary") or ""),
     }
+    execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
+    edited_for_git = list(execution_log.get("files_edited", [])) if isinstance(execution_log.get("files_edited"), list) else []
+    git_state = capture_git_state(repo_root, files_edited=[str(item) for item in edited_for_git])
+    prepared["git_state"] = git_state
     prepared["contract_compliance"] = contract_compliance
     contract_gaps = contract_gaps_from_compliance(contract_compliance)
     execution_id = str(prepared.get("envelope", {}).get("execution_id") or "").strip()
     if execution_id:
         contract_gaps = [dict(gap, source_execution_id=execution_id) for gap in contract_gaps]
+    dirty_edited = list(git_state.get("files_edited_uncommitted", [])) if isinstance(git_state.get("files_edited_uncommitted"), list) else []
+    dirty_unstaged = list(git_state.get("files_edited_unstaged", [])) if isinstance(git_state.get("files_edited_unstaged"), list) else []
+    if dirty_edited or dirty_unstaged:
+        related = []
+        for path in dirty_edited + dirty_unstaged:
+            if path not in related:
+                related.append(path)
+        contract_gaps.append(
+            {
+                "kind": "uncommitted_changes",
+                "severity": "info",
+                "policy": "surface_as_context",
+                "blocking": False,
+                "summary": "Edited files remain uncommitted or unstaged.",
+                "related_paths": related[:8],
+                "next_action": "Review git status before assuming the task is fully integrated.",
+                "source_execution_id": execution_id,
+            }
+        )
     prepared["contract_gaps"] = contract_gaps
     if contract_gaps:
         existing_work_state = normalized_result.get("work_state") if isinstance(normalized_result.get("work_state"), dict) else {}
@@ -1668,7 +1750,6 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     strategy = persist_strategy_memory(repo_root, prepared, normalized_result)
     failure = None
     resolved_failures: list[str] = []
-    execution_log = prepared.get("last_execution_log", {}) if isinstance(prepared.get("last_execution_log"), dict) else {}
     if normalized_result["success"]:
         resolved_failures = link_resolved_failures(repo_root, prepared, execution_log)
     else:
@@ -1703,7 +1784,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
     if isinstance(work_state_state, dict) and work_state_state:
         task_id = str(work_state_state.get("task_id") or "")
         fields = [
-            key for key in ("active_files", "verified", "unverified", "discarded_paths", "uncertainties", "next_action", "recommended_commands", "risks", "source_execution_ids")
+            key for key in ("active_files", "verified", "unverified", "discarded_paths", "discarded_hypotheses", "uncertainties", "next_action", "recommended_commands", "risks", "source_execution_ids")
             if work_state_state.get(key)
         ]
         work_state_updated = {

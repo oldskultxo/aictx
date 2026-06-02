@@ -7,12 +7,15 @@
 - Added compact `guard_triggers` metadata to resume payloads for edit, scope-change, risky-command, final-answer, and user-steering boundaries.
 - Added `--brief` resume mode for compact routine startup payloads that keep runner contract, guard triggers, lifecycle gaps, carryover gaps, and continuity quality issue codes while omitting loaded-context diagnostics.
 - Added task-type-aware `validation_policy` metadata to execution contracts.
-- Added git-state snapshot capture during finalize.
+- Added Work State `discarded_hypotheses` for bounded dead-end capture, Steer Guard correction hints, and brief resume surfacing.
+- Added Strategy Memory rationale fields: `why_it_worked`, `reuse_when`, `avoid_when`, `evidence_quality`, plus compact dead-end context.
+- Added detailed git-state snapshot capture during finalize, including staged, unstaged, untracked, `files_edited_uncommitted`, and `files_edited_unstaged`.
 - Added agent attribution and evidence quality metadata to persisted handoffs.
 
 ### Changed
 - Strengthened generated Codex and Claude instructions with first-session MCP readiness guidance, mandatory lifecycle language, guard trigger usage, and finalize evidence expectations.
 - Claude hooks now invoke AICTX steer/guard checks where supported while preserving the existing generated-artifact protections.
+- Claude `UserPromptSubmit` now injects only compact steer guidance or a one-line fallback instead of repeating the full lifecycle on every prompt.
 - Contract compliance no longer creates strict first-action or canonical-test penalties for documentation/analysis-style tasks where validation is advisory.
 
 ## 6.10.0 - 2026-06-01

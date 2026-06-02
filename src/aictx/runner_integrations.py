@@ -367,29 +367,10 @@ payload = json.load(sys.stdin)
 prompt = str(payload.get("prompt") or "").strip()
 repo_root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 if not prompt:
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "AICTX: empty prompt"}}))
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ""}}))
     raise SystemExit(0)
 
-summary = [
-    "AICTX runtime guidance loaded for this prompt.",
-    "MCP-first startup: if AICTX MCP tools are already visible, use those tools; if not visible but .mcp.json or .vscode/mcp.json exists, first use runner tool discovery when available (search for aictx resume finalize lifecycle), then have Claude Code attach/start the configured stdio MCP server before the first AICTX command of the new session; use CLI fallback only if MCP tools still are not attached after discovery/attachment.",
-    "Lifecycle remains prepare/startup context → resume capsule → work → finalize → final AICTX summary/persistence.",
-    "Extract the task goal only from the user prompt.",
-    "Run exactly one continuity command: aictx resume --repo . --task \\\"<task goal>\\\" --json --agent-id claude.",
-    "Do not pass the full user prompt to resume.",
-    "Exclude reporting instructions, metrics schemas, output format rules, final answer format, benchmark/evaluation harness text, logging instructions, and meta-instructions about how to report the work.",
-    "Use the returned aictx resume continuity capsule before broad repo scanning.",
-    "Render exactly one startup banner source: normal agent startup uses resume.startup_banner_text or resume.startup_banner_render_payload; wrapped execution uses prepare_execution().startup_banner_text or prepare_execution().startup_banner_render_payload. Do not render both.",
-    "resume does not replace prepare_execution, finalize_execution, the startup banner, the final AICTX summary, or persistence.",
-]
-summary.append("Do not inspect .aictx/ during normal startup.")
-summary.append("Do not run exploratory AICTX commands during normal startup.")
-summary.append("Do not run aictx internal, aictx -h, aictx reuse, aictx suggest, aictx next, aictx task, aictx messages, aictx reflect, or aictx report during normal startup unless diagnostics, AICTX-internal work, corrupt resume, or finalization/update lifecycle requires it.")
-summary.append("In the aictx source repository, prefer: PYTHONPATH=src .venv/bin/python -m aictx ...")
-summary.append("Render exactly one startup banner source. Normal agent startup uses resume.startup_banner_text or resume.startup_banner_render_payload. Wrapped execution uses prepare_execution().startup_banner_text or prepare_execution().startup_banner_render_payload. Do not render both. On the first execution of each visible session, place the selected startup banner at the start of the first substantive user-visible response in the current user language; do not consume it with a transient progress/status message that will be omitted from the final task response. If first-session text is missing, render {agent_label} · session #{session_count} · awake from selected identity fields. Do not render it again after already_shown is true.")
-summary.append("After finalize, append the AICTX final summary to the final user response, localized to the current user language while preserving factual runtime content.")
-summary.append("When available, follow resume.runtime_text_policy / resume.communication_policy, prepared.runtime_text_policy, prepared.startup_banner_policy, and finalized.agent_summary_policy. If render_payload_field points to startup_banner_render_payload or agent_summary_render_payload, prefer those structured payloads for localization and use compact text fields only as fallback while preserving exact facts, technical tokens, and the details/continuity link targets. Render every provided summary section, including `details`, `continuity_view_file`, and `continuity_view_online`; do not replace Mermaid URLs with placeholders and do not manually reconstruct or retype pako URLs.")
-summary.append("If no finalize output exists, say: AICTX summary unavailable.")
+summary = []
 try:
     steer = subprocess.run(
         ["aictx", "steer", "--repo", repo_root, "--message", prompt, "--current-action", "unknown", "--agent-id", "claude", "--json"],
@@ -400,11 +381,13 @@ try:
     )
     if steer.stdout.strip():
         steer_payload = json.loads(steer.stdout)
-        if steer_payload.get("classification") == "agent_correction":
-            summary.append("AICTX steer guard detected user correction/task redirect; follow steer guidance before continuing.")
+        classification = str(steer_payload.get("classification") or "")
+        decision = str(steer_payload.get("decision") or "")
+        if classification not in {"side_comment", "unknown"} and decision not in {"continue", "ignore_as_side_comment"}:
+            summary.append(f"AICTX steer: {classification}/{decision}; follow guard before continuing.")
             summary.append(str(steer_payload.get("agent_instruction") or ""))
 except Exception:
-    summary.append("AICTX steer guard unavailable in hook; use MCP aictx_steer_guard or CLI fallback if this prompt is a correction/task redirect.")
+    summary.append("AICTX steer guard unavailable; if this prompt corrects or redirects work, use MCP aictx_steer_guard or CLI fallback.")
 
 print(json.dumps({
     "hookSpecificOutput": {
