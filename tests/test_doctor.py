@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from aictx import cli
+from aictx.continuity import DECISIONS_PATH
 from aictx.doctor import build_doctor_report
 from aictx.scaffold import init_repo_scaffold
 
@@ -104,3 +105,30 @@ def test_doctor_cli_accepts_release_readiness_flag(tmp_path: Path, capsys) -> No
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["mode"] == "release_readiness"
+
+
+def test_doctor_action_plan_mentions_deleted_path_decision_cleanup(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    path = repo / DECISIONS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({
+            "decision": "Use deleted module.",
+            "execution_id": "old-deleted-decision",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "related_paths": ["src/deleted.py"],
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    report = build_doctor_report(repo)
+
+    actions = report["action_plan"]
+    assert any(
+        action["code"] == "missing_linked_file"
+        and action["action"] == "verify_or_demote_stale_continuity"
+        and "src/deleted.py" in action["related_paths"]
+        and "avoid hand-editing `.aictx/`" in action["cleanup_note"]
+        for action in actions
+    )

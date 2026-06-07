@@ -15,7 +15,7 @@ from aictx.continuity import DECISIONS_PATH, HANDOFF_PATH, LAST_EXECUTION_SUMMAR
 from aictx.middleware import finalize_execution, prepare_execution
 from aictx.repo_map.config import write_repomap_config, write_repomap_index
 from aictx.scaffold import init_repo_scaffold
-from aictx.state import REPO_FAILURE_MEMORY_DIR, REPO_STRATEGY_MEMORY_DIR, write_json
+from aictx.state import REPO_FAILURE_MEMORY_DIR, REPO_STRATEGY_MEMORY_DIR, Workspace, write_json
 from aictx.work_state import close_work_state, load_work_state, start_work_state
 
 
@@ -252,6 +252,9 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema_version"] == "1.0"
+    assert payload["public_json_contract"]["schema_version"] == "1.0"
+    assert "capsule" in payload["public_json_contract"]["stable_fields"]
+    assert "budget" in payload["public_json_contract"]["diagnostic_fields"]
     assert payload["mode"] == "agent_brief"
     assert payload["request"] == "resume command"
     assert payload["startup_banner_text"]
@@ -277,6 +280,127 @@ def test_resume_json_schema_and_written_files(tmp_path: Path, capsys):
         "json": ".aictx/continuity/resume_capsule.json",
     }
     assert json.loads((repo / RESUME_CAPSULE_JSON_PATH).read_text(encoding="utf-8"))["schema_version"] == "1.0"
+
+
+def _patch_cli_init_home(monkeypatch, tmp_path: Path) -> None:
+    engine_home = tmp_path / "global-aictx"
+    monkeypatch.setattr(cli, "ENGINE_HOME", engine_home)
+    monkeypatch.setattr(cli, "CONFIG_PATH", engine_home / "config.json")
+    monkeypatch.setattr(cli, "PROJECTS_REGISTRY_PATH", engine_home / "projects_registry.json")
+    monkeypatch.setattr(cli, "workspace_path", lambda workspace_id: engine_home / "workspaces" / f"{workspace_id}.json")
+    monkeypatch.setattr(cli, "ensure_global_home", lambda: engine_home.mkdir(parents=True, exist_ok=True))
+    monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
+    monkeypatch.setattr(cli, "copy_local_agent_runtime", lambda repo_path: repo_path / ".aictx" / "agent_runtime.md")
+    monkeypatch.setattr(cli, "load_active_workspace", lambda: Workspace("default", [], []))
+    monkeypatch.setattr(cli, "save_workspace", lambda workspace: None)
+
+
+def test_core_fresh_repo_lifecycle_init_resume_finalize_second_resume_doctor_view(tmp_path: Path, capsys, monkeypatch):
+    repo = tmp_path / "fresh"
+    repo.mkdir()
+    _patch_cli_init_home(monkeypatch, tmp_path)
+    parser = _parser()
+
+    args = parser.parse_args(["install", "--workspace-root", str(tmp_path), "--dry-run", "--yes", "--no-mcp"])
+    assert args.func(args) == 0
+    assert "Dry run. Would create/update:" in capsys.readouterr().out
+
+    args = parser.parse_args(["init", "--repo", str(repo), "--yes", "--no-register", "--no-mcp"])
+    assert args.func(args) == 0
+    assert "Init complete. Use your coding agent normally in this repo." in capsys.readouterr().out
+    assert (repo / ".aictx").is_dir()
+    assert (repo / "AGENTS.md").exists()
+
+    task = "implement hello lifecycle"
+    args = parser.parse_args(["resume", "--repo", str(repo), "--task", task, "--json", "--agent-id", "codex", "--session-id", "fresh-one"])
+    assert args.func(args) == 0
+    first_resume = json.loads(capsys.readouterr().out)
+    assert first_resume["public_json_contract"]["schema_version"] == "1.0"
+    assert first_resume["request"] == task
+    assert first_resume["continuity_quality"]["advisory_only"] is True
+    assert first_resume["execution_contract"]["mode"] == "closed_loop"
+
+    source = repo / "src" / "hello.py"
+    test_file = repo / "tests" / "test_hello.py"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("def hello():\n    return 'hello'\n", encoding="utf-8")
+    test_file.write_text("from src.hello import hello\n\ndef test_hello():\n    assert hello() == 'hello'\n", encoding="utf-8")
+    test_command = "python -m pytest -q tests/test_hello.py"
+
+    args = parser.parse_args([
+        "finalize",
+        "--repo", str(repo),
+        "--task", task,
+        "--status", "success",
+        "--summary", "implemented hello lifecycle",
+        "--files-opened", "src/hello.py",
+        "--files-edited", "src/hello.py", "tests/test_hello.py",
+        "--commands-executed", test_command,
+        "--tests-executed", test_command,
+        "--agent-id", "codex",
+        "--session-id", "fresh-one",
+        "--include-view",
+        "--json",
+    ])
+    assert args.func(args) == 0
+    finalized = json.loads(capsys.readouterr().out)
+    assert finalized["public_json_contract"]["schema_version"] == "1.0"
+    assert "value_evidence" in finalized["public_json_contract"]["stable_fields"]
+    assert finalized["value_evidence"]["files_opened"] == ["src/hello.py"]
+    assert finalized["value_evidence"]["files_edited"] == ["src/hello.py", "tests/test_hello.py"]
+    assert finalized["value_evidence"]["commands_executed"] == [test_command]
+    assert finalized["value_evidence"]["tests_executed"] == [test_command]
+    assert finalized["capture_quality"]["provenance"]["files_edited"] == "explicit"
+    assert finalized["capture_quality"]["provenance"]["commands_executed"] == "explicit"
+    assert finalized["handoff_persisted"]["handoff"]["summary"].startswith("implemented hello lifecycle")
+    assert (repo / ".aictx" / "reports" / "continuity-view.md").exists()
+
+    args = parser.parse_args(["resume", "--repo", str(repo), "--task", "continue hello lifecycle", "--json", "--agent-id", "codex", "--session-id", "fresh-two"])
+    assert args.func(args) == 0
+    second_resume = json.loads(capsys.readouterr().out)
+    assert "implemented hello lifecycle" in second_resume["capsule"]["last_progress"]
+    assert any(item["kind"] == "handoff" for item in second_resume["loaded_context"])
+    assert second_resume["continuity_quality"]["advisory_only"] is True
+
+    args = parser.parse_args(["doctor", "--repo", str(repo), "--json"])
+    assert args.func(args) == 0
+    doctor = json.loads(capsys.readouterr().out)
+    assert isinstance(doctor["action_plan"], list)
+    assert {check["name"] for check in doctor["checks"]} >= {"continuity_quality", "lifecycle_status", "capture_quality"}
+    assert (repo / ".aictx" / "reports" / "continuity-map.mmd").exists()
+
+
+def test_finalize_execution_accepts_result_evidence_with_explicit_provenance(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo_scaffold(repo, update_gitignore=False)
+    prepared = prepare_execution(
+        {
+            "repo_root": str(repo),
+            "user_request": "capture direct finalize evidence",
+            "agent_id": "codex",
+            "execution_id": "direct-finalize-evidence",
+        }
+    )
+
+    finalized = finalize_execution(
+        prepared,
+        {
+            "success": True,
+            "result_summary": "captured direct evidence",
+            "files_opened": ["src/direct.py"],
+            "files_edited": ["src/direct.py"],
+            "commands_executed": ["python -m pytest -q tests/test_direct.py"],
+            "tests_executed": ["python -m pytest -q tests/test_direct.py"],
+            "notable_errors": ["initial direct failure"],
+        },
+    )
+
+    assert finalized["value_evidence"]["files_opened"] == ["src/direct.py"]
+    assert finalized["value_evidence"]["files_edited"] == ["src/direct.py"]
+    assert finalized["capture_quality"]["provenance"]["files_opened"] == "explicit"
+    assert finalized["capture_quality"]["provenance"]["notable_errors"] == "explicit"
+    assert set(finalized["capture_quality"]["covered_fields"]) >= {"files_opened", "files_edited", "commands_executed", "tests_executed", "notable_errors"}
 
 
 def test_resume_prioritizes_contract_gap_carryover_over_completed_handoff(tmp_path: Path, capsys):

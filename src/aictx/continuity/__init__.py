@@ -49,6 +49,47 @@ CONTINUITY_VIEW_MARKDOWN_PATH = Path(".aictx") / "reports" / "continuity-view.md
 CONTINUITY_VIEW_MERMAID_PATH = Path(".aictx") / "reports" / "continuity-map.mmd"
 AICTX_TEXT_SEPARATOR = "────────────────────────────────"
 ENTRYPOINT_ARBITER_TIMEOUT_SECONDS = 2.0
+PUBLIC_RESUME_JSON_CONTRACT = {
+    "schema_version": "1.0",
+    "stable_fields": [
+        "schema_version",
+        "public_json_contract",
+        "generated_at",
+        "mode",
+        "repo",
+        "request",
+        "agent_id",
+        "adapter_id",
+        "agent_identity",
+        "startup_banner_text",
+        "startup_banner_render_payload",
+        "startup_banner_policy",
+        "runtime_text_policy",
+        "startup_guard",
+        "continuity_match",
+        "structural_context",
+        "execution_contract",
+        "runner_contract",
+        "guard_triggers",
+        "task_state",
+        "capsule",
+        "continuity_quality",
+        "lifecycle_status",
+        "lifecycle_gaps",
+        "loaded_context",
+        "warnings",
+        "contract_ref",
+    ],
+    "diagnostic_fields": [
+        "budget",
+        "sources",
+        "previous_contract_result",
+        "written_files",
+        "carryover_gaps",
+        "structural_entry_points",
+    ],
+    "compatibility": "New fields may be added; stable fields keep their meaning within schema_version 1.x.",
+}
 
 
 def append_aictx_text_separator(text: str) -> str:
@@ -3755,6 +3796,7 @@ def build_resume_capsule(
     communication_policy = effective_preferences.get("communication") if isinstance(effective_preferences.get("communication"), dict) else {}
     payload: dict[str, Any] = {
         "schema_version": "1.0",
+        "public_json_contract": PUBLIC_RESUME_JSON_CONTRACT,
         "generated_at": _now_iso(),
         "mode": "agent_brief",
         "repo": repo_root.as_posix(),
