@@ -160,9 +160,9 @@ aictx install --yes --with-repomap
 
 `aictx init` prepares one repository.
 
-This is where repo-local runtime behavior is configured, including communication mode.
+This prepares repo-local runtime behavior and generated agent integration files.
 
-Default interactive setup assumes the current defaults for `.gitignore`, workspace registration, portable continuity, and scaffold creation. It asks only for communication mode.
+Default interactive setup assumes the current defaults for `.gitignore`, workspace registration, portable continuity, scaffold creation, and runtime communication behavior. It no longer asks for a communication mode.
 
 Default interactive flow:
 
@@ -170,19 +170,6 @@ Default interactive flow:
 aictx init
 
 Using defaults for .gitignore, workspace registration, portable continuity and scaffold creation.
-
-Communication modes:
-- disabled: No special communication layer; agents answer normally.
-- caveman_lite: Light compact mode; keeps explanations but reduces chatter.
-- caveman_full: Strong compact mode; recommended if you want less runtime noise.
-- caveman_ultra: Aggressive compression; shortest responses, least prose.
-
-Select default communication mode for this repo:
-1. disabled (default)
-2. caveman_lite
-3. caveman_full
-4. caveman_ultra
-Select option number: 1
 ```
 
 Advanced users can keep the full setup flow with `--manual`:
@@ -193,12 +180,6 @@ aictx init --manual
 Write .gitignore entries if missing? [Y/n]: y
 Register this repo in the active workspace? [Y/n]: y
 Enable AICTX git-portable continuity? [y/N]: n
-Select default communication mode for this repo:
-1. disabled (default)
-2. caveman_lite
-3. caveman_full
-4. caveman_ultra
-Select option number: 1
 Initialize full starter scaffold now? [Y/n]: y
 ```
 
@@ -210,7 +191,6 @@ Init controls:
 | Write `.gitignore` entries | yes unless `--no-gitignore` | `--manual` or `--no-gitignore` |
 | Register repo | yes unless `--no-register` | `--manual` or `--no-register` |
 | Git-portable continuity | disabled for new repos unless opted in | `--portable-continuity`, `--no-portable-continuity`, or `--manual` |
-| Communication mode | prompted, default `disabled` | interactive selection |
 | Initialize scaffold | yes | `--manual` can cancel |
 | RepoMap initialization | runs when globally requested | configure with `aictx install` |
 | Non-interactive mode | no prompts, safe defaults | `--yes` |
@@ -240,22 +220,11 @@ aictx init --repo . --yes --no-register
 
 ---
 
-## Communication mode
+## Runtime communication compatibility
 
-Communication mode is repo-local.
+AICTX no longer exposes a communication-mode setup choice during `aictx init`. Normal communication style should remain controlled by the user, the runner, and current session instructions.
 
-It belongs to `aictx init`, because it is persisted in repo user preferences and then loaded into the repo runtime state.
-
-Available modes:
-
-| Mode | Intended use |
-|---|---|
-| `disabled` | No special communication layer; default |
-| `caveman_lite` | Light compact mode; keeps explanations but reduces chatter |
-| `caveman_full` | Strong compact mode; recommended if you want less runtime noise |
-| `caveman_ultra` | Aggressive compression; shortest responses, least prose |
-
-If unsure, use the default. Choose `caveman_full` only if you want AICTX to ask supported agents for compact runtime communication.
+Repos upgraded from older AICTX versions may still contain legacy values such as `caveman_lite`, `caveman_full`, or `caveman_ultra` in `.aictx/memory/user_preferences.json`. These values are accepted as compatibility input and normalized to the default disabled runtime communication behavior, so existing repos keep working after upgrade.
 
 ---
 
@@ -401,15 +370,14 @@ when wrapping execution directly.
 
 Use your coding agent normally.
 
-AICTX is unmuted by default after init. Use `aictx messages mute` if you want to suppress automatic startup and summary messages.
+After `aictx install` and `aictx init`, let the coding agent work normally. Supported agents should use `resume -> work -> finalize` without requiring manual AICTX commands.
 
 Manual inspection commands:
 
 ```bash
-aictx next
-aictx task status --json
+aictx doctor --repo . --json
+aictx view --repo .
 aictx map status
-aictx report real-usage
 ```
 
 ---

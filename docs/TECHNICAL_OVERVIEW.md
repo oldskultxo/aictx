@@ -26,7 +26,7 @@ AICTX is composed of:
 - middleware around prepare/finalize execution;
 - repo-local continuity artifacts;
 - active Work State runtime;
-- failure, strategy, area, and semantic continuity memories;
+- failure memory, handoffs, decisions, Work State, and internal ranking hints;
 - execution contracts and compact contract-compliance auditing;
 - deterministic Continuity View reports in Markdown and Mermaid;
 - optional RepoMap structural index;
@@ -63,8 +63,8 @@ Agent A finalize -> repo-local .aictx continuity -> Agent B resume
 | Middleware | Loads continuity before work and records evidence after work |
 | Work State | Stores active suspended task state |
 | Failure Memory | Stores observed failure patterns |
-| Strategy Memory | Stores successful reusable execution patterns |
-| Area Memory | Groups signals by repo area |
+| Strategy hints | Internal prior-success hints consumed through resume |
+| Area hints | Internal path-derived ranking signals |
 | RepoMap | Optional structural file/symbol lookup |
 | Resume capsule | Compiles rich continuity into one agent-facing operational brief |
 | Execution Contract | Provides first action, edit scope, canonical test command, and finalize command |
@@ -108,7 +108,7 @@ It can:
 - write `CLAUDE.md`;
 - write `.claude/settings.json`;
 - write `.claude/hooks/*`;
-- persist repo communication mode;
+- persist repo-local runtime preferences;
 - initialize RepoMap if requested and available;
 - register the repo unless disabled;
 - optionally switch the AICTX-managed `.gitignore` block between local-only and git-portable continuity without moving canonical artifacts.
@@ -229,7 +229,7 @@ Advanced public AICTX surfaces remain available for diagnostics, examples, and e
 
 ```bash
 aictx advanced
-aictx next --json
+aictx resume --repo . --task "<task goal>" --json
 aictx map query "..."
 aictx task status --json
 ```
@@ -265,7 +265,7 @@ aictx install
 aictx init
 aictx resume --repo . --task "<task goal>" --json
 aictx advanced
-aictx next
+aictx resume --repo . --task "<task goal>" --json
 aictx task ...
 aictx map ...
 aictx report real-usage
@@ -277,7 +277,7 @@ aictx uninstall
 
 ### Internal runtime CLI
 
-Agent/hook-facing commands:
+Legacy/internal integration commands:
 
 ```bash
 aictx internal boot --repo .
@@ -286,7 +286,7 @@ aictx internal execution finalize ...
 aictx internal run-execution ...
 ```
 
-These are the runtime contract. Supported agents are instructed to use them through repo instructions or hooks.
+These remain available for compatibility and advanced wrappers, but the normal agent-facing lifecycle starts with `aictx resume` and closes with `aictx finalize`.
 
 Important distinction:
 
@@ -393,7 +393,7 @@ These two surfaces are related but different.
 
 ### `aictx internal boot --repo .`
 
-Boot is a runtime/bootstrap diagnostic surface. It can print:
+Boot is a legacy/internal runtime/bootstrap diagnostic surface. It can print:
 
 - ASCII banner;
 - boot summary;
@@ -504,7 +504,7 @@ Older context is treated as evidence, not truth:
 
 - Work State loading is branch-safe and can skip unsafe branch mismatches.
 - Failure Memory records observed failures; it does not prove future failures.
-- Strategy Memory records successful prior routes; it is a heuristic hint, not an instruction.
+- Prior successful strategy records are internal hints; they are heuristic, not instructions.
 - Resume capsules are generated trace artifacts and are regenerated per task.
 - Dedupe/staleness metadata keeps continuity bounded and inspectable.
 - Missing data remains missing, `unknown`, or `not_evaluated` depending on the surface.
@@ -516,14 +516,14 @@ Older context is treated as evidence, not truth:
 | Capability | Main artifacts | Main consumers |
 |---|---|---|
 | Session identity | `session.json` | startup banner |
-| Handoff | `handoff.json`, `handoffs.jsonl` | startup, next, prepare |
-| Decisions | `decisions.jsonl` | prepare, next |
+| Handoff | `handoff.json`, `handoffs.jsonl` | startup, resume, prepare |
+| Decisions | `decisions.jsonl` | resume, prepare |
 | Semantic repo memory | `semantic_repo.json` | prepare |
-| Work State | `.aictx/tasks/*` | prepare, next, finalize |
+| Work State | `.aictx/tasks/*` | resume, prepare, finalize |
 | Branch-safe Work State | `git_context` in Work State | prepare, finalize |
 | Failure Memory | `failure_patterns.jsonl` | prepare, finalize, report |
-| Strategy Memory | `strategies.jsonl` | suggest, reuse, prepare |
-| Area Memory | `areas.json` | strategy/failure/report |
+| Strategy hints | `strategies.jsonl` | resume, prepare; legacy suggest/reuse |
+| Area hints | `areas.json` | internal ranking/reporting |
 | RepoMap | `.aictx/repo_map/*` | map commands, prepare |
 | Execution Contract | `resume_capsule.json.execution_contract` | agent startup |
 | Contract Compliance | `.aictx/metrics/contract_compliance.jsonl` | final summary, next resume, real-usage report |
@@ -676,9 +676,9 @@ Failed strategies are not reused as positive strategy hints.
 
 ---
 
-## Strategy Memory
+## Strategy hints
 
-Strategy Memory stores successful execution patterns and, when available, compact rationale about why a strategy worked and when it should not be reused. See [Strategy Memory](STRATEGY_MEMORY.md) for the dedicated concept page.
+Prior successful strategies are compatibility/internal hints used by `resume` and `prepare` when relevant. They are not a primary user-facing product concept and agents should not call legacy `suggest` or `reuse` during normal startup. See [Strategy Memory](STRATEGY_MEMORY.md) for the compatibility detail.
 
 It can consider:
 
@@ -697,9 +697,9 @@ Failed strategies are retained for history/debugging but excluded from positive 
 
 ---
 
-## Area Memory
+## Area hints
 
-Area Memory groups observed facts by repo area.
+Area hints group observed facts by repo area for internal ranking and reporting.
 
 It can influence:
 
@@ -881,7 +881,6 @@ Core runtime concepts:
 - [Execution Contracts and Compliance](EXECUTION_CONTRACTS.md)
 - [RepoMap](REPOMAP.md)
 - [Failure Memory](FAILURE_MEMORY.md)
-- [Strategy Memory](STRATEGY_MEMORY.md)
 - [Handoffs and Decisions](HANDOFFS.md)
 - [Execution Summary](EXECUTION_SUMMARY.md)
 

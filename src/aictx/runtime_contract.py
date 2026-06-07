@@ -10,8 +10,9 @@ REPO_MEMORY_DIR = REPO_ENGINE_DIR / 'memory'
 REPO_STATE_PATH = REPO_ENGINE_DIR / 'state.json'
 DEFAULT_GLOBAL_PREFERENCES_PATH = Path(__file__).resolve().parents[2] / '.aictx' / 'memory' / 'user_preferences.json'
 
-VALID_COMMUNICATION_MODES = {'caveman_lite', 'caveman_full', 'caveman_ultra'}
-VALID_COMMUNICATION_LAYERS = {'enabled', 'disabled'}
+VALID_COMMUNICATION_MODES = {'disabled'}
+LEGACY_COMMUNICATION_MODES = {'caveman_lite', 'caveman_full', 'caveman_ultra'}
+VALID_COMMUNICATION_LAYERS = {'disabled'}
 NATIVE_RUNTIME_REQUIRED_PATHS = [
     Path('CLAUDE.md'),
     Path('.claude/settings.json'),
@@ -27,10 +28,12 @@ def read_json(path: Path, default: Any) -> Any:
     return json.loads(path.read_text(encoding='utf-8'))
 
 
-def normalize_communication_mode(value: Any, default: str = 'caveman_full') -> str:
+def normalize_communication_mode(value: Any, default: str = 'disabled') -> str:
     normalized = str(value or '').strip().lower()
     if normalized in VALID_COMMUNICATION_MODES:
         return normalized
+    if normalized in LEGACY_COMMUNICATION_MODES:
+        return 'disabled'
     return default
 
 
@@ -44,7 +47,7 @@ def normalize_communication_layer(value: Any, default: str = 'disabled') -> str:
 def communication_policy_from_defaults(defaults_payload: dict[str, Any]) -> dict[str, Any]:
     communication = defaults_payload.get('communication', {}) if isinstance(defaults_payload.get('communication'), dict) else {}
     layer = normalize_communication_layer(communication.get('layer'), 'disabled')
-    mode = normalize_communication_mode(communication.get('mode'), 'caveman_full')
+    mode = normalize_communication_mode(communication.get('mode'), 'disabled')
     intermediate_updates = str(communication.get('intermediate_updates', 'suppressed')).strip().lower() or 'suppressed'
     final_style = str(communication.get('final_style', 'plain_direct_final_only')).strip() or 'plain_direct_final_only'
     return {
@@ -153,7 +156,7 @@ def resolve_effective_preferences(
         merged = _deep_merge(merged, explicit_overrides)
 
     layer, layer_source = _resolve_field(repo_payload, global_payload, 'layer', 'disabled')
-    mode, mode_source = _resolve_field(repo_payload, global_payload, 'mode', 'caveman_full')
+    mode, mode_source = _resolve_field(repo_payload, global_payload, 'mode', 'disabled')
     intermediate_updates, intermediate_source = _resolve_field(repo_payload, global_payload, 'intermediate_updates', 'suppressed')
     final_style, final_style_source = _resolve_field(repo_payload, global_payload, 'final_style', 'plain_direct_final_only')
     if explicit_overrides and isinstance(explicit_overrides.get('communication'), dict):
@@ -223,7 +226,7 @@ def runtime_consistency_report(repo_root: Path | None = None, *, global_defaults
     if repo_root and prefs_path and prefs_path.exists() and state_path and state_path.exists():
         status = 'ok'
         state_layer = str(state.get('communication_layer', '') or '').strip()
-        state_mode = str(state.get('communication_mode', '') or '').strip()
+        state_mode = normalize_communication_mode(state.get('communication_mode'), 'disabled')
         if state_layer and state_layer != effective_communication.get('layer'):
             issues.append(
                 {

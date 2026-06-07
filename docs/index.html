@@ -8,7 +8,7 @@
   <meta name="description"
     content="AICTX gives coding agents repo-local continuity: what happened, what failed, what changed, and where the next session should start. Works through CLI, local MCP, and generated agent instructions.">
   <meta name="keywords"
-    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, task context pack, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, Continuity Guard, Steer Guard, MCP, Model Context Protocol, local MCP server, Claude Code integration files, Codex integration files, agent integrations">
+    content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, execution state, Codex, Claude, GitHub Copilot, handoffs, execution contracts, Continuity View, MCP, Model Context Protocol, local MCP server, Claude Code integration files, Codex integration files, agent integrations">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="author" content="Santi Santamaria">
   <meta name="application-name" content="AICTX">
@@ -63,14 +63,10 @@
       "coding agents",
       "AI coding agents",
       "repo-local continuity",
-      "Task Context Pack",
       "execution state",
-      "Work State",
       "failure memory",
       "handoffs",
       "execution contracts",
-      "Continuity Guard",
-      "Steer Guard",
       "Codex",
       "Claude",
       "GitHub Copilot",
@@ -720,8 +716,8 @@ aictx init
         <h2>Start from what actually happened.</h2>
         <div class="grid">
           <div class="card">
-            <h3>Work State</h3>
-            <p class="muted">Active task, hypothesis, relevant files, risks, next action and verification
+            <h3>Current continuity</h3>
+            <p class="muted">Current goal, hypothesis, relevant files, risks, next action and verification
               state.</p>
           </div>
           <div class="card">
@@ -804,15 +800,6 @@ It finalizes factual evidence for the next session.</code></pre>
             <pre><code>aictx mcp-server --repo . --profile full</code></pre>
           </div>
           <div class="card">
-            <h3>Task Context Pack</h3>
-            <p class="muted">Compile bounded read-only context for a specific goal without replacing the
-              resume → work → finalize lifecycle.</p>
-            <pre><code>aictx prepare "fix the parser bug" --repo . --json
-
-# MCP readonly tool:
-# aictx_prepare_task_context</code></pre>
-          </div>
-          <div class="card">
             <h3>Continuity Quality</h3>
             <p class="muted">Score whether repo-local continuity is fresh, stale, missing, demoted, obsolete or unverified before agents rely on it.</p>
             <pre><code>aictx doctor --repo . --json
@@ -820,22 +807,6 @@ It finalizes factual evidence for the next session.</code></pre>
 # also exposed through:
 # aictx resume --json
 # MCP continuity quality</code></pre>
-          </div>
-          <div class="card">
-            <h3>Continuity Guard</h3>
-            <p class="muted">Run compact read-only checks before first edits, risky commands, scope changes, final answers or finalize boundaries.</p>
-            <pre><code>aictx guard --repo . --action final_answer --json
-
-# MCP tool:
-# aictx_continuity_guard</code></pre>
-          </div>
-          <div class="card">
-            <h3>Steer Guard</h3>
-            <p class="muted">Classify user interruptions during active work as scope constraints, validation changes, strategy changes, side comments or cancellations.</p>
-            <pre><code>aictx steer --repo . --message "don't touch src/auth.py" --current-action edit --json
-
-# MCP tool:
-# aictx_steer_guard</code></pre>
           </div>
         </div>
       </section>
@@ -850,7 +821,7 @@ It finalizes factual evidence for the next session.</code></pre>
           </div>
           <div class="card">
             <h3>User Manual</h3>
-            <p class="muted">Practical “I want to…” commands: portability, reports, MCP, cleanup, messages
+            <p class="muted">Practical “I want to…” commands: doctor, view, lifecycle, MCP, cleanup
               and diagnostics.</p><a href="/USER_MANUAL.html">Open User Manual →</a>
           </div>
           <div class="card">

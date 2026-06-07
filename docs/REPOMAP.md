@@ -61,7 +61,7 @@ Structural entry points:
 
 In JSON mode, `resume` exposes the same bounded hints as `structural_entry_points` plus a compact `structural_context` status. Execution contracts can also include `expected_first_files` so finalize/contract compliance can record `structural_alignment`.
 
-RepoMap remains optional. If it is disabled, unavailable, stale, or unindexed, AICTX still loads Work State, Handoffs, Decisions, Failure Memory, Strategy Memory, and the rest of the continuity capsule.
+RepoMap remains optional. If it is disabled, unavailable, stale, or unindexed, AICTX still loads Work State, Handoffs, Decisions, Failure Memory, internal strategy hints, and the rest of the continuity capsule.
 
 ---
 

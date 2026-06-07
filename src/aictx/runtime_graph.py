@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""Legacy/internal memory-graph runtime.
+
+This module remains importable for compatibility with older AICTX installs, but
+memory-graph behavior is not part of the primary product surface. The normal
+product path is: `aictx install`, `aictx init`, then agent-driven
+`resume -> work -> finalize`.
+"""
+
 from collections import defaultdict
 from datetime import date
 from pathlib import Path

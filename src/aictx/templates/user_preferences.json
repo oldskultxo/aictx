@@ -17,7 +17,7 @@
   },
   "communication": {
     "layer": "disabled",
-    "mode": "caveman_full",
+    "mode": "disabled",
     "intermediate_updates": "suppressed",
     "final_style": "plain_direct_final_only",
     "user_override_wins": true,

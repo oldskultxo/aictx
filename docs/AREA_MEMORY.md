@@ -5,6 +5,8 @@ description: "Learn how AICTX groups repo-local execution facts by repository ar
 
 # Area Memory
 
+> Product status: internal ranking signal. Area Memory remains available for compatibility, but it is not part of the primary user-facing AICTX model. Users should think in terms of install/init and the agent lifecycle: `resume -> work -> finalize`.
+
 Area Memory is an advanced continuity signal that groups observed execution facts by repository area.
 
 It is secondary to Work State, Failure Memory, and RepoMap, but can improve context selection.

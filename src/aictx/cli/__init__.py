@@ -68,18 +68,10 @@ from ..state import (
 )
 
 
-COMMUNICATION_MODE_OPTIONS = [
-    ("disabled", "disabled"),
-    ("caveman_lite", "caveman_lite"),
-    ("caveman_full", "caveman_full"),
-    ("caveman_ultra", "caveman_ultra"),
-]
+COMMUNICATION_MODE_OPTIONS = [("disabled", "disabled")]
 
 COMMUNICATION_MODE_DESCRIPTIONS = {
     "disabled": "No special communication layer; agents answer normally.",
-    "caveman_lite": "Light compact mode; keeps explanations but reduces chatter.",
-    "caveman_full": "Strong compact mode; recommended if you want less runtime noise.",
-    "caveman_ultra": "Aggressive compression; shortest responses, least prose.",
 }
 
 ASCII_BANNER = "\n".join(
@@ -214,12 +206,8 @@ def persist_repo_communication_mode(repo: Path, selected_mode: str) -> None:
     prefs_path = repo / REPO_MEMORY_DIR / "user_preferences.json"
     prefs = read_json(prefs_path, {})
     communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
-    if selected_mode == "disabled":
-        communication["layer"] = "disabled"
-        communication["mode"] = "caveman_full"
-    else:
-        communication["layer"] = "enabled"
-        communication["mode"] = selected_mode
+    communication["layer"] = "disabled"
+    communication["mode"] = "disabled"
     prefs["communication"] = communication
     write_json(prefs_path, prefs)
 
@@ -716,19 +704,24 @@ def cmd_advanced(args: argparse.Namespace) -> int:
                 "AICTX advanced commands",
                 "",
                 "Normal agent lifecycle:",
+                "  aictx install",
+                "  aictx init",
                 '  aictx resume --repo . --task "<task goal>" --json',
                 '  aictx finalize --repo . --status success|failure --summary "<what happened>" --json',
                 "",
-                "Advanced/diagnostic/building-block commands:",
-                "- suggest: deterministic next-step guidance from strategy memory",
-                "- reuse: latest reusable successful strategy",
-                "- next: compact continuity guidance",
-                "- task: repo-local Work State management",
-                "- messages: automatic runtime message visibility",
+                "Advanced inspection/operations:",
+                "- mcp: manage local MCP support",
+                "- portability: inspect or compact git-portable continuity",
                 "- map: RepoMap operations",
+                "- guard / steer: agent action-boundary checks",
                 "- report: real runtime usage reports",
+                "",
+                "Legacy compatibility commands (not for the normal product path):",
+                "- suggest / reuse / next: historical strategy and continuity hints",
+                "- task: manual Work State controls",
+                "- messages: legacy runtime message visibility controls",
                 "- reflect: exploration pattern diagnostics",
-                "- internal: internal runtime/building-block commands",
+                "- internal: integration/building-block commands",
             ]
         )
     )
@@ -954,8 +947,8 @@ def prepare_repo_runtime(repo: Path) -> list[str]:
     ensure_repo_user_preferences(repo)
     prefs = read_json(repo / REPO_MEMORY_DIR / "user_preferences.json", {})
     communication = prefs.get("communication", {}) if isinstance(prefs.get("communication"), dict) else {}
-    layer = "enabled" if str(communication.get("layer", "")).strip() == "enabled" else "disabled"
-    mode = str(communication.get("mode", "caveman_full") or "caveman_full").strip() or "caveman_full"
+    layer = "disabled"
+    mode = "disabled"
     state_path = repo / REPO_STATE_PATH
     state = read_json(state_path, {})
     state.update(
@@ -1336,15 +1329,6 @@ def cmd_init(args: argparse.Namespace) -> int:
         else:
             print("Using defaults for .gitignore, workspace registration, portable continuity and scaffold creation.")
             print()
-        print("Communication modes:")
-        for value, _label in COMMUNICATION_MODE_OPTIONS:
-            print(f"- {value}: {COMMUNICATION_MODE_DESCRIPTIONS[value]}")
-        print()
-        selected_communication_mode = ask_choice(
-            "Select default communication mode for this repo:",
-            COMMUNICATION_MODE_OPTIONS,
-            default="disabled",
-        )
         if manual:
             proceed = ask_yes_no("Initialize full starter scaffold now?", True)
             if not proceed:
@@ -1466,7 +1450,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-banner", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-v", "--version", action="version", version=f"aictx {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,portability,resume,prepare,finalize,view,doctor,advanced,clean,uninstall}")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="{install,init,resume,finalize,view,doctor,advanced,clean,uninstall}")
 
     install = sub.add_parser("install", help="Install global engine home")
     install.add_argument("--workspace-root", help="Initial workspace root")
@@ -1501,7 +1485,7 @@ def build_parser() -> argparse.ArgumentParser:
     mcp_server.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)
     mcp_server.set_defaults(func=cmd_mcp_server)
 
-    mcp = sub.add_parser("mcp", help="Manage AICTX MCP support")
+    mcp = sub.add_parser("mcp", help=argparse.SUPPRESS)
     mcp_sub = mcp.add_subparsers(dest="mcp_command", required=True)
     mcp_status_cmd = mcp_sub.add_parser("status", help="Show MCP support status")
     mcp_status_cmd.add_argument("--repo", default=".", help="Repository root")
@@ -1515,7 +1499,7 @@ def build_parser() -> argparse.ArgumentParser:
     mcp_install_cmd.add_argument("--json", action="store_true", help="Print structured install JSON")
     mcp_install_cmd.set_defaults(func=cmd_mcp_install)
 
-    portability = sub.add_parser("portability", help="Inspect or compact git-portable continuity")
+    portability = sub.add_parser("portability", help=argparse.SUPPRESS)
     portability_sub = portability.add_subparsers(dest="portability_command", required=True)
     portability_status_cmd = portability_sub.add_parser("status", help="Show portable continuity policy and merge health")
     portability_status_cmd.add_argument("--repo", default=".", help="Repository root")
@@ -1539,7 +1523,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--session-id", default="", help=argparse.SUPPRESS)
     resume.set_defaults(func=cmd_resume)
 
-    guard = sub.add_parser("guard", help="Check continuity alignment before an important action boundary")
+    guard = sub.add_parser("guard", help=argparse.SUPPRESS)
     guard.add_argument("--repo", default=".", help="Repository root")
     guard.add_argument("--action", choices=sorted(GUARD_ACTIONS), required=True, help="Action boundary to check")
     guard.add_argument("--paths", action="append", default=[], help="Path involved in the action; may be repeated")
@@ -1551,7 +1535,7 @@ def build_parser() -> argparse.ArgumentParser:
     guard.add_argument("--json", action="store_true", help="Print compact guard JSON")
     guard.set_defaults(func=cmd_guard)
 
-    steer = sub.add_parser("steer", help="Classify a user intervention during active agent work")
+    steer = sub.add_parser("steer", help=argparse.SUPPRESS)
     steer.add_argument("--repo", default=".", help="Repository root")
     steer.add_argument("--message", required=True, help="User message to classify")
     steer.add_argument("--current-action", choices=sorted(STEER_CURRENT_ACTIONS), default="unknown", help="Current agent action")
@@ -1561,7 +1545,7 @@ def build_parser() -> argparse.ArgumentParser:
     steer.add_argument("--json", action="store_true", help="Print compact steer JSON")
     steer.set_defaults(func=cmd_steer)
 
-    prepare_task = sub.add_parser("prepare", help="Compile a read-only task-specific context pack")
+    prepare_task = sub.add_parser("prepare", help=argparse.SUPPRESS)
     prepare_task.add_argument("goal", help="Task goal to compile context for")
     prepare_task.add_argument("--repo", default=".", help="Repository root")
     prepare_task.add_argument("--task-type", default="", help="Optional task type override")

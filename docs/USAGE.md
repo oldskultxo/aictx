@@ -21,7 +21,7 @@ aictx install
 aictx init
 ```
 
-The default interactive setup is compact: `install` asks only about recommended RepoMap/Tree-sitter support, and `init` asks only for repo communication mode. Use `aictx install --manual` or `aictx init --manual` for the full advanced prompt flow.
+The default interactive setup is compact: `install` asks only about recommended RepoMap/Tree-sitter support, and `init` uses safe repo-local defaults without asking for communication-mode tuning. Use `aictx install --manual` or `aictx init --manual` for advanced setup prompts.
 
 When `~/.codex/` exists, `aictx install` also treats Codex as present and installs/updates AICTX-managed global Codex integration by default. Interactive installs ask for confirmation; `aictx install --yes` applies the detected Codex setup automatically.
 
@@ -35,17 +35,9 @@ aictx resume --repo . --task "<task goal>" --json
 
 `--task` is the normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. Legacy `--request` startup input has been removed in v6.
 
-`resume` compiles Work State, handoffs, last summary, Strategy Memory, Failure Memory, Decisions, RepoMap, previous contract signals, and an execution contract into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
+`resume` compiles Work State, handoffs, last summary, Failure Memory, Decisions, optional RepoMap hints, prior successful-strategy hints, previous contract signals, and an execution contract into one operational capsule. It does not replace prepare/finalize, startup banner rendering, final summary generation, or persistence.
 
 `resume --json` also includes advisory lifecycle status when available. Lifecycle diagnostics can warn about previous sessions that called resume but did not finalize, stale active Work State, missing validation evidence, or MCP resume calls that never closed the loop.
-
-Use `resume` to start lifecycle work. For task-specific read-only context outside the lifecycle startup step, use `prepare`:
-
-```bash
-aictx prepare "fix the MCP permissions bug" --repo . --json
-```
-
-`prepare` compiles a focused, read-only Task Context Pack for the supplied goal. It uses the same repo-local sources of truth where available, including Work State, handoffs, decisions, failure memory, RepoMap, validation hints, and continuity quality. Unlike `resume`, it does not render startup banner policy, persist a resume contract, write generated trace artifacts, or replace the required `resume -> work -> finalize` lifecycle. If an agent is beginning work, prefer `resume`; if it only needs bounded context, use `prepare`.
 
 In JSON mode, `resume` also includes top-level `loaded_context` metadata. This bounded, additive-only array explains why context was selected, for agent/user inspection and debugging. It can mention active Work State, unresolved carryover, failures, handoffs, decisions, strategies, and RepoMap hints. Items include `role`, `selection_reason`, `confidence`, `staleness`, and `related_paths`. It is not proof of correctness, does not expose hidden reasoning, and does not replace the execution contract.
 
@@ -60,22 +52,6 @@ After task work, supported agents should close the lifecycle with the public fin
 ```bash
 aictx finalize --repo . --status success|failure --summary "<what happened>" --json
 ```
-
-Before important action boundaries, agents can run a lightweight read-only continuity check:
-
-```bash
-aictx guard --repo . --action final_answer --json
-```
-
-`guard` returns compact `allow`, `caution`, `re_ground`, or `block` guidance from Work State, execution contract, Continuity Quality, lifecycle diagnostics, validation hints, and path/scope alignment. It is intended for first edits, out-of-scope edits, risky commands, final answers/finalize, scope changes, agent switches, or continuing after idle; it is not a replacement for `resume` or `finalize`. See [Continuity Guard](CONTINUITY_GUARD.md).
-
-When a user interrupts or modifies active agent work, classify the intervention before continuing:
-
-```bash
-aictx steer --repo . --message "don't touch src/auth.py" --current-action edit --json
-```
-
-`steer` returns compact classification and steering instructions such as `pause`, `replan`, `update_contract`, `update_validation`, or `append_requirement`. It is read-only in V1 and does not replace human instruction following. See [Steer Guard](STEER_GUARD.md).
 
 To generate an inspectable local Markdown/Mermaid map of current repo continuity, run:
 
@@ -194,8 +170,6 @@ aictx advanced
 aictx resume --repo . --task "continue current work" --json
 aictx portability status --repo . --json
 aictx portability compact --repo . --apply --json
-aictx next
-aictx task status --json
 aictx map status
 aictx doctor --repo . --json
 aictx view --repo . --json
@@ -225,21 +199,6 @@ aictx view --repo . --json
 aictx portability status --repo . --json
 aictx portability compact --repo . --apply --json
 aictx advanced
-aictx suggest
-aictx reflect
-aictx reuse
-aictx next
-aictx messages status
-aictx messages mute
-aictx messages unmute
-aictx task start "Fix login token refresh"
-aictx task status --json
-aictx task list --json
-aictx task show fix-login-token-refresh --json
-aictx task update --json-patch '{"next_action":"run targeted auth tests"}' --json
-aictx task update --from-file work-state-patch.json --json
-aictx task resume fix-login-token-refresh --json
-aictx task close --status resolved --json
 aictx map status
 aictx map refresh
 aictx map query "startup banner"
@@ -276,59 +235,15 @@ Default checks include CLI version, repo initialization, runner files, RepoMap p
 
 ---
 
-## Message controls
+## Legacy compatibility commands
 
-AICTX is unmuted by default.
+AICTX still accepts several older commands for compatibility with existing repos and integrations, but they are not part of the normal product path and should not be used during routine startup. Prefer `install`, `init`, `resume`, `finalize`, `doctor`, and `view`.
 
-```bash
-aictx messages status
-aictx messages mute
-aictx messages unmute
-```
+Advanced and legacy commands include `prepare`, `guard`, `steer`, `suggest`, `reuse`, `next`, `task`, `messages`, `reflect`, and `internal`. They may be useful for diagnostics or older integrations, but supported agents should get strategy hints, Work State, and continuity guidance through `aictx resume` and close with `aictx finalize`.
 
-Muted mode suppresses AICTX’s automatic startup banner and execution summary. It does not disable AICTX, memory, telemetry, errors, or explicit command output.
-
----
-
-## Internal runtime commands
-
-Internal commands are plumbing for integrations:
-
-```bash
-aictx internal boot --repo .
-aictx internal execution prepare ...
-aictx internal execution finalize ...
-aictx internal run-execution ...
-```
-
-Agents/integrations use these to load and update continuity, including handoffs, decisions, Work State, failure memory, strategy memory, summaries, and contract compliance.
-
-`aictx internal boot --repo .` is a bootstrap/runtime diagnostic payload. It is useful for checking effective preferences, communication policy, runtime state, task/failure/memory graph status, and consistency checks.
-
-The visible startup continuity banner is not the raw boot payload. It is surfaced through prepare/startup continuity as `startup_banner_text`.
-
-The normal agent-facing continuity query is not `internal boot`; it is:
-
-```bash
-aictx resume --repo . --task "<task goal>" --json
-```
-
-Normal agents should not inspect `.aictx/` or run exploratory AICTX commands at startup. Advanced commands remain available for diagnostics, examples, and explicit user requests.
+Normal agents should not inspect `.aictx/` or run exploratory AICTX commands at startup.
 
 See [Execution Contracts and Compliance](EXECUTION_CONTRACTS.md) for the contract/compliance flow and [Handoffs and Decisions](HANDOFFS.md) for the continuity artifacts behind startup context.
-
----
-
-## Strategy Memory commands
-
-```bash
-aictx suggest --request "fix startup banner" --json
-aictx reuse --request "fix startup banner" --json
-```
-
-These commands expose successful historical execution patterns. See [Strategy Memory](STRATEGY_MEMORY.md).
-
-In normal agent startup, Strategy Memory is consumed through `aictx resume`; agents do not need to call `suggest` or `reuse` first.
 
 ---
 

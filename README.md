@@ -152,7 +152,6 @@ It is a repo-local operational continuity layer used by cooperating coding agent
 | **Finalize / Execution Summary** | Records what actually happened at the end of work. |
 | **Handoffs / Decisions** | Keeps operational summaries and explicit project decisions across sessions. |
 | **Failure Memory** | Helps agents avoid repeating known failed commands or error paths. |
-| **Strategy Memory** | Suggests successful prior approaches when they are relevant. |
 | **MCP + CLI** | Exposes the same repo-local continuity through local MCP tools and CLI fallback. |
 | **Continuity View** | Renders inspectable Markdown/Mermaid reports of current continuity. |
 
@@ -181,23 +180,15 @@ Core concepts:
 - [Work State](docs/WORK_STATE.md)
 - [RepoMap](docs/REPOMAP.md)
 - [Failure Memory](docs/FAILURE_MEMORY.md)
-- [Strategy Memory](docs/STRATEGY_MEMORY.md)
 - [Handoffs and Decisions](docs/HANDOFFS.md)
 - [Execution Summary](docs/EXECUTION_SUMMARY.md)
 - [Execution Contracts and Compliance](docs/EXECUTION_CONTRACTS.md)
 - [Doctor diagnostics](docs/DOCTOR.md)
 
-Use cases and comparisons:
+Advanced reading:
 
 - [Shared continuity across coding agents](docs/use-cases/shared-continuity-across-agents.md)
-- [Codex operational continuity](docs/use-cases/codex-memory.md)
-- [Claude Code operational continuity](docs/use-cases/claude-code-memory.md)
-- [GitHub Copilot operational continuity](docs/use-cases/github-copilot-memory.md)
 - [Comparing coding-agent continuity approaches](docs/compare/coding-agent-continuity-approaches.md)
-- [AICTX vs AGENTS.md](docs/compare/aictx-vs-agents-md.md)
-- [AICTX vs long context](docs/compare/aictx-vs-long-context.md)
-- [AICTX vs vector databases](docs/compare/aictx-vs-vector-database.md)
-- [AICTX vs chat history](docs/compare/aictx-vs-chat-history.md)
 
 Operations and trust:
 

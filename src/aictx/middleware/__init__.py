@@ -382,7 +382,7 @@ def load_bootstrap_sources(repo_root: Path) -> dict[str, Any]:
             memory_root / "user_preferences.json",
             {
                 "preferred_language": "",
-                "communication": {"layer": "disabled", "mode": "caveman_full"},
+                "communication": {"layer": "disabled", "mode": "disabled"},
             },
         ),
         "project_bootstrap": read_json(
@@ -408,7 +408,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     resolved_preferences = resolve_effective_preferences(repo_root, global_defaults_path=core_runtime.ROOT_PREFS_PATH)
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
     if not (repo_root / REPO_MEMORY_DIR / "user_preferences.json").exists():
-        communication_policy = {"layer": "disabled", "mode": "caveman_full"}
+        communication_policy = {"layer": "disabled", "mode": "disabled"}
     preferred_language = str(resolved_preferences.get("effective_preferences", {}).get("preferred_language") or "unknown").strip() or "unknown"
     preferred_language_source = str(resolved_preferences.get("sources", {}).get("preferred_language") or "unknown").strip() or "unknown"
     session_identity = touch_session_identity(

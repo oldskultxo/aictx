@@ -1388,8 +1388,8 @@ def ensure_engine_state() -> None:
                 **compat_version_payload(),
                 "install_mode": "in_repo",
                 "engine_role": "canonical_runtime",
-                "communication_layer": communication_policy.get("layer", "enabled"),
-                "communication_mode": communication_policy.get("mode", "caveman_full"),
+                "communication_layer": communication_policy.get("layer", "disabled"),
+                "communication_mode": communication_policy.get("mode", "disabled"),
                 "communication_contract": {
                     "intermediate_updates": communication_policy.get("intermediate_updates", "suppressed"),
                     "final_style": communication_policy.get("final_style", "plain_direct_final_only"),
@@ -1419,8 +1419,8 @@ def refresh_engine_state() -> dict[str, Any]:
             **compat_version_payload(),
             "install_mode": "in_repo",
             "engine_role": "canonical_runtime",
-            "communication_layer": normalize_communication_layer(state.get("communication_layer"), communication_policy.get("layer", "enabled")),
-            "communication_mode": normalize_communication_mode(state.get("communication_mode"), communication_policy.get("mode", "caveman_full")),
+            "communication_layer": normalize_communication_layer(state.get("communication_layer"), communication_policy.get("layer", "disabled")),
+            "communication_mode": normalize_communication_mode(state.get("communication_mode"), communication_policy.get("mode", "disabled")),
             "communication_contract": {
                 "intermediate_updates": communication_policy.get("intermediate_updates", "suppressed"),
                 "final_style": communication_policy.get("final_style", "plain_direct_final_only"),

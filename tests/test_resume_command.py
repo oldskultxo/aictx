@@ -1323,8 +1323,11 @@ def test_advanced_command_without_help_lists_commands(capsys):
     args = _parser().parse_args(["advanced"])
     assert args.func(args) == 0
     output = capsys.readouterr().out
-    for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
+    for command in ["map", "report", "reflect", "internal"]:
         assert f"- {command}:" in output
+    for command in ["suggest / reuse / next", "task", "messages"]:
+        assert f"- {command}:" in output
+    assert "Legacy compatibility commands" in output
     assert 'aictx resume --repo . --task "<task goal>"' in output
     assert "aictx finalize --repo . --status success|failure" in output
     assert "- finalize:" not in output
@@ -1338,8 +1341,8 @@ def test_top_level_help_hides_advanced_commands(capsys):
     assert "resume" in output
     assert "finalize" in output
     assert "advanced" in output
-    assert "{install,init,portability,resume,prepare,finalize,view,doctor,advanced,clean,uninstall}" in output
-    for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal"]:
+    assert "{install,init,resume,finalize,view,doctor,advanced,clean,uninstall}" in output
+    for command in ["suggest", "reuse", "next", "task", "messages", "map", "report", "reflect", "internal", "mcp", "portability", "prepare", "guard", "steer"]:
         assert f"    {command}" not in output
 
 

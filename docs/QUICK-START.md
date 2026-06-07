@@ -70,9 +70,9 @@ Installation prepares AICTX MCP support by default and will only ask you about e
 
 RepoMap uses Tree-sitter to build a compact structural map of files and symbols. It helps agents choose better starting points without reading the whole repo.
 
-### Communication mode
+### Runtime behavior
 
-`aictx init` can optionally enable compact runtime communication hints for supported agents. The default leaves agent communication unchanged.
+`aictx init` no longer asks you to choose a communication mode. AICTX prepares repo-local continuity and runner instructions; after that, the coding agent should use `resume -> work -> finalize` while normal user/agent communication remains under the current user and runner controls. Older repos that still contain legacy communication-mode preferences remain compatible, but those values are ignored by the normal product path.
 
 Need more setup detail? See [Installation](INSTALLATION.md).
 
@@ -133,6 +133,6 @@ AICTX gives cooperating agents a compact, repeatable lifecycle:
 - Validation expectations are task-aware, so documentation and analysis tasks can stay advisory.
 - `finalize` can surface dirty edited files without staging or committing them.
 - Work State can preserve compact discarded hypotheses when an agent explicitly records an abandoned approach.
-- Strategy Memory can preserve compact rationale for why a strategy worked and when not to reuse it.
+- Prior successful strategies can be used internally as bounded hints when they are relevant.
 
 For implementation details, see [Technical overview](TECHNICAL_OVERVIEW.md). For release history, see [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md).

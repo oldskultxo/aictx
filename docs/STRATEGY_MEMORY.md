@@ -5,6 +5,8 @@ description: "Capture successful repo-local execution patterns so future AI codi
 
 # Strategy Memory
 
+> Product status: advanced/internal hint. Strategy Memory remains available for compatibility and resume ranking, but it is no longer a primary product concept users need to operate AICTX. Normal agents should consume any strategy hints through `aictx resume`, not by calling `aictx suggest` or `aictx reuse` during startup.
+
 Strategy Memory stores successful execution patterns that may be reused in similar future tasks. Useful strategies can also carry compact rationale: why the strategy worked, when to reuse it, and when not to reuse it.
 
 It answers:
@@ -73,27 +75,27 @@ AICTX should not store empty or noisy executions as useful strategies.
 
 ## How it is used
 
-Strategy Memory can be used in three places.
+Strategy Memory is normally consumed through `aictx resume`. Legacy commands remain available for compatibility.
 
 ### During prepare
 
 `prepare_execution()` may select a related prior successful strategy and include it in the prepared continuity context.
 
-### Through `aictx suggest`
+### Legacy: through `aictx suggest`
 
 ```bash
 aictx suggest --request "fix startup banner" --json
 ```
 
-This can return suggested entry points, files, related commands/tests, and why a strategy matched.
+This can return suggested entry points, files, related commands/tests, and why a strategy matched. It is not part of normal startup.
 
-### Through `aictx reuse`
+### Legacy: through `aictx reuse`
 
 ```bash
 aictx reuse --request "fix startup banner" --json
 ```
 
-This exposes a reusable successful strategy when one is available.
+This exposes a reusable successful strategy when one is available. It is not part of normal startup.
 
 ---
 

@@ -258,8 +258,8 @@ Sources can include:
 | Execution summaries | Recent finalization summaries |
 | Handoffs | Open or active handoffs and next steps |
 | Failure Memory | Relevant unresolved or recent failure patterns |
-| Strategy Memory | Reusable prior execution strategies |
-| Area Memory | Repo areas with execution/failure/strategy signal |
+| Strategy hints | Reusable prior execution strategies used as internal hints |
+| Area hints | Repo areas with execution/failure/strategy signal used as internal hints |
 | RepoMap | Optional structural path and symbol hints |
 | Portability state | Portable continuity status and mode |
 

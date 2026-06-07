@@ -62,10 +62,10 @@ Use this runtime guide after repository initialization with `aictx init`.
 - Render exactly one startup banner source. Normal agent startup uses `resume.startup_banner_text` or `resume.startup_banner_render_payload`. Wrapped execution uses `prepare_execution().startup_banner_text` or `prepare_execution().startup_banner_render_payload`. Do not render both.
 - Do not inspect `.aictx/` during normal startup; `aictx resume` already compiles the relevant continuity.
 
-## Communication mode
-- `communication.layer` supports `enabled` or `disabled`.
-- `communication.mode` supports `caveman_lite`, `caveman_full`, and `caveman_ultra`.
-- Explicit current-user instruction overrides persisted defaults.
+## Runtime text policy
+- AICTX no longer asks users to choose a repo communication mode during `aictx init`.
+- Legacy `communication.mode` values such as `caveman_lite`, `caveman_full`, and `caveman_ultra` may still exist in older repo preferences, but they are compatibility input only and should not change normal agent behavior.
+- Explicit current-user instruction overrides any persisted preference.
 
 ## Sources of truth
 - `aictx resume --repo . --task "<task goal>" --json` for the operational capsule and `startup_banner_text` during normal agent startup.
