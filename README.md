@@ -54,7 +54,7 @@ It is useful when:
 
 ## Try it in 60 seconds
 
-Install and initialize once:
+You install AICTX and initialize the repo once:
 
 ```bash
 pip install aictx
@@ -62,19 +62,21 @@ aictx install
 aictx init
 ```
 
-Start work with a resume capsule:
+Then keep using your coding agent normally. Compatible agents read the generated repo instructions and run the lifecycle themselves: MCP tools first when available, CLI fallback when MCP is not attached.
+
+```text
+You: fix the parser bug
+Agent: resumes repo-local continuity
+Agent: works normally
+Agent: finalizes factual evidence for the next session
+```
+
+Manual equivalent, useful for inspection or unsupported runners:
 
 ```bash
 aictx resume --repo . --task "fix the parser bug" --json
-```
-
-After the agent works, close the loop with factual evidence:
-
-```bash
-aictx finalize --repo . \
-  --status success \
-  --summary "Fixed parser recovery and validated parser tests" \
-  --json
+# ...agent work happens...
+aictx finalize --repo . --status success --summary "Fixed parser recovery and validated parser tests" --json
 ```
 
 A later session can resume from the saved repo-local state instead of relying on hidden chat history.
