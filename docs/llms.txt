@@ -1,6 +1,6 @@
 # AICTX agent-readable project guide
 
-AICTX is the official Python `aictx` package and CLI for repo-local continuity, operational memory and local memory for AI coding tools.
+AICTX is the official Python `aictx` package and CLI for repo-local continuity: it helps coding agents stop starting from scratch by recording work state, handoffs, decisions, failures and validation evidence in the repository.
 
 Canonical identity:
 - Website: https://aictx.org

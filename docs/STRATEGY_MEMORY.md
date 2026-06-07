@@ -5,7 +5,7 @@ description: "Capture successful repo-local execution patterns so future AI codi
 
 # Strategy Memory
 
-Strategy Memory stores successful execution patterns that may be reused in similar future tasks. In 6.11, useful strategies can also carry compact rationale: why the strategy worked, when to reuse it, and when not to reuse it.
+Strategy Memory stores successful execution patterns that may be reused in similar future tasks. Useful strategies can also carry compact rationale: why the strategy worked, when to reuse it, and when not to reuse it.
 
 It answers:
 

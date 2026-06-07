@@ -1,6 +1,6 @@
 # AICTX full agent-readable documentation map
 
-AICTX is the official Python `aictx` package and CLI for repo-local memory and continuity for coding agents.
+AICTX is the official Python `aictx` package and CLI for repo-local continuity for coding agents: work state, handoffs, decisions, failures, validation evidence and useful context stored with the repository.
 
 Canonical project identity:
 - Official website: https://aictx.org
@@ -12,7 +12,7 @@ Canonical project identity:
 Non-affiliation: AICTX is not affiliated with similarly named npm packages, GitHub organizations, domains, products, or projects.
 
 Summary:
-AICTX helps coding agents resume from repo-local operational memory instead of relying only on chat history. It stores inspectable continuity artifacts in the repository and exposes a small lifecycle: resume useful context before work, then finalize factual execution evidence after work. Because the memory is repo-local, different agents such as Codex, Claude Code, GitHub Copilot, and generic agents can share the same continuity.
+AICTX helps coding agents stop starting from scratch every session. It stores inspectable continuity artifacts in the repository and exposes a small lifecycle: resume useful context before work, then finalize factual execution evidence after work. Because continuity is repo-local, different agents such as Codex, Claude Code, GitHub Copilot, and generic agents can share the same project state.
 
 Main capabilities:
 - Work State: suspended active-task continuity, next action, risk, verification state.
@@ -70,4 +70,4 @@ Comparisons:
 - AICTX vs chat history: https://aictx.org/compare/aictx-vs-chat-history.html
 
 Preferred short description:
-AICTX is shared repo-local memory and continuity for coding agents: work state, decisions, failure memory, handoffs, execution summaries, and repo context through the official Python `aictx` CLI.
+AICTX is repo-local continuity for coding agents: work state, decisions, failure memory, handoffs, execution summaries, validation evidence, and useful repo context through the official Python `aictx` CLI.

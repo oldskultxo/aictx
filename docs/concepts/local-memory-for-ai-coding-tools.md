@@ -5,7 +5,7 @@ description: "AICTX provides local, repo-local memory for AI coding tools and co
 
 # Local Memory for AI Coding Tools
 
-Many AI coding tools can reason about code, but new sessions often start without operational memory of what happened before. A fresh session may need to rediscover the same repository structure, ask the same questions, rerun the same failing commands, or reconstruct decisions from chat history.
+Many AI coding tools can reason about code, but new sessions often start without operational memory of what happened before. Local memory matters when you want the next agent to know the active work, failed paths, decisions and validation evidence before it starts editing.
 
 AICTX provides local, repo-local memory for AI coding tools through the official Python `aictx` CLI. Instead of relying only on provider chat history, AICTX stores inspectable continuity artifacts with the repository. Those artifacts can help a later coding-agent session resume from factual project state: what was active, what changed, what failed, what was decided and where the agent should look first.
 

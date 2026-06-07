@@ -5,7 +5,7 @@ description: "Compare long-context prompts with AICTX repo-local continuity, str
 
 # AICTX vs Long Context
 
-Long context can hold more text in a single model interaction. AICTX solves a different problem: preserving structured repo-local continuity across coding-agent sessions.
+Long context can hold more text in one model interaction. AICTX solves a different problem: preserving the structured repo-local facts that a later coding-agent session should not have to rediscover.
 
 AICTX and long context can work together. Long context helps within a session; AICTX stores operational memory for future sessions.
 

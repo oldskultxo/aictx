@@ -5,7 +5,7 @@ description: "Compare repo-local operational continuity with instructions, long 
 
 # Comparing approaches to coding-agent continuity
 
-Why repo-local operational continuity is different from prompts, long context, memory files, vector memory, and agent-specific harness memory.
+Use this comparison to decide which memory layer you need. Repo-local operational continuity is different from prompts, long context, memory files, vector memory, and agent-specific harness memory.
 
 Coding agents do not only need more context. They need continuity:
 

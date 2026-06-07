@@ -4,9 +4,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AICTX - Operational continuity for AI coding agents</title>
+  <title>AICTX - Repo-local continuity for AI coding agents</title>
   <meta name="description"
-    content="AICTX gives coding agents repo-local continuity: what happened, what failed, what changed, and where the next session should start. Works through CLI, local MCP, and generated agent instructions.">
+    content="Stop onboarding coding agents from scratch every session. AICTX stores repo-local continuity for Codex, Claude Code, GitHub Copilot and other agents through CLI, local MCP and generated instructions.">
   <meta name="keywords"
     content="AICTX, aictx, operational continuity, coding agents, AI coding agents, repo-local continuity, task context pack, execution state, Codex, Claude, GitHub Copilot, Work State, failure memory, handoffs, execution contracts, Continuity View, Continuity Guard, Steer Guard, MCP, Model Context Protocol, local MCP server, Claude Code integration files, Codex integration files, agent integrations">
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -16,9 +16,9 @@
   <link rel="canonical" href="https://aictx.org/">
   <link rel="icon" href="/images/aictx-logo.png">
   <meta property="og:site_name" content="AICTX">
-  <meta property="og:title" content="AICTX - Operational continuity for AI coding agents">
+  <meta property="og:title" content="AICTX - Repo-local continuity for AI coding agents">
   <meta property="og:description"
-    content="The next coding-agent session starts from what actually happened, not from zero. Repo-local operational continuity for agents, exposed through CLI, local MCP tools/resources/prompts, and Claude/Codex integration files.">
+    content="AICTX records what actually happened in the repository so the next coding-agent session can resume from local, inspectable continuity instead of rediscovering everything.">
   <meta property="og:url" content="https://aictx.org/">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://aictx.org/images/aictx-logo.png">
@@ -26,9 +26,9 @@
   <meta property="og:locale" content="en_US">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AICTX - Operational continuity for AI coding agents">
+  <meta name="twitter:title" content="AICTX - Repo-local continuity for AI coding agents">
   <meta name="twitter:description"
-    content="AICTX helps coding-agent sessions continue from repo-local execution state, now exposed through CLI, local MCP tools, and Claude/Codex integration files.">
+    content="Stop onboarding coding agents from scratch every session. AICTX gives agents repo-local continuity through CLI, local MCP and generated instructions.">
   <meta name="twitter:image" content="https://aictx.org/images/aictx-logo.png">
 
   <script type="application/ld+json">
@@ -687,17 +687,17 @@
     <main>
       <section class="hero">
         <div>
-          <div class="eyebrow">Repo-local execution state for coding agents</div>
-          <h1>Operational continuity for AI coding agents.</h1>
+          <div class="eyebrow">Repo-local continuity for coding agents</div>
+          <h1>Stop onboarding your coding agent from scratch every session.</h1>
           <p class="lead">
-            AICTX helps Codex, Claude, GitHub Copilot and other coding agents continue work across sessions and across tools by
-            preserving the last useful execution state: active work, next actions, decisions, failures, validation
-            evidence, repo context and quality signals for stale or unverified continuity.
+            AICTX records what actually happened in the repository — active work, next actions, decisions, failures, validation
+            evidence and useful context — so Codex, Claude Code, GitHub Copilot and other agents can continue instead of
+            rediscovering everything.
           </p>
           <div class="hero-actions">
-            <a class="button primary" href="/QUICKSTART.html">Start in 2 minutes</a>
+            <a class="button primary" href="/QUICKSTART.html">Try it in 60 seconds</a>
+            <a class="button" href="https://github.com/oldskultxo/aictx">Star on GitHub</a>
             <a class="button" href="/USER_MANUAL.html">Open user manual</a>
-            <a class="button" href="https://github.com/oldskultxo/aictx">View on GitHub</a>
           </div>
         </div>
 
@@ -710,37 +710,36 @@ aictx install
 aictx init
 
 # Then keep using your coding agent.
-# Supported agents are instructed to:
-# resume context → work → finalize continuity</code></pre>
+# Supported agents follow:
+# resume → work → finalize</code></pre>
           </div>
         </div>
       </section>
 
       <section class="section">
-        <h2>Start from what actually happened.</h2>
+        <h2>Keep the next session anchored in facts.</h2>
         <div class="grid">
           <div class="card">
             <h3>Work State</h3>
-            <p class="muted">Active task, hypothesis, relevant files, risks, next action and verification
-              state.</p>
+            <p class="muted">Active task, hypothesis, relevant files, risks, next action and verification state for the next agent.</p>
           </div>
           <div class="card">
             <h3>Decisions and handoffs</h3>
-            <p class="muted">Project decisions and what the previous session left for the next one.</p>
+            <p class="muted">Project decisions and factual handoffs that future sessions should not rediscover.</p>
           </div>
           <div class="card">
             <h3>Failures, validation and quality</h3>
-            <p class="muted">Known failed commands, resolved patterns, canonical checks, validation evidence, lifecycle diagnostics and stale-context quality signals.</p>
+            <p class="muted">Known failed commands, resolved patterns, validation evidence and quality signals for stale or unverified continuity.</p>
           </div>
         </div>
       </section>
 
       <section class="section">
-        <h2>Disconnected sessions and disconnected agents are the problem.</h2>
+        <h2>Cold starts waste the agent’s first moves.</h2>
         <p class="muted">
-          Coding agents can reason through code, but every new session often starts operationally cold: it has to
-          rediscover the repo, infer the task state, avoid old mistakes and guess which validation matters. Switching
-          from Codex to Claude Code or Copilot should not mean losing the factual project state.
+          Coding agents can reason through code, but every new session often starts operationally cold: it scans broad
+          docs, infers task state, repeats old mistakes and guesses which validation matters. AICTX gives the agent a
+          compact repo-local brief before work begins.
         </p>
 
         <img class="visual-image" src="/images/aictx-cold-starts-to-continuity.png" alt="AICTX turns cold-start coding-agent sessions into continuity" loading="lazy" style="margin: 1.5rem 0;">
@@ -765,11 +764,11 @@ It finalizes factual evidence for the next session.</code></pre>
       </section>
 
       <section class="section">
-        <h2>One repo memory for multiple coding agents.</h2>
+        <h2>Switch agents without losing the handoff.</h2>
         <p class="muted">
           AICTX stores continuity in the repository, not inside a single provider's chat history. Codex can finalize
-          what happened, and Claude Code, GitHub Copilot or another compatible agent can resume from the same
-          <code>.aictx/</code> state later.
+          what happened, and Claude Code, GitHub Copilot or another compatible agent can resume later from the same
+          <code>.aictx/</code> facts.
         </p>
         <img class="visual-image" src="/images/aictx-shared-continuity-across-agents.png" alt="AICTX shares repo-local continuity across Codex Claude Code GitHub Copilot and other coding agents" loading="lazy" style="margin: 1.5rem 0;">
 
@@ -782,10 +781,10 @@ It finalizes factual evidence for the next session.</code></pre>
       </section>
 
       <section class="section">
-        <h2>Inspectable, local, not hidden.</h2>
+        <h2>Local-first continuity you can inspect.</h2>
         <p class="muted">AICTX stores continuity under <code>.aictx/</code>. It is not cloud memory, not a
-          vector database and not locked inside one chat. You can inspect it, clean it up, and optionally make
-          a safe subset portable through Git.</p>
+          vector database and not locked inside one chat. You can inspect it, clean it up, use MCP or CLI access, and
+          optionally make a safe subset portable through Git.</p>
         <div class="grid four">
           <div class="card">
             <h3>Continuity View</h3>
@@ -841,11 +840,11 @@ It finalizes factual evidence for the next session.</code></pre>
       </section>
 
       <section class="section">
-        <h2>Simple start. Deep runtime when needed.</h2>
+        <h2>Start simple, then go deeper when needed.</h2>
         <div class="grid">
           <div class="card">
             <h3>Quickstart</h3>
-            <p class="muted">The shortest path from install to first continuity check.</p><a
+            <p class="muted">The fastest path from install to first repo-local continuity check.</p><a
               href="/QUICKSTART.html">Read Quickstart →</a>
           </div>
           <div class="card">
@@ -855,8 +854,7 @@ It finalizes factual evidence for the next session.</code></pre>
           </div>
           <div class="card">
             <h3>Technical Docs</h3>
-            <p class="muted">Full technical reference for Work State, contracts, RepoMap, MCP, plugins,
-              portability and internals.</p><a href="/TECHNICAL_DOCUMENTATION.html">Browse Technical Docs
+            <p class="muted">Architecture and reference docs for Work State, contracts, RepoMap, MCP, portability and internals.</p><a href="/TECHNICAL_DOCUMENTATION.html">Browse Technical Docs
               →</a>
           </div>
           <div class="card">
@@ -868,7 +866,7 @@ It finalizes factual evidence for the next session.</code></pre>
       </section>
 
       <section class="section">
-        <h2>Works around the agents you already use.</h2>
+        <h2>Works with the agents you already use.</h2>
         <div class="grid">
           <div class="card">
             <h3>Codex</h3>
@@ -909,7 +907,7 @@ It finalizes factual evidence for the next session.</code></pre>
     </main>
 
     <footer>
-      <p>AICTX — operational continuity for AI coding agents.</p>
+      <p>AICTX — repo-local continuity for AI coding agents.</p>
       <p>
         <a href="https://github.com/oldskultxo/aictx">GitHub <span class="github-stars js-github-stars"
             aria-label="GitHub stars">(<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">

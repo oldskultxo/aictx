@@ -5,7 +5,7 @@ description: "Understand what AICTX does and does not do: repo-local continuity 
 
 # Limitations
 
-AICTX is a continuity runtime, not an autonomous coding system.
+AICTX makes coding-agent continuity visible and reusable, but it remains a cooperative runtime. This page is the trust boundary: what AICTX can record, what it cannot know, and where human review still matters.
 
 ---
 

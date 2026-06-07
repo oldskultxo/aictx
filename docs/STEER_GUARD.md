@@ -75,9 +75,9 @@ Classifications include scope changes/constraints, validation changes, strategy 
 
 If the message is ambiguous, Steer Guard returns `classification=unknown` and `decision=ask_user`.
 
-## AICTX 6.11 agent lifecycle enforcement
+## Agent lifecycle contract
 
-AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+`aictx resume --json` includes compact metadata that tells supported agents when to use guard checks:
 
 - `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
@@ -85,4 +85,4 @@ AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
 
 Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
 
-Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+`aictx finalize` captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.

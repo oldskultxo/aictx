@@ -5,7 +5,7 @@ description: "Generate a local, deterministic Markdown and Mermaid map of curren
 
 # Continuity View
 
-AICTX Continuity View renders the current operational continuity of a repository as local Markdown and Mermaid. It helps users and coding agents inspect active Work State, handoffs, failures, execution contracts, execution summaries, RepoMap hints, working-tree changes, and portable continuity status without starting from scratch.
+AICTX Continuity View is the fastest way to see what a future agent will inherit from the repository. It renders current operational continuity as local Markdown and Mermaid: active Work State, handoffs, failures, execution contracts, execution summaries, RepoMap hints, working-tree changes, and portable continuity status.
 
 Short claim:
 

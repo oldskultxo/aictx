@@ -5,6 +5,8 @@ description: "AICTX includes a local Model Context Protocol (MCP) server that ex
 
 # AICTX MCP
 
+AICTX MCP gives compatible agents local tool access to the same repo-local continuity exposed by the CLI. Use MCP when the runner supports it; keep CLI fallback for deterministic manual use.
+
 ## Model
 
 - Local only: the default transport is `stdio`.
@@ -113,16 +115,16 @@ AICTX-managed MCP setup is reversible. Repo-local config is removed by `aictx cl
 
 Generated agent instructions tell compatible agents to prefer AICTX MCP tools when available, call `aictx_resume` before work, call `aictx_finalize` at the end, and fall back to CLI commands when MCP tools are unavailable.
 
-## AICTX 6.11 agent lifecycle hardening
+## MCP-first lifecycle
 
-AICTX 6.11 adds compact metadata to `aictx_resume` / `aictx resume --json`:
+`aictx_resume` and `aictx resume --json` expose the same compact lifecycle metadata:
 
 - `runner_contract`: required tool expectations and MCP-first / CLI-fallback policy.
 - `guard_triggers`: boundaries where agents should call Continuity Guard or Steer Guard.
 - `validation_policy`: task-aware validation expectations.
 - `--brief`: smaller routine startup payloads.
-- `discarded_hypotheses` and selected strategy rationale are bounded resume hints; they avoid repeated dead ends without exposing hidden chain-of-thought.
-- detailed git-state context can surface staged, unstaged and untracked edited files as non-blocking continuity signals.
+- `discarded_hypotheses` and selected strategy rationale: bounded resume hints that avoid repeated dead ends without exposing hidden chain-of-thought.
+- detailed git-state context: staged, unstaged and untracked edited files surfaced as non-blocking continuity signals.
 
 The required core tools are:
 
