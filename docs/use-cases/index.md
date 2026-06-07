@@ -5,7 +5,7 @@ description: "Practical AICTX use cases for repo-local memory and continuity wit
 
 # AICTX Use Cases
 
-AICTX use cases focus on repo-local memory and continuity for coding agents. These pages explain how `aictx` CLI can support Codex, Claude Code, GitHub Copilot, and generic agents without replacing those tools.
+These use cases show when repo-local continuity matters most: interrupted solo work, team handoffs, and switching between Codex, Claude Code, GitHub Copilot, or generic agents without losing the factual project state.
 
 AICTX is especially useful when more than one coding agent touches the same repository. One agent can finalize what happened, and another agent can later resume from the same `.aictx/` continuity instead of starting from an agent-specific chat history.
 

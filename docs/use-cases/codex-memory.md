@@ -5,7 +5,7 @@ description: "Use AICTX as repo-local Codex memory for coding-agent continuity, 
 
 # Codex Memory with AICTX
 
-AICTX is Codex-first repo-local memory for coding-agent continuity. It gives Codex sessions a structured way to resume useful context from the repository and finalize factual evidence for the next session.
+Use AICTX with Codex when you want each new session to start from recorded repo facts instead of re-reading the project from scratch. AICTX is Codex-first repo-local memory for coding-agent continuity: resume useful context, work normally, finalize factual evidence.
 
 AICTX does not replace Codex. It provides repo-local operational memory that Codex can use through repository instructions and CLI commands.
 

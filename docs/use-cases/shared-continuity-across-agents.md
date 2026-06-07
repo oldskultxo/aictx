@@ -5,7 +5,7 @@ description: "Use AICTX as repo-local shared continuity so Codex, Claude Code, G
 
 # Shared Continuity Across Coding Agents
 
-AICTX can act as shared repo-local memory for multiple coding agents. Instead of continuity living inside one provider's chat history, AICTX stores operational facts in the repository so another agent can resume from the same state.
+Use shared continuity when different agents touch the same repository and the handoff should survive tool boundaries. Instead of continuity living inside one provider's chat history, AICTX stores operational facts in the repository so another agent can resume from the same state.
 
 This matters when you use different agents for different jobs:
 

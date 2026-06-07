@@ -5,7 +5,7 @@ description: "Core concepts behind AICTX: AI coding agent memory, repo-local mem
 
 # AICTX Concepts
 
-These pages explain AICTX concepts such as local memory for AI coding tools, repo-local memory, operational memory and failure memory.
+These pages explain the terms behind AICTX without turning them into vague “AI memory” claims: local memory for AI coding tools, repo-local memory, operational memory and failure memory.
 
 AICTX uses these concepts narrowly and practically. It stores inspectable repository artifacts that help cooperating coding agents resume useful context across sessions.
 

@@ -5,7 +5,7 @@ description: "Command reference for `aictx` CLI, including setup, resume, finali
 
 # Usage
 
-This is the command reference.
+This is the command reference for AICTX after you understand the basic loop: resume useful context, work normally, finalize evidence.
 
 For normal setup, start with [Installation](INSTALLATION.md). For a fast walkthrough, see [Quickstart](QUICK-START.md).
 
@@ -206,7 +206,7 @@ aictx report real-usage
 
 ## Full command reference
 
-Most users do not need this list during normal agent-driven work. These commands are available for diagnostics, manual control, demos, and advanced workflows.
+Most users do not need this list during normal agent-driven work. These commands are available for diagnostics, manual control, examples, and advanced workflows.
 
 Work State commands are advanced manual controls. AICTX is not a task manager; supported agents normally update Work State through the lifecycle.
 
@@ -313,7 +313,7 @@ The normal agent-facing continuity query is not `internal boot`; it is:
 aictx resume --repo . --task "<task goal>" --json
 ```
 
-Normal agents should not inspect `.aictx/` or run exploratory AICTX commands at startup. Advanced commands remain available for diagnostics, demos, and explicit user requests.
+Normal agents should not inspect `.aictx/` or run exploratory AICTX commands at startup. Advanced commands remain available for diagnostics, examples, and explicit user requests.
 
 See [Execution Contracts and Compliance](EXECUTION_CONTRACTS.md) for the contract/compliance flow and [Handoffs and Decisions](HANDOFFS.md) for the continuity artifacts behind startup context.
 
@@ -394,9 +394,9 @@ aictx mcp-server --repo . --profile full
 
 AICTX ships generated Claude Code and Codex integration files. They are MCP-first and CLI-fallback: use `aictx_resume`, `aictx_finalize`, and `aictx_view` when available, otherwise use the AICTX CLI lifecycle. See [Agent integrations](PLUGINS.md).
 
-## AICTX 6.11 agent lifecycle hardening
+## Agent lifecycle contract
 
-AICTX 6.11 makes the continuity loop harder to skip and less noisy in large repositories.
+AICTX keeps the continuity loop explicit and compact for supported agents:
 
 - `runner_contract`: compact metadata telling supported agents that AICTX is required, MCP is preferred, CLI fallback is mandatory, and core tools should be verified once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
@@ -406,4 +406,4 @@ AICTX 6.11 makes the continuity loop harder to skip and less noisy in large repo
 - dead-end capture: compact discarded hypotheses can be preserved when an agent explicitly records an abandoned approach or receives a clear correction.
 - strategy rationale: selected successful strategies can include why they worked, when to reuse them, and when to avoid them.
 
-Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly.
+Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly. For release history, see [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md).

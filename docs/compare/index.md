@@ -5,7 +5,7 @@ description: "Compare AICTX repo-local memory and continuity with AGENTS.md, lon
 
 # Compare AICTX
 
-AICTX is a repo-local continuity runtime for coding agents. These comparisons explain how it differs from instruction files, long-context prompts, vector databases, and provider chat history.
+Use these comparisons when you are deciding whether AICTX is the right layer for your workflow. AICTX is a repo-local continuity runtime, not a replacement for instructions, long context, vector databases, or provider chat history.
 
 The goal is not to claim that one tool replaces every other tool. AICTX focuses on operational memory: what happened, what failed, what was decided, and what should happen next.
 

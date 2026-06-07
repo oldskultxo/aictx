@@ -5,7 +5,7 @@ description: "Start using AICTX to preserve operational continuity across AI cod
 
 # Quickstart
 
-This walkthrough shows the shortest path from setup to visible operational continuity.
+This walkthrough gets a repository from zero to its first visible continuity loop: install, initialize, resume, finalize, inspect.
 
 AICTX is built around one loop:
 
@@ -124,15 +124,15 @@ Default output:
 
 Not hidden memory. Reviewable operational continuity.
 
-## AICTX 6.11 in one minute
+## Agent lifecycle in one minute
 
-AICTX already provided repo-local continuity. 6.11 makes that loop harder for supported agents to skip, less noisy, and more truthful.
+AICTX gives cooperating agents a compact, repeatable lifecycle:
 
-- `resume --brief` can return a smaller startup payload.
-- Supported integrations get compact runner contracts and guard triggers.
-- Validation expectations are task-aware, so documentation and analysis tasks stay advisory.
+- `resume --brief` can return a smaller startup payload for routine work.
+- Supported integrations get runner contracts and guard triggers.
+- Validation expectations are task-aware, so documentation and analysis tasks can stay advisory.
 - `finalize` can surface dirty edited files without staging or committing them.
 - Work State can preserve compact discarded hypotheses when an agent explicitly records an abandoned approach.
 - Strategy Memory can preserve compact rationale for why a strategy worked and when not to reuse it.
 
-For implementation details, see [Technical overview](TECHNICAL_OVERVIEW.md).
+For implementation details, see [Technical overview](TECHNICAL_OVERVIEW.md). For release history, see [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md).

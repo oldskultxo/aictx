@@ -5,7 +5,7 @@ description: "Understand repo-local memory for coding agents: inspectable projec
 
 # Repo-Local Memory
 
-Repo-local memory means the continuity data lives with the repository instead of only in a chat transcript, provider account, or hidden service.
+Repo-local memory means continuity travels with the repository instead of staying only in a chat transcript, provider account, or hidden service. That makes handoffs inspectable and usable by different compatible agents.
 
 AICTX stores inspectable artifacts under `.aictx/` so coding agents can resume from project-local evidence.
 

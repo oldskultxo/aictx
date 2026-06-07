@@ -5,7 +5,7 @@ description: "Use AICTX with GitHub Copilot instructions for repo-local coding-a
 
 # GitHub Copilot Memory with AICTX
 
-AICTX can support GitHub Copilot workflows by writing repository instructions, path-specific instruction files and optional prompt files while preserving repo-local operational memory that is visible across coding-agent sessions.
+Use AICTX with GitHub Copilot when repo instructions should point Copilot-aware surfaces toward the same local continuity used by other agents. AICTX writes repository instructions, path-specific instruction files and optional prompt files while preserving repo-local operational memory.
 
 AICTX does not change GitHub Copilot itself and cannot force Copilot to run commands. It provides a local continuity layer around the repository so supported Copilot surfaces can use instructions to resume with relevant state when command execution is available.
 

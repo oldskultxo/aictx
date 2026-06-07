@@ -225,7 +225,7 @@ See [Continuity View](CONTINUITY_VIEW.md).
 
 The agent works normally from the resume capsule. It should not inspect `.aictx/` or run exploratory AICTX commands during normal startup.
 
-Advanced public AICTX surfaces remain available for diagnostics, demos, and explicit user requests:
+Advanced public AICTX surfaces remain available for diagnostics, examples, and explicit user requests:
 
 ```bash
 aictx advanced
@@ -273,7 +273,7 @@ aictx clean
 aictx uninstall
 ```
 
-`resume` is the normal agent-facing continuity command. The other public surfaces are for setup, inspection, explicit control, debugging, demos, and cleanup.
+`resume` is the normal agent-facing continuity command. The other public surfaces are for setup, inspection, explicit control, debugging, examples, and cleanup.
 
 ### Internal runtime CLI
 
@@ -897,11 +897,11 @@ Operations and trust:
 
 The AICTX MCP server is a local stdio interface over the existing AICTX core. It does not duplicate business logic: MCP tools call the same Python runtime functions used by CLI commands. The server exposes AICTX continuity operations only, not generic machine-control tools.
 
-## AICTX 6.11 agent lifecycle hardening
+## Agent lifecycle contract
 
-AICTX 6.11 makes the continuity loop harder to skip and less noisy in large repositories.
+AICTX makes the continuity loop explicit for supported agents without turning documentation into release notes.
 
-It adds:
+Key runtime signals:
 
 - `runner_contract`: compact metadata telling supported agents that AICTX is required, MCP is preferred, CLI fallback is mandatory, and the core tools should be verified once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
@@ -912,4 +912,4 @@ It adds:
 - dead-end capture: compact discarded hypotheses can be preserved when an agent explicitly records an abandoned approach or receives a clear correction.
 - strategy rationale: selected successful strategies can include why they worked, when to reuse them, and when to avoid them.
 
-Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly.
+Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly. For per-release changes, see [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md).

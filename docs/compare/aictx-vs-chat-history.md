@@ -5,7 +5,7 @@ description: "Compare provider chat history with AICTX repo-local memory, handof
 
 # AICTX vs Chat History
 
-Chat history is useful, but it is usually tied to a provider, tool, account, or session. AICTX stores repo-local memory that belongs to the project.
+Chat history is useful for a conversation. AICTX is for the next repository session, possibly in another tool. It stores repo-local memory that belongs to the project rather than one provider session.
 
 AICTX does not replace conversation history. It records operational continuity in inspectable repository artifacts.
 

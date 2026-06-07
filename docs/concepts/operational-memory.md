@@ -5,7 +5,7 @@ description: "Understand operational memory for coding agents: task state, comma
 
 # Operational Memory for Coding Agents
 
-Operational memory is memory about work: what happened, what failed, what was decided, and what should happen next.
+Operational memory is memory about work: what happened, what failed, what was decided, and what should happen next. It is the practical layer that prevents every new agent session from rebuilding context from scratch.
 
 AICTX focuses on operational memory because coding agents often need execution context more than a broad transcript.
 

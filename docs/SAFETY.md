@@ -5,7 +5,7 @@ description: "Learn AICTX safety boundaries, repo-local artifact behavior, porta
 
 # Safety
 
-AICTX is repo-local, inspectable, and conservative.
+AICTX is repo-local, inspectable, and conservative. It is designed to preserve operational continuity without pretending to sandbox agents, replace review, or hide state from users.
 
 Git-portable continuity is opt-in. Portable allowlisting alone is not enough to keep secrets out of Git, so AICTX now redacts secret-like values before writing portable artifacts.
 

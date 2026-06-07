@@ -5,7 +5,7 @@ description: "Compare vector databases with AICTX repo-local operational memory 
 
 # AICTX vs Vector Databases
 
-Vector databases retrieve semantically similar chunks. AICTX stores operational execution evidence and continuity for coding agents.
+Vector databases retrieve semantically similar chunks. AICTX stores operational execution evidence and continuity: active work, failed paths, decisions, handoffs and validation hints for coding agents.
 
 AICTX is not a vector database. Its memory is repo-local, inspectable, and focused on what happened during work.
 

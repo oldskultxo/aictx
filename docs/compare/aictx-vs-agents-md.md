@@ -5,7 +5,7 @@ description: "Compare AGENTS.md instructions with AICTX repo-local memory, runti
 
 # AICTX vs AGENTS.md
 
-`AGENTS.md` gives coding agents repository instructions. AICTX can generate and use those instructions, but AICTX is broader than an instruction file.
+`AGENTS.md` tells agents how to behave in a repository. AICTX helps them remember what actually happened there. AICTX can generate and use instructions, but it is broader than an instruction file.
 
 AICTX adds repo-local runtime continuity: Work State, handoffs, decisions, failure memory, execution summaries, and optional RepoMap hints.
 

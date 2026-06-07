@@ -5,7 +5,7 @@ description: "Learn what AI coding agent memory means in AICTX: repo-local work 
 
 # AI Coding Agent Memory
 
-AI coding agent memory is the information a coding agent can use to continue useful work across sessions.
+AI coding agent memory is useful only when it helps the next session continue real repository work. In AICTX, that means recorded task state, failures, handoffs, decisions and evidence rather than a vague transcript.
 
 In AICTX, memory is repo-local and operational. It is not a hidden model memory feature or a cloud knowledge base.
 

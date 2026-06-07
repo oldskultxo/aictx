@@ -5,7 +5,7 @@ description: "Use AICTX as repo-local Claude Code memory for work state, handoff
 
 # Claude Code Memory with AICTX
 
-AICTX can provide repo-local memory for Claude Code workflows by writing project instructions and preserving operational continuity in repository artifacts.
+Use AICTX with Claude Code when handoffs, failures, decisions, and active work should live with the repository rather than a single chat. AICTX writes project instructions and preserves operational continuity in repo-local artifacts.
 
 AICTX does not replace Claude Code. It gives Claude-aware coding workflows a local memory layer for handoffs, Work State, failures, decisions, and execution summaries.
 

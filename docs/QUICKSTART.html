@@ -81,13 +81,13 @@ ul.flow{color:var(--muted);padding-left:1.2rem}
       <section class="hero">
         <div>
           <div class="eyebrow">Quickstart</div>
-          <h1>AICTX Quickstart.</h1>
-          <p class="lead">This walkthrough shows the shortest path from setup to visible operational continuity.</p>
-          <p class="lead">AICTX is built around one loop:</p>
+          <h1>Try AICTX in 60 seconds.</h1>
+          <p class="lead">Install once, initialize the repo, then let supported agents resume before work and finalize evidence after work.</p>
+          <p class="lead">The whole product is built around one loop:</p>
           <pre><code>resume before work -&gt; work normally -&gt; finalize evidence -&gt; next session continues</code></pre>
         </div>
         <div class="card">
-          <span class="pill">1. Install and Initialize</span>
+          <span class="pill">install → init → use your agent</span>
           <pre><code>pip install aictx
 aictx install
 aictx init
@@ -104,7 +104,7 @@ aictx doctor --repo . --json</code></pre>
 
       <section class="section">
         <h2>Fresh repos start with little continuity</h2>
-        <p class="muted">A fresh repo may have little continuity. That is expected. AICTX becomes more useful after work has been finalized and Work State, failures, decisions, or handoffs exist.</p>
+        <p class="muted">A new repo may not have much to resume yet. That is expected: AICTX becomes useful as agents finalize work and leave Work State, failures, decisions, or handoffs behind.</p>
       </section>
 
       <section class="section">
@@ -183,8 +183,8 @@ View continuity online: mermaid.live view</code></pre>
 
 
       <section class="section">
-        <h2>AICTX 6.11 in one minute</h2>
-        <p class="muted">AICTX already provided repo-local continuity. 6.11 makes that loop harder for supported agents to skip, less noisy, and more truthful.</p>
+        <h2>Agent lifecycle in one minute</h2>
+        <p class="muted">The lifecycle is intentionally small: resume a useful brief, work normally, then finalize factual evidence for the next session.</p>
         <ul class="flow">
           <li><code>resume --brief</code> can return a smaller startup payload.</li>
           <li>Supported integrations get compact runner contracts and guard triggers.</li>
@@ -200,12 +200,12 @@ View continuity online: mermaid.live view</code></pre>
         <div class="grid two">
           <div class="card">
             <h3>User Manual</h3>
-            <p class="muted">Practical commands for common tasks.</p>
+            <p class="muted">Copy-paste commands for setup, inspection, MCP, portability, reports and cleanup.</p>
             <a href="/USER_MANUAL.html">Open User Manual →</a>
           </div>
           <div class="card">
             <h3>Technical Documentation</h3>
-            <p class="muted">Full reference and internals.</p>
+            <p class="muted">Architecture and reference docs for Work State, contracts, RepoMap, MCP and continuity artifacts.</p>
             <a href="/TECHNICAL_DOCUMENTATION.html">Open Technical Documentation →</a>
           </div>
         </div>

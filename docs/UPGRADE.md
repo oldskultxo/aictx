@@ -5,9 +5,11 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 # Upgrade guide
 
-## Current line: 6.10.x
+## Current line: 6.11.x
 
 Current documented runtime: `6.11.0`.
+
+Release history lives in [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md). This guide focuses on migration actions, compatibility notes, and setup refresh steps.
 
 For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data migration command. Re-run normal setup so generated runner instructions pick up the current startup contract:
 
@@ -15,6 +17,23 @@ For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data mig
 aictx install
 aictx init
 ```
+
+---
+## 6.11
+
+This line does not require a data migration. Re-run setup so generated runner instructions pick up the current lifecycle contract, MCP-first guidance, guard triggers, and finalize evidence expectations.
+
+Upgrade notes:
+- Existing `.aictx/` continuity data remains compatible.
+- Re-run setup after upgrading the package:
+
+```bash
+aictx install
+aictx init
+```
+
+- Use `aictx resume --repo . --task "<task goal>" --json --brief` only when a compact routine startup payload is preferred; standard resume output remains the compatibility default.
+- For the complete release history, see [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md).
 
 ---
 ## 6.10

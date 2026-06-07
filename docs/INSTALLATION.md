@@ -5,7 +5,7 @@ description: "Install and initialize the official Python `aictx` CLI for repo-lo
 
 # Installation
 
-This guide explains the setup flow and what AICTX asks during installation and repo initialization.
+This guide explains how to install AICTX once, initialize a repo, and give supported coding agents a local continuity loop without changing how you work.
 
 The normal product experience is:
 
@@ -13,7 +13,7 @@ The normal product experience is:
 install -> init -> use your coding agent normally
 ```
 
-Manual AICTX commands are mainly for inspection, debugging, demos, and advanced integrations.
+Manual AICTX commands are mainly for inspection, debugging, examples, and advanced integrations.
 
 ---
 
@@ -53,14 +53,14 @@ Use `--repo <path>` when running from outside the repository.
 
 ## Non-interactive setup
 
-For CI, demos, tests, or scripted installation:
+For CI, tests, temporary repositories, or scripted installation:
 
 ```bash
 aictx install --yes
 aictx init --repo . --yes
 ```
 
-Demo/temporary repo without registering:
+Temporary repo without registering:
 
 ```bash
 aictx init --repo . --yes --no-register
@@ -232,7 +232,7 @@ aictx init --repo . --no-portable-continuity
 
 `--portable-continuity` enables the team-safe profile for one engineer or small teams sharing the same Git repository. Git remains the transport; no external sync service is required.
 
-Demo/test setup without registry updates:
+Temporary/test setup without registry updates:
 
 ```bash
 aictx init --repo . --yes --no-register
@@ -431,9 +431,9 @@ aictx uninstall
 
 `aictx init` writes repo-local AICTX-managed MCP config by default. Use `aictx init --no-mcp` to skip that config.
 
-## AICTX 6.11 agent lifecycle enforcement
+## Agent lifecycle contract
 
-AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
+`aictx resume --json` includes compact runtime metadata for supported agents:
 
 - `runner_contract`: AICTX is required, MCP is preferred, CLI fallback is mandatory, and agents should verify `aictx_resume`, `aictx_finalize`, `aictx_continuity_guard`, and `aictx_steer_guard` once per session.
 - `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
@@ -441,4 +441,4 @@ AICTX 6.11 adds compact runtime metadata to `aictx resume --json`:
 
 Routine agent startup can use `aictx resume --repo . --task "<task goal>" --json --brief` for a smaller payload. Standard mode remains the default for compatibility.
 
-Finalize now captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
+`aictx finalize` captures a compact git-state snapshot when Git is available and persists handoffs with `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
