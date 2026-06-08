@@ -10,7 +10,7 @@
 
 AICTX is a lightweight repo-local continuity runtime for Codex, Claude Code, GitHub Copilot, and other coding agents. It gives each new session the useful facts from the repository — what happened, what failed, what changed, what was decided, and what should happen next — without turning AICTX into an agent framework, task manager, vector database, or cloud memory product.
 
-![AICTX stops onboarding coding agents like rookies every session](docs/images/aictx-stop-onboarding-rookies.png)
+![AICTX stops onboarding coding agents like rookies every session](https://aictx.org/images/aictx-stop-onboarding-rookies.png)
 
 ```bash
 pip install aictx
