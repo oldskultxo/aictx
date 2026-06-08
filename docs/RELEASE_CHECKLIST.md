@@ -31,7 +31,7 @@ description: "Checklist for preparing AICTX releases, including version metadata
 - [ ] Continuity View docs, README placement, docs homepage card, sitemap entry, and `llms*.txt` references are current
 - [ ] `aictx doctor --repo . --release-readiness --json` reflects release diagnostics without modifying repo state
 - [ ] Docs distinguish `internal boot` diagnostic output from user-visible startup banner
-- [ ] Strategy/Area Memory docs remain advanced/internal and are not listed as README core concepts
+- [ ] Internal strategy/area hints are not exposed as primary docs or README core concepts
 - [ ] Limitations remain honest
 
 ---

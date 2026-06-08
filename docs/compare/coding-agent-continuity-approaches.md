@@ -210,7 +210,7 @@ AICTX optimizes for repo-level operational continuity.
 
 It is strongest when the same repository is worked on across repeated agent sessions, failed commands and validation expectations matter, and the user wants inspectable repo-local artifacts that can be reviewed or corrected.
 
-AICTX stores continuity around active Work State, Failure Memory, Strategy Memory, Handoffs, Decisions, Execution Summary, Execution Contracts, Contract Compliance, RepoMap, Continuity View, Continuity Quality, and MCP tools/resources/prompts. These artifacts live under the repo-local `.aictx/` runtime area rather than only inside a chat transcript or a vendor harness.
+AICTX stores continuity around active Work State, Failure Memory, Handoffs, Decisions, Execution Summary, Execution Contracts, Contract Compliance, optional structural hints, Continuity View, Continuity Quality, and MCP tools/resources/prompts. These artifacts live under the repo-local `.aictx/` runtime area rather than only inside a chat transcript or a vendor harness.
 
 That makes AICTX useful when:
 

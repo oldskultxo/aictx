@@ -1,914 +1,156 @@
 ---
 title: "AICTX Technical Overview"
-description: "Technical map of AICTX as a repo-local continuity runtime for coding agents, including memory artifacts, lifecycle, and integrations."
+description: "Technical overview of AICTX as a lightweight repo-local continuity runtime for coding agents."
 ---
 
 # Technical overview
 
-AICTX is a repo-local continuity runtime for coding agents.
+AICTX is a lightweight repo-local continuity runtime for coding agents.
 
-It is not an agent, planner, dashboard, vector database, or hidden memory service. It stores execution evidence and continuity artifacts inside the repository so later agent sessions can resume with context.
+It is not an agent framework, RAG system, vector database, dashboard, task manager, or cloud memory service. It stores bounded operational continuity in the repository so a later coding-agent session can start from useful facts instead of rebuilding context from scratch.
 
-Because the continuity artifacts live in the repository, they are not tied to one agent runtime. Codex, Claude Code, GitHub Copilot, and generic agents can all read or write the same operational continuity through CLI, MCP, and generated instructions.
+## Core lifecycle
 
-This document is the technical map of the system.
-
----
-
-## What AICTX is technically
-
-AICTX is composed of:
-
-- repo scaffold and managed instruction files;
-- runner integrations for Codex, GitHub Copilot, Claude, and generic agents;
-- internal runtime commands used by agents/hooks;
-- public CLI commands used for setup, the `resume` capsule, inspection, and debugging;
-- middleware around prepare/finalize execution;
-- repo-local continuity artifacts;
-- active Work State runtime;
-- failure memory, handoffs, decisions, Work State, and internal ranking hints;
-- execution contracts and compact contract-compliance auditing;
-- deterministic Continuity View reports in Markdown and Mermaid;
-- optional RepoMap structural index;
-- cleanup/uninstall machinery.
-
-The user-facing experience is simple:
+User setup:
 
 ```text
-install -> init -> use your coding agent
+aictx install -> aictx init
 ```
 
-The technical runtime underneath is:
+Agent runtime:
 
 ```text
-prepare/startup context -> resume capsule -> execution -> finalize -> persist continuity -> next session
+resume -> work -> finalize -> later resume
 ```
 
-Across agents, the same loop becomes:
-
-```text
-Agent A finalize -> repo-local .aictx continuity -> Agent B resume
-```
-
----
-
-## System components
-
-| Component | Responsibility |
-|---|---|
-| Repo scaffold | Creates `.aictx/` and managed runner files |
-| Runner integrations | Writes `AGENTS.md`, GitHub Copilot instruction/prompt files, `CLAUDE.md`, and Claude hook configuration |
-| Internal runtime CLI | Provides `boot`, `prepare`, `finalize`, and `run-execution` |
-| Public CLI | Provides install/init/resume/finalize/doctor/advanced/cleanup commands plus compatible diagnostic commands |
-| Middleware | Loads continuity before work and records evidence after work |
-| Work State | Stores active suspended task state |
-| Failure Memory | Stores observed failure patterns |
-| Strategy hints | Internal prior-success hints consumed through resume |
-| Area hints | Internal path-derived ranking signals |
-| RepoMap | Optional structural file/symbol lookup |
-| Resume capsule | Compiles rich continuity into one agent-facing operational brief |
-| Execution Contract | Provides first action, edit scope, canonical test command, and finalize command |
-| Contract Compliance | Evaluates observed execution against the latest compatible resume contract |
-| Execution Summary | Produces factual final runtime output |
-| Continuity View | Renders current repo continuity as local Markdown and deterministic Mermaid |
-| Doctor | Read-only support diagnostics, plus strict release-readiness mode |
-| Cleanup | Removes managed repo/global content |
-
----
-
-## Runtime lifecycle
-
-### 1. Install
-
-`aictx install` prepares global/runtime state.
-
-It may configure:
-
-- workspace id/root;
-- cross-project mode;
-- global Codex files when `~/.codex/` is detected or `--install-codex-global` is passed;
-- optional RepoMap request;
-- AICTX home/config state.
-
-It should not be confused with repo initialization.
-
-### 2. Init
-
-`aictx init` prepares one repository.
-
-It can:
-
-- create/preserve `.aictx/`;
-- prepare repo runtime state;
-- install repo runner integrations;
-- write `AGENTS.md`;
-- write `.github/copilot-instructions.md`;
-- write `.github/instructions/aictx.instructions.md`;
-- write optional Copilot prompt files in `.github/prompts/`;
-- write `CLAUDE.md`;
-- write `.claude/settings.json`;
-- write `.claude/hooks/*`;
-- persist repo-local runtime preferences;
-- initialize RepoMap if requested and available;
-- register the repo unless disabled;
-- optionally switch the AICTX-managed `.gitignore` block between local-only and git-portable continuity without moving canonical artifacts.
-
-### 3. Prepare/startup context
-
-Runner integrations or advanced users may call:
+Public commands:
 
 ```bash
-aictx internal execution prepare ...
-```
-
-`prepare_execution()` loads bounded continuity context and can return the user-visible startup continuity payload, including `startup_banner_text`, `startup_banner_policy`, session identity, continuity brief, active Work State, skipped Work State details, and the latest compatible resume contract when present.
-
-The startup banner remains part of the lifecycle.
-
-### 4. Resume capsule
-
-At normal task startup, the agent-facing continuity query is:
-
-```bash
-aictx resume --repo . --task "<task goal>" --json
-```
-
-`--task` is the normal agent startup input. It should contain only the work goal and exclude reporting instructions, metrics schemas, output format rules, benchmark text, logging instructions, and meta-instructions about the final answer. Legacy `--request` startup input has been removed in v6.
-
-In v6, `resume` also emits an execution contract: first action, edit scope, canonical test command, and finalize command. At finalize time, AICTX evaluates the observed execution against the persisted contract when enough signal exists, stores only useful compliance results, and ignores low-signal `not_evaluated` cases in latest-result reporting. The next resume shows only a compact previous-contract signal; detailed aggregates live in `aictx report real-usage`.
-
-`resume` compiles Work State, handoff, recent summaries, failures, decisions, strategy hints, RepoMap, preferences, contract signals, and warnings into one compact operational capsule. It also writes generated local trace artifacts:
-
-```text
-.aictx/continuity/resume_capsule.md
-.aictx/continuity/resume_capsule.json
-```
-
-`resume` does not replace `prepare_execution`, `finalize_execution`, the startup banner, the final AICTX summary, or persistence. It is the canonical agent-facing continuity query.
-
-### Explainable loaded context
-
-`aictx resume --json` includes a top-level `loaded_context` array.
-
-This is compact, additive-only metadata explaining why each continuity item was selected for the resume capsule. It can include active Work State, unresolved carryover, failures, handoffs, decisions, strategy memory, and RepoMap hints. Active/carryover Work State is prioritized before completed handoffs. It does not remove, rename, or move existing resume fields such as `capsule`, `execution_contract`, `task_state`, `startup_guard`, or startup banner policy fields.
-
-Each entry includes:
-
-```text
-kind
-source
-source_id
-summary
-match_reasons
-role
-selection_reason
-confidence
-staleness
-related_paths
-rank
-```
-
-The field is informational. It helps agents and users inspect and debug why context was loaded, but it does not prove relevance or correctness, inspect hidden agent reasoning, or replace the execution contract. Output is bounded: the default total is compact, and `--full` can raise per-kind limits slightly but still does not dump unbounded memory.
-
-When no explainable context is selected, `loaded_context` is present as an empty array:
-
-```json
-{"loaded_context": []}
-```
-
-### Structural entry points
-
-When RepoMap is enabled and indexed, `aictx resume --json` can include top-level `structural_entry_points` and `structural_context`.
-
-These are compact, bounded structural hints derived from RepoMap query results. They contain paths, scores, reasons, symbols, and small metadata, but never raw source code. Text resume output renders them as a short `Structural entry points` section only when entries exist.
-
-Execution contracts may include `expected_first_files` with up to three RepoMap-derived paths. Finalize/contract compliance can then record `structural_alignment` as `followed`, `partially_followed`, `ignored`, or `not_evaluated`. This is audit-only and does not block execution.
-
-### Optional entrypoint arbiter
-
-Advanced users can configure an optional runner-side entrypoint arbiter to help rank candidate starting points.
-
-It is disabled by default. When configured, it receives bounded JSON, returns a compact ranking hint, and cannot grant credentials, runtime authority, service handles, secrets, or permissions.
-
-If the arbiter is missing, times out, exits non-zero, or returns invalid JSON, `resume` falls back to deterministic local ranking.
-
-### 5. Continuity View
-
-Users and agents can generate a repo-local visual continuity report with:
-
-```bash
+aictx resume --repo . --task "<goal>" --json
+aictx finalize --repo . --status success|failure --summary "<what happened>" --json
+aictx doctor --repo . --json
 aictx view --repo .
 ```
 
-The command builds one normalized continuity model from repo-local AICTX artifacts and renders both:
+## Components
 
-```text
-.aictx/reports/continuity-view.md
-.aictx/reports/continuity-map.mmd
-```
-
-The Markdown file includes repository metadata, overview fields, a Mermaid graph, Work State, handoffs, failures, strategy and area memory, execution contracts, execution summaries, RepoMap hints, and portable continuity status. The `.mmd` file contains Mermaid only.
-
-The graph is generated by AICTX, not manually authored by a coding agent:
-
-```text
-The agent triggers it. AICTX generates it. Mermaid is deterministic.
-```
-
-`aictx finalize --include-view` can update the view and add links to the final summary. Those links include the local `.aictx/reports/continuity-map.mmd` file and, when available, a `mermaid.live view` URL encoded from the deterministic Mermaid payload. Agents should preserve the exact links from `agent_summary_text` or `agent_summary_render_payload` in the final user response and must not replace them with placeholders or manually reconstruct the pako URL. `aictx resume --json` reports whether the latest Continuity View exists through the `continuity_view` field, but resume does not regenerate the view by default.
-
-Active task semantics are strict: the Overview reports an active task only when an active Work State is loaded. Recent paused or blocked carryover can still appear as `Paused Work` or `Blocked Work`, but it is not counted as the current active task.
-
-See [Continuity View](CONTINUITY_VIEW.md).
-
-### 6. Agent execution
-
-The agent works normally from the resume capsule. It should not inspect `.aictx/` or run exploratory AICTX commands during normal startup.
-
-Advanced public AICTX surfaces remain available for diagnostics, examples, and explicit user requests:
-
-```bash
-aictx advanced
-aictx resume --repo . --task "<task goal>" --json
-aictx map query "..."
-aictx task status --json
-```
-
-### 7. Finalize execution
-
-After work, integrations can call:
-
-```bash
-aictx internal execution finalize ...
-```
-
-`finalize_execution()` stores observed evidence and returns `agent_summary_text`, the compact user-facing final summary.
-
-When a compatible resume contract and observable execution signals are available, `finalize_execution()` also evaluates contract compliance and appends a compact `Contract:` line to the final summary.
-
-### 8. Next session
-
-The next session can consume `aictx resume --repo . --task "<task goal>" --json` instead of discovering AICTX internals or starting from scratch.
-
-If prior contract compliance data exists, the next resume includes only a compact previous-contract signal such as `Previous contract: followed.`.
-
----
-
-## Public CLI vs internal runtime
-
-### Public CLI
-
-Human-facing and advanced integration commands:
-
-```bash
-aictx install
-aictx init
-aictx resume --repo . --task "<task goal>" --json
-aictx advanced
-aictx resume --repo . --task "<task goal>" --json
-aictx task ...
-aictx map ...
-aictx report real-usage
-aictx clean
-aictx uninstall
-```
-
-`resume` is the normal agent-facing continuity command. The other public surfaces are for setup, inspection, explicit control, debugging, examples, and cleanup.
-
-### Internal runtime CLI
-
-Legacy/internal integration commands:
-
-```bash
-aictx internal boot --repo .
-aictx internal execution prepare ...
-aictx internal execution finalize ...
-aictx internal run-execution ...
-```
-
-These remain available for compatibility and advanced wrappers, but the normal agent-facing lifecycle starts with `aictx resume` and closes with `aictx finalize`.
-
-Important distinction:
-
-```text
-internal boot = bootstrap/runtime diagnostic payload.
-prepare_execution startup_banner_text = user-visible startup continuity banner.
-aictx resume = compiled operational continuity capsule for the agent.
-```
-
----
-
-## Agent integration model
-
-AICTX is runner-aware, not runner-locked.
-
-### Codex-first
-
-Codex support uses:
-
-- `AGENTS.md`;
-- global Codex files when `~/.codex/` is detected during `aictx install`, or when forced with `aictx install --install-codex-global`;
-- model instruction fallback files;
-- the same CLI/runtime contract.
-
-### Claude-aware
-
-Claude support uses:
-
-- `CLAUDE.md`;
-- `.claude/settings.json`;
-- `.claude/hooks/aictx_session_start.py`;
-- `.claude/hooks/aictx_user_prompt_submit.py`;
-- `.claude/hooks/aictx_pre_tool_use.py`.
-
-### GitHub Copilot
-
-GitHub Copilot support uses:
-
-- `.github/copilot-instructions.md`;
-- `.github/instructions/aictx.instructions.md`;
-- optional `.github/prompts/aictx-resume.prompt.md` and `.github/prompts/aictx-finalize.prompt.md`;
-- the same `resume` / `finalize` CLI contract with explicit Copilot identity;
-- best-effort repository instructions only, without hooks, wrappers, or non-standard Copilot integrations.
-
-### Generic fallback
-
-Generic agents use:
-
-- repo instructions;
-- `aictx resume --repo . --task "<task goal>" --json`;
-- public inspection commands for diagnostics;
-- internal prepare/finalize/run-execution commands;
-- JSON/Markdown outputs.
-
----
-
-## Startup continuity and session identity
-
-Startup identity is based on session context.
-
-The visible startup continuity banner is produced through prepare/startup continuity, not by the raw `internal boot` diagnostic payload.
-
-The canonical runtime banner header shape is:
-
-```text
-<agent_label> · session #<n> · awake
-```
-
-Typical labels:
-
-```text
-codex@repo-name
-claude@repo-name
-agent@repo-name
-```
-
-The banner is a compact resumption card. It can include:
-
-- `Resuming: ...`
-- `Last progress: ...` or `Blocked: ...`
-- `Next: ...`
-- `Active task: ... Next: ...`
-
-The runtime canonical banner is English. Agents may localize labels and connective wording to the current user language, but must preserve facts, structure, file paths, commands, flags, test names, package names, and code identifiers.
-
-Example:
-
-```text
-codex@aictx · session #40 · awake
-
-Resuming: branch-safe Work State finalize behavior.
-Last progress: finalize behavior aligned with tests.
-Next: tests/test_work_state_runtime.py
-Active task: Improve public docs. Next: update installation guide.
-```
-
-The banner is intentionally not the whole handoff. The richer operational brief is the `aictx resume` capsule.
-
----
-
-## Boot payload vs startup banner
-
-These two surfaces are related but different.
-
-### `aictx internal boot --repo .`
-
-Boot is a legacy/internal runtime/bootstrap diagnostic surface. It can print:
-
-- ASCII banner;
-- boot summary;
-- user defaults;
-- effective preferences;
-- communication policy;
-- project registry;
-- model routing;
-- cost optimizer status;
-- task memory status;
-- failure memory status;
-- memory graph status;
-- consistency checks;
-- repo bootstrap state.
-
-It is useful for diagnostics and runtime verification.
-
-### `startup_banner_text`
-
-The visible agent startup banner is the compact continuity message intended for the user. It is surfaced through prepare/startup continuity and should be rendered by the agent at the start of the first visible response when policy says so.
-
-Example shape:
-
-```text
-codex@repo · session #40 · awake
-
-Resuming: previous work.
-Last progress: aligned runtime behavior with tests.
-Next: tests/test_smoke.py
-```
-
----
-
-## Handoffs and Decisions
-
-Handoffs and Decisions are first-class continuity concepts. See [Handoffs and Decisions](HANDOFFS.md).
-
-They preserve:
-
-- how the previous execution ended;
-- recommended starting points;
-- explicit project or architecture decisions;
-- compact semantic repo continuity.
-
-They differ from Work State:
-
-```text
-Work State = current suspended task state.
-Handoff = how the previous execution ended.
-Decision = explicit project/architecture fact.
-```
-
----
-
-## Continuity artifact model
-
-Primary continuity artifacts:
-
-```text
-.aictx/continuity/session.json
-.aictx/continuity/handoff.json
-.aictx/continuity/handoffs.jsonl
-.aictx/continuity/decisions.jsonl
-.aictx/continuity/semantic_repo.json
-.aictx/continuity/dedupe_report.json
-.aictx/continuity/staleness.json
-.aictx/continuity/continuity_metrics.json
-.aictx/tasks/active.json
-.aictx/tasks/threads/<task-id>.json
-.aictx/tasks/threads/<task-id>.events.jsonl
-.aictx/strategy_memory/strategies.jsonl
-.aictx/failure_memory/failure_patterns.jsonl
-.aictx/area_memory/areas.json
-.aictx/metrics/execution_logs.jsonl
-.aictx/metrics/execution_feedback.jsonl
-.aictx/metrics/contract_compliance.jsonl
-```
-
-Optional/latest-run artifacts:
-
-```text
-.aictx/continuity/last_execution_summary.md
-.aictx/continuity/resume_capsule.md
-.aictx/continuity/resume_capsule.json
-.aictx/repo_map/config.json
-.aictx/repo_map/manifest.json
-.aictx/repo_map/index.json
-.aictx/repo_map/status.json
-```
-
----
-
-## Stale context handling
-
-AICTX does not inject one permanent memory dump into every agent session.
-
-Each `aictx resume --repo . --task "<task goal>" --json` call builds a fresh task-specific capsule from current repo-local artifacts:
-
-- active Work State;
-- latest execution summary;
-- handoffs and decisions;
-- known failures;
-- strategy hints;
-- preferences and warnings;
-- optional RepoMap data.
-
-Older context is treated as evidence, not truth:
-
-- Work State loading is branch-safe and can skip unsafe branch mismatches.
-- Failure Memory records observed failures; it does not prove future failures.
-- Prior successful strategy records are internal hints; they are heuristic, not instructions.
-- Resume capsules are generated trace artifacts and are regenerated per task.
-- Dedupe/staleness metadata keeps continuity bounded and inspectable.
-- Missing data remains missing, `unknown`, or `not_evaluated` depending on the surface.
-
----
-
-## Capability matrix
-
-| Capability | Main artifacts | Main consumers |
-|---|---|---|
-| Session identity | `session.json` | startup banner |
-| Handoff | `handoff.json`, `handoffs.jsonl` | startup, resume, prepare |
-| Decisions | `decisions.jsonl` | resume, prepare |
-| Semantic repo memory | `semantic_repo.json` | prepare |
-| Work State | `.aictx/tasks/*` | resume, prepare, finalize |
-| Branch-safe Work State | `git_context` in Work State | prepare, finalize |
-| Failure Memory | `failure_patterns.jsonl` | prepare, finalize, report |
-| Strategy hints | `strategies.jsonl` | resume, prepare; legacy suggest/reuse |
-| Area hints | `areas.json` | internal ranking/reporting |
-| RepoMap | `.aictx/repo_map/*` | map commands, prepare |
-| Execution Contract | `resume_capsule.json.execution_contract` | agent startup |
-| Contract Compliance | `.aictx/metrics/contract_compliance.jsonl` | final summary, next resume, real-usage report |
-| Execution Summary | `agent_summary_text`, `last_execution_summary.md` | final response, next session |
-| Real usage report | metrics/memory artifacts | `report real-usage` |
-| Doctor diagnostics | repo/runtime artifacts | `doctor --json` |
-| Runner integrations | `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/aictx.instructions.md`, `.github/prompts/*`, `CLAUDE.md`, `.claude/*` | Codex, GitHub Copilot, Claude, generic agents |
-| Cleanup | managed blocks, registry, global files | `clean`, `uninstall` |
-
----
-
-## Work State runtime
-
-Work State preserves active task state:
-
-- goal;
-- current hypothesis;
-- active files;
-- verified items;
-- unverified assumptions;
-- discarded paths;
-- compact discarded hypotheses / abandoned approaches;
-- next action;
-- recommended commands;
-- risks;
-- uncertainties;
-- source execution ids.
-
-Work State does not store chain-of-thought. When available, discarded hypotheses are short operational notes about an abandoned approach and why it was abandoned.
-
-It lives under:
-
-```text
-.aictx/tasks/active.json
-.aictx/tasks/threads/<task-id>.json
-.aictx/tasks/threads/<task-id>.events.jsonl
-```
-
-It can be updated by:
-
-- public `aictx task ...` commands;
-- explicit runtime payloads;
-- conservative finalize evidence.
-
-It does not infer hidden intent from sparse signals.
-
----
-
-## Branch-safe Work State loading
-
-When saved in a git repo, Work State includes git context:
-
-```text
-available
-branch
-head
-dirty
-changed_files
-captured_at
-```
-
-Evaluation outcomes include:
-
-```text
-no_git_context
-git_unavailable
-same_branch
-branch_changed_but_merged
-branch_mismatch_unmerged
-dirty_branch_mismatch
-```
-
-Core rule:
-
-```bash
-git merge-base --is-ancestor <saved_head> HEAD
-```
-
-Loading behavior:
-
-| Situation | Behavior |
+| Component | Role |
 |---|---|
-| no git context | load conservatively |
-| git unavailable | load conservatively with warning |
-| same branch | load |
-| same branch, changed HEAD | load with warning |
-| branch changed, saved commit is ancestor of current HEAD | load with warning |
-| branch changed, saved commit is not ancestor | skip |
-| saved state dirty and branch changed | skip |
+| Repo scaffold | Creates `.aictx/` and managed instruction/config files. |
+| Runner integrations | Gives Codex, Claude Code, GitHub Copilot, and generic agents the same lifecycle instructions. |
+| Resume capsule | Compiles Work State, handoffs, decisions, failures, quality signals, optional RepoMap hints, and execution contract into an agent brief. |
+| Finalize | Persists observed files, commands, tests, errors, status, summary, handoff, and quality evidence. |
+| Work State | Tracks suspended or active work when there is useful next-action state. |
+| Handoffs and Decisions | Preserve factual continuity across sessions. |
+| Failure Memory | Stores observed failure patterns and known bad paths. |
+| Execution Contracts | Provide advisory first action, edit scope, validation expectation, and finalization expectation. |
+| Continuity Quality | Marks context fresh, stale, missing, obsolete, demoted, or unverified. |
+| Continuity View | Renders deterministic Markdown/Mermaid reports. |
+| Doctor | Gives read-only diagnostics and repair guidance. |
+| RepoMap | Optional structural file/symbol hints. Not required for the core lifecycle. |
+| MCP | Local stdio surface over the same runtime as the CLI. |
 
-Finalize must not update a Work State that prepare skipped for unsafe branch mismatch.
+## Install vs init
 
----
+`aictx install` prepares global/runtime setup such as workspace metadata, MCP runtime metadata, optional global Codex files, and optional RepoMap support.
 
-## Execution contracts and compliance
+`aictx init` prepares one repository. It may write `.aictx/`, generated agent instructions, repo-local MCP config, `.gitignore` managed blocks, Claude/Copilot/Codex integration files, and optional RepoMap artifacts.
 
-See [Execution Contracts and Compliance](EXECUTION_CONTRACTS.md) for the dedicated concept page.
+See [What AICTX writes](WHAT-AICTX-WRITES.md).
 
-At a high level:
+## Resume
 
-```text
-resume -> execution_contract -> observed execution -> finalize compliance -> metrics -> next resume signal
-```
-
-Contract compliance is audit-only. It does not sandbox the agent or block execution. It evaluates only observed signals such as opened files, edited files, commands, tests, and errors.
-
----
-
-## Failure Memory and error events
-
-Failure Memory stores observed failures as structured patterns.
-
-Structured error events can include:
-
-```text
-toolchain
-phase
-severity
-message
-code
-file
-line
-command
-exit_code
-fingerprint
-```
-
-Recognized families include:
-
-```text
-Python / pytest
-mypy / ruff / pyright
-npm
-TypeScript
-ESLint
-Jest / Vitest
-Go
-Rust / Cargo
-Java / Maven
-.NET
-C / C++
-Ruby
-PHP
-generic unknown failures
-```
-
-Failure Memory can help later sessions recognize repeated failures, avoid ineffective paths, and connect later successful work to prior failure context.
-
-Failed strategies are not reused as positive strategy hints.
-
----
-
-## Strategy hints
-
-Prior successful strategies are compatibility/internal hints used by `resume` and `prepare` when relevant. They are not a primary user-facing product concept and agents should not call legacy `suggest` or `reuse` during normal startup. See [Strategy Memory](STRATEGY_MEMORY.md) for the compatibility detail.
-
-It can consider:
-
-- task type;
-- prompt similarity;
-- overlapping files;
-- primary entry point;
-- commands/tests/errors;
-- area id;
-- recency;
-- observed execution evidence;
-- compact `why_it_worked` rationale;
-- `reuse_when` / `avoid_when` boundaries.
-
-Failed strategies are retained for history/debugging but excluded from positive reuse.
-
----
-
-## Area hints
-
-Area hints group observed facts by repo area for internal ranking and reporting.
-
-It can influence:
-
-- continuity loading;
-- strategy selection;
-- failure lookup;
-- report visibility.
-
-Area ids are path-derived and deterministic. They are hints, not semantic proof.
-
----
-
-## RepoMap
-
-RepoMap is optional and Tree-sitter based.
-
-Commands:
+At startup, the agent-facing continuity query is:
 
 ```bash
-aictx map status
-aictx map refresh
-aictx map query "..."
+aictx resume --repo . --task "<task goal>" --json
 ```
 
-Artifacts:
+`resume` may include:
+
+- startup banner policy and text/payload;
+- lifecycle warnings;
+- loaded context metadata;
+- active or carried Work State;
+- handoff and decision summaries;
+- known failures;
+- optional structural entry points from RepoMap;
+- continuity quality signals;
+- execution contract and validation policy.
+
+`resume` is the canonical agent-facing continuity query. It does not replace finalization or persistence.
+
+## Finalize
+
+After work, agents should close the loop:
+
+```bash
+aictx finalize --repo . --status success --summary "<what happened>" --json
+```
+
+Finalization records factual evidence and returns the compact AICTX summary that agents should append to the user-facing final response when available.
+
+With `--include-view`, finalize can also generate Continuity View links.
+
+## Public, advanced, and legacy surfaces
+
+Main product surface:
 
 ```text
-.aictx/repo_map/config.json
-.aictx/repo_map/manifest.json
-.aictx/repo_map/index.json
-.aictx/repo_map/status.json
+install, init, resume, finalize, doctor, view, clean
 ```
 
-RepoMap provides structural hints. It is not semantic understanding and is not required for core continuity.
-
-In v6.3, RepoMap status is explicit about separate capabilities:
+Advanced but valid surface:
 
 ```text
-provider_available
-index_available
-query_available
-refresh_available
-last_refresh_status
-files_indexed
-symbols_indexed
+mcp, portability, map, guard, steer
 ```
 
-This avoids treating `provider_available:false` as meaning no query can run. A previous index can remain queryable even when provider/refresh support is unavailable.
+Legacy/internal compatibility surfaces are intentionally not part of the first-run path. They can exist for old integrations or diagnostics, but docs and generated guidance should keep users focused on the lifecycle above.
 
-RepoMap is also used by `resume` as a context-planning signal. Work State tells the agent what was happening; RepoMap tells it where to look first; Execution Contracts record whether the observed execution followed the suggested structural path when enough evidence exists.
+## Agent integrations
 
----
-
-## Execution Summary
-
-`finalize_execution()` returns:
+All supported integrations should communicate the same model:
 
 ```text
-agent_summary
-agent_summary_text
+install, init, then let the agent work
 ```
 
-The detailed latest summary may be written to:
+When MCP tools are visible, agents should prefer `aictx_resume` and `aictx_finalize`. If MCP is unavailable, use CLI fallback. Generated instructions should not make users learn legacy memory subsystems.
 
-```text
-.aictx/continuity/last_execution_summary.md
-```
+## Trust model
 
-Agents should treat `agent_summary_text` as the canonical compact user-facing final summary source. `.aictx/continuity/last_execution_summary.md` is the detailed diagnostic latest-run summary and should remain linked from the final summary when generated.
+AICTX continuity is evidence, not truth.
 
-If finalize output is unavailable, the agent should say:
+- Stale or missing context stays visible as risk.
+- RepoMap hints are structural hints, not semantic proof.
+- Failure records are observed patterns, not future guarantees.
+- Execution contracts are advisory/audit-only; they do not sandbox the agent.
+- AICTX does not guarantee correctness, speedups, token savings, or complete agent compliance.
 
-```text
-AICTX summary unavailable
-```
+## Related docs
 
----
+Start here:
 
-## Real usage report
-
-`aictx report real-usage` builds a descriptive report from repo-local artifacts.
-
-It may include:
-
-- strategy usage;
-- context/packet usage;
-- capture coverage;
-- failure counts;
-- error event metrics;
-- continuity health;
-- Work State visibility;
-- RepoMap status;
-- contract compliance history and aggregate rates.
-
-It is not a benchmark and does not prove productivity/token savings.
-
-`aictx doctor --repo . --json` is a read-only general diagnostic for support. It reports `status: ok|warning|error`, `mode: general|release_readiness`, a bounded `checks` array, and `recommended_actions`. Default mode checks CLI version, repo initialization, runner files, RepoMap provider/index/query/refresh status, capture quality, contract compliance health, and stale/duplicate memory. `--release-readiness` adds strict aictx release-gate checks for lifecycle smoke compatibility and Makefile/CI compatibility. It is not part of normal agent startup.
-
----
-
-## Cleanup and uninstall
-
-`aictx clean --repo .` removes repo-local AICTX-managed state and unregisters the repo.
-
-It may remove or update:
-
-- `.aictx/`;
-- AICTX Claude hooks;
-- AICTX-managed blocks in `.github/copilot-instructions.md`;
-- AICTX-managed blocks in `.github/instructions/aictx.instructions.md`;
-- AICTX-managed Copilot prompt files in `.github/prompts/`;
-- AICTX-managed blocks in `AGENTS.md`, `CLAUDE.md`, `AGENTS.override.md`;
-- AICTX entries in `.claude/settings.json`;
-- AICTX `.gitignore` entries.
-
-`aictx uninstall` can also clean registered repos/workspaces, global Codex managed files/config, and the global AICTX home.
-
-See [Cleanup](CLEANUP.md).
-
----
-
-## Deterministic vs heuristic behavior
-
-Deterministic:
-
-- artifact paths;
-- schema fields;
-- branch-safe loading rules;
-- CLI contracts;
-- managed block markers;
-- cleanup target classes;
-- no hidden memory claims.
-
-Heuristic:
-
-- task type inference;
-- area derivation;
-- strategy ranking;
-- failure similarity;
-- RepoMap query scoring;
-- next-action usefulness;
-- contract compliance scoring from observable runtime signals.
-
-Heuristic outputs should remain bounded and explainable.
-
----
-
-## Limits
-
-AICTX depends on agent/integration cooperation.
-
-If an agent does not call prepare/finalize or pass observed facts, AICTX cannot record them.
-
-Contract compliance depends on observed execution signals. If no compatible resume contract or no execution observation exists, compliance is reported as `not_evaluated`.
-
-AICTX does not:
-
-- guarantee correctness;
-- guarantee speedups;
-- guarantee token savings;
-- replace review;
-- sandbox or enforce agent behavior;
-- autonomously repair the repo;
-- infer facts that were not observed.
-
----
-
-## Documentation map
-
-Product and setup:
-
-- [README](../README.md)
-- [Installation](INSTALLATION.md)
 - [Quickstart](QUICK-START.md)
+- [Installation](INSTALLATION.md)
+- [Usage](USAGE.md)
+- [What AICTX writes](WHAT-AICTX-WRITES.md)
 
-Core runtime concepts:
+Core concepts:
 
 - [Work State](WORK_STATE.md)
-- [Execution Contracts and Compliance](EXECUTION_CONTRACTS.md)
-- [RepoMap](REPOMAP.md)
-- [Failure Memory](FAILURE_MEMORY.md)
 - [Handoffs and Decisions](HANDOFFS.md)
+- [Failure Memory](FAILURE_MEMORY.md)
 - [Execution Summary](EXECUTION_SUMMARY.md)
+- [Execution Contracts](EXECUTION_CONTRACTS.md)
+- [Continuity View](CONTINUITY_VIEW.md)
+- [Doctor](DOCTOR.md)
 
-Operations and trust:
+Advanced:
 
-- [Usage](USAGE.md)
-- [Cleanup](CLEANUP.md)
-- [Safety](SAFETY.md)
-- [Limitations](LIMITATIONS.md)
-- [Upgrade](UPGRADE.md)
-
-## MCP architecture
-
-The AICTX MCP server is a local stdio interface over the existing AICTX core. It does not duplicate business logic: MCP tools call the same Python runtime functions used by CLI commands. The server exposes AICTX continuity operations only, not generic machine-control tools.
-
-## Agent lifecycle contract
-
-AICTX makes the continuity loop explicit for supported agents without turning documentation into release notes.
-
-Key runtime signals:
-
-- `runner_contract`: compact metadata telling supported agents that AICTX is required, MCP is preferred, CLI fallback is mandatory, and the core tools should be verified once per session.
-- `guard_triggers`: stable action boundaries for first edit, scope changes, risky commands, user steering, and final answers.
-- `execution_contract.validation_policy`: task-type-aware validation expectations so code tasks require focused evidence while documentation and analysis tasks stay advisory.
-- `--brief`: a smaller resume payload for routine agent startup.
-- attributed handoffs: `agent_id`, `adapter_id`, `session_id`, and `evidence_quality`.
-- git-state awareness at finalize: staged, unstaged and untracked edited files can be surfaced as non-blocking continuity gaps.
-- dead-end capture: compact discarded hypotheses can be preserved when an agent explicitly records an abandoned approach or receives a clear correction.
-- strategy rationale: selected successful strategies can include why they worked, when to reuse them, and when to avoid them.
-
-Supported integrations are instructed to prefer MCP tools and fall back to CLI commands. AICTX still depends on agent/runner cooperation and does not guarantee that every agent will follow the lifecycle perfectly. For per-release changes, see [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md).
+- [MCP](MCP.md)
+- [RepoMap](REPOMAP.md)
+- [Portability](PORTABILITY.md)
+- [Continuity Guard](CONTINUITY_GUARD.md)
+- [Steer Guard](STEER_GUARD.md)

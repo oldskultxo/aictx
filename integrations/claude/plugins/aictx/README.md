@@ -2,28 +2,41 @@
 
 # AICTX for Claude Code
 
-This plugin packages the `aictx` skill for Claude Code.
+This plugin packages AICTX repo-local continuity guidance for Claude Code.
 
-It is MCP-first when AICTX MCP tools are available and CLI-fallback otherwise.
+Default model:
+
+```text
+aictx install
+aictx init
+then let Claude Code work
+```
+
+Claude Code should resume repo-local continuity before substantial work and finalize factual evidence after work.
 
 ## Contents
 
 - `.claude-plugin/plugin.json`
 - `skills/aictx/SKILL.md`
 
-## Usage
+## Lifecycle
 
-Agents should call AICTX MCP tools when available:
+Prefer MCP tools when available:
 
 - `aictx_resume`
 - `aictx_finalize`
 - `aictx_view`
 
-If MCP tools are unavailable, agents must use the AICTX CLI fallback.
+If MCP tools are unavailable, use the AICTX CLI fallback:
+
+```bash
+aictx resume --repo . --task "<task summary>" --json
+aictx finalize --repo . --status success --summary "<what changed>" --json
+```
+
+Use `--status failure` when work failed or remains blocked.
 
 ## Distribution
-
-This directory follows the Claude Code plugin format.
 
 ```text
 /plugin marketplace add oldskultxo/aictx

@@ -224,7 +224,7 @@ aictx init --repo . --yes --no-register
 
 AICTX no longer exposes a communication-mode setup choice during `aictx init`. Normal communication style should remain controlled by the user, the runner, and current session instructions.
 
-Repos upgraded from older AICTX versions may still contain legacy values such as `caveman_lite`, `caveman_full`, or `caveman_ultra` in `.aictx/memory/user_preferences.json`. These values are accepted as compatibility input and normalized to the default disabled runtime communication behavior, so existing repos keep working after upgrade.
+Repos upgraded from older AICTX versions may still contain legacy communication-style values in `.aictx/memory/user_preferences.json`. These values are accepted as compatibility input and normalized to the default disabled runtime communication behavior, so existing repos keep working after upgrade without exposing communication-mode branding in the first-run product path.
 
 ---
 
