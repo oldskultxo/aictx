@@ -69,7 +69,7 @@ def test_templates_exist():
 def test_template_defaults_communication_layer_disabled():
     payload = json.loads((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"))
     assert payload["communication"]["layer"] == "disabled"
-    assert payload["communication"]["mode"] == "caveman_full"
+    assert payload["communication"]["mode"] == "disabled"
 
 
 def test_root_prefs_path_points_to_canonical_repo_local_preferences():
@@ -93,7 +93,7 @@ def test_ensure_repo_user_preferences_ignores_legacy_root_and_keeps_canonical_ov
         "communication": {"layer": "enabled"},
     }), encoding="utf-8")
     (repo / ".aictx" / "memory" / "user_preferences.json").write_text(json.dumps({
-        "communication": {"layer": "disabled", "mode": "caveman_full"},
+        "communication": {"layer": "disabled", "mode": "disabled"},
     }), encoding="utf-8")
 
     path = ensure_repo_user_preferences(repo)
@@ -102,7 +102,7 @@ def test_ensure_repo_user_preferences_ignores_legacy_root_and_keeps_canonical_ov
     assert payload["updated_at"] != "2026-04-16"
     assert payload.get("profile", {}).get("preferred_language") != "es"
     assert payload["communication"]["layer"] == "disabled"
-    assert payload["communication"]["mode"] == "caveman_full"
+    assert payload["communication"]["mode"] == "disabled"
 
 
 def test_install_global_adapters_creates_codex_and_claude(tmp_path: Path, monkeypatch):
@@ -150,13 +150,13 @@ def test_agent_runtime_mentions_execution_sources_and_communication_modes():
     assert "resume.runtime_text_policy" in text
     assert "resume.communication_policy" in text
     assert "unknown" in text
-    assert "## Communication mode" in text
+    assert "## Runtime text policy" in text
     assert "## Execution middleware" in text
     assert "## aictx usage rules" in text
     assert "Do not inspect `.aictx/`" in text
     assert "`aictx suggest`" in text
     assert "`aictx reuse`" in text
-    assert "enabled` or `disabled" in text
+    assert "Legacy `communication.mode` values" in text
     assert "caveman_lite" in text
     assert "caveman_full" in text
     assert "caveman_ultra" in text
@@ -261,7 +261,7 @@ def test_communication_policy_uses_disabled_template_default():
     payload = json.loads((TEMPLATES_DIR / "user_preferences.json").read_text(encoding="utf-8"))
     policy = communication_policy_from_defaults(payload)
     assert policy["layer"] == "disabled"
-    assert policy["mode"] == "caveman_full"
+    assert policy["mode"] == "disabled"
 
 
 def test_upsert_marked_block_is_idempotent(tmp_path: Path):
@@ -964,10 +964,10 @@ def test_persist_repo_communication_mode_disabled(tmp_path: Path):
 
     prefs = read_json(prefs_path, {})
     assert prefs["communication"]["layer"] == "disabled"
-    assert prefs["communication"]["mode"] == "caveman_full"
+    assert prefs["communication"]["mode"] == "disabled"
 
 
-def test_persist_repo_communication_mode_enabled_mode(tmp_path: Path):
+def test_persist_repo_communication_mode_ignores_legacy_enabled_mode(tmp_path: Path):
     repo = tmp_path / "repo"
     prefs_path = repo / ".aictx" / "memory" / "user_preferences.json"
     prefs_path.parent.mkdir(parents=True)
@@ -976,8 +976,8 @@ def test_persist_repo_communication_mode_enabled_mode(tmp_path: Path):
     cli.persist_repo_communication_mode(repo, "caveman_ultra")
 
     prefs = read_json(prefs_path, {})
-    assert prefs["communication"]["layer"] == "enabled"
-    assert prefs["communication"]["mode"] == "caveman_ultra"
+    assert prefs["communication"]["layer"] == "disabled"
+    assert prefs["communication"]["mode"] == "disabled"
 
 
 def test_cmd_init_interactive_sets_disabled_mode(tmp_path: Path, monkeypatch):
@@ -995,14 +995,13 @@ def test_cmd_init_interactive_sets_disabled_mode(tmp_path: Path, monkeypatch):
 
     prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
     assert prefs["communication"]["layer"] == "disabled"
-    assert prefs["communication"]["mode"] == "caveman_full"
+    assert prefs["communication"]["mode"] == "disabled"
 
 
-@pytest.mark.parametrize(("choice", "expected_mode"), [("2", "caveman_lite"), ("3", "caveman_full"), ("4", "caveman_ultra")])
-def test_cmd_init_interactive_sets_selected_caveman_mode(tmp_path: Path, monkeypatch, choice: str, expected_mode: str):
+def test_cmd_init_interactive_no_longer_prompts_for_caveman_mode(tmp_path: Path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
-    answers = iter([choice])
+    answers = iter([])
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
@@ -1013,14 +1012,14 @@ def test_cmd_init_interactive_sets_selected_caveman_mode(tmp_path: Path, monkeyp
     assert cli.cmd_init(args) == 0
 
     prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
-    assert prefs["communication"]["layer"] == "enabled"
-    assert prefs["communication"]["mode"] == expected_mode
+    assert prefs["communication"]["layer"] == "disabled"
+    assert prefs["communication"]["mode"] == "disabled"
 
 
 def test_cmd_init_manual_preserves_advanced_prompts(tmp_path: Path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
-    answers = iter(["", "", "1", ""])
+    answers = iter(["", "", ""])
     monkeypatch.setattr("builtins.input", lambda _prompt='': next(answers))
     monkeypatch.setattr(cli, "ensure_global_home", lambda: None)
     monkeypatch.setattr(cli, "install_global_agent_runtime", lambda _write_json: [])
@@ -1032,7 +1031,7 @@ def test_cmd_init_manual_preserves_advanced_prompts(tmp_path: Path, monkeypatch)
 
     prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
     assert prefs["communication"]["layer"] == "disabled"
-    assert prefs["communication"]["mode"] == "caveman_full"
+    assert prefs["communication"]["mode"] == "disabled"
 
 
 def test_cmd_init_yes_keeps_disabled_default(tmp_path: Path, monkeypatch):
@@ -1048,7 +1047,7 @@ def test_cmd_init_yes_keeps_disabled_default(tmp_path: Path, monkeypatch):
 
     prefs = read_json(repo / ".aictx" / "memory" / "user_preferences.json", {})
     assert prefs["communication"]["layer"] == "disabled"
-    assert prefs["communication"]["mode"] == "caveman_full"
+    assert prefs["communication"]["mode"] == "disabled"
 
 
 def test_cmd_init_prepares_repo_runtime_state(tmp_path: Path, monkeypatch):

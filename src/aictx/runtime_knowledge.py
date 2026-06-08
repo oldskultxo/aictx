@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Legacy/internal knowledge-ingestion runtime.
+
+This module remains importable for compatibility with older AICTX installs, but
+it is not part of the primary product surface. The normal product path is:
+`aictx install`, `aictx init`, then agent-driven `resume -> work -> finalize`.
+"""
+
 import argparse
 import hashlib
 import html

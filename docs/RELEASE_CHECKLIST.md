@@ -25,13 +25,13 @@ description: "Checklist for preparing AICTX releases, including version metadata
 - [ ] README shows real startup identity format
 - [ ] RepoMap has appropriate visibility
 - [ ] Install/init flow is documented with example answers
-- [ ] Communication mode is documented under init, not install
+- [ ] Legacy communication-mode preferences are normalized safely and not exposed in first-run setup
 - [ ] Cleanup is documented
 - [ ] Technical overview covers all runtime capabilities
 - [ ] Continuity View docs, README placement, docs homepage card, sitemap entry, and `llms*.txt` references are current
 - [ ] `aictx doctor --repo . --release-readiness --json` reflects release diagnostics without modifying repo state
 - [ ] Docs distinguish `internal boot` diagnostic output from user-visible startup banner
-- [ ] Strategy Memory and Handoffs have dedicated docs if listed as README core concepts
+- [ ] Internal strategy/area hints are not exposed as primary docs or README core concepts
 - [ ] Limitations remain honest
 
 ---
@@ -43,7 +43,7 @@ description: "Checklist for preparing AICTX releases, including version metadata
 - [ ] `aictx init --yes` does not enable portability by default
 - [ ] portability can be enabled after local-only init
 - [ ] portability can be disabled after being enabled
-- [ ] messages mute/unmute/status tested
+- [ ] legacy messages mute/unmute/status remain compatible if still exposed through advanced paths
 - [ ] default message mode is unmuted
 - [ ] muted mode suppresses startup banner
 - [ ] muted mode suppresses agent summary text

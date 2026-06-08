@@ -42,9 +42,9 @@ Choose a profile with `--mcp-profile readonly|standard|full`. The default is `fu
 
 ## Profiles
 
-- `readonly`: inspection tools only, such as resume, task context preparation, lifecycle status, next, doctor, Work State read, RepoMap query, portability status, messages status, continuity quality, continuity guard, steer guard, and real usage report.
+- `readonly`: inspection tools only, such as resume, lifecycle status, doctor, Work State read, RepoMap query, portability status, continuity quality, continuity guard, steer guard, real usage report, and legacy compatibility reads.
 - `standard`: readonly plus normal lifecycle writes: finalize, Work State start/update/close, and Continuity View generation.
-- `full`: standard plus decision, handoff, failure, strategy, RepoMap refresh, portability compact, and messages mode writes.
+- `full`: standard plus decision, handoff, failure, strategy, RepoMap refresh, portability compact, and legacy compatibility writes.
 
 Full means full AICTX continuity, not full machine control.
 
@@ -83,7 +83,7 @@ The read-only profile also exposes focused task context preparation through:
 aictx_prepare_task_context
 ```
 
-This tool returns a bounded, non-persistent Task Context Pack for a supplied goal. It is distinct from `aictx_resume`: use `resume` to start lifecycle work; use task context preparation only as an on-demand read-only context compiler that does not write continuity artifacts.
+This tool returns bounded, non-persistent context for a supplied goal. It is distinct from `aictx_resume`: use `resume` to start lifecycle work; use task context preparation only as an on-demand read-only context compiler that does not write continuity artifacts.
 
 The read-only profile exposes lifecycle diagnostics through:
 
@@ -97,7 +97,7 @@ Lifecycle status is advisory. It reports incomplete control-loop usage such as r
 
 ## Tools, resources, and prompts
 
-Tools cover resume/finalize, Work State, continuity view, decision/handoff/failure memory, RepoMap, portability, messages, and reports. Outputs are JSON-compatible. Write tools include `ok`, `changed`, and `warnings`.
+Tools cover resume/finalize, Work State, continuity view, decision/handoff/failure memory, RepoMap, portability, reports, and legacy compatibility surfaces. Outputs are JSON-compatible. Write tools include `ok`, `changed`, and `warnings`.
 
 Resources are read-only and use `aictx://repo/current/...` URIs for compact continuity artifacts such as resume capsule, continuity view, work state, failure memory, decisions, handoffs, RepoMap status, and doctor output.
 

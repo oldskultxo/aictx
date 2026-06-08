@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AICTX User Manual - Practical commands</title>
     <meta name="description"
-        content="Practical AICTX commands for setup, continuity, MCP, portability, Work State, RepoMap, reports, messages and cleanup.">
+        content="Practical AICTX commands for install, init, resume, finalize, doctor, view, MCP and cleanup.">
     <meta name="keywords"
         content="AICTX, operational continuity, AI coding agents, repo-local continuity, MCP, Model Context Protocol, Codex, Claude Code, GitHub Copilot, Work State, Continuity View">
     <meta name="robots" content="index, follow, max-image-preview:large">
@@ -17,14 +17,14 @@
     <meta property="og:site_name" content="AICTX">
     <meta property="og:title" content="AICTX User Manual - Practical commands">
     <meta property="og:description"
-        content="Practical AICTX commands for setup, continuity, MCP, portability, Work State, RepoMap, reports, messages and cleanup.">
+        content="Practical AICTX commands for install, init, resume, finalize, doctor, view, MCP and cleanup.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://aictx.org/USER_MANUAL.html">
     <meta property="og:image" content="https://aictx.org/images/aictx-logo.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="AICTX User Manual - Practical commands">
     <meta name="twitter:description"
-        content="Practical AICTX commands for setup, continuity, MCP, portability, Work State, RepoMap, reports, messages and cleanup.">
+        content="Practical AICTX commands for install, init, resume, finalize, doctor, view, MCP and cleanup.">
     <meta name="twitter:image" content="https://aictx.org/images/aictx-logo.png">
     <script
         type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AICTX","alternateName":"aictx","url":"https://aictx.org/","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","programmingLanguage":"Python","description":"AICTX is a repo-local operational continuity runtime for AI coding agents, with CLI support, local MCP server, Continuity View, Work State, handoffs, failures and validation evidence.","creator":{"@type":"Person","name":"Santi Santamaria","url":"https://github.com/oldskultxo"},"codeRepository":"https://github.com/oldskultxo/aictx","downloadUrl":"https://pypi.org/project/aictx/","license":"https://github.com/oldskultxo/aictx/blob/main/LICENSE","keywords":["AICTX","operational continuity","AI coding agents","repo-local continuity","MCP","Model Context Protocol","Codex","Claude Code","GitHub Copilot"]}</script>
@@ -644,17 +644,6 @@ aictx map query "startup banner"</code></pre>
                             <li><code>aictx map status</code>: shows RepoMap availability and index state.</li>
                             <li><code>aictx map refresh</code>: refreshes the structural file/symbol map.</li>
                             <li><code>aictx map query</code>: searches RepoMap for relevant entry points.</li>
-                        </ul>
-                    </div>
-                    <div class="card">
-                        <h3>Messages</h3>
-                        <pre><code>aictx messages status
-aictx messages mute
-aictx messages unmute</code></pre>
-                        <ul class="checklist">
-                            <li><code>aictx messages status</code>: shows whether AICTX runtime messages are visible.</li>
-                            <li><code>aictx messages mute</code>: hides non-essential runtime messages.</li>
-                            <li><code>aictx messages unmute</code>: restores runtime messages.</li>
                         </ul>
                     </div>
                 </div>

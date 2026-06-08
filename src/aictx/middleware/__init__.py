@@ -43,6 +43,41 @@ EXECUTION_LOG_PATH = REPO_METRICS_DIR / "agent_execution_log.jsonl"
 REAL_EXECUTION_LOG_PATH = REPO_METRICS_DIR / "execution_logs.jsonl"
 EXECUTION_FEEDBACK_PATH = REPO_METRICS_DIR / "execution_feedback.jsonl"
 EXECUTION_STATUS_PATH = REPO_METRICS_DIR / "agent_execution_status.json"
+
+PUBLIC_FINALIZE_JSON_CONTRACT = {
+    "schema_version": "1.0",
+    "stable_fields": [
+        "execution_id",
+        "public_json_contract",
+        "execution_mode",
+        "prepared_task_type",
+        "final_task_type",
+        "effective_task_type",
+        "final_task_resolution",
+        "aictx_feedback",
+        "contract_adherence",
+        "contract_compliance",
+        "contract_gaps",
+        "handoff_persisted",
+        "agent_summary",
+        "agent_summary_text",
+        "agent_summary_render_payload",
+        "agent_summary_policy",
+        "value_evidence",
+        "capture_quality",
+        "finalized_at",
+        "continuity_view",
+    ],
+    "diagnostic_fields": [
+        "telemetry_entry",
+        "feedback_persisted",
+        "continuity_metrics_persisted",
+        "git_state",
+        "work_state_updated",
+        "semantic_repo_persisted",
+    ],
+    "compatibility": "New fields may be added; stable fields keep their meaning within schema_version 1.x.",
+}
 HEURISTIC_SKILL_PATTERN = re.compile(r"(\$[A-Za-z0-9:_-]+|SKILL\.md|\bskill\b)", re.IGNORECASE)
 
 
@@ -382,7 +417,7 @@ def load_bootstrap_sources(repo_root: Path) -> dict[str, Any]:
             memory_root / "user_preferences.json",
             {
                 "preferred_language": "",
-                "communication": {"layer": "disabled", "mode": "caveman_full"},
+                "communication": {"layer": "disabled", "mode": "disabled"},
             },
         ),
         "project_bootstrap": read_json(
@@ -408,7 +443,7 @@ def prepare_execution(payload: dict[str, Any]) -> dict[str, Any]:
     resolved_preferences = resolve_effective_preferences(repo_root, global_defaults_path=core_runtime.ROOT_PREFS_PATH)
     communication_policy = dict(resolved_preferences.get("effective_preferences", {}).get("communication", {}))
     if not (repo_root / REPO_MEMORY_DIR / "user_preferences.json").exists():
-        communication_policy = {"layer": "disabled", "mode": "caveman_full"}
+        communication_policy = {"layer": "disabled", "mode": "disabled"}
     preferred_language = str(resolved_preferences.get("effective_preferences", {}).get("preferred_language") or "unknown").strip() or "unknown"
     preferred_language_source = str(resolved_preferences.get("sources", {}).get("preferred_language") or "unknown").strip() or "unknown"
     session_identity = touch_session_identity(
@@ -1630,6 +1665,52 @@ def capture_git_state(repo_root: Path, files_edited: list[str] | None = None) ->
     }
 
 
+def _clean_signal_strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for item in value:
+        text = str(item or "").strip()
+        if text and text not in seen:
+            cleaned.append(text)
+            seen.add(text)
+    return cleaned
+
+
+def _merge_result_observation_signals(prepared: dict[str, Any], result: dict[str, Any]) -> None:
+    """Merge direct finalize result evidence into the persisted observation.
+
+    CLI finalize already supplies evidence at prepare time. Direct middleware
+    callers may reasonably pass files/commands/tests/errors in ``result``; keep
+    that compatibility path and mark the provenance as explicit.
+    """
+    observation = prepared.get("execution_observation") if isinstance(prepared.get("execution_observation"), dict) else {}
+    provenance = observation.get("capture_provenance") if isinstance(observation.get("capture_provenance"), dict) else {}
+    for field in SIGNAL_FIELDS:
+        if field == "error_events":
+            incoming_events = normalize_error_events(result.get(field))
+            if not incoming_events:
+                continue
+            existing_events = normalize_error_events(observation.get(field))
+            merged_events = normalize_error_events(existing_events + incoming_events)
+            observation[field] = merged_events
+            provenance[field] = "explicit"
+            continue
+        incoming = _clean_signal_strings(result.get(field))
+        if not incoming:
+            continue
+        existing = _clean_signal_strings(observation.get(field))
+        merged = list(existing)
+        for item in incoming:
+            if item not in merged:
+                merged.append(item)
+        observation[field] = merged
+        provenance[field] = "explicit"
+    observation["capture_provenance"] = provenance
+    prepared["execution_observation"] = observation
+
+
 def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     repo_root = Path(str(prepared.get("envelope", {}).get("repo_root") or ".")).resolve()
     prepared_message_visibility = prepared.get("message_visibility") if isinstance(prepared.get("message_visibility"), dict) else {}
@@ -1652,7 +1733,9 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "semantic_repo": list(result.get("semantic_repo", [])) if isinstance(result.get("semantic_repo"), list) else [],
         "handoff": result.get("handoff", {}) if isinstance(result.get("handoff"), dict) else {},
         "work_state": result.get("work_state", {}) if isinstance(result.get("work_state"), dict) else {},
+        "include_online_view": bool(result.get("include_online_view")),
     }
+    _merge_result_observation_signals(prepared, result)
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
     contract_compliance = evaluate_contract_compliance(
         prepared.get("resume_contract", {}) if isinstance(prepared.get("resume_contract"), dict) else {},
@@ -1814,13 +1897,14 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             except ValueError:
                 details_path = resolved_path
     agent_summary["structured"]["polished_summary"] = build_polished_agent_summary(agent_summary["structured"], details_path=details_path)
-    agent_summary["structured"]["continuity_view"] = continuity_view_summary_links(repo_root)
+    agent_summary["structured"]["continuity_view"] = continuity_view_summary_links(repo_root, include_online=bool(normalized_result.get("include_online_view")))
     agent_summary_render_payload = build_agent_summary_render_payload(agent_summary["structured"], details_path=details_path)
     agent_summary_text = prepend_aictx_text_separator(str(agent_summary_render_payload.get("canonical_text") or ""))
     returned_agent_summary_text = "" if message_output_muted else agent_summary_text
     persisted_feedback = persist_execution_feedback(repo_root, prepared, aictx_feedback, agent_summary["structured"])
     used_packet = bool(prepared.get("last_execution_log", {}).get("used_packet")) if isinstance(prepared.get("last_execution_log"), dict) else False
     return {
+        "public_json_contract": PUBLIC_FINALIZE_JSON_CONTRACT,
         "execution_id": prepared["envelope"]["execution_id"],
         "execution_mode": prepared["execution_mode"],
         "prepared_task_type": str(prepared.get("prepared_task_type") or prepared.get("resolved_task_type") or "unknown"),
@@ -1848,6 +1932,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "agent_summary": agent_summary["structured"],
         "agent_summary_text": returned_agent_summary_text,
         "agent_summary_render_payload": agent_summary_render_payload,
+        "continuity_view": agent_summary["structured"].get("continuity_view", {}),
         "message_visibility": {
             "mode": message_mode,
             "startup_banner_suppressed": bool(prepared_message_visibility.get("startup_banner_suppressed")),
@@ -1873,7 +1958,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "do_not_invent": True,
             "preserve_technical_tokens": True,
             "render_payload_field": "agent_summary_render_payload",
-            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available and render every provided section, including details, continuity_view_file, and continuity_view_online. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, Continuity View file links, Mermaid online view links, or other technical tokens. Do not replace URLs with placeholders and do not manually reconstruct or retype pako URLs. Do not invent or enrich facts.",
+            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available and render every provided section, including details, continuity_view_file, and continuity_view_online when present. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, Continuity View file links, Mermaid online view links when present, or other technical tokens. Do not replace provided URLs with placeholders and do not manually reconstruct or retype pako URLs. Do not invent or enrich facts.",
         },
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),

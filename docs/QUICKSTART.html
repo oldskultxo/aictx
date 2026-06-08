@@ -135,12 +135,6 @@ aictx init --no-mcp</code></pre>
       </section>
 
       <section class="section">
-        <h2>Communication mode</h2>
-        <p class="muted"><code>aictx init</code> can optionally enable compact runtime communication hints for supported agents. The default leaves agent communication unchanged.</p>
-        <p class="muted">Need more setup detail? See <a href="/INSTALLATION.html">Installation</a>.</p>
-      </section>
-
-      <section class="section">
         <h2>2. Normal flow example</h2>
         <ul class="flow">
           <li>Session starts</li>
@@ -191,7 +185,7 @@ View continuity online: mermaid.live view</code></pre>
           <li>Validation expectations are task-aware, so documentation and analysis tasks stay advisory.</li>
           <li><code>finalize</code> can surface dirty edited files without staging or committing them.</li>
           <li>Work State can preserve compact discarded hypotheses when an agent explicitly records an abandoned approach.</li>
-          <li>Strategy Memory can preserve compact rationale for why a strategy worked and when not to reuse it.</li>
+          <li>Prior successful strategies can be used internally as bounded hints when they are relevant.</li>
         </ul>
       </section>
 

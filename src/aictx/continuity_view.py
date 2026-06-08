@@ -538,7 +538,7 @@ def render_continuity_mermaid(model: dict[str, Any]) -> str:
 
     strategies = list(model.get("strategies") or [])[:3]
     if strategies:
-        nodes.append(_node("SM", "Relevant Strategy Memory"))
+        nodes.append(_node("SM", "Internal Strategy Hints"))
         edges.append(_edge("Repo", "SM"))
         if work.get("exists"):
             edges.append(_edge("SM", "WS"))
@@ -549,7 +549,7 @@ def render_continuity_mermaid(model: dict[str, Any]) -> str:
 
     areas = list(model.get("area_memory") or [])[:5]
     if areas:
-        nodes.append(_node("AM", "Area Memory Signals"))
+        nodes.append(_node("AM", "Internal Area Signals"))
         edges.append(_edge("Repo", "AM"))
     for index, item in enumerate(areas, start=1):
         node_id = f"AM{index}"
@@ -713,8 +713,8 @@ def render_continuity_markdown(model: dict[str, Any]) -> str:
     for section, key, title_key in (
         ("Open Handoffs", "open_handoffs", "title"),
         ("Relevant Failures", "relevant_failures", "title"),
-        ("Strategy Memory", "strategies", "title"),
-        ("Area Memory", "area_memory", "area_id"),
+        ("Internal Strategy Hints", "strategies", "title"),
+        ("Internal Area Hints", "area_memory", "area_id"),
     ):
         lines.extend(["", f"## {section}", ""])
         lines.extend(_section_items(list(model.get(key) or []), title_key=title_key))
@@ -849,8 +849,17 @@ def mermaid_live_url(mermaid: str, *, mode: str = "view") -> str:
     return generate_mermaid_live_url(mermaid, mode=mode)
 
 
-def continuity_view_summary_links(repo_root: Path) -> dict[str, str]:
+def continuity_view_summary_links(repo_root: Path, *, include_online: bool = False) -> dict[str, str]:
     repo_root = Path(repo_root).expanduser().resolve()
+    file_path = CONTINUITY_MAP_PATH.as_posix()
+    links = {
+        "file_path": file_path,
+        "file_link": f"[continuity-map.mmd]({file_path})",
+        "online_command": "aictx view --repo . --json --online",
+    }
+    if not include_online:
+        return links
+
     mermaid_path = repo_root / CONTINUITY_MAP_PATH
     if mermaid_path.exists():
         try:
@@ -859,12 +868,8 @@ def continuity_view_summary_links(repo_root: Path) -> dict[str, str]:
             mermaid = ""
     else:
         mermaid = render_continuity_mermaid(build_continuity_view_model(repo_root))
-    file_path = CONTINUITY_MAP_PATH.as_posix()
     # Mermaid Live exposes shareable read-only diagrams through /view#pako.
     online_url = mermaid_live_url(mermaid)
-    return {
-        "file_path": file_path,
-        "file_link": f"[continuity-map.mmd]({file_path})",
-        "online_url": online_url,
-        "online_link": f"[mermaid.live view]({online_url})",
-    }
+    links["online_url"] = online_url
+    links["online_link"] = f"[mermaid.live view]({online_url})"
+    return links

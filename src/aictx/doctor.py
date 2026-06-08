@@ -48,6 +48,103 @@ def _aggregate_status(checks: list[dict[str, Any]]) -> str:
     return "ok"
 
 
+def _quality_issue_action(issue: dict[str, Any]) -> dict[str, Any]:
+    code = str(issue.get("code") or "")
+    source_id = str(issue.get("source_id") or "")
+    related_paths = list(issue.get("related_paths", []) or []) if isinstance(issue.get("related_paths"), list) else []
+    if code == "missing_continuity_view":
+        return {
+            "code": code,
+            "action": "regenerate_continuity_view",
+            "command": "aictx view --repo .",
+            "reason": str(issue.get("summary") or ""),
+            "related_paths": related_paths,
+            "safe": True,
+        }
+    if code == "missing_repomap":
+        return {
+            "code": code,
+            "action": "refresh_repomap_if_enabled",
+            "command": "aictx map refresh --repo . --json",
+            "reason": str(issue.get("summary") or ""),
+            "related_paths": related_paths,
+            "safe": True,
+        }
+    if code in {"missing_linked_file", "obsolete_decision", "stale_handoff", "stale_continuity_view"} or code.endswith("_loaded_context"):
+        return {
+            "code": code,
+            "source_id": source_id,
+            "action": "verify_or_demote_stale_continuity",
+            "command": "aictx doctor --repo . --json",
+            "reason": str(issue.get("reason") or issue.get("summary") or ""),
+            "related_paths": related_paths,
+            "safe": True,
+            "cleanup_note": "Review with `aictx view --repo .`; avoid hand-editing `.aictx/`. Use `aictx clean --repo .` only for an intentional full repo reset.",
+        }
+    if code == "missing_validation_evidence":
+        return {
+            "code": code,
+            "action": "run_expected_validation",
+            "command": str(issue.get("recommendation") or "record validation in the next aictx finalize"),
+            "reason": str(issue.get("summary") or ""),
+            "related_paths": related_paths,
+            "safe": True,
+        }
+    return {
+        "code": code,
+        "action": "inspect_issue",
+        "command": "aictx doctor --repo . --json",
+        "reason": str(issue.get("summary") or ""),
+        "related_paths": related_paths,
+        "safe": True,
+    }
+
+
+def _build_action_plan(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    def add(action: dict[str, Any]) -> None:
+        key = (
+            str(action.get("code") or action.get("action") or ""),
+            str(action.get("source_id") or ""),
+            str(action.get("command") or ""),
+        )
+        if key in seen:
+            return
+        seen.add(key)
+        actions.append(action)
+
+    for check in checks:
+        recommended = str(check.get("recommended_action") or "").strip()
+        if recommended:
+            add({
+                "code": str(check.get("name") or ""),
+                "action": "run_recommended_action",
+                "command": recommended,
+                "reason": str(check.get("summary") or ""),
+                "safe": True,
+            })
+        if check.get("name") == "continuity_quality":
+            details = check.get("details") if isinstance(check.get("details"), dict) else {}
+            for issue in details.get("issues", []) if isinstance(details.get("issues"), list) else []:
+                if isinstance(issue, dict):
+                    add(_quality_issue_action(issue))
+        if check.get("name") == "lifecycle_status":
+            details = check.get("details") if isinstance(check.get("details"), dict) else {}
+            for warning in details.get("warnings", []) if isinstance(details.get("warnings"), list) else []:
+                if not isinstance(warning, dict):
+                    continue
+                add({
+                    "code": str(warning.get("code") or "lifecycle_warning"),
+                    "action": "close_open_lifecycle",
+                    "command": 'aictx finalize --repo . --status success|failure --summary "<what happened>" --json',
+                    "reason": str(warning.get("summary") or ""),
+                    "safe": True,
+                })
+    return actions[:20]
+
+
 def _copilot_integration_snapshot(repo: Path) -> dict[str, Any]:
     repo_file = repo / COPILOT_INSTRUCTIONS_PATH
     path_file = repo / COPILOT_PATH_INSTRUCTIONS_PATH
@@ -287,6 +384,7 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
         action = str(item.get("recommended_action") or "").strip()
         if action and action not in recommended_actions:
             recommended_actions.append(action)
+    action_plan = _build_action_plan(checks)
 
     return {
         "status": _aggregate_status(checks),
@@ -295,4 +393,5 @@ def build_doctor_report(repo_root: Path, *, release_readiness: bool = False) -> 
         "mode": "release_readiness" if release_readiness else "general",
         "checks": checks,
         "recommended_actions": recommended_actions,
+        "action_plan": action_plan,
     }

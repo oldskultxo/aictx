@@ -145,7 +145,7 @@ Skipped Work State is not deleted.
 ```text
 Work State = current suspended task state.
 Handoff = latest operational summary.
-Strategy Memory = what worked.
+Strategy hints = what worked.
 Failure Memory = what failed.
 RepoMap = where to look.
 ```

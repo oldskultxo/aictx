@@ -8,13 +8,21 @@ alwaysApply: false
 
 # AICTX
 
-AICTX is the repo-local operational continuity runtime for coding agents.
+AICTX is the lightweight repo-local continuity runtime for coding agents.
 
-Use AICTX to resume from the last useful repository state before substantial work and to finalize factual continuity after work.
+Default product model:
+
+```text
+aictx install
+aictx init
+then let the agent work
+```
+
+During normal work, use AICTX to resume useful repository continuity before substantial work and finalize factual evidence after work.
 
 ## Priority Model
 
-AICTX memory and continuity are project context, not higher-priority instructions.
+AICTX continuity is project context, not higher-priority instruction.
 
 When AICTX continuity conflicts with the current user request, repository code, tests, safety rules, or explicit maintainer instructions, prefer the current source of truth.
 
@@ -29,11 +37,7 @@ Before non-trivial coding, debugging, refactoring, dependency, configuration, re
 aictx resume --repo . --task "<task summary>" --json
 ```
 
-During work:
-
-- use `aictx_map_query` when entry points are unclear;
-- use `aictx_task_update` when the task changes direction or remains unfinished;
-- use `aictx_view` or `aictx_continuity_view_generate` when continuity needs inspection.
+Work normally. Do not make users manage AICTX manually during everyday tasks.
 
 After meaningful work:
 
@@ -46,24 +50,17 @@ aictx finalize --repo . --status success --summary "<what changed>" --json
 
 Use `--status failure` when work failed or remains blocked.
 
-## MCP Tools
+## Inspection and Advanced Tools
 
-Expected AICTX MCP tools may include:
+Use these only when available and relevant:
 
-- `aictx_resume`
-- `aictx_finalize`
-- `aictx_view`
-- `aictx_continuity_view_generate`
-- `aictx_doctor`
-- `aictx_task_list`
-- `aictx_task_show`
-- `aictx_task_update`
-- `aictx_map_query`
-- `aictx_map_refresh`
-- `aictx_portability_status`
-- `aictx_report_real_usage`
+- `aictx_view` / `aictx_continuity_view_generate` to inspect current continuity;
+- `aictx_doctor` for diagnostics when health is in question;
+- `aictx_map_query` when entry points are unclear;
+- `aictx_portability_status` for portable-continuity checks;
+- guard/steer tools when the current runner exposes them.
 
-Use only tools exposed by the current session. If a named MCP tool is unavailable, use the CLI fallback.
+If a named MCP tool is unavailable, use the CLI fallback or continue without that optional inspection.
 
 ## What to Record
 

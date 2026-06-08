@@ -59,7 +59,7 @@ Doctor does not modify repo state.
 
 ## RepoMap status
 
-Doctor uses the v6.3 RepoMap status model:
+Doctor uses the RepoMap status model:
 
 ```text
 provider_available

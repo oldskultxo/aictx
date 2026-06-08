@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""Legacy/internal task-memory taxonomy runtime.
+
+This module remains importable for compatibility with older AICTX installs, but
+task-memory taxonomy behavior is not part of the primary product surface. The
+normal product path is: `aictx install`, `aictx init`, then agent-driven
+`resume -> work -> finalize`.
+"""
+
 from datetime import date
 from pathlib import Path
 from typing import Any

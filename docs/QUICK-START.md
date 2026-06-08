@@ -1,115 +1,68 @@
 ---
-title: "AICTX Quickstart for Operational Continuity"
-description: "Start using AICTX to preserve operational continuity across AI coding-agent sessions with the official aictx CLI."
+title: "AICTX Quickstart"
+description: "Install, initialize, and inspect AICTX repo-local continuity for coding agents in the first five minutes."
 ---
 
 # Quickstart
 
-This walkthrough gets a repository from zero to its first visible continuity loop: install, initialize, resume, finalize, inspect.
-
-AICTX is built around one loop:
+AICTX has one default experience:
 
 ```text
-resume before work -> work normally -> finalize evidence -> next session continues
+install -> init -> let the coding agent work
 ```
 
-## 1. Install and Initialize
+After setup, compatible agents run the lifecycle themselves:
+
+```text
+resume -> work -> finalize
+```
+
+## First five minutes
+
+### 1. Install
 
 ```bash
 pip install aictx
 aictx install
+```
+
+`aictx install` prepares AICTX runtime metadata and optional global runner integration, such as Codex global files when `~/.codex/` is detected.
+
+### 2. Initialize the repo
+
+From inside the target repository:
+
+```bash
 aictx init
 ```
 
-That is the normal user path.
+This writes repo-local AICTX state and generated agent guidance such as `AGENTS.md`, `CLAUDE.md`, GitHub Copilot instruction files, and MCP config when supported.
 
-```text
-You install and initialize AICTX.
-Supported agents are instructed to resume before work and finalize after work.
-Everything is stored locally under `.aictx/`.
-```
-
-If `~/.codex/` already exists, `aictx install` detects Codex and installs/updates AICTX-managed global Codex integration by default. In interactive mode it asks for confirmation; with `--yes` it applies the detected Codex setup automatically.
-
-Optional check:
+### 3. Verify health
 
 ```bash
-aictx --version
 aictx doctor --repo . --json
 ```
 
-A fresh repo may have little continuity. That is expected. AICTX becomes more useful after work has been finalized and Work State, failures, decisions, or handoffs exist.
+A fresh repo may have little continuity. That is normal. AICTX becomes useful after agents finalize real work.
 
-### MCP support
+### 4. Use your coding agent normally
 
-By default, `aictx install` prepares AICTX MCP runtime metadata and `aictx init` writes repo-local MCP config for compatible clients.
+Ask for the work you actually want:
 
-Compatible agents can launch the local stdio server with:
-
-```bash
-aictx mcp-server --repo . --profile full
+```text
+Fix the parser recovery bug and run the focused parser tests.
 ```
 
-Inspect MCP setup with:
+A compatible agent should:
 
-```bash
-aictx mcp status --repo .
-```
+1. call `aictx_resume` or `aictx resume --repo . --task "<goal>" --json`;
+2. work normally;
+3. call `aictx_finalize` or `aictx finalize --repo . --status success|failure --summary "<what happened>" --json`.
 
-Opt out with:
+You should not need to manage AICTX manually during everyday work.
 
-```bash
-aictx install --no-mcp
-aictx init --no-mcp
-```
-
-Agents should prefer MCP tools such as `aictx_resume`, `aictx_finalize`, and `aictx_view` when available, and fall back to CLI commands otherwise.
-
-### Interactive install
-Installation prepares AICTX MCP support by default and will only ask you about enabling recommended RepoMap support using Tree-sitter.
-
-RepoMap uses Tree-sitter to build a compact structural map of files and symbols. It helps agents choose better starting points without reading the whole repo.
-
-### Communication mode
-
-`aictx init` can optionally enable compact runtime communication hints for supported agents. The default leaves agent communication unchanged.
-
-Need more setup detail? See [Installation](INSTALLATION.md).
-
-## 2. Normal flow example
-
-- Session starts
-- The user asks for a task
-- AICTX provides the agent with a continuity resume capsule
-
-```bash
-codex@my-repo · session #12 · awake
-
-Resuming: parser refactor was paused after updating token tests.
-Last progress: `tests/test_parser.py` passes; next step is to update error recovery cases.
-
-────────────────────────────────
-```
-
-- Agent performs the task
-- AICTX updates continuity artifacts
-- Agent provides the user with a continuity summary
-
-```bash
-────────────────────────────────
-AICTX summary
-
-Context: resumed parser refactor from previous session state.
-Map: RepoMap quick ok.
-Saved: updated handoff and continuity state.
-Validation: `pytest -q tests/test_parser.py` passed.
-Next: update parser error recovery cases.
-Details: last_execution_summary.md
-Continuity view file: continuity-map.mmd
-View continuity online: mermaid.live view
-```
-
-## 3. Inspect Continuity View Manually
+### 5. Inspect what exists
 
 ```bash
 aictx view --repo .
@@ -122,17 +75,22 @@ Default output:
 .aictx/reports/continuity-map.mmd
 ```
 
-Not hidden memory. Reviewable operational continuity.
+## Manual lifecycle example
 
-## Agent lifecycle in one minute
+Use this only for inspection, unsupported runners, examples, or debugging:
 
-AICTX gives cooperating agents a compact, repeatable lifecycle:
+```bash
+aictx resume --repo . --task "fix the parser recovery bug" --json
+# do work, edit files, run tests
+aictx finalize --repo . --status success --summary "Fixed parser recovery and ran focused parser tests" --json
+```
 
-- `resume --brief` can return a smaller startup payload for routine work.
-- Supported integrations get runner contracts and guard triggers.
-- Validation expectations are task-aware, so documentation and analysis tasks can stay advisory.
-- `finalize` can surface dirty edited files without staging or committing them.
-- Work State can preserve compact discarded hypotheses when an agent explicitly records an abandoned approach.
-- Strategy Memory can preserve compact rationale for why a strategy worked and when not to reuse it.
+A later session resumes from repo-local continuity.
 
-For implementation details, see [Technical overview](TECHNICAL_OVERVIEW.md). For release history, see [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md).
+## What to read next
+
+- [Installation](INSTALLATION.md): setup options.
+- [What AICTX writes](WHAT-AICTX-WRITES.md): files and local/portable behavior.
+- [Usage](USAGE.md): command reference.
+- [Continuity View](CONTINUITY_VIEW.md): inspect current continuity.
+- [Docs map](../README.md): main, advanced, and legacy/internal docs tiers.

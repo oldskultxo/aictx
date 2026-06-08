@@ -102,9 +102,9 @@ def test_resume_json_includes_communication_policy_without_rendering_it(tmp_path
 
     payload = build_resume_capsule(repo, request_text="test communication policy", agent_id="codex")
 
-    assert payload["communication_policy"]["layer"] == "enabled"
-    assert payload["communication_policy"]["mode"] == "caveman_ultra"
-    assert payload["runtime_text_policy"]["communication"]["mode"] == "caveman_ultra"
+    assert payload["communication_policy"]["layer"] == "disabled"
+    assert payload["communication_policy"]["mode"] == "disabled"
+    assert payload["runtime_text_policy"]["communication"]["mode"] == "disabled"
     assert payload["runtime_text_policy"]["does_not_modify_startup_banner"] is True
     assert payload["runtime_text_policy"]["does_not_modify_agent_summary"] is True
     assert "Communication: caveman_ultra" not in render_resume_capsule(payload)

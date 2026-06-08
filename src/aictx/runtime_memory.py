@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""Legacy/internal generic memory runtime.
+
+This module remains importable for compatibility with older AICTX installs, but
+generic memory-store behavior is not part of the primary product surface. The
+normal product path is: `aictx install`, `aictx init`, then agent-driven
+`resume -> work -> finalize`.
+"""
+
 from collections import defaultdict
 from datetime import date
 from typing import Any
@@ -253,15 +261,15 @@ def rebuild_memory_store() -> dict[str, Any]:
             'bootstrap_required_every_session': True,
         },
         'preferred_output_patterns': [
-            communication_policy.get('mode', 'caveman_full'),
+            communication_policy.get('mode', 'disabled'),
             communication_policy.get('final_style', 'plain_direct_final_only'),
             defaults_payload.get('response', {}).get('verbosity', defaults_payload.get('workflow', {}).get('default_response_style', 'concise')),
             defaults_payload.get('profile', {}).get('preferred_language', 'es'),
         ],
         'communication_policy': communication_policy,
         'communication_contract': {
-            'default_mode': communication_policy.get('mode', 'caveman_full'),
-            'layer': communication_policy.get('layer', 'enabled'),
+            'default_mode': communication_policy.get('mode', 'disabled'),
+            'layer': communication_policy.get('layer', 'disabled'),
             'intermediate_output': communication_policy.get('intermediate_updates', 'suppressed'),
             'final_output': communication_policy.get('final_style', 'plain_direct_final_only'),
             'plain_direct': True,
