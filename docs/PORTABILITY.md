@@ -9,7 +9,7 @@ AICTX does not sync anything. Git is the transport.
 
 When enabled, AICTX writes a team-safe Git policy that allows committing a safe subset of canonical `.aictx/` artifacts and adds merge hints for append-only JSONL continuity files.
 
-Portable allowlisting is not enough by itself. AICTX now also redacts secret-like values before writing portable artifacts.
+Portable allowlisting is not enough by itself. AICTX redacts secret-like values before writing portable artifacts.
 
 ## Enable
 
@@ -99,7 +99,7 @@ It will not delete or reset continuity artifacts.
 
 Existing Work State, handoffs, decisions, failure memory, strategy memory, and RepoMap config stay in their canonical locations.
 
-After enabling portability, inspect what Git can now see:
+After enabling portability, inspect what Git can see:
 
 ```bash
 git status -- .aictx
@@ -186,4 +186,4 @@ The status payload reports sync/drift between:
 
 ## Safety
 
-Do not commit secrets. AICTX now redacts portable secrets by default, but you should still review `.aictx/` changes before committing. Portable artifacts may still contain operational context even when secret values are scrubbed.
+Do not commit secrets. AICTX redacts portable secrets by default, but you should still review `.aictx/` changes before committing. Portable artifacts may still contain operational context even when secret values are scrubbed.

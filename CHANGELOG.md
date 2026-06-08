@@ -1,5 +1,29 @@
 # Changelog
 
+## 7.0.0 - 2026-06-08
+
+### Added
+- Added a public resume JSON contract so agent integrations can distinguish stable resume fields from diagnostic fields.
+- Added Doctor action-plan output for continuity quality issues, including safe remediation hints for missing views, RepoMap refreshes, stale continuity, deleted-path references, and pending validation evidence.
+- Added an end-to-end fresh-repo lifecycle regression covering `install -> init -> resume -> finalize -> resume -> doctor -> view`.
+- Added [What AICTX writes](docs/WHAT-AICTX-WRITES.md) as the focused inventory of repo-local setup and runtime artifacts.
+
+### Changed
+- Repositioned AICTX around the focused product promise: install once, initialize the repo, then let compatible coding agents run the `resume -> work -> finalize` continuity loop.
+- Reworked the primary README and core docs to emphasize AICTX as a lightweight repo-local continuity runtime for coding agents.
+- Separated main documentation from advanced and compatibility material so legacy/internal surfaces no longer define the first-run path.
+- Narrowed top-level CLI help to the primary product path while keeping advanced, diagnostic, and compatibility commands available behind advanced/hidden surfaces.
+- Disabled legacy runtime communication modes by default so AICTX continuity does not impose repo-level answer style on agents.
+- Hardened finalize evidence capture with explicit provenance for opened files, edited files, commands, tests, and notable errors.
+- Updated package/runtime version metadata for the 7.0.0 release line.
+
+### Fixed
+- Fixed healthy resume output so continuity quality does not render noisy Markdown warnings for handoffs that are within the public possibly-stale window.
+
+### Removed
+- Removed public Strategy Memory and Area Memory documentation pages from the main docs tree because those concepts are internal ranking/reuse hints, not primary user-facing product surfaces.
+- Removed version-relative change language from main documentation outside the changelog and upgrade guide.
+
 ## 6.11.0 - 2026-06-02
 
 ### Added

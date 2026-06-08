@@ -57,7 +57,7 @@ aictx resume --repo . --task "fix the parser bug" --json
 aictx finalize --repo . --status success --summary "Fixed parser recovery and ran focused parser tests" --json
 ```
 
-A later session can now resume from local repository state instead of hidden chat history.
+A later session resumes from local repository state instead of hidden chat history.
 
 ```text
 You: fix the parser bug

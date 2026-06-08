@@ -352,7 +352,12 @@ def _collect_continuity_quality(
     try:
         from . import refresh_staleness
 
-        staleness = refresh_staleness(repo, now=current, persist=False).get("staleness", {})
+        staleness = refresh_staleness(
+            repo,
+            now=current,
+            handoff_max_age_days=POSSIBLY_STALE_MAX_DAYS,
+            persist=False,
+        ).get("staleness", {})
     except Exception:
         staleness = {}
     if isinstance(staleness, dict):

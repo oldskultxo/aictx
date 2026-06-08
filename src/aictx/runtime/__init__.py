@@ -1,2 +1,2 @@
-"""Canonical runtime namespace for AICTX v6 internals."""
+"""Canonical runtime namespace for AICTX internals."""
 from __future__ import annotations

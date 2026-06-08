@@ -1,4 +1,4 @@
-"""Typed execution payload boundaries for AICTX v6."""
+"""Typed execution payload boundaries for AICTX."""
 from __future__ import annotations
 
 from .models import AgentSummary, ContextPacket, ExecutionEnvelope, FinalizedExecution, PreparedExecution

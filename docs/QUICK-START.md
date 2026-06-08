@@ -85,7 +85,7 @@ aictx resume --repo . --task "fix the parser recovery bug" --json
 aictx finalize --repo . --status success --summary "Fixed parser recovery and ran focused parser tests" --json
 ```
 
-A later session can now resume from repo-local continuity.
+A later session resumes from repo-local continuity.
 
 ## What to read next
 

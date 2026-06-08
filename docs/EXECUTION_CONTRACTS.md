@@ -5,7 +5,7 @@ description: "Understand AICTX execution contracts, compliance records, and how 
 
 # Execution Contracts and Compliance
 
-AICTX v6 keeps a compact contract loop around the normal agent lifecycle, with persisted contract records and evaluated-only reporting.
+AICTX keeps a compact contract loop around the normal agent lifecycle, with persisted contract records and evaluated-only reporting.
 
 ```text
 resume -> execution_contract -> observed execution -> finalize compliance -> metrics -> next resume signal
@@ -104,7 +104,7 @@ Previous contract: followed.
 
 The default resume should not include verbose audit evidence.
 
-In v6.3, unresolved contract gaps can also become Work State carryover. The minimum gap types are:
+Unresolved contract gaps can also become Work State carryover. The minimum gap types are:
 
 - `missing_validation`
 - `missing_first_action`

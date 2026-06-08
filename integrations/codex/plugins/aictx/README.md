@@ -2,41 +2,33 @@
 
 # AICTX for Codex
 
-This plugin packages AICTX repo-local continuity guidance for Codex.
+This plugin packages the `aictx` skill for Codex.
 
-Default model:
-
-```text
-aictx install
-aictx init
-then let Codex work
-```
-
-Codex should resume repo-local continuity before substantial work and finalize factual evidence after work.
+It is MCP-first when AICTX MCP tools are available and CLI-fallback otherwise.
 
 ## Contents
 
 - `.codex-plugin/plugin.json`
 - `skills/aictx/SKILL.md`
 
-## Lifecycle
+## Usage
 
-Prefer MCP tools when available:
+Agents should call AICTX MCP tools when available:
 
 - `aictx_resume`
 - `aictx_finalize`
 - `aictx_view`
 
-CLI fallback:
+If MCP tools are unavailable, agents must use the AICTX CLI fallback:
 
 ```bash
 aictx resume --repo . --task "<task summary>" --json
 aictx finalize --repo . --status success --summary "<what changed>" --json
 ```
 
-Use `--status failure` when work failed or remains blocked.
-
 ## Distribution
+
+This directory follows the Codex plugin format.
 
 ```bash
 codex plugin marketplace add oldskultxo/aictx

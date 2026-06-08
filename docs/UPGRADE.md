@@ -5,9 +5,9 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 # Upgrade guide
 
-## Current line: 6.11.x
+## Current line: 7.0.x
 
-Current documented runtime: `6.11.0`.
+Current documented runtime: `7.0.0`.
 
 Release history lives in [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md). This guide focuses on migration actions, compatibility notes, and setup refresh steps.
 
@@ -17,6 +17,28 @@ For users already on recent `4.x`, `5.x`, or `6.x`, there is no special data mig
 aictx install
 aictx init
 ```
+
+---
+## 7.0
+
+`7.0` is a product-consolidation release that narrows the default AICTX experience to a lightweight repo-local continuity runtime for coding agents.
+
+This line does not require a data migration. Re-run setup so generated runner instructions pick up the current lifecycle guidance and documentation positioning:
+
+```bash
+aictx install
+aictx init
+```
+
+Upgrade notes:
+- Existing `.aictx/` continuity data remains compatible.
+- The primary path is `install -> init -> agent resume -> work -> finalize`.
+- Re-run `aictx init` after upgrading so repo-local instructions pick up the narrowed lifecycle-first guidance.
+- Top-level CLI help now emphasizes the primary path. Advanced, diagnostic, MCP, guard, steer, prepare, portability, and legacy compatibility commands remain available for existing automations, but they are no longer the default first-run surface.
+- Legacy runtime communication modes are normalized to disabled defaults. If you relied on AICTX to enforce agent response style, move that preference to your agent or runner configuration.
+- Doctor JSON now includes action-plan remediation hints for continuity quality issues; existing diagnostics consumers should tolerate the additional field.
+- Resume JSON now includes a public contract object that separates stable fields from diagnostic fields; existing consumers can continue reading the previous fields directly.
+- Review [What AICTX writes](WHAT-AICTX-WRITES.md) if you need a file-level setup/runtime inventory.
 
 ---
 ## 6.11

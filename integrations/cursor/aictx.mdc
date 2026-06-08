@@ -1,7 +1,7 @@
 <!-- Generated from integrations/templates/agent-guidance.md. Do not edit directly. -->
 
 ---
-description: AICTX repo-local continuity runtime
+description: AICTX repo-local operational continuity
 globs: **/*
 alwaysApply: false
 ---
