@@ -87,9 +87,9 @@ aictx view --repo . --json
 .aictx/reports/continuity-map.mmd
 ```
 
-## Advanced commands
+## Advanced supported commands
 
-Advanced commands are available without being part of the first-run path:
+These commands are supported for inspection, setup variants, and diagnostics. They are not part of the first-run path:
 
 ```bash
 aictx mcp status --repo .
@@ -113,7 +113,15 @@ See:
 
 ## Legacy/internal compatibility
 
-Older commands such as `suggest`, `reuse`, `next`, `reflect`, broad `internal ...`, task-memory, memory-graph, and wrapper scripts are not part of the normal product path. They may remain temporarily for compatibility, diagnostics, or migration work, but new users and supported agents should use the main lifecycle commands above.
+These surfaces are compatibility-only or internal. They are not part of the normal product path and should not be presented as onboarding commands:
+
+- `suggest`, `reuse`, `next`, `reflect`
+- task-memory and message-memory commands
+- broad `internal ...` commands
+- memory-graph and old wrapper scripts
+- old report variants not covered by the main `doctor` / `view` flow
+
+They may remain temporarily for compatibility, diagnostics, or migration work, but new users and supported agents should use the main lifecycle commands above.
 
 Do not run exploratory AICTX commands during normal agent startup. Use exactly one continuity query, then finalize at the end.
 

@@ -538,7 +538,7 @@ def render_continuity_mermaid(model: dict[str, Any]) -> str:
 
     strategies = list(model.get("strategies") or [])[:3]
     if strategies:
-        nodes.append(_node("SM", "Relevant Strategy Memory"))
+        nodes.append(_node("SM", "Internal Strategy Hints"))
         edges.append(_edge("Repo", "SM"))
         if work.get("exists"):
             edges.append(_edge("SM", "WS"))
@@ -549,7 +549,7 @@ def render_continuity_mermaid(model: dict[str, Any]) -> str:
 
     areas = list(model.get("area_memory") or [])[:5]
     if areas:
-        nodes.append(_node("AM", "Area Memory Signals"))
+        nodes.append(_node("AM", "Internal Area Signals"))
         edges.append(_edge("Repo", "AM"))
     for index, item in enumerate(areas, start=1):
         node_id = f"AM{index}"
@@ -713,8 +713,8 @@ def render_continuity_markdown(model: dict[str, Any]) -> str:
     for section, key, title_key in (
         ("Open Handoffs", "open_handoffs", "title"),
         ("Relevant Failures", "relevant_failures", "title"),
-        ("Strategy Memory", "strategies", "title"),
-        ("Area Memory", "area_memory", "area_id"),
+        ("Internal Strategy Hints", "strategies", "title"),
+        ("Internal Area Hints", "area_memory", "area_id"),
     ):
         lines.extend(["", f"## {section}", ""])
         lines.extend(_section_items(list(model.get(key) or []), title_key=title_key))

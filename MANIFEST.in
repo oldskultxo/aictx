@@ -1,6 +1,5 @@
-recursive-include docs *
-prune docs/images
-exclude docs/.DS_Store
+include docs/*.md
+include docs/llms.txt
 recursive-include integrations *
 include scripts/generate-agent-integrations.py
 include .agents/plugins/marketplace.json

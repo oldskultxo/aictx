@@ -167,6 +167,8 @@ Advanced:
 - [Safety](docs/SAFETY.md)
 - [Limitations](docs/LIMITATIONS.md)
 
+Legacy/internal compatibility surfaces are intentionally kept out of the first-run path; see [Usage](docs/USAGE.md) for the split between supported advanced commands and compatibility-only commands.
+
 For the full command reference, see [Usage](docs/USAGE.md).
 
 ## Project links

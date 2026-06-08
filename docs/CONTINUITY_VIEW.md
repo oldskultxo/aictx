@@ -29,7 +29,7 @@ Continuity View shows the current operational continuity of the repository, not 
 
 ## Why it exists
 
-AICTX already stores useful continuity across sessions: Work State, handoffs, decisions, failures, strategies, execution summaries, execution contracts, area memory, and optional RepoMap hints.
+AICTX already stores useful continuity across sessions: Work State, handoffs, decisions, failures, execution summaries, execution contracts, optional RepoMap hints, and bounded internal hints derived from prior strategy/area signals.
 
 That evidence can be distributed across several repo-local artifacts and runtime outputs. Continuity View gives users and agents one stable place to inspect the current operational state:
 
@@ -82,8 +82,8 @@ The generated Markdown includes:
 - active, paused, or blocked Work State details;
 - open handoffs;
 - relevant failure memory;
-- strategy memory;
-- area memory;
+- internal strategy hints;
+- internal area hints;
 - latest compatible execution contract;
 - recent execution summaries;
 - RepoMap hints;
@@ -258,8 +258,8 @@ Sources can include:
 | Execution summaries | Recent finalization summaries |
 | Handoffs | Open or active handoffs and next steps |
 | Failure Memory | Relevant unresolved or recent failure patterns |
-| Strategy hints | Reusable prior execution strategies used as internal hints |
-| Area hints | Repo areas with execution/failure/strategy signal used as internal hints |
+| Internal strategy hints | Reusable prior execution strategies, shown only as bounded diagnostic hints |
+| Internal area hints | Repo areas with execution/failure/strategy signal, shown only as bounded diagnostic hints |
 | RepoMap | Optional structural path and symbol hints |
 | Portability state | Portable continuity status and mode |
 

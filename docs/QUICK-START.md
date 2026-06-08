@@ -93,4 +93,4 @@ A later session resumes from repo-local continuity.
 - [What AICTX writes](WHAT-AICTX-WRITES.md): files and local/portable behavior.
 - [Usage](USAGE.md): command reference.
 - [Continuity View](CONTINUITY_VIEW.md): inspect current continuity.
-- [Docs map](README.md): main, advanced, and legacy/internal docs tiers.
+- [Docs map](../README.md): main, advanced, and legacy/internal docs tiers.
