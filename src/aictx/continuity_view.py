@@ -849,8 +849,17 @@ def mermaid_live_url(mermaid: str, *, mode: str = "view") -> str:
     return generate_mermaid_live_url(mermaid, mode=mode)
 
 
-def continuity_view_summary_links(repo_root: Path) -> dict[str, str]:
+def continuity_view_summary_links(repo_root: Path, *, include_online: bool = False) -> dict[str, str]:
     repo_root = Path(repo_root).expanduser().resolve()
+    file_path = CONTINUITY_MAP_PATH.as_posix()
+    links = {
+        "file_path": file_path,
+        "file_link": f"[continuity-map.mmd]({file_path})",
+        "online_command": "aictx view --repo . --json --online",
+    }
+    if not include_online:
+        return links
+
     mermaid_path = repo_root / CONTINUITY_MAP_PATH
     if mermaid_path.exists():
         try:
@@ -859,12 +868,8 @@ def continuity_view_summary_links(repo_root: Path) -> dict[str, str]:
             mermaid = ""
     else:
         mermaid = render_continuity_mermaid(build_continuity_view_model(repo_root))
-    file_path = CONTINUITY_MAP_PATH.as_posix()
     # Mermaid Live exposes shareable read-only diagrams through /view#pako.
     online_url = mermaid_live_url(mermaid)
-    return {
-        "file_path": file_path,
-        "file_link": f"[continuity-map.mmd]({file_path})",
-        "online_url": online_url,
-        "online_link": f"[mermaid.live view]({online_url})",
-    }
+    links["online_url"] = online_url
+    links["online_link"] = f"[mermaid.live view]({online_url})"
+    return links

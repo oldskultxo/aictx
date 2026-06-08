@@ -324,8 +324,13 @@ def test_finalize_include_view_and_resume_json_integration(tmp_path: Path, capsy
     assert (repo / CONTINUITY_VIEW_PATH).exists()
     assert (repo / CONTINUITY_MAP_PATH).exists()
     assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in payload["agent_summary_text"]
-    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in payload["agent_summary_text"]
-    encoded = payload["agent_summary_text"].split("https://mermaid.live/view#pako:", 1)[1].split(")", 1)[0]
+    assert "View continuity online:" not in payload["agent_summary_text"]
+
+    args = _parser().parse_args(["finalize", "--repo", str(repo), "--status", "success", "--summary", "done", "--include-view", "--online-view", "--json"])
+    assert args.func(args) == 0
+    online_payload = json.loads(capsys.readouterr().out)
+    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in online_payload["agent_summary_text"]
+    encoded = online_payload["agent_summary_text"].split("https://mermaid.live/view#pako:", 1)[1].split(")", 1)[0]
     decoded = _decode_mermaid_live_url(f"https://mermaid.live/view#pako:{encoded}")
     assert decoded["code"].startswith("flowchart TD")
     assert json.loads(decoded["mermaid"])["theme"] == "dark"

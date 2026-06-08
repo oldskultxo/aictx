@@ -22,7 +22,7 @@ from ..middleware import cli_finalize_execution, cli_prepare_execution, finalize
 from ..messages import MESSAGE_MODE_MUTED, MESSAGE_MODE_UNMUTED, get_message_mode, set_message_mode
 from ..portability import compact_portable_jsonl, detect_portable_continuity_from_gitignore, load_portability_state, portability_status
 from ..continuity import build_resume_capsule, load_continuity_context, render_next_text, render_resume_capsule
-from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, render_continuity_mermaid, write_continuity_view
+from ..continuity_view import CONTINUITY_MAP_PATH, build_continuity_view_model, continuity_view_summary_links, render_continuity_mermaid, write_continuity_view
 from ..continuity_guard import GUARD_ACTIONS, GUARD_RISKS, build_continuity_guard
 from ..steer_guard import STEER_CURRENT_ACTIONS, build_steer_guard
 from ..doctor import build_doctor_report
@@ -573,13 +573,16 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         "decisions": [],
         "semantic_repo": [],
         "work_state": {},
+        "include_online_view": bool(getattr(args, "online_view", False)),
     }
     payload = finalize_execution(prepared, result)
     append_lifecycle_event(repo, {"event_type": "finalize_called", "source": "cli", "agent_id": agent_id, "adapter_id": adapter_id, "session_id": str(getattr(args, "session_id", "") or ""), "execution_id": execution_id, "task": request, "task_type": str(getattr(args, "task_type", "") or ""), "status": status, "files_opened_count": len(files_opened), "files_edited_count": len(files_edited), "commands_count": len(commands_executed), "tests_count": len(tests_executed)})
     if bool(getattr(args, "include_view", False) or getattr(args, "view", False)):
         view_payload = write_continuity_view(repo)
-        payload["continuity_view"] = view_payload.get("view", {})
-        view = view_payload.get("view", {}) if isinstance(view_payload.get("view"), dict) else {}
+        existing_view = payload.get("continuity_view") if isinstance(payload.get("continuity_view"), dict) else {}
+        generated_view = view_payload.get("view", {}) if isinstance(view_payload.get("view"), dict) else {}
+        payload["continuity_view"] = {**existing_view, **generated_view}
+        view = generated_view
         lines = [
             "",
             "Continuity View:",
@@ -606,6 +609,10 @@ def cmd_view(args: argparse.Namespace) -> int:
         print(mermaid, end="")
         return 0
     payload = write_continuity_view(repo, output=getattr(args, "output", "") or None)
+    if bool(getattr(args, "online", False)):
+        view = payload.get("view") if isinstance(payload.get("view"), dict) else {}
+        view.update(continuity_view_summary_links(repo, include_online=True))
+        payload["view"] = view
     if bool(getattr(args, "json", False)):
         _print_json({key: value for key, value in payload.items() if key != "model"})
         return 0
@@ -1556,6 +1563,7 @@ def build_parser() -> argparse.ArgumentParser:
     view.add_argument("--repo", default=".", help="Repository root")
     view.add_argument("--mermaid", action="store_true", help="Print Mermaid only")
     view.add_argument("--output", default="", help="Write Markdown to an explicit path")
+    view.add_argument("--online", action="store_true", help="Include an opt-in Mermaid Live link in JSON output")
     view.add_argument("--json", action="store_true", help="Print structured view generation JSON")
     view.set_defaults(func=cmd_view)
 
@@ -1574,6 +1582,7 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--notable-errors", nargs="*", default=[], help="Explicit notable errors observed during execution")
     finalize.add_argument("--error", default="", help="Compact failure/error detail")
     finalize.add_argument("--include-view", action="store_true", help="Generate Continuity View after finalize")
+    finalize.add_argument("--online-view", action="store_true", help="Include an opt-in Mermaid Live link in the final summary")
     finalize.add_argument("--view", action="store_true", help=argparse.SUPPRESS)
     finalize.add_argument("--agent-id", default="", help=argparse.SUPPRESS)
     finalize.add_argument("--adapter-id", default="", help=argparse.SUPPRESS)

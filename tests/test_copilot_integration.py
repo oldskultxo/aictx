@@ -45,7 +45,7 @@ def test_copilot_instructions_include_expected_resume_and_finalize_commands(tmp_
     assert "attach/start the configured stdio MCP server" in text
     assert "continuity_view_online" in text
     assert "Mermaid online view links" in text
-    assert "do not replace URLs with placeholders" in text
+    assert "do not replace provided URLs with placeholders" in text
 
     path_text = (repo / COPILOT_PATH_INSTRUCTIONS_PATH).read_text(encoding="utf-8")
     assert 'applyTo: "**/*"' in path_text

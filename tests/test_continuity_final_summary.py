@@ -69,7 +69,9 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     assert "0 tests" not in text
     assert "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)" in text
     assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in text
-    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in text
+    assert "View continuity online:" not in text
+    assert not any(section["kind"] == "continuity_view_online" for section in finalized["agent_summary_render_payload"]["sections"])
+
     assert finalized["agent_summary"]["handoff_stored"] is True
     assert finalized["agent_summary"]["decision_stored"] is True
     policy = finalized["agent_summary_policy"]
@@ -97,6 +99,13 @@ def test_final_summary_with_reuse_reports_continuity_and_stored_artifacts(tmp_pa
     assert "Commands observed: 0" not in detailed
     assert "Reopened files: 0" not in detailed
 
+    online_finalized = finalize_execution(
+        prepare_execution({**_payload(repo, "exec-summary-reuse-online"), "files_edited": ["src/aictx/middleware.py"]}),
+        {"success": True, "result_summary": "Updated continuity final summary.", "validated_learning": False, "include_online_view": True},
+    )
+    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in online_finalized["agent_summary_text"]
+    assert any(section["kind"] == "continuity_view_online" for section in online_finalized["agent_summary_render_payload"]["sections"])
+
 
 def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
     repo = tmp_path / "repo"
@@ -116,7 +125,7 @@ def test_final_summary_without_reuse_is_honest_and_compatible(tmp_path: Path):
         "Details: [last_execution_summary.md](.aictx/continuity/last_execution_summary.md)\n"
     )
     assert "Continuity view file: [continuity-map.mmd](.aictx/reports/continuity-map.mmd)" in text
-    assert "View continuity online: [mermaid.live view](https://mermaid.live/view#pako:" in text
+    assert "View continuity online:" not in text
     assert finalized["contract_compliance"]["status"] == "not_evaluated"
     assert not (repo / ".aictx" / "metrics" / "contract_compliance.jsonl").exists()
 

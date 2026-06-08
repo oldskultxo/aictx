@@ -1733,6 +1733,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
         "semantic_repo": list(result.get("semantic_repo", [])) if isinstance(result.get("semantic_repo"), list) else [],
         "handoff": result.get("handoff", {}) if isinstance(result.get("handoff"), dict) else {},
         "work_state": result.get("work_state", {}) if isinstance(result.get("work_state"), dict) else {},
+        "include_online_view": bool(result.get("include_online_view")),
     }
     _merge_result_observation_signals(prepared, result)
     telemetry_entry = append_execution_telemetry(repo_root, prepared, normalized_result)
@@ -1896,7 +1897,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             except ValueError:
                 details_path = resolved_path
     agent_summary["structured"]["polished_summary"] = build_polished_agent_summary(agent_summary["structured"], details_path=details_path)
-    agent_summary["structured"]["continuity_view"] = continuity_view_summary_links(repo_root)
+    agent_summary["structured"]["continuity_view"] = continuity_view_summary_links(repo_root, include_online=bool(normalized_result.get("include_online_view")))
     agent_summary_render_payload = build_agent_summary_render_payload(agent_summary["structured"], details_path=details_path)
     agent_summary_text = prepend_aictx_text_separator(str(agent_summary_render_payload.get("canonical_text") or ""))
     returned_agent_summary_text = "" if message_output_muted else agent_summary_text
@@ -1957,7 +1958,7 @@ def finalize_execution(prepared: dict[str, Any], result: dict[str, Any]) -> dict
             "do_not_invent": True,
             "preserve_technical_tokens": True,
             "render_payload_field": "agent_summary_render_payload",
-            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available and render every provided section, including details, continuity_view_file, and continuity_view_online. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, Continuity View file links, Mermaid online view links, or other technical tokens. Do not replace URLs with placeholders and do not manually reconstruct or retype pako URLs. Do not invent or enrich facts.",
+            "instruction": "Append the AICTX final summary in the language currently used with the user. Prefer agent_summary_render_payload when available and render every provided section, including details, continuity_view_file, and continuity_view_online when present. You may fully rephrase human-readable prose from structured factual fields while preserving exact facts, compact intent, and technical tokens. Do not translate file paths, commands, flags, package names, test names, code identifiers, Markdown details link targets, Continuity View file links, Mermaid online view links when present, or other technical tokens. Do not replace provided URLs with placeholders and do not manually reconstruct or retype pako URLs. Do not invent or enrich facts.",
         },
         "value_evidence": {
             "task_fingerprint": prepared.get("task_fingerprint", ""),

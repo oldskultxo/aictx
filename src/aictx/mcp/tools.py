@@ -58,7 +58,7 @@ TOOL_INPUT_SCHEMAS: dict[str, dict[str, Any]] = {
     "aictx_resume": _schema({**_REPO_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "mode": {"type": "string", "enum": ["brief", "standard", "full"]}, "agent_id": _TEXT_PROP, **_ADAPTER_PROP, "session_id": _TEXT_PROP}),
     "aictx_prepare_task_context": _schema({**_REPO_PROP, "goal": _TEXT_PROP, "task_type": _TEXT_PROP}, required=["goal"]),
     "aictx_lifecycle_status": _schema({**_REPO_PROP, "task": _TEXT_PROP, "session_id": _TEXT_PROP}),
-    "aictx_finalize": _schema({**_REPO_PROP, "status": {"type": "string", "enum": ["success", "failure"]}, "summary": _TEXT_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "agent_id": _TEXT_PROP, **_ADAPTER_PROP, "session_id": _TEXT_PROP, "include_view": {"type": "boolean"}, **_OBSERVED_PROPS}, required=["status", "summary"]),
+    "aictx_finalize": _schema({**_REPO_PROP, "status": {"type": "string", "enum": ["success", "failure"]}, "summary": _TEXT_PROP, "task": _TEXT_PROP, "task_type": _TEXT_PROP, "agent_id": _TEXT_PROP, **_ADAPTER_PROP, "session_id": _TEXT_PROP, "include_view": {"type": "boolean"}, "include_online_view": {"type": "boolean"}, **_OBSERVED_PROPS}, required=["status", "summary"]),
     "aictx_task_start": _schema({**_REPO_PROP, "goal": _TEXT_PROP, "task_type": _TEXT_PROP, "hypothesis": _TEXT_PROP, "next_action": _TEXT_PROP, "files": _STRING_LIST_PROP, "risks": _STRING_LIST_PROP}, required=["goal"]),
     "aictx_task_update": _schema({**_REPO_PROP, "task_id": _TEXT_PROP, "goal": _TEXT_PROP, "status": _TEXT_PROP, "hypothesis": _TEXT_PROP, "next_action": _TEXT_PROP, "files": _STRING_LIST_PROP, "risks": _STRING_LIST_PROP, "verification": _TEXT_PROP}),
     "aictx_task_close": _schema({**_REPO_PROP, "task_id": _TEXT_PROP, "status": _TEXT_PROP, "summary": _TEXT_PROP, "next_action": _TEXT_PROP}),
@@ -340,10 +340,13 @@ def aictx_finalize(args: dict[str, Any]) -> dict[str, Any]:
     commands_executed = _list(args.get("commands_executed"), "commands_executed")
     tests_executed = _list(args.get("tests_executed"), "tests_executed")
     prepared = prepare_execution({"repo_root": repo.as_posix(), "user_request": task, "agent_id": agent_id, "adapter_id": adapter_id, "execution_id": execution_id, "timestamp": now_iso(), "declared_task_type": _text(args.get("task_type"), "task_type") or None, "execution_mode": "mcp", "files_opened": files_opened, "files_edited": files_edited, "commands_executed": commands_executed, "tests_executed": tests_executed, "notable_errors": _list(args.get("notable_errors"), "notable_errors"), "error_events": [], "work_state": {}, "skill_metadata": {}})
-    payload = finalize_execution(prepared, {"success": status == "success", "result_summary": summary, "validated_learning": False, "decisions": [], "semantic_repo": [], "work_state": {}})
+    payload = finalize_execution(prepared, {"success": status == "success", "result_summary": summary, "validated_learning": False, "decisions": [], "semantic_repo": [], "work_state": {}, "include_online_view": bool(args.get("include_online_view"))})
     append_lifecycle_event(repo, {"event_type": "finalize_called", "source": "mcp", "agent_id": agent_id, "adapter_id": adapter_id, "session_id": session_id, "execution_id": execution_id, "task": task, "task_type": _text(args.get("task_type"), "task_type"), "status": status, "files_opened_count": len(files_opened), "files_edited_count": len(files_edited), "commands_count": len(commands_executed), "tests_count": len(tests_executed)})
     if bool(args.get("include_view")):
-        payload["continuity_view"] = write_continuity_view(repo).get("view", {})
+        existing_view = payload.get("continuity_view") if isinstance(payload.get("continuity_view"), dict) else {}
+        generated_view = write_continuity_view(repo).get("view", {})
+        generated_view = generated_view if isinstance(generated_view, dict) else {}
+        payload["continuity_view"] = {**existing_view, **generated_view}
     return ok(changed=True, warnings=[], summary=payload.get("agent_summary_text", ""), finalize=payload)
 
 

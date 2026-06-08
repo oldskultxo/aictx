@@ -38,6 +38,7 @@ Upgrade notes:
 - Legacy runtime communication modes are normalized to disabled defaults. If you relied on AICTX to enforce agent response style, move that preference to your agent or runner configuration.
 - Doctor JSON now includes action-plan remediation hints for continuity quality issues; existing diagnostics consumers should tolerate the additional field.
 - Resume JSON now includes a public contract object that separates stable fields from diagnostic fields; existing consumers can continue reading the previous fields directly.
+- Final summaries no longer include the long Mermaid Live online URL by default; they keep the local `continuity-map.mmd` link. Use `aictx finalize --online-view`, MCP `include_online_view`, or `aictx view --json --online` when an online Mermaid link is needed.
 - Review [What AICTX writes](WHAT-AICTX-WRITES.md) if you need a file-level setup/runtime inventory.
 
 ---

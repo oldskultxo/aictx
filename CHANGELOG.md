@@ -6,6 +6,7 @@
 - Added a public resume JSON contract so agent integrations can distinguish stable resume fields from diagnostic fields.
 - Added Doctor action-plan output for continuity quality issues, including safe remediation hints for missing views, RepoMap refreshes, stale continuity, deleted-path references, and pending validation evidence.
 - Added an end-to-end fresh-repo lifecycle regression covering `install -> init -> resume -> finalize -> resume -> doctor -> view`.
+- Added opt-in Mermaid Live URL generation through `aictx finalize --online-view`, MCP `include_online_view`, and `aictx view --json --online`.
 - Added [What AICTX writes](docs/WHAT-AICTX-WRITES.md) as the focused inventory of repo-local setup and runtime artifacts.
 
 ### Changed
@@ -15,6 +16,7 @@
 - Narrowed top-level CLI help to the primary product path while keeping advanced, diagnostic, and compatibility commands available behind advanced/hidden surfaces.
 - Disabled legacy runtime communication modes by default so AICTX continuity does not impose repo-level answer style on agents.
 - Hardened finalize evidence capture with explicit provenance for opened files, edited files, commands, tests, and notable errors.
+- Made final summaries default to local Continuity View links only, avoiding long `mermaid.live` URLs unless explicitly requested.
 - Updated package/runtime version metadata for the 7.0.0 release line.
 
 ### Fixed
