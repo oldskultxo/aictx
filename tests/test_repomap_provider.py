@@ -137,5 +137,72 @@ def test_markdown_config_makefile_and_shebang_use_explicit_low_noise_kinds(tmp_p
     assert tree_sitter_provider.extract_file_structure(makefile, tmp_path, 10_000)["symbols"][0]["kind"] == "entrypoint"
     assert tree_sitter_provider.extract_file_structure(script, tmp_path, 10_000)["symbols"][0]["kind"] == "entrypoint"
     legacy_record = tree_sitter_provider.extract_file_structure(legacy_script, tmp_path, 10_000)
-    assert legacy_record["language"] == "shell"
+    assert legacy_record["language"] == "bash"
     assert legacy_record["symbols"][0]["kind"] == "entrypoint"
+
+
+def test_ruby_suffix_special_filenames_and_symbols_are_indexed(tmp_path: Path, monkeypatch):
+    class FakeName:
+        text = b""
+
+        def __init__(self, text: bytes):
+            self.text = text
+
+    class FakeNode:
+        def __init__(self, node_type, name=b"", row=0, end_row=None, children=None):
+            self.type = node_type
+            self._name = FakeName(name) if name else None
+            self.start_point = SimpleNamespace(row=row)
+            self.end_point = SimpleNamespace(row=row if end_row is None else end_row)
+            self.children = children or []
+
+        def child_by_field_name(self, field):
+            return self._name if field == "name" else None
+
+    class FakeParser:
+        def parse(self, source):
+            return SimpleNamespace(
+                root_node=FakeNode(
+                    "program",
+                    children=[
+                        FakeNode("module", b"ScheduledCaptures", row=0, end_row=5),
+                        FakeNode("class", b"OperationalSnapshot", row=1, end_row=4),
+                        FakeNode("singleton_method", b"call", row=2),
+                        FakeNode("method", b"run", row=3),
+                    ],
+                )
+            )
+
+    fake_module = SimpleNamespace(
+        __version__="x",
+        get_parser=lambda language: FakeParser(),
+    )
+    monkeypatch.setattr(tree_sitter_provider, "_import_language_pack", lambda: fake_module)
+
+    ruby_file = tmp_path / "operational_snapshot.rb"
+    ruby_file.write_text("module ScheduledCaptures\nend\n", encoding="utf-8")
+    gemfile = tmp_path / "Gemfile"
+    gemfile.write_text("source 'https://rubygems.org'\n", encoding="utf-8")
+
+    ruby_record = tree_sitter_provider.extract_file_structure(ruby_file, tmp_path, max_parse_file_bytes=10_000)
+    assert ruby_record["metadata_only"] is False
+    assert ruby_record["reason"] == ""
+    assert ruby_record["language"] == "ruby"
+    assert {symbol["name"]: symbol["kind"] for symbol in ruby_record["symbols"]} == {
+        "ScheduledCaptures": "module",
+        "OperationalSnapshot": "class",
+        "call": "function",
+        "run": "function",
+    }
+    assert ruby_record["symbols"][0]["line"] == 1
+
+    assert tree_sitter_provider.extract_file_structure(gemfile, tmp_path, 10_000)["language"] == "ruby"
+
+
+def test_extended_language_suffixes_are_detected_without_provider_detection():
+    fake_module = SimpleNamespace(__version__="x")
+
+    assert tree_sitter_provider._detect_language(fake_module, Path("lib/task.rake")) == "ruby"
+    assert tree_sitter_provider._detect_language(fake_module, Path("main.rs")) == "rust"
+    assert tree_sitter_provider._detect_language(fake_module, Path("main.tf")) == "terraform"
+    assert tree_sitter_provider._detect_language(fake_module, Path("component.vue")) == "vue"

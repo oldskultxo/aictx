@@ -11,6 +11,18 @@ from typing import Any, Iterable, Mapping
 from .models import normalize_repomap_file_record, normalize_repomap_import, normalize_repomap_symbol
 from .setup import REPO_MAP_IMPORT_NAME, REPO_MAP_PROVIDER
 
+LANGUAGE_BY_FILENAME = {
+    "Rakefile": "ruby",
+    "Gemfile": "ruby",
+    "Guardfile": "ruby",
+    "Vagrantfile": "ruby",
+    "Podfile": "ruby",
+    "Brewfile": "ruby",
+    "Dockerfile": "dockerfile",
+    "Makefile": "makefile",
+    "Justfile": "makefile",
+}
+
 COMMON_LANGUAGE_BY_SUFFIX = {
     ".py": "python",
     ".js": "javascript",
@@ -30,6 +42,41 @@ COMMON_LANGUAGE_BY_SUFFIX = {
     ".toml": "toml",
     ".yaml": "yaml",
     ".yml": "yaml",
+    ".rb": "ruby",
+    ".rake": "ruby",
+    ".gemspec": "ruby",
+    ".ex": "elixir",
+    ".exs": "elixir",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    ".scala": "scala",
+    ".sc": "scala",
+    ".swift": "swift",
+    ".dart": "dart",
+    ".php": "php",
+    ".css": "css",
+    ".scss": "scss",
+    ".html": "html",
+    ".htm": "html",
+    ".xml": "xml",
+    ".vue": "vue",
+    ".svelte": "svelte",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".zsh": "bash",
+    ".tf": "terraform",
+    ".hcl": "hcl",
+    ".sql": "sql",
+    ".proto": "proto",
+    ".dockerfile": "dockerfile",
+    ".lua": "lua",
+    ".zig": "zig",
+    ".nim": "nim",
+    ".r": "r",
+    ".hs": "haskell",
+    ".erl": "erlang",
+    ".clj": "clojure",
+    ".erb": "embeddedtemplate",
 }
 
 SYMBOL_NODE_KINDS = {
@@ -38,6 +85,26 @@ SYMBOL_NODE_KINDS = {
     "function_declaration": "function",
     "function_definition": "function",
     "method_definition": "function",
+    "module": "module",
+    "class": "class",
+    "method": "function",
+    "singleton_method": "function",
+    "method_declaration": "function",
+    "interface_declaration": "class",
+    "namespace_definition": "module",
+    "trait_declaration": "class",
+    "object_definition": "class",
+    "trait_definition": "class",
+    "function_item": "function",
+    "struct_item": "class",
+    "impl_item": "class",
+    "enum_item": "class",
+    "trait_item": "class",
+    "mod_item": "module",
+    "object_declaration": "class",
+    "protocol_declaration": "class",
+    "struct_declaration": "class",
+    "type_declaration": "class",
 }
 
 
@@ -169,16 +236,19 @@ def _detect_language(module: ModuleType, path: Path) -> str:
 
 
 def _detect_special_language(path: Path, source: bytes) -> str:
-    if path.name == "Makefile":
-        return "makefile"
+    filename_language = LANGUAGE_BY_FILENAME.get(path.name)
+    if filename_language:
+        return filename_language
     first_line = source.splitlines()[0].decode("utf-8", errors="replace").lower() if source.splitlines() else ""
     if first_line.startswith("#!"):
         if "python" in first_line:
             return "python"
+        if "ruby" in first_line:
+            return "ruby"
+        if "node" in first_line:
+            return "javascript"
         if any(shell in first_line for shell in ("sh", "bash", "zsh")):
-            return "shell"
-    if path.suffix:
-        return ""
+            return "bash"
     return ""
 
 
@@ -254,7 +324,7 @@ def _extract_lightweight_metadata(path: str, language: str, source: bytes, *, si
         symbols = _markdown_heading_symbols(text)
     elif language in {"json", "toml", "yaml"}:
         symbols = _config_key_symbols(text, language)
-    elif language in {"makefile", "shell"}:
+    elif language in {"makefile", "shell", "bash", "dockerfile"}:
         symbols = [_symbol(Path(path).name or path, "entrypoint", language, 1)]
     else:
         return None
@@ -401,13 +471,22 @@ def _walk_tree(node: Any, language: str, symbols: list[dict[str, Any]]) -> None:
                 {
                     "name": name,
                     "kind": SYMBOL_NODE_KINDS[node_type],
-                    "line": int(start[0]) + 1 if isinstance(start, tuple) and start else 0,
-                    "end_line": int(end[0]) + 1 if isinstance(end, tuple) and end else 0,
+                    "line": _point_line(start),
+                    "end_line": _point_line(end),
                     "language": language,
                 }
             )
     for child in getattr(node, "children", []) or []:
         _walk_tree(child, language, symbols)
+
+
+def _point_line(point: Any) -> int:
+    if isinstance(point, tuple) and point:
+        return int(point[0]) + 1
+    row = getattr(point, "row", None)
+    if row is not None:
+        return int(row) + 1
+    return 0
 
 
 def _node_name(node: Any) -> str:

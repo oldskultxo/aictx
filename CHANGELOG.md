@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.0.1 - 2026-06-17
+
+### Fixed
+- Fixed RepoMap language detection for Ruby, Elixir, Kotlin, Swift, PHP, Scala, Terraform/HCL, shell, SQL, web template/style, and other tree-sitter-supported source files that were previously marked `unsupported_language`.
+- Fixed RepoMap symbol extraction for Ruby modules/classes/methods plus additional common tree-sitter declaration nodes used by Rust, PHP, Scala, Swift, Kotlin, Java, and Go.
+- Fixed tree-sitter point handling so extracted symbols from current tree-sitter bindings keep correct 1-based line numbers.
+
 ## 7.0.0 - 2026-06-08
 
 ### Added

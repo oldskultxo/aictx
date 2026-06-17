@@ -7,7 +7,7 @@ description: "Upgrade the official Python `aictx` package and refresh repo-local
 
 ## Current line: 7.0.x
 
-Current documented runtime: `7.0.0`.
+Current documented runtime: `7.0.1`.
 
 Release history lives in [Changelog](https://github.com/oldskultxo/aictx/blob/main/CHANGELOG.md). This guide focuses on migration actions, compatibility notes, and setup refresh steps.
 
